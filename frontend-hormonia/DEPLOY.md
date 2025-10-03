@@ -38,10 +38,16 @@ VITE_API_BASE_URL=https://<backend-domain>.up.railway.app
 VITE_WS_URL=wss://<backend-domain>.up.railway.app/ws
 VITE_WS_BASE_URL=wss://<backend-domain>.up.railway.app/ws
 
+# NGINX BACKEND PROXY (OBRIGATÓRIO - mesmo valor do VITE_API_BASE_URL)
+BACKEND_URL=https://<backend-domain>.up.railway.app
+
 # SUPABASE (mesmas chaves do backend - PÚBLICAS)
 VITE_SUPABASE_URL=https://<seu-projeto>.supabase.co
 VITE_SUPABASE_ANON_KEY=<anon-key-publico>
 ```
+
+> **⚠️ IMPORTANTE**: A variável `BACKEND_URL` é obrigatória para o Nginx funcionar.
+> Se não configurada, o container falhará com erro: `host not found in upstream "backend"`
 
 ### Variáveis JÁ CONFIGURADAS no .env
 ```bash
@@ -147,6 +153,24 @@ O `docker-entrypoint.sh` injeta `BACKEND_URL` em tempo de execução:
 ---
 
 ## 🐛 Troubleshooting
+
+### ❌ "host not found in upstream 'backend'" (Nginx Error)
+
+**Sintoma**: Container crasha ao iniciar com erro nginx
+```
+nginx: [emerg] host not found in upstream "backend"
+```
+
+**Causa**: A variável `BACKEND_URL` não está configurada no Railway
+
+**Solução**:
+1. Vá em **Settings → Variables**
+2. Adicione: `BACKEND_URL=https://<seu-backend>.up.railway.app`
+3. Redeploy o serviço
+
+> **Nota**: Se você já definiu `VITE_API_BASE_URL`, pode usar o mesmo valor para `BACKEND_URL`
+
+---
 
 ### "API calls failing (CORS)"
 → Adicione frontend URL no backend `ALLOWED_ORIGINS`
