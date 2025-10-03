@@ -63,6 +63,7 @@ class Settings(BaseSettings):
             except json.JSONDecodeError:
                 return []
         return v
+
     FIREBASE_REQUIRE_CUSTOM_CLAIMS: bool = Field(
         default=True,
         description="Require valid custom claims (role) before creating user"
