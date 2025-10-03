@@ -38,7 +38,8 @@
       "Bash(if not exist \"c:\\Meu Projetos\\clinica-oncologica-v02\\backend-hormonia\\ops\" mkdir \"c:\\Meu Projetos\\clinica-oncologica-v02\\backend-hormonia\\ops\")",
       "Bash(grep:*)",
       "Bash(findstr:*)",
-      "Bash(git check-ignore:*)"
+      "Bash(git check-ignore:*)",
+      "Bash(python3:*)"
     ],
     "deny": [],
     "ask": []
