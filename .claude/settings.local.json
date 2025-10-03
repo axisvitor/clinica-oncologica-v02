@@ -36,7 +36,9 @@
       "Bash(gh run watch:*)",
       "Bash(gh run view:*)",
       "Bash(if not exist \"c:\\Meu Projetos\\clinica-oncologica-v02\\backend-hormonia\\ops\" mkdir \"c:\\Meu Projetos\\clinica-oncologica-v02\\backend-hormonia\\ops\")",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(findstr:*)",
+      "Bash(git check-ignore:*)"
     ],
     "deny": [],
     "ask": []
