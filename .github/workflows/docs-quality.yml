@@ -105,19 +105,18 @@ jobs:
             -not -path "./venv/*" \
             -not -path "./.git/*" \
             -type f > all_docs.txt
-
           echo "Found $(wc -l < all_docs.txt) markdown files"
 
           # Check for docs in wrong locations (root level that should be archived)
-          root_docs=$(find . -maxdepth 1 -name "*.md" -not -name "README.md" -not -name "DOCS_REFACTOR_PLAN.md" | wc -l)
+          # Allowed root docs: README.md, GIT_SETUP_INSTRUCTIONS.md, RAILWAY_DEPLOYMENT.md
+          root_docs=$(find . -maxdepth 1 -name "*.md" -not -name "README.md" -not -name "GIT_SETUP_INSTRUCTIONS.md" -not -name "RAILWAY_DEPLOYMENT.md" | wc -l)
 
           if [ $root_docs -gt 0 ]; then
             echo "⚠️  Warning: Found $root_docs documentation files in root that may need to be moved"
-            find . -maxdepth 1 -name "*.md" -not -name "README.md" -not -name "DOCS_REFACTOR_PLAN.md"
+            find . -maxdepth 1 -name "*.md" -not -name "README.md" -not -name "GIT_SETUP_INSTRUCTIONS.md" -not -name "RAILWAY_DEPLOYMENT.md"
           else
             echo "✅ No orphaned docs in root directory"
           fi
-
   spelling:
     name: Check Spelling
     runs-on: ubuntu-latest

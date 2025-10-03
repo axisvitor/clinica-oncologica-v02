@@ -87,9 +87,10 @@ Se o GitHub pedir senha, use um **Personal Access Token** (não senha):
 
 1. Acesse: https://github.com/axisvitor/clinica-oncologica-v02
 2. Você verá um banner "Compare & pull request" - clique
-3. Título: `docs: complete documentation refactor + Python 3.13 upgrade`
-4. Descrição: Cole o conteúdo de [REFACTOR_COMPLETE.md](REFACTOR_COMPLETE.md)
-5. Criar Pull Request
+3. Título: Use um título descritivo (ex: `docs: complete documentation refactor + Python 3.13 upgrade`)
+4. Descrição: O template [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) será carregado automaticamente
+5. Preencha o checklist do template
+6. Criar Pull Request
 
 ### 2. Verificar CI/CD
 
@@ -184,10 +185,10 @@ git push -u origin docs-refactor-py313
 
 ## 📚 Referências
 
-- **Resumo Completo**: [REFACTOR_COMPLETE.md](REFACTOR_COMPLETE.md)
-- **Plano Detalhado**: [DOCS_REFACTOR_PLAN.md](DOCS_REFACTOR_PLAN.md)
-- **Python 3.13**: [backend-hormonia/docs/PYTHON_313_UPGRADE.md](backend-hormonia/docs/PYTHON_313_UPGRADE.md)
-- **Próximos Passos**: [DOCS_NEXT_STEPS.md](DOCS_NEXT_STEPS.md)
+- **Pull Request Template**: [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md)
+- **Railway Deployment**: [RAILWAY_DEPLOYMENT.md](RAILWAY_DEPLOYMENT.md)
+- **Python 3.13 Guide**: [backend-hormonia/docs/PYTHON_313_UPGRADE.md](backend-hormonia/docs/PYTHON_313_UPGRADE.md)
+- **Docs Refactor Plan** (archived): [backend-hormonia/docs/incidents/_archive/DOCS_REFACTOR_PLAN.md](backend-hormonia/docs/incidents/_archive/DOCS_REFACTOR_PLAN.md)
 
 ---
 

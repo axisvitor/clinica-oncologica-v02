@@ -29,11 +29,9 @@ clinica-oncologica-v02/
 │   ├── public/                # Assets
 │   └── docs/                  # 📚 Documentação Frontend
 │
-├── quiz-mensal-interface/     # Interface Pública Quiz
-│   ├── src/                   # Código React
-│   └── docs/                  # 📚 Documentação Quiz
-│
-└── DOCS_REFACTOR_PLAN.md      # Plano de refatoração (este arquivo)
+└── quiz-mensal-interface/     # Interface Pública Quiz
+    ├── src/                   # Código React
+    └── docs/                  # 📚 Documentação Quiz
 ```
 
 ## 📚 Documentação

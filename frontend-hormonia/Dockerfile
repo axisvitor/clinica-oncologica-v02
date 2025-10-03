@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile optimized for Railway
 # Stage 1: Dependencies
-FROM node:18-alpine AS deps
+FROM node:20-alpine AS deps
 WORKDIR /app
 
 # Copy package files
@@ -16,7 +16,7 @@ RUN if [ ! -f package-lock.json ]; then \
     fi
 
 # Stage 2: Builder
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Copy dependencies from deps stage
@@ -92,7 +92,8 @@ sed -i "s|\\${BACKEND_URL}|$BACKEND_URL|g" /etc/nginx/conf.d/default.conf\n\
 echo " Configured BACKEND_URL to $BACKEND_URL in nginx config"\n\
 \n\
 echo " Starting nginx..."\n\
-exec nginx -g "daemon off;"\n' > /docker-entrypoint.sh
+exec nginx -g "daemon off;"\n' > /docker-entrypoint.sh && \
+    chmod +x /docker-entrypoint.sh
 
 # Expose port (Railway will override with PORT env var)
 EXPOSE 3000

@@ -36,19 +36,5 @@
   },
   "regions": [
     "us-west1"
-  ],
-  "services": [
-    {
-      "name": "quiz-mensal-interface",
-      "source": {
-        "type": "REPO",
-        "rootDirectory": "/quiz-mensal-interface"
-      },
-      "variables": {
-        "NODE_ENV": "production",
-        "PORT": "${{RAILWAY_PORT}}",
-        "NEXT_TELEMETRY_DISABLED": "1"
-      }
-    }
   ]
 }

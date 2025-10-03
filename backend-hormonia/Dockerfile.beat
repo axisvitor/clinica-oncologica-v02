@@ -1,4 +1,4 @@
-# Backend Dockerfile - Python 3.13 + Node.js for hybrid dependencies
+# Backend Beat Dockerfile - Celery Beat Scheduler
 FROM python:3.13-slim
 
 # Set working directory
@@ -38,30 +38,17 @@ COPY . .
 # Set proper ownership
 RUN chown -R appuser:appuser /app
 
-# Set environment variables for Railway
+# Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONPATH=/app
-ENV PORT=8000
-# Force passlib to use builtin bcrypt to avoid bug
 ENV PASSLIB_BUILTIN_BCRYPT=enabled
-
-# Health check for Railway
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
-
-# Expose port (Railway will set PORT env var)
-EXPOSE ${PORT:-8000}
+ENV LOG_LEVEL=info
+ENV CELERY_BEAT_SCHEDULER="celery.beat.PersistentScheduler"
+ENV CELERY_BEAT_MAX_INTERVAL=300
 
 # Switch to non-root user
 USER appuser
 
-# Start server with gunicorn + uvicorn workers for production
-CMD gunicorn app.main:app \
-    --workers 4 \
-    --worker-class uvicorn.workers.UvicornWorker \
-    --bind 0.0.0.0:${PORT:-8000} \
-    --timeout 120 \
-    --access-logfile - \
-    --error-logfile - \
-    --log-level info
+# Start Celery beat (shell form to allow env expansion)
+CMD ["sh", "-c", "celery -A app.celery_app beat --loglevel=${LOG_LEVEL:-info} --scheduler=${CELERY_BEAT_SCHEDULER:-celery.beat.PersistentScheduler} ${CELERY_BEAT_MAX_INTERVAL:+--max-interval=${CELERY_BEAT_MAX_INTERVAL}}" ]

@@ -1,44 +1,59 @@
-__pycache__
-*.pyc
-*.pyo
-*.pyd
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
 .Python
-env/
 venv/
 .venv/
-pip-log.txt
-pip-delete-this-directory.txt
-.tox/
+env/
+ENV/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Testing
+.pytest_cache/
 .coverage
-.coverage.*
-.cache
-*.log
-.git
-.gitignore
-.env
-.env.*
-*.sqlite3
-*.db
-.pytest_cache
-.mypy_cache
-.DS_Store
+htmlcov/
+.tox/
+.hypothesis/
+
+# IDE
+.vscode/
+.idea/
 *.swp
 *.swo
 *~
-.idea/
-.vscode/
-tests/
-test_*.py
-*_test.py
-*.test.py
-scripts/test_*
-scripts/*test*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Git
+.git/
+.github/
+.gitignore
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Documentation
 docs/
 *.md
 README*
-# SECURITY: Quarantined vulnerable Node.js code
-legacy_node_quarantined/
-src/
+
+# Node (for dev tooling only)
 node_modules/
-package.json
-package-lock.json
