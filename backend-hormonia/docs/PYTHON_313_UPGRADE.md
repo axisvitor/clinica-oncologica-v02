@@ -15,7 +15,7 @@ Este documento detalha o upgrade do backend para Python 3.13, incluindo alteraç
 - ✅ [README.md](../README.md) - Atualizado para Python 3.13+
 - ✅ [docs/README.md](README.md) - Stack atualizada
 - ✅ [docs/security/rls/TESTES_RLS_API_GUIA.md](security/rls/TESTES_RLS_API_GUIA.md) - CI steps atualizados
-- ✅ [docs/DEPLOYMENT.md](DEPLOYMENT.md) - Nixpacks config atualizado
+- ✅ [docs/deployment/DEPLOYMENT.md](deployment/DEPLOYMENT.md) - Nixpacks config atualizado
 - ✅ Root [README.md](../../README.md) - Stack tecnológica
 
 ### 2. Arquivos de Configuração

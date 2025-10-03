@@ -112,7 +112,7 @@ cmd = "uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 4"
 ### Dockerfile
 
 ```dockerfile
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 WORKDIR /app
 
@@ -287,7 +287,7 @@ spec:
 sudo apt update && sudo apt upgrade -y
 
 # Install dependencies
-sudo apt install -y python3.11 python3-pip python3-venv \
+sudo apt install -y python3.13 python3-pip python3-venv \
     postgresql-client redis-tools nginx certbot python3-certbot-nginx
 
 # Create app user
@@ -303,7 +303,7 @@ git clone https://github.com/your-org/hormonia.git
 cd hormonia/Backend
 
 # Create virtual environment
-python3.11 -m venv venv
+python3.13 -m venv venv
 source venv/bin/activate
 
 # Install dependencies

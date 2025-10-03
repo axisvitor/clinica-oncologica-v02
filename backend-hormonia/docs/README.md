@@ -18,7 +18,7 @@
 
 ### 🚀 API
 - [Documentação da API](api/API.md)
-- [Índice da API Pública de Quiz](QUIZ_PUBLIC_API_INDEX.md)
+- [API Pública de Quiz Mensal](QUIZ_PUBLIC_API.md) - Guia completo
 - [Referência Rápida de Migrations](MIGRATION_QUICK_REFERENCE.md)
 
 ### 📦 Deployment
@@ -28,10 +28,8 @@
 - [Upgrade Python 3.13](PYTHON_313_UPGRADE.md)
 
 ### 🔴 Redis
-- [Guia de Uso do Redis](redis/REDIS_USAGE_GUIDE.md)
-- [Status Final do Redis](redis/REDIS_FINAL_STATUS.md)
-- [Guia de Remoção Legacy](redis/REDIS_LEGACY_REMOVAL_GUIDE.md)
-- [Sumário de Migração](redis/REDIS_MIGRATION_SUMMARY.md)
+- [Guia de Uso do Redis](redis/REDIS_USAGE_GUIDE.md) - Guia canônico de uso
+- [Histórico de Migração](incidents/_archive/REDIS_MIGRATION_SUMMARY.md) - Arquivado
 
 ### 📊 Monitoramento
 - [Monitoramento de Performance de Queries](monitoring/QUERY_PERFORMANCE_MONITORING.md)

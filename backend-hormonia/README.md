@@ -68,7 +68,7 @@ The system features a completely refactored modular architecture with clean sepa
 ## 🛠️ Technology Stack
 
 - **Framework**: FastAPI 0.104+
-- **Language**: Python 3.11+
+- **Language**: Python 3.13+
 - **Database**: PostgreSQL (via Supabase)
 - **Cache**: Redis (dual client architecture)
 - **Authentication**: JWT with refresh tokens
@@ -100,9 +100,9 @@ Backend/
 │   └── main.py               # Entry point (25 lines)
 ├── docs/                      # Consolidated documentation
 │   ├── api/                   # API documentation
-│   │   └── API_REFERENCE.md        # Complete API reference
+│   │   └── API.md                  # Complete API reference
 │   ├── deployment/            # Deployment guides
-│   │   └── DEPLOYMENT_GUIDE.md     # Unified deployment guide
+│   │   └── DEPLOYMENT.md           # Unified deployment guide
 │   └── systems/               # System documentation
 │       ├── FLOW_SYSTEM.md          # AI conversation flows
 │       ├── QUIZ_SYSTEM.md          # Medical assessments
@@ -134,7 +134,7 @@ Backend/
 
 ### Prerequisites
 
-- Python 3.11+
+- Python 3.13+
 - PostgreSQL (or Supabase)
 - Redis
 - Docker and Docker Compose (optional)
@@ -143,8 +143,8 @@ Backend/
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/axisvitor/clinica-oncologica-v01.git
-   cd clinica-oncologica-v01/Backend
+   git clone https://github.com/axisvitor/clinica-oncologica-v02.git
+   cd clinica-oncologica-v02/backend-hormonia
    ```
 
 2. **Create virtual environment:**
@@ -206,8 +206,8 @@ GOOGLE_API_KEY=your-google-key
 
 ```bash
 # 1. Clone and setup
-git clone https://github.com/axisvitor/clinica-oncologica-v01.git
-cd clinica-oncologica-v01/Backend
+git clone https://github.com/axisvitor/clinica-oncologica-v02.git
+cd clinica-oncologica-v02/backend-hormonia
 python -m venv venv
 source venv/bin/activate  # Linux/Mac or venv\Scripts\activate on Windows
 pip install -r requirements.txt
@@ -400,7 +400,7 @@ The API offers 100+ endpoints organized across multiple modules:
 - `GET /api/v1/analytics/dashboard` - Dashboard data
 - `GET /api/v1/analytics/insights` - AI insights
 
-**For complete API documentation, see:** [docs/api/API_REFERENCE.md](docs/api/API_REFERENCE.md)
+**For complete API documentation, see:** [docs/api/API.md](docs/api/API.md)
 
 ---
 
@@ -411,7 +411,7 @@ Interactive API documentation is available at:
 - **Swagger UI**: `http://localhost:8000/docs`
 - **ReDoc**: `http://localhost:8000/redoc`
 - **OpenAPI JSON**: `http://localhost:8000/openapi.json`
-- **Complete Reference**: [docs/api/API_REFERENCE.md](docs/api/API_REFERENCE.md)
+- **Complete Reference**: [docs/api/API.md](docs/api/API.md)
 
 ## 🧪 Testing
 
@@ -602,11 +602,9 @@ make format && make lint && make test
 
 For production deployment, consult our specialized guides:
 
-- **📚 [Complete Deployment Guide](docs/deployment/DEPLOYMENT_GUIDE.md)** - Comprehensive backend deployment guide
-- **🚀 [Monorepo Deployment Guide](../docs/MONOREPO_DEPLOYMENT_GUIDE.md)** - Full system deployment
-- **🔧 [Railway Deployment](docs/deployment/DEPLOYMENT_GUIDE.md#railway-deployment)** - Railway platform deployment
-- **🐳 [Docker Deployment](docs/deployment/DEPLOYMENT_GUIDE.md#docker-deployment)** - Docker containerization
-- **☸️ [Kubernetes Deployment](docs/deployment/DEPLOYMENT_GUIDE.md#kubernetes-deployment)** - Kubernetes deployment
+- **📚 [Complete Deployment Guide](docs/deployment/DEPLOYMENT.md)** - Comprehensive backend deployment guide
+- **🔧 [Railway Deployment](docs/deployment/RAILWAY_DEPLOYMENT.md)** - Railway platform deployment
+- **🐳 [Docker Deployment](docs/deployment/DEPLOYMENT.md#docker-deployment)** - Docker containerization
 
 ### Key Deployment Topics
 
@@ -643,10 +641,10 @@ For production deployment, consult our specialized guides:
 - **⚡ [Redis Implementation](docs/systems/REDIS_GUIDE.md)** - Caching and session storage
 
 ### Deployment & Operations
-- **🚀 [Deployment Guide](docs/deployment/DEPLOYMENT_GUIDE.md)** - Complete deployment guide
-- **📊 [API Reference](docs/api/API_REFERENCE.md)** - Complete API documentation
-- **🔒 [Security Configuration](docs/deployment/DEPLOYMENT_GUIDE.md#security-hardening)** - Security best practices
-- **⚡ [Performance Optimization](docs/deployment/DEPLOYMENT_GUIDE.md#production-optimizations)** - Performance tuning
+- **🚀 [Deployment Guide](docs/deployment/DEPLOYMENT.md)** - Complete deployment guide
+- **📊 [API Reference](docs/api/API.md)** - Complete API documentation
+- **🔒 [Security Configuration](docs/deployment/DEPLOYMENT.md#security-hardening)** - Security best practices
+- **⚡ [Performance Optimization](docs/deployment/DEPLOYMENT.md#production-optimizations)** - Performance tuning
 
 ### Quick Links
 - **API Documentation**: `http://localhost:8000/docs`

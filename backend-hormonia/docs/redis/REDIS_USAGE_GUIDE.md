@@ -4,6 +4,12 @@
 
 O Redis Cloud é usado como **camada de cache e coordenação** para aliviar pressão do Postgres (Supabase), **nunca como fonte de verdade**. Todos os dados críticos (pacientes, sessões/respostas de quiz, PHI) permanecem no Supabase com RLS.
 
+> **Status da Migração**: ✅ Concluído
+> A migração de Redis local para Redis Cloud foi concluída com sucesso. Documentos históricos sobre a migração e remoção do sistema legado foram arquivados em [incidents/_archive/](../incidents/_archive/).
+> - [REDIS_MIGRATION_SUMMARY.md](../incidents/_archive/REDIS_MIGRATION_SUMMARY.md)
+> - [REDIS_LEGACY_REMOVAL_GUIDE.md](../incidents/_archive/REDIS_LEGACY_REMOVAL_GUIDE.md)
+> - [REDIS_FINAL_STATUS.md](../incidents/_archive/REDIS_FINAL_STATUS.md)
+
 ---
 
 ## 🎯 Casos de Uso Atuais
