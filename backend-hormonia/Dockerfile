@@ -28,7 +28,6 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 COPY requirements.txt package.json ./
 RUN pip install --no-cache-dir --upgrade pip==24.3.* && \
     pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir --upgrade bcrypt==4.1.2 passlib==1.7.4 && \
     pip cache purge && \
     npm install --omit=dev
 

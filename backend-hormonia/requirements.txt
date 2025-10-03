@@ -92,17 +92,21 @@ pandas>=2.2.0,<3.0.0  # For enhanced analytics data processing (NumPy 2 compatib
 asyncio-mqtt>=0.16.1,<1.0.0  # For async operations in resilience patterns
 
 # OpenTelemetry for distributed tracing
-opentelemetry-api>=1.20.0,<2.0.0
-opentelemetry-sdk>=1.20.0,<2.0.0
+opentelemetry-api==1.21.0
+opentelemetry-sdk==1.21.0
 opentelemetry-instrumentation-fastapi>=0.41b0,<1.0.0
 opentelemetry-instrumentation-sqlalchemy>=0.41b0,<1.0.0
 opentelemetry-instrumentation-redis>=0.41b0,<1.0.0
 opentelemetry-instrumentation-httpx>=0.41b0,<1.0.0
-opentelemetry-exporter-jaeger>=1.20.0,<2.0.0
-opentelemetry-exporter-otlp>=1.20.0,<2.0.0
+opentelemetry-exporter-jaeger==1.21.0
+opentelemetry-exporter-otlp==1.21.0
+# Ensure OTel proto/exporters use protobuf <5 to avoid conflicts with google-generativeai 0.7.x
+opentelemetry-proto==1.21.0
+opentelemetry-exporter-otlp-proto-grpc==1.21.0
+opentelemetry-exporter-otlp-proto-http==1.21.0
+protobuf>=3.19.5,<5.0.0
 
 # WhatsApp integration dependencies
 aiohttp>=3.10.0,<4.0.0
 aiofiles>=24.1.0,<25.0.0
 backoff>=2.2.1,<3.0.0
-pillow>=10.3.0,<12.0.0
