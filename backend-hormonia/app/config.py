@@ -47,9 +47,22 @@ class Settings(BaseSettings):
 
     # Firebase Security Configuration
     FIREBASE_ALLOWED_DOMAINS: List[str] = Field(
-        default=['neoplasiaslitoral.com', 'clinica-oncologica.com.br', 'hospital.local'],
+        default_factory=list,
         description="Authorized email domains for Firebase user creation (no public domains allowed)"
     )
+
+    @field_validator('FIREBASE_ALLOWED_DOMAINS', mode='before')
+    @classmethod
+    def parse_allowed_domains(cls, v):
+        """Parse FIREBASE_ALLOWED_DOMAINS from JSON string or return empty list for empty string."""
+        if v is None or v == '':
+            return []
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                return []
+        return v
     FIREBASE_REQUIRE_CUSTOM_CLAIMS: bool = Field(
         default=True,
         description="Require valid custom claims (role) before creating user"
