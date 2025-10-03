@@ -2,12 +2,12 @@ name: RLS API Tests
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, docs-refactor-py313]
     paths:
       - 'backend-hormonia/**'
       - '.github/workflows/rls-api-tests.yml'
   pull_request:
-    branches: [main, develop]
+    branches: [main, develop, docs-refactor-py313]
     paths:
       - 'backend-hormonia/**'
 

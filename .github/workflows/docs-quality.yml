@@ -10,6 +10,7 @@ on:
     branches:
       - main
       - develop
+      - docs-refactor-py313
     paths:
       - '**.md'
       - '**/docs/**'
