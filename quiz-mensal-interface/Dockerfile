@@ -36,4 +36,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -f http://localhost:${PORT:-3000}/api/health || exit 1
 
 # Start Next in production, binding to 0.0.0.0 and PORT
-CMD ["sh", "-c", "pnpm start -- -p ${PORT:-3000} -H 0.0.0.0"]
+# Use pnpm exec to avoid arg forwarding issues
+CMD ["sh", "-c", "pnpm exec next start -p ${PORT:-3000} -H 0.0.0.0"]
