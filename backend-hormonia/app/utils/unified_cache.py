@@ -1166,7 +1166,7 @@ _unified_cache_manager: Optional[UnifiedCacheManager] = None
 
 
 def get_unified_cache_manager(
-    redis_client: Optional[RedisClient] = None,
+    redis_client: Optional[Union[Redis, AsyncRedis]] = None,
     enable_stats: bool = True,
     enable_local_fallback: bool = True
 ) -> UnifiedCacheManager:
