@@ -16,6 +16,10 @@ eggs/
 **/ENV/lib/
 **/.venv/lib/
 lib64/
+
+# Ignore root-level lib directories (duplicates - source is in src/lib/)
+/frontend-hormonia/lib/
+/quiz-mensal-interface/lib/
 parts/
 sdist/
 var/
