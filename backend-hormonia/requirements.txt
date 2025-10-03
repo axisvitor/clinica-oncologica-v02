@@ -31,9 +31,9 @@ apscheduler>=3.10.4,<4.0.0  # Scheduled jobs (audit cleanup, etc.)
 langchain>=0.2.0,<0.3.0
 langchain-google-genai>=1.0.0,<2.0.0
 
-# Google Gemini AI - Python 3.11 compatible (compatible with langchain-google-genai)
-# Pinned to <0.6.0 to satisfy langchain-google-genai dependency requirements
-google-generativeai>=0.5.2,<0.6.0
+# Google Gemini AI - Python 3.11 compatible (compatible with langchain-google-genai>=1.0.0)
+# Updated to >=0.7.0 to satisfy langchain-google-genai dependency requirements
+google-generativeai>=0.7.0,<0.8.0
 
 # WhatsApp integration (Evolution API client) - Python 3.11 compatible
 httpx>=0.27.0,<0.29.0
