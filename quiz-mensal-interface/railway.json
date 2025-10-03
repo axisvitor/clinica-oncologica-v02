@@ -2,39 +2,29 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "pnpm install --no-frozen-lockfile && pnpm build",
-    "watchPatterns": [
-      "**/*.ts",
-      "**/*.tsx",
-      "**/*.js",
-      "**/*.jsx",
-      "package.json",
-      "next.config.mjs",
-      "tailwind.config.js",
-      "postcss.config.mjs",
-      ".env.local.example"
-    ]
+    "nixpacksPlan": {
+      "phases": {
+        "setup": {
+          "nixPkgs": ["nodejs-20_x", "pnpm"]
+        },
+        "install": {
+          "cmds": ["pnpm install --frozen-lockfile"]
+        },
+        "build": {
+          "cmds": ["pnpm build"]
+        }
+      },
+      "start": {
+        "cmd": "pnpm start"
+      }
+    }
   },
   "deploy": {
     "numReplicas": 1,
     "sleepApplication": false,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10,
-    "startCommand": "NODE_ENV=production PORT=${PORT:-3000} pnpm start",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 300
-  },
-  "environments": {
-    "production": {
-      "variables": {
-        "NODE_ENV": "production",
-        "PORT": "${{RAILWAY_PORT}}",
-        "NEXT_TELEMETRY_DISABLED": "1",
-        "NPM_CONFIG_PRODUCTION": "true"
-      }
-    }
-  },
-  "regions": [
-    "us-west1"
-  ]
+  }
 }
