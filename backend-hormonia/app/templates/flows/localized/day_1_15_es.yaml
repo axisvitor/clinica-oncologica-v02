@@ -1,0 +1,52 @@
+name: "Flujo Días 1-15"
+version: "1.0.0"
+description: "Flujo inicial de 15 días de terapia hormonal"
+flow_type: "day_1_15"
+duration_days: 15
+
+steps:
+  - id: 0
+    name: "welcome"
+    type: "message"
+    content: "¡Bienvenida a tu jornada de terapia hormonal! Estaré aquí para apoyarte en cada paso del camino."
+    delay_hours: 0
+    conditions: []
+    next_step: 1
+    
+  - id: 1
+    name: "daily_check_in"
+    type: "quiz"
+    content: "¿Cómo te sientes hoy?"
+    delay_hours: 24
+    conditions: []
+    next_step: 2
+    quiz_template: "daily_wellness_check"
+    
+  - id: 2
+    name: "medication_reminder"
+    type: "message"
+    content: "No olvides tomar tu medicación según lo prescrito."
+    delay_hours: 12
+    conditions:
+      - type: "quiz_response"
+        field: "took_medication"
+        operator: "equals"
+        value: false
+    next_step: 3
+    
+  - id: 3
+    name: "progress_check"
+    type: "quiz"
+    content: "Revisemos tu progreso de esta semana."
+    delay_hours: 168  # 7 days
+    conditions: []
+    next_step: 4
+    quiz_template: "weekly_progress"
+    
+  - id: 4
+    name: "completion"
+    type: "message"
+    content: "¡Felicitaciones! Has completado la primera fase de tu tratamiento."
+    delay_hours: 0
+    conditions: []
+    next_step: null

@@ -1,0 +1,452 @@
+# Alert Rules for Hormonia Healthcare Platform Performance Monitoring
+# Defines thresholds and conditions for automated alerting
+
+groups:
+  # ============================================================================
+  # API PERFORMANCE ALERTS
+  # ============================================================================
+  - name: api_performance
+    interval: 30s
+    rules:
+      - alert: HighAPIResponseTime
+        expr: histogram_quantile(0.95, rate(api_response_time_bucket[5m])) > 500
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+          team: backend
+        annotations:
+          summary: "High API response time detected"
+          description: "95th percentile response time is {{ $value }}ms (threshold: 500ms) for endpoint {{ $labels.endpoint }}"
+          runbook_url: "https://docs.hormonia.com/runbooks/high-response-time"
+          dashboard: "https://grafana.hormonia.com/d/hormonia-api-performance"
+
+      - alert: CriticalAPIResponseTime
+        expr: histogram_quantile(0.99, rate(api_response_time_bucket[5m])) > 2000
+        for: 1m
+        labels:
+          severity: critical
+          component: api
+          team: backend
+        annotations:
+          summary: "CRITICAL: Very high API response time"
+          description: "99th percentile response time is {{ $value }}ms (threshold: 2000ms) for endpoint {{ $labels.endpoint }}"
+          action: "Immediate investigation required. Check database queries, external API calls, and system resources."
+
+      - alert: HighErrorRate
+        expr: (rate(api_requests_total{status=~"5.."}[5m]) / rate(api_requests_total[5m])) * 100 > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+          team: backend
+        annotations:
+          summary: "High API error rate detected"
+          description: "Error rate is {{ $value }}% (threshold: 1%) for endpoint {{ $labels.endpoint }}"
+
+      - alert: CriticalErrorRate
+        expr: (rate(api_requests_total{status=~"5.."}[5m]) / rate(api_requests_total[5m])) * 100 > 5.0
+        for: 1m
+        labels:
+          severity: critical
+          component: api
+          team: backend
+        annotations:
+          summary: "CRITICAL: Very high error rate"
+          description: "Error rate is {{ $value }}% (threshold: 5%) for endpoint {{ $labels.endpoint }}"
+          action: "Immediate action required. Service may be degraded."
+
+      - alert: HighRequestRate
+        expr: rate(api_requests_total[5m]) * 60 > 5000
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+          team: backend
+        annotations:
+          summary: "High request rate detected"
+          description: "Request rate is {{ $value }} RPM (threshold: 5000 RPM)"
+          action: "Monitor for potential DDoS or traffic spike. Consider scaling if sustained."
+
+      - alert: APIEndpointDown
+        expr: up{job="hormonia-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: api
+          team: backend
+        annotations:
+          summary: "API endpoint is down"
+          description: "API instance {{ $labels.instance }} has been down for more than 1 minute"
+          action: "URGENT: API is unreachable. Check service health immediately."
+
+  # ============================================================================
+  # DATABASE PERFORMANCE ALERTS
+  # ============================================================================
+  - name: database_performance
+    interval: 30s
+    rules:
+      - alert: SlowDatabaseQueries
+        expr: avg(db_query_duration_seconds) * 1000 > 100
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+          team: backend
+        annotations:
+          summary: "Slow database queries detected"
+          description: "Average query time is {{ $value }}ms (threshold: 100ms) for table {{ $labels.table }}"
+          action: "Review query performance and check for missing indexes."
+
+      - alert: VerySlowDatabaseQueries
+        expr: avg(db_query_duration_seconds) * 1000 > 500
+        for: 2m
+        labels:
+          severity: critical
+          component: database
+          team: backend
+        annotations:
+          summary: "CRITICAL: Very slow database queries"
+          description: "Average query time is {{ $value }}ms (threshold: 500ms) for table {{ $labels.table }}"
+          action: "Immediate optimization required. Check slow query log."
+
+      - alert: HighSlowQueryCount
+        expr: increase(db_slow_queries_total[5m]) > 50
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+          team: backend
+        annotations:
+          summary: "High number of slow queries"
+          description: "{{ $value }} slow queries in the last 5 minutes"
+          action: "Investigate most frequent slow queries and optimize."
+
+      - alert: ConnectionPoolExhaustion
+        expr: (db_pool_active_connections / db_pool_max_connections) * 100 > 90
+        for: 2m
+        labels:
+          severity: critical
+          component: database
+          team: backend
+        annotations:
+          summary: "Database connection pool near exhaustion"
+          description: "Connection pool utilization is {{ $value }}% (threshold: 90%)"
+          action: "URGENT: Increase connection pool size or investigate connection leaks."
+
+      - alert: ConnectionPoolHighUtilization
+        expr: (db_pool_active_connections / db_pool_max_connections) * 100 > 70
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+          team: backend
+        annotations:
+          summary: "High database connection pool utilization"
+          description: "Connection pool utilization is {{ $value }}% (threshold: 70%)"
+          action: "Monitor connection usage and consider pool size adjustment."
+
+      - alert: DatabaseConnectionErrors
+        expr: rate(db_connection_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          component: database
+          team: backend
+        annotations:
+          summary: "Database connection errors detected"
+          description: "{{ $value }} connection errors per second"
+          action: "Check database availability and network connectivity."
+
+      - alert: NPlusOneQueries
+        expr: db_repeated_query_patterns > 10
+        for: 1m
+        labels:
+          severity: warning
+          component: database
+          team: backend
+        annotations:
+          summary: "Potential N+1 query pattern detected"
+          description: "Same query pattern repeated {{ $value }} times in 1 second window for {{ $labels.endpoint }}"
+          action: "Investigate and implement query optimization or eager loading."
+
+  # ============================================================================
+  # SYSTEM RESOURCE ALERTS
+  # ============================================================================
+  - name: system_resources
+    interval: 30s
+    rules:
+      - alert: HighCPUUsage
+        expr: system_cpu_percent > 70
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+          team: devops
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value }}% (threshold: 70%)"
+          action: "Monitor CPU usage and investigate high-CPU processes."
+
+      - alert: CriticalCPUUsage
+        expr: system_cpu_percent > 85
+        for: 2m
+        labels:
+          severity: critical
+          component: system
+          team: devops
+        annotations:
+          summary: "CRITICAL: Very high CPU usage"
+          description: "CPU usage is {{ $value }}% (threshold: 85%)"
+          action: "Immediate action required. Consider scaling or optimize CPU-intensive operations."
+
+      - alert: HighMemoryUsage
+        expr: system_memory_percent > 75
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+          team: devops
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value }}% (threshold: 75%)"
+          action: "Monitor memory usage and check for potential leaks."
+
+      - alert: CriticalMemoryUsage
+        expr: system_memory_percent > 90
+        for: 2m
+        labels:
+          severity: critical
+          component: system
+          team: devops
+        annotations:
+          summary: "CRITICAL: Very high memory usage"
+          description: "Memory usage is {{ $value }}% (threshold: 90%)"
+          action: "URGENT: Risk of OOM. Restart services or add memory capacity."
+
+      - alert: MemoryLeakDetected
+        expr: deriv(process_memory_bytes[1h]) > 13888889
+        for: 1h
+        labels:
+          severity: warning
+          component: system
+          team: backend
+        annotations:
+          summary: "Potential memory leak detected"
+          description: "Memory growing at {{ $value }} bytes/sec (~50MB/hour)"
+          action: "Investigate memory allocation patterns and check for leaks."
+
+      - alert: HighDiskUsage
+        expr: disk_usage_percent > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+          team: devops
+        annotations:
+          summary: "High disk usage detected"
+          description: "Disk usage is {{ $value }}% (threshold: 80%)"
+          action: "Clean up old logs or increase disk capacity."
+
+      - alert: CriticalDiskUsage
+        expr: disk_usage_percent > 95
+        for: 1m
+        labels:
+          severity: critical
+          component: system
+          team: devops
+        annotations:
+          summary: "CRITICAL: Disk almost full"
+          description: "Disk usage is {{ $value }}% (threshold: 95%)"
+          action: "URGENT: Immediate cleanup required to prevent service disruption."
+
+      - alert: HighNetworkLatency
+        expr: network_latency_ms > 50
+        for: 5m
+        labels:
+          severity: warning
+          component: network
+          team: devops
+        annotations:
+          summary: "High network latency detected"
+          description: "Network latency is {{ $value }}ms (threshold: 50ms)"
+
+      - alert: FileDescriptorLimit
+        expr: (process_open_fds / process_max_fds) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+          team: backend
+        annotations:
+          summary: "High file descriptor usage"
+          description: "File descriptor usage is {{ $value }}% (threshold: 80%)"
+          action: "Investigate file descriptor leaks or increase limit."
+
+  # ============================================================================
+  # BUSINESS METRICS ALERTS
+  # ============================================================================
+  - name: business_metrics
+    interval: 1m
+    rules:
+      - alert: LowPatientRegistrationRate
+        expr: rate(patient_registrations_total[1h]) * 3600 < 30
+        for: 30m
+        labels:
+          severity: warning
+          component: business
+          team: product
+        annotations:
+          summary: "Low patient registration rate"
+          description: "Only {{ $value }} patient registrations per hour (target: 50+)"
+          action: "Check registration flow and investigate user drop-off."
+
+      - alert: LowQuizCompletionRate
+        expr: (rate(quiz_completions_total[1h]) / rate(quiz_started_total[1h])) * 100 < 60
+        for: 30m
+        labels:
+          severity: warning
+          component: business
+          team: product
+        annotations:
+          summary: "Low quiz completion rate"
+          description: "Quiz completion rate is {{ $value }}% (target: 80%+)"
+          action: "Investigate quiz abandonment and UX issues."
+
+      - alert: HighMessageFailureRate
+        expr: (rate(messages_failed_total[5m]) / rate(messages_sent_total[5m])) * 100 > 5
+        for: 10m
+        labels:
+          severity: warning
+          component: messaging
+          team: backend
+        annotations:
+          summary: "High message failure rate"
+          description: "Message failure rate is {{ $value }}% (threshold: 5%)"
+          action: "Check WhatsApp API integration and message queue health."
+
+  # ============================================================================
+  # CACHE PERFORMANCE ALERTS
+  # ============================================================================
+  - name: cache_performance
+    interval: 30s
+    rules:
+      - alert: LowCacheHitRate
+        expr: (rate(cache_hits_total[5m]) / (rate(cache_hits_total[5m]) + rate(cache_misses_total[5m]))) * 100 < 70
+        for: 10m
+        labels:
+          severity: warning
+          component: cache
+          team: backend
+        annotations:
+          summary: "Low cache hit rate"
+          description: "Cache hit rate is {{ $value }}% (target: 85%+)"
+          action: "Review cache strategy, TTL settings, and key patterns."
+
+      - alert: HighCacheEvictionRate
+        expr: rate(cache_evictions_total[5m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+          component: cache
+          team: backend
+        annotations:
+          summary: "High cache eviction rate"
+          description: "{{ $value }} cache evictions per minute (threshold: 100)"
+          action: "Increase cache memory or optimize cache usage patterns."
+
+      - alert: RedisMemoryHigh
+        expr: (redis_memory_used_bytes / redis_memory_max_bytes) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: cache
+          team: backend
+        annotations:
+          summary: "High Redis memory usage"
+          description: "Redis memory usage is {{ $value }}% (threshold: 80%)"
+          action: "Clear old keys or increase Redis memory allocation."
+
+      - alert: SlowCacheOperations
+        expr: histogram_quantile(0.95, rate(cache_operation_duration_seconds_bucket[5m])) * 1000 > 50
+        for: 5m
+        labels:
+          severity: warning
+          component: cache
+          team: backend
+        annotations:
+          summary: "Slow cache operations detected"
+          description: "95th percentile cache operation time is {{ $value }}ms (threshold: 50ms)"
+          action: "Check Redis performance and network latency."
+
+  # ============================================================================
+  # AI SERVICE ALERTS
+  # ============================================================================
+  - name: ai_services
+    interval: 30s
+    rules:
+      - alert: GeminiHighResponseTime
+        expr: avg(gemini_response_time_seconds) * 1000 > 2000
+        for: 5m
+        labels:
+          severity: warning
+          component: ai
+          team: backend
+        annotations:
+          summary: "High Gemini API response time"
+          description: "Average Gemini response time is {{ $value }}ms (threshold: 2000ms)"
+          action: "Check Gemini API status and network connectivity."
+
+      - alert: GeminiCriticalResponseTime
+        expr: avg(gemini_response_time_seconds) * 1000 > 5000
+        for: 2m
+        labels:
+          severity: critical
+          component: ai
+          team: backend
+        annotations:
+          summary: "CRITICAL: Very high Gemini API response time"
+          description: "Average Gemini response time is {{ $value }}ms (threshold: 5000ms)"
+          action: "Consider fallback mechanisms or circuit breaker activation."
+
+      - alert: GeminiHighErrorRate
+        expr: (rate(gemini_errors_total[5m]) / rate(gemini_requests_total[5m])) * 100 > 2.0
+        for: 5m
+        labels:
+          severity: warning
+          component: ai
+          team: backend
+        annotations:
+          summary: "High Gemini API error rate"
+          description: "Gemini error rate is {{ $value }}% (threshold: 2%)"
+          action: "Check API quotas, authentication, and request validation."
+
+  # ============================================================================
+  # ANOMALY DETECTION ALERTS
+  # ============================================================================
+  - name: anomaly_detection
+    interval: 1m
+    rules:
+      - alert: ResponseTimeAnomaly
+        expr: abs(api_response_time_anomaly_score) > 3
+        for: 5m
+        labels:
+          severity: warning
+          component: anomaly
+          team: backend
+        annotations:
+          summary: "Response time anomaly detected"
+          description: "Response time anomaly score is {{ $value }} standard deviations from normal"
+          action: "Investigate unusual traffic patterns or system changes."
+
+      - alert: TrafficAnomaly
+        expr: abs(api_request_rate_anomaly_score) > 3
+        for: 5m
+        labels:
+          severity: warning
+          component: anomaly
+          team: security
+        annotations:
+          summary: "Traffic pattern anomaly detected"
+          description: "Request rate anomaly score is {{ $value }} standard deviations from normal"
+          action: "Check for DDoS attacks or unusual usage patterns."

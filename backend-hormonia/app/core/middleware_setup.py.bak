@@ -1,0 +1,132 @@
+"""
+Middleware configuration for the FastAPI application.
+
+Configures and applies middleware in the correct order:
+1. Monitoring middleware (first for comprehensive instrumentation)
+2. Request logging middleware (debug only)
+3. Security middleware
+4. Rate limiting middleware
+5. Compression middleware
+6. Custom CORS middleware (last - first to execute, supports wildcard patterns)
+"""
+from fastapi import FastAPI
+from app.config import settings
+from app.middleware.enhanced_middleware import (
+    EnhancedRateLimitMiddleware,
+    EnhancedSecurityMiddleware,
+    RequestLoggingMiddleware
+)
+# Custom CORS middleware imported inline to avoid circular imports
+from app.utils.compression import EnhancedCompressionMiddleware
+from app.utils.logging import get_logger
+
+
+def setup_middleware(app: FastAPI) -> None:
+    """
+    Configure and add middleware to the FastAPI application.
+    
+    Middleware is added in reverse order of execution:
+    - Last added middleware executes first
+    - First added middleware executes last
+    
+    Args:
+        app: FastAPI application instance
+    """
+    logger = get_logger(__name__)
+    
+    # Add monitoring middleware first for comprehensive instrumentation
+    try:
+        from app.monitoring.manager import get_monitoring_manager
+        monitoring_manager = get_monitoring_manager()
+        monitoring_middleware = monitoring_manager.get_middleware(app)
+        if monitoring_middleware:
+            app.add_middleware(
+                type(monitoring_middleware),
+                apm_collector=monitoring_manager.apm_collector,
+                db_monitor=monitoring_manager.db_monitor,
+                business_metrics=monitoring_manager.business_metrics
+            )
+            logger.info("Monitoring middleware added successfully")
+    except Exception as e:
+        logger.warning(f"Failed to add monitoring middleware: {e}")
+
+    # Add optimized middleware in order (last added = first executed)
+    # Only add essential middleware in production for better performance
+    if settings.DEBUG:
+        app.add_middleware(
+            RequestLoggingMiddleware,
+            log_request_body=False,  # Disabled for performance
+            log_response_body=False,
+            sensitive_headers=["authorization", "cookie", "x-api-key", "x-auth-token"]
+        )
+        logger.info("Request logging middleware added (debug mode)")
+
+    # Enhanced security middleware
+    app.add_middleware(EnhancedSecurityMiddleware)
+    logger.info("Enhanced security middleware added")
+    
+    # Enhanced rate limiting middleware
+    app.add_middleware(
+        EnhancedRateLimitMiddleware,
+        default_limit=200,  # Increased for better throughput
+        default_window=60,
+        whitelist_ips=getattr(settings, 'RATE_LIMIT_WHITELIST_IPS', []),
+        blacklist_ips=getattr(settings, 'RATE_LIMIT_BLACKLIST_IPS', [])
+    )
+    logger.info("Enhanced rate limiting middleware added")
+    
+    # Enhanced compression middleware
+    # Remove InputSanitizationMiddleware as it's redundant with EnhancedSecurityMiddleware
+    app.add_middleware(
+        EnhancedCompressionMiddleware,
+        minimum_size=1000,
+        compression_level=4  # Optimized compression
+    )
+    logger.info("Enhanced compression middleware added")
+    
+    # Enhanced CORS middleware should be last (first to execute)
+    # Supports wildcard patterns for Railway deployments and WebSocket connections
+    from app.middleware.custom_cors import PatternCORSMiddleware
+
+    app.add_middleware(
+        PatternCORSMiddleware,
+        allow_origins=settings.ALLOWED_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=[
+            "Accept",
+            "Accept-Language",
+            "Content-Language",
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+            "X-Request-ID",
+            "X-Correlation-ID",
+            # Quiz-specific headers
+            "X-Quiz-Token",
+            "X-Patient-ID",
+            "X-Monthly-Quiz-Token",
+            "X-Session-ID",
+            # WebSocket specific headers
+            "Sec-WebSocket-Protocol",
+            "Sec-WebSocket-Extensions",
+            "Sec-WebSocket-Key",
+            "Sec-WebSocket-Version",
+            "Upgrade",
+            "Connection"
+        ],
+        expose_headers=[
+            "X-Request-ID",
+            "X-Correlation-ID",
+            "X-Process-Time",
+            "X-Quiz-Session-ID",
+            "X-Quiz-Progress",
+            "X-RateLimit-Limit",
+            "X-RateLimit-Remaining",
+            "X-RateLimit-Reset"
+        ],
+        max_age=86400
+    )
+    logger.info("Enhanced CORS middleware added with pattern support")
+    
+    logger.info("All middleware configured successfully")

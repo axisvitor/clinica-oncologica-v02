@@ -1,0 +1,31 @@
+{
+  "common": {
+    "greeting": "Olá {name}!",
+    "goodbye": "Cuide-se e tenha um ótimo dia!",
+    "thank_you": "Obrigada pela sua resposta.",
+    "error": "Desculpe, não entendi. Poderia tentar novamente?",
+    "help": "Se precisar de ajuda, entre em contato com seu médico."
+  },
+  "medication": {
+    "reminder": "É hora de tomar sua medicação.",
+    "confirmation": "Você tomou sua medicação hoje?",
+    "missed_dose": "Se você perdeu uma dose, siga as instruções do seu médico.",
+    "side_effects": "Se estiver sentindo efeitos colaterais, entre em contato com seu médico imediatamente."
+  },
+  "appointments": {
+    "reminder": "Você tem uma consulta agendada para {date} às {time}.",
+    "confirmation": "Confirme sua consulta respondendo 'SIM' ou 'NÃO'.",
+    "reschedule": "Para reagendar sua consulta, entre em contato com nosso consultório."
+  },
+  "wellness": {
+    "mood_check": "Como você avaliaria seu humor hoje numa escala de 1 a 10?",
+    "energy_check": "Como estão seus níveis de energia hoje?",
+    "sleep_check": "Como você dormiu ontem à noite?",
+    "symptoms_check": "Você está sentindo algum sintoma hoje?"
+  },
+  "emergency": {
+    "alert": "⚠️ IMPORTANTE: Se você está passando por uma emergência médica, ligue para os serviços de emergência imediatamente.",
+    "contact_doctor": "Entre em contato com seu médico o mais rápido possível.",
+    "urgent_care": "Considere visitar um pronto-socorro se os sintomas persistirem."
+  }
+}

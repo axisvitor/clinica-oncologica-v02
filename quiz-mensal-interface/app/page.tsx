@@ -1,0 +1,147 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import QuizInterface from "@/components/quiz-interface"
+import { quizAPI, getTokenFromURL, isTokenExpired } from "@/lib/api"
+import type { QuizSession, QuizError } from "@/types/quiz"
+import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { AlertCircle, RefreshCcw } from "lucide-react"
+
+export default function Home() {
+  const [quizSession, setQuizSession] = useState<QuizSession | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<QuizError | null>(null)
+  const [token, setToken] = useState<string | null>(null)
+
+  useEffect(() => {
+    initializeQuiz()
+  }, [])
+
+  async function initializeQuiz() {
+    setIsLoading(true)
+    setError(null)
+
+    // Get token from URL or localStorage
+    let urlToken = getTokenFromURL()
+    if (!urlToken && typeof window !== 'undefined') {
+      // Try to get token from localStorage (for token rotation)
+      urlToken = localStorage.getItem('quiz_token')
+    }
+
+    if (!urlToken) {
+      setError({
+        detail: "Token de acesso não encontrado. Por favor, use o link enviado para você.",
+        status: 400
+      })
+      setIsLoading(false)
+      return
+    }
+
+    setToken(urlToken)
+
+    try {
+      // Access quiz with token
+      const session = await quizAPI.accessQuiz(urlToken)
+
+      // HANDLE TOKEN ROTATION from initial access
+      if (session.new_token) {
+        setToken(session.new_token)
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('quiz_token', session.new_token)
+        }
+      }
+
+      // Check if token is expired
+      if (isTokenExpired(session.expires_at)) {
+        setError({
+          detail: "Este link expirou. Por favor, solicite um novo link ao seu médico.",
+          status: 401
+        })
+        setIsLoading(false)
+        return
+      }
+
+      setQuizSession(session)
+    } catch (err) {
+      console.error("Error accessing quiz:", err)
+
+      if (err instanceof Error) {
+        setError({
+          detail: err.message || "Erro ao carregar o questionário. Por favor, tente novamente.",
+          status: (err as any).status
+        })
+      } else {
+        setError({
+          detail: "Erro inesperado ao carregar o questionário."
+        })
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20 flex items-center justify-center p-4">
+        <Card className="p-8 text-center space-y-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-lg text-muted-foreground">Carregando questionário...</p>
+        </Card>
+      </main>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20 flex items-center justify-center p-4">
+        <Card className="p-8 max-w-md w-full space-y-6">
+          <div className="text-center space-y-4">
+            <AlertCircle className="w-16 h-16 text-destructive mx-auto" />
+            <h2 className="text-2xl font-bold">Ops! Algo deu errado</h2>
+            <p className="text-muted-foreground">{error.detail}</p>
+          </div>
+
+          {error.status !== 401 && (
+            <Button
+              onClick={initializeQuiz}
+              className="w-full"
+              size="lg"
+            >
+              <RefreshCcw className="w-5 h-5 mr-2" />
+              Tentar Novamente
+            </Button>
+          )}
+
+          <div className="text-center text-sm text-muted-foreground">
+            <p>Precisa de ajuda? Entre em contato com nossa equipe.</p>
+          </div>
+        </Card>
+      </main>
+    )
+  }
+
+  // Success state - show quiz
+  if (quizSession && token) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20">
+        <QuizInterface
+          session={quizSession}
+          token={token}
+          onComplete={() => {
+            // Quiz completed - could redirect or show completion message
+            console.log("Quiz completed successfully!")
+          }}
+          onTokenUpdate={(newToken) => {
+            // Update parent token state when rotation occurs
+            setToken(newToken)
+          }}
+        />
+      </main>
+    )
+  }
+
+  return null
+}

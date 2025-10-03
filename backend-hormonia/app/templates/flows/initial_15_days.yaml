@@ -1,0 +1,260 @@
+flow_type: "initial_15_days"
+name: "Initial 15 Days Onboarding Flow"
+description: "Enhanced flow with AI optimization for patient introduction and engagement building"
+version: "2.0.0"
+humanization_level: "high"
+metadata:
+  author: "Hormonia AI Team"
+  created_at: "2024-01-01"
+  target_audience: "New hormone therapy patients"
+  medical_focus: "Treatment adherence and initial support"
+
+messages:
+  1:
+    intent: "introduction_and_welcome"
+    base_content: "Apresentar a Hormon[IA] e estabelecer vínculo inicial"
+    message_type: "text"
+    core_elements:
+      greeting: true
+      name_usage: true
+      role_explanation: true
+      supportive_tone: true
+    personalization_hints: 
+      - "greeting_style"
+      - "introduction_approach" 
+      - "warmth_level"
+    ai_instructions: |
+      Crie uma mensagem de boas-vindas calorosa e pessoal que:
+      - Use o nome do paciente naturalmente
+      - Apresente a Hormon[IA] como uma companheira de jornada
+      - Transmita segurança e apoio
+      - Evite linguagem médica formal
+      - Seja genuinamente acolhedora
+    follow_up:
+      intent: "explain_purpose"
+      delay_seconds: 30
+      ai_instructions: |
+        Explique o propósito da assistente de forma conversacional:
+        - Como uma amiga que vai ajudar a organizar tudo
+        - Sem pressão ou obrigações
+        - Focando nos benefícios práticos
+    variations:
+      - "Seja muito bem-vinda ao seu novo começo!"
+      - "Que alegria ter você aqui conosco!"
+      - "Estou aqui para te acompanhar nessa jornada!"
+
+  2:
+    intent: "educational_support"
+    base_content: "Explicar como a assistente funciona e seus benefícios"
+    message_type: "text"
+    core_elements:
+      practical_benefits: true
+      reassurance: true
+      no_pressure_approach: true
+    personalization_hints:
+      - "explanation_style"
+      - "detail_level"
+      - "reassurance_approach"
+    ai_instructions: |
+      Explique os benefícios de forma natural e tranquilizadora:
+      - Use analogias do dia a dia
+      - Enfatize a praticidade sem soar como propaganda
+      - Transmita que é um apoio, não uma obrigação
+      - Mantenha tom de conversa entre amigas
+    variations:
+      - "Vou te ajudar a organizar tudo de forma simples"
+      - "Pense em mim como sua assistente pessoal de saúde"
+      - "Estou aqui para facilitar sua vida"
+
+  3:
+    intent: "first_check_in"
+    base_content: "Como você está se sentindo hoje?"
+    message_type: "interactive"
+    core_elements:
+      emotional_check: true
+      gentle_inquiry: true
+      supportive_response: true
+    personalization_hints:
+      - "question_style"
+      - "emotional_sensitivity"
+    ai_instructions: |
+      Faça uma pergunta sobre bem-estar que seja:
+      - Genuinamente interessada, não clínica
+      - Aberta para qualquer tipo de resposta
+      - Acolhedora independente da resposta
+      - Natural e conversacional
+    interactive_elements:
+      type: "buttons"
+      options:
+        - id: "great"
+          title: "Ótima! 😊"
+        - id: "good"
+          title: "Bem"
+        - id: "okay"
+          title: "Mais ou menos"
+        - id: "not_good"
+          title: "Não muito bem"
+        - id: "anxious"
+          title: "Um pouco ansiosa"
+    conditions:
+      - type: "time_based"
+        field: "hours_since_enrollment"
+        operator: "greater_than"
+        value: 2
+
+  5:
+    intent: "medication_awareness"
+    base_content: "Vamos conversar sobre sua medicação de forma tranquila"
+    message_type: "text"
+    core_elements:
+      medication_focus: true
+      non_judgmental: true
+      practical_approach: true
+    personalization_hints:
+      - "medication_comfort_level"
+      - "information_preference"
+    ai_instructions: |
+      Aborde o tema medicação de forma acolhedora:
+      - Sem pressão ou julgamento
+      - Focando na organização e praticidade
+      - Oferecendo apoio, não cobrança
+      - Linguagem simples e clara
+    follow_up:
+      intent: "medication_routine_check"
+      delay_seconds: 1800
+      ai_instructions: |
+        Pergunte sobre a rotina de medicação de forma natural:
+        - Como uma conversa sobre organização pessoal
+        - Oferecendo dicas práticas se necessário
+        - Sem tom de interrogatório médico
+
+  7:
+    intent: "lifestyle_gentle_inquiry"
+    base_content: "Me conta um pouco sobre sua rotina"
+    message_type: "text"
+    core_elements:
+      lifestyle_focus: true
+      curiosity: true
+      non_invasive: true
+    personalization_hints:
+      - "sharing_comfort_level"
+      - "detail_preference"
+    ai_instructions: |
+      Demonstre interesse genuíno na rotina da paciente:
+      - Como uma amiga curiosa, não como questionário
+      - Focando em aspectos positivos
+      - Abrindo espaço para ela compartilhar o que quiser
+      - Sem pressão por detalhes específicos
+    variations:
+      - "Tenho curiosidade sobre como é seu dia a dia"
+      - "Me conta como você organiza sua rotina"
+      - "Gostaria de conhecer um pouco mais sobre você"
+
+  9:
+    intent: "emotional_support_check"
+    base_content: "Como você está se sentindo em relação ao tratamento?"
+    message_type: "interactive"
+    core_elements:
+      emotional_support: true
+      treatment_feelings: true
+      validation: true
+    personalization_hints:
+      - "emotional_openness"
+      - "support_style"
+    ai_instructions: |
+      Pergunte sobre sentimentos em relação ao tratamento:
+      - Com genuína preocupação e interesse
+      - Validando qualquer sentimento que ela tenha
+      - Oferecendo apoio emocional
+      - Sem minimizar preocupações
+    interactive_elements:
+      type: "buttons"
+      options:
+        - id: "confident"
+          title: "Confiante"
+        - id: "hopeful"
+          title: "Esperançosa"
+        - id: "nervous"
+          title: "Nervosa"
+        - id: "confused"
+          title: "Confusa"
+        - id: "overwhelmed"
+          title: "Sobrecarregada"
+        - id: "mixed"
+          title: "Sentimentos mistos"
+
+  11:
+    intent: "active_listening_response"
+    base_content: "Obrigada por compartilhar isso comigo"
+    message_type: "text"
+    core_elements:
+      gratitude: true
+      validation: true
+      empathy: true
+    personalization_hints:
+      - "validation_style"
+      - "empathy_level"
+    ai_instructions: |
+      Responda de forma que demonstre escuta ativa:
+      - Agradecendo pela confiança
+      - Validando os sentimentos compartilhados
+      - Demonstrando que realmente "ouviu"
+      - Oferecendo apoio contínuo
+    conditions:
+      - type: "previous_response"
+        field: "emotional_sharing"
+        operator: "exists"
+        value: true
+
+  13:
+    intent: "interaction_encouragement"
+    base_content: "Você pode me falar qualquer coisa, estou aqui para te apoiar"
+    message_type: "text"
+    core_elements:
+      open_communication: true
+      availability: true
+      support_offer: true
+    personalization_hints:
+      - "communication_style"
+      - "support_preference"
+    ai_instructions: |
+      Encoraje comunicação aberta:
+      - Deixando claro que está disponível
+      - Sem pressão para compartilhar
+      - Oferecendo diferentes tipos de apoio
+      - Criando ambiente seguro para comunicação
+    variations:
+      - "Estou sempre aqui se precisar conversar"
+      - "Pode contar comigo para qualquer coisa"
+      - "Sua voz é importante para mim"
+
+  15:
+    intent: "phase_completion_celebration"
+    base_content: "Que orgulho de você! Completamos juntas esses primeiros 15 dias"
+    message_type: "text"
+    core_elements:
+      celebration: true
+      achievement_recognition: true
+      partnership_emphasis: true
+      transition_preparation: true
+    personalization_hints:
+      - "celebration_style"
+      - "achievement_recognition"
+    ai_instructions: |
+      Celebre a conquista dos primeiros 15 dias:
+      - Com genuína alegria e orgulho
+      - Reconhecendo o esforço da paciente
+      - Enfatizando a parceria estabelecida
+      - Preparando para a próxima fase com otimismo
+    follow_up:
+      intent: "next_phase_introduction"
+      delay_seconds: 3600
+      ai_instructions: |
+        Introduza a próxima fase de forma empolgante:
+        - Como uma nova aventura juntas
+        - Destacando o progresso já feito
+        - Criando expectativa positiva
+    variations:
+      - "Você foi incrível nesses primeiros dias!"
+      - "Que jornada linda estamos construindo juntas!"
+      - "Estou muito orgulhosa do seu progresso!"

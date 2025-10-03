@@ -1,0 +1,62 @@
+{
+  "day_1_15": {
+    "name": "Fluxo Dias 1-15",
+    "description": "Fluxo inicial de 15 dias da terapia hormonal",
+    "steps": {
+      "welcome": {
+        "content": "Bem-vinda à sua jornada de terapia hormonal! Estarei aqui para apoiá-la a cada passo do caminho."
+      },
+      "daily_check_in": {
+        "content": "Como você está se sentindo hoje?"
+      },
+      "medication_reminder": {
+        "content": "Não se esqueça de tomar sua medicação conforme prescrito."
+      },
+      "progress_check": {
+        "content": "Vamos verificar seu progresso desta semana."
+      },
+      "completion": {
+        "content": "Parabéns! Você completou a primeira fase do seu tratamento."
+      }
+    }
+  },
+  "day_16_45": {
+    "name": "Fluxo Dias 16-45",
+    "description": "Fluxo estendido da terapia hormonal para os dias 16-45",
+    "steps": {
+      "phase_two_welcome": {
+        "content": "Bem-vinda à segunda fase do seu tratamento! Vamos continuar monitorando seu progresso."
+      },
+      "enhanced_check_in": {
+        "content": "Como seu corpo tem respondido ao tratamento?"
+      },
+      "side_effects_monitor": {
+        "content": "Você tem experimentado algum efeito colateral?"
+      },
+      "lifestyle_check": {
+        "content": "Vamos revisar seu estilo de vida e hábitos."
+      },
+      "phase_completion": {
+        "content": "Excelente progresso! Você está pronta para a próxima fase do tratamento."
+      }
+    }
+  },
+  "monthly": {
+    "name": "Fluxo de Manutenção Mensal",
+    "description": "Fluxo de manutenção mensal para tratamento contínuo",
+    "steps": {
+      "monthly_welcome": {
+        "content": "Hora do seu check-up mensal! Vamos ver como você está."
+      },
+      "comprehensive_assessment": {
+        "content": "Vamos fazer uma revisão abrangente da sua saúde neste mês."
+      },
+      "goal_review": {
+        "content": "Como você está progredindo em direção aos seus objetivos de saúde?"
+      },
+      "next_month_prep": {
+        "content": "Ótimo trabalho neste mês! Vamos nos preparar para o sucesso contínuo."
+      }
+    }
+  }
+}

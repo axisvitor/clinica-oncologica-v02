@@ -1,0 +1,408 @@
+# Performance Monitoring Configuration for Hormonia Healthcare Platform
+# This configuration defines comprehensive performance tracking across all system layers
+
+# ============================================================================
+# API PERFORMANCE MONITORING
+# ============================================================================
+apm:
+  enabled: true
+  
+  # Response Time Thresholds (milliseconds)
+  response_time:
+    p50_threshold: 100     # 50th percentile - target median response
+    p95_threshold: 500     # 95th percentile - acceptable for most requests
+    p99_threshold: 1000    # 99th percentile - maximum acceptable
+    critical_threshold: 2000  # Alert when any request exceeds this
+  
+  # Request Rate Monitoring
+  request_rate:
+    normal_rpm: 1000       # Normal requests per minute
+    high_rpm: 5000         # High load threshold
+    critical_rpm: 10000    # Critical load - trigger scaling
+  
+  # Error Rate Thresholds
+  error_rate:
+    warning_percent: 1.0   # Warn at 1% error rate
+    critical_percent: 5.0  # Critical at 5% error rate
+    window_minutes: 5      # Evaluation window
+  
+  # Endpoint-Specific Monitoring
+  endpoint_tracking:
+    enabled: true
+    track_patterns:
+      - pattern: "/api/v1/auth/*"
+        p95_threshold: 200
+        critical_threshold: 500
+      - pattern: "/api/v1/patients/*"
+        p95_threshold: 300
+        critical_threshold: 800
+      - pattern: "/api/v1/quiz/*"
+        p95_threshold: 400
+        critical_threshold: 1000
+      - pattern: "/api/v1/messages/*"
+        p95_threshold: 500
+        critical_threshold: 1500
+  
+  # Slow Request Tracking
+  slow_requests:
+    enabled: true
+    threshold_ms: 1000
+    sample_rate: 1.0       # Log 100% of slow requests
+    max_stored: 500        # Keep last 500 slow requests
+
+# ============================================================================
+# DATABASE PERFORMANCE MONITORING
+# ============================================================================
+database:
+  enabled: true
+  
+  # Query Performance Tracking
+  query_performance:
+    slow_query_threshold_ms: 100
+    very_slow_threshold_ms: 500
+    critical_threshold_ms: 2000
+    track_explain_plans: true
+    sample_rate: 0.1       # Sample 10% of queries for deep analysis
+  
+  # Connection Pool Monitoring
+  connection_pool:
+    enabled: true
+    warn_utilization_percent: 70
+    critical_utilization_percent: 90
+    check_interval_seconds: 30
+    pool_size: 20
+    max_overflow: 10
+  
+  # Table-Specific Monitoring
+  table_tracking:
+    enabled: true
+    track_tables:
+      - name: "patients"
+        warn_query_time_ms: 50
+        critical_query_time_ms: 200
+      - name: "quiz_sessions"
+        warn_query_time_ms: 100
+        critical_query_time_ms: 500
+      - name: "messages"
+        warn_query_time_ms: 80
+        critical_query_time_ms: 300
+      - name: "flow_states"
+        warn_query_time_ms: 60
+        critical_query_time_ms: 250
+  
+  # Index Effectiveness Monitoring
+  index_monitoring:
+    enabled: true
+    check_interval_hours: 24
+    min_index_usage_percent: 80
+    identify_missing_indexes: true
+  
+  # N+1 Query Detection
+  n_plus_one_detection:
+    enabled: true
+    threshold_queries: 10   # Alert if same query pattern repeats 10+ times
+    window_seconds: 1       # Within 1 second window
+
+# ============================================================================
+# SYSTEM RESOURCE MONITORING
+# ============================================================================
+resources:
+  enabled: true
+  sample_interval_seconds: 30
+  
+  # CPU Monitoring
+  cpu:
+    warn_percent: 70
+    critical_percent: 85
+    track_per_core: true
+    track_process: true
+  
+  # Memory Monitoring
+  memory:
+    warn_percent: 75
+    critical_percent: 90
+    track_swap: true
+    track_heap: true
+    detect_leaks: true
+    leak_threshold_mb_per_hour: 50
+  
+  # Disk I/O Monitoring
+  disk:
+    enabled: true
+    warn_utilization_percent: 80
+    critical_utilization_percent: 95
+    track_iops: true
+    iops_warn_threshold: 1000
+    iops_critical_threshold: 5000
+  
+  # Network Monitoring
+  network:
+    enabled: true
+    track_latency: true
+    latency_warn_ms: 50
+    latency_critical_ms: 200
+    track_bandwidth: true
+    bandwidth_warn_mbps: 80
+    bandwidth_critical_mbps: 95
+  
+  # Process Health Checks
+  process_health:
+    enabled: true
+    check_interval_seconds: 60
+    restart_on_critical: false  # Manual intervention required
+    track_metrics:
+      - thread_count
+      - file_descriptors
+      - memory_rss
+      - cpu_percent
+
+# ============================================================================
+# APPLICATION METRICS
+# ============================================================================
+application:
+  enabled: true
+  
+  # Business Metrics
+  business_metrics:
+    track_events:
+      - event: "patient_registration"
+        target_per_hour: 50
+        warn_below: 30
+      - event: "quiz_completion"
+        target_per_hour: 100
+        warn_below: 60
+      - event: "message_sent"
+        target_per_hour: 500
+        warn_below: 300
+      - event: "flow_completion"
+        target_per_hour: 80
+        warn_below: 50
+  
+  # AI Service Performance
+  ai_services:
+    gemini:
+      enabled: true
+      response_time_target_ms: 2000
+      response_time_critical_ms: 5000
+      error_rate_warn_percent: 2.0
+      error_rate_critical_percent: 10.0
+      token_usage_tracking: true
+      cost_tracking: true
+  
+  # Message Queue Performance
+  message_queue:
+    enabled: true
+    queue_depth_warn: 1000
+    queue_depth_critical: 5000
+    processing_time_warn_ms: 500
+    processing_time_critical_ms: 2000
+    dead_letter_warn_count: 10
+  
+  # Cache Performance
+  cache:
+    redis:
+      enabled: true
+      hit_rate_target_percent: 85
+      hit_rate_warn_percent: 70
+      response_time_target_ms: 10
+      response_time_critical_ms: 50
+      memory_warn_percent: 80
+      memory_critical_percent: 95
+      eviction_rate_warn: 100  # evictions per minute
+
+# ============================================================================
+# ALERTING CONFIGURATION
+# ============================================================================
+alerting:
+  enabled: true
+  
+  # Alert Channels
+  channels:
+    - type: "log"
+      enabled: true
+      min_severity: "warning"
+    - type: "webhook"
+      enabled: false
+      url: "${MONITORING_WEBHOOK_URL}"
+      min_severity: "critical"
+    - type: "email"
+      enabled: false
+      recipients:
+        - "ops@hormonia.com"
+      min_severity: "critical"
+  
+  # Alert Rules
+  rules:
+    - name: "High API Response Time"
+      condition: "apm.p95_response_time > apm.p95_threshold"
+      severity: "warning"
+      duration_seconds: 300
+    - name: "Critical API Response Time"
+      condition: "apm.p99_response_time > apm.critical_threshold"
+      severity: "critical"
+      duration_seconds: 60
+    - name: "High Error Rate"
+      condition: "apm.error_rate_percent > error_rate.warning_percent"
+      severity: "warning"
+      duration_seconds: 300
+    - name: "Database Slow Queries"
+      condition: "database.slow_queries_per_minute > 10"
+      severity: "warning"
+      duration_seconds: 300
+    - name: "Connection Pool Exhaustion"
+      condition: "database.pool_utilization_percent > 90"
+      severity: "critical"
+      duration_seconds: 60
+    - name: "High CPU Usage"
+      condition: "resources.cpu_percent > resources.cpu.critical_percent"
+      severity: "critical"
+      duration_seconds: 300
+    - name: "High Memory Usage"
+      condition: "resources.memory_percent > resources.memory.critical_percent"
+      severity: "critical"
+      duration_seconds: 300
+    - name: "Memory Leak Detection"
+      condition: "resources.memory_growth_mb_per_hour > resources.memory.leak_threshold_mb_per_hour"
+      severity: "warning"
+      duration_seconds: 3600
+    - name: "Low Cache Hit Rate"
+      condition: "cache.hit_rate_percent < cache.hit_rate_warn_percent"
+      severity: "warning"
+      duration_seconds: 600
+    - name: "AI Service Degradation"
+      condition: "ai.gemini.p95_response_time > ai.response_time_critical_ms"
+      severity: "warning"
+      duration_seconds: 300
+
+# ============================================================================
+# DASHBOARD CONFIGURATION
+# ============================================================================
+dashboard:
+  enabled: true
+  refresh_interval_seconds: 30
+  
+  # Dashboard Panels
+  panels:
+    - name: "API Performance"
+      metrics:
+        - "apm.requests_per_minute"
+        - "apm.p50_response_time"
+        - "apm.p95_response_time"
+        - "apm.p99_response_time"
+        - "apm.error_rate_percent"
+    
+    - name: "Database Performance"
+      metrics:
+        - "database.queries_per_second"
+        - "database.avg_query_time_ms"
+        - "database.slow_query_count"
+        - "database.pool_utilization_percent"
+        - "database.active_connections"
+    
+    - name: "System Resources"
+      metrics:
+        - "resources.cpu_percent"
+        - "resources.memory_percent"
+        - "resources.disk_usage_percent"
+        - "resources.network_latency_ms"
+    
+    - name: "Business Metrics"
+      metrics:
+        - "business.patient_registrations_per_hour"
+        - "business.quiz_completions_per_hour"
+        - "business.messages_sent_per_hour"
+        - "business.active_flows"
+    
+    - name: "Cache Performance"
+      metrics:
+        - "cache.hit_rate_percent"
+        - "cache.miss_rate_percent"
+        - "cache.evictions_per_minute"
+        - "cache.memory_usage_percent"
+
+# ============================================================================
+# EXPORT CONFIGURATION
+# ============================================================================
+export:
+  enabled: true
+  
+  # Prometheus Export
+  prometheus:
+    enabled: true
+    port: 9090
+    path: "/metrics"
+    include_process_metrics: true
+    include_python_metrics: true
+  
+  # JSON Export (for external systems)
+  json:
+    enabled: true
+    export_interval_seconds: 60
+    output_path: "/var/log/hormonia/metrics"
+    compress: true
+  
+  # Time Series Database
+  timeseries:
+    enabled: false
+    backend: "influxdb"  # or "prometheus", "timescaledb"
+    url: "${TIMESERIES_DB_URL}"
+    retention_days: 90
+
+# ============================================================================
+# ANOMALY DETECTION
+# ============================================================================
+anomaly_detection:
+  enabled: true
+  
+  # ML-Based Anomaly Detection
+  ml_detection:
+    enabled: true
+    algorithm: "isolation_forest"  # or "statistical", "moving_average"
+    sensitivity: 0.05  # 5% sensitivity
+    training_window_hours: 168  # 7 days
+    retrain_interval_hours: 24
+  
+  # Statistical Anomaly Detection
+  statistical:
+    enabled: true
+    std_deviation_threshold: 3
+    window_size: 100
+  
+  # Tracked Metrics for Anomaly Detection
+  tracked_metrics:
+    - "apm.response_time"
+    - "apm.error_rate"
+    - "database.query_time"
+    - "resources.cpu_percent"
+    - "resources.memory_percent"
+    - "cache.hit_rate"
+    - "business.patient_registrations"
+
+# ============================================================================
+# PERFORMANCE OPTIMIZATION SUGGESTIONS
+# ============================================================================
+optimization:
+  enabled: true
+  
+  # Auto-Optimization (use with caution)
+  auto_optimize:
+    enabled: false
+    actions:
+      - type: "increase_cache_ttl"
+        condition: "cache.hit_rate < 80"
+      - type: "suggest_index"
+        condition: "database.table_scan_count > 1000"
+      - type: "scale_workers"
+        condition: "apm.queue_depth > 1000"
+  
+  # Optimization Reports
+  reports:
+    enabled: true
+    generate_interval_hours: 24
+    include_recommendations: true
+    analyze:
+      - slow_endpoints
+      - inefficient_queries
+      - resource_bottlenecks
+      - cache_misses
+      - n_plus_one_queries

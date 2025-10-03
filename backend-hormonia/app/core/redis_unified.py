@@ -1,0 +1,286 @@
+"""
+Unified Redis Client - Single Entry Point
+Deprecates multiple client implementations in favor of redis_manager.py
+"""
+import logging
+import warnings
+from typing import Optional, Union
+
+from app.core.redis_manager import (
+    RedisManager,
+    get_redis_manager,
+    get_async_redis_client,
+    get_sync_redis_client,
+    get_compatible_redis_client,
+    cleanup_redis_connections,
+    redis_health_check
+)
+
+logger = logging.getLogger(__name__)
+
+# Re-export recommended functions
+__all__ = [
+    'get_redis_client',          # Unified entry point
+    'get_async_redis',           # Async client
+    'get_sync_redis',            # Sync client
+    'get_cache_redis',           # Cache-specific client
+    'get_broker_redis',          # Celery broker client
+    'cleanup_redis',             # Cleanup function
+    'redis_health',              # Health check
+]
+
+
+def get_redis_client(client_type: str = "auto"):
+    """
+    Unified Redis client getter - RECOMMENDED ENTRY POINT
+
+    Args:
+        client_type: "auto" (default), "sync", or "async"
+
+    Returns:
+        Redis client with appropriate interface
+
+    Examples:
+        # Auto-detect (recommended)
+        redis = get_redis_client()
+        redis.set('key', 'value', ex=3600)
+
+        # Force sync
+        redis = get_redis_client('sync')
+        redis.set('key', 'value')
+
+        # Force async (returns wrapper for sync usage)
+        redis = get_redis_client('async')
+        redis.set('key', 'value')  # Works in sync context
+    """
+    return get_compatible_redis_client(client_type)
+
+
+async def get_async_redis():
+    """
+    Get async Redis client - for pure async contexts
+
+    Returns:
+        Async Redis client
+
+    Example:
+        redis = await get_async_redis()
+        await redis.set('key', 'value', ex=3600)
+    """
+    return await get_async_redis_client()
+
+
+def get_sync_redis():
+    """
+    Get sync Redis client - for pure sync contexts
+
+    Returns:
+        Sync Redis client
+
+    Example:
+        redis = get_sync_redis()
+        redis.set('key', 'value', ex=3600)
+    """
+    return get_sync_redis_client()
+
+
+def get_cache_redis():
+    """
+    Get Redis client for cache operations (DB 1)
+
+    Returns:
+        Redis client configured for cache
+    """
+    # Use same client for now - isolation happens at config level
+    return get_sync_redis_client()
+
+
+def get_broker_redis():
+    """
+    Get Redis client for Celery broker operations (DB 0)
+
+    Note: Celery manages its own connections via CELERY_BROKER_URL
+    This is provided for direct broker inspection/management only.
+
+    Returns:
+        Redis client configured for broker
+    """
+    # Use same client for now - isolation happens at config level
+    return get_sync_redis_client()
+
+
+async def cleanup_redis():
+    """
+    Cleanup all Redis connections
+
+    Call this during application shutdown.
+    """
+    await cleanup_redis_connections()
+    logger.info("Redis connections cleaned up via unified client")
+
+
+async def redis_health():
+    """
+    Perform Redis health check
+
+    Returns:
+        Health check results dict
+    """
+    return await redis_health_check()
+
+
+# ============================================================================
+# DEPRECATED COMPATIBILITY LAYER
+# ============================================================================
+
+def _deprecation_warning(old_module: str, new_function: str):
+    """Issue deprecation warning"""
+    warnings.warn(
+        f"{old_module} is deprecated. Use 'from app.core.redis_unified import {new_function}' instead.",
+        DeprecationWarning,
+        stacklevel=3
+    )
+
+
+# Legacy imports for backward compatibility
+class LegacyRedisClientFactory:
+    """Deprecated: Use redis_unified instead"""
+
+    def __init__(self):
+        _deprecation_warning('RedisClientFactory', 'get_redis_client')
+        self._manager = get_redis_manager()
+
+    def get_sync_client(self):
+        return self._manager.get_sync_client()
+
+    async def get_async_client(self):
+        return await self._manager.get_async_client()
+
+    def get_compatible_client(self, client_type='auto'):
+        return self._manager.get_compatible_client(client_type)
+
+
+class LegacySimplifiedRedisClient:
+    """Deprecated: Use redis_unified instead"""
+
+    def __init__(self, *args, **kwargs):
+        _deprecation_warning('SimplifiedRedisClient', 'get_redis_client')
+        self._client = get_sync_redis_client()
+
+    def set(self, key, value, ex=None):
+        return self._client.set(key, value, ex=ex)
+
+    def get(self, key):
+        return self._client.get(key)
+
+    def delete(self, key):
+        return self._client.delete(key)
+
+    def exists(self, key):
+        return bool(self._client.exists(key))
+
+
+def get_redis_factory():
+    """Deprecated: Use get_redis_client() instead"""
+    _deprecation_warning('get_redis_factory()', 'get_redis_client')
+    return LegacyRedisClientFactory()
+
+
+def initialize_simple_redis(*args, **kwargs):
+    """Deprecated: Use get_redis_client() instead"""
+    _deprecation_warning('initialize_simple_redis()', 'get_redis_client')
+    return LegacySimplifiedRedisClient()
+
+
+def get_simple_redis():
+    """Deprecated: Use get_redis_client() instead"""
+    _deprecation_warning('get_simple_redis()', 'get_redis_client')
+    return LegacySimplifiedRedisClient()
+
+
+# ============================================================================
+# MIGRATION HELPERS
+# ============================================================================
+
+def print_migration_guide():
+    """Print migration guide for updating code"""
+    guide = """
+    ╔══════════════════════════════════════════════════════════════╗
+    ║        Redis Client Migration Guide                          ║
+    ╚══════════════════════════════════════════════════════════════╝
+
+    Old Code → New Code
+    ────────────────────────────────────────────────────────────────
+
+    1. Factory Pattern (redis_client_factory.py):
+
+       OLD:
+         from app.core.redis_client_factory import get_redis_factory
+         factory = get_redis_factory()
+         redis = factory.get_sync_client()
+
+       NEW:
+         from app.core.redis_unified import get_redis_client
+         redis = get_redis_client('sync')
+
+    ────────────────────────────────────────────────────────────────
+
+    2. Simple Client (redis_simple.py):
+
+       OLD:
+         from app.core.redis_simple import get_simple_redis
+         redis = get_simple_redis()
+
+       NEW:
+         from app.core.redis_unified import get_redis_client
+         redis = get_redis_client()
+
+    ────────────────────────────────────────────────────────────────
+
+    3. Utils Client (redis_client.py):
+
+       OLD:
+         from app.utils.redis_client import get_sync_redis_client
+         redis = get_sync_redis_client()
+
+       NEW:
+         from app.core.redis_unified import get_sync_redis
+         redis = get_sync_redis()
+
+    ────────────────────────────────────────────────────────────────
+
+    4. Auto-detect (recommended):
+
+       NEW:
+         from app.core.redis_unified import get_redis_client
+
+         # Works in both sync and async contexts
+         redis = get_redis_client()
+         redis.set('key', 'value', ex=3600)
+
+    ────────────────────────────────────────────────────────────────
+
+    5. Pure Async:
+
+       NEW:
+         from app.core.redis_unified import get_async_redis
+
+         redis = await get_async_redis()
+         await redis.set('key', 'value', ex=3600)
+
+    ════════════════════════════════════════════════════════════════
+
+    Benefits:
+    ✓ Single import location
+    ✓ Consistent API across codebase
+    ✓ Automatic async/sync detection
+    ✓ Connection pooling handled automatically
+    ✓ Deprecation warnings guide migration
+
+    ════════════════════════════════════════════════════════════════
+    """
+    print(guide)
+
+
+if __name__ == "__main__":
+    print_migration_guide()

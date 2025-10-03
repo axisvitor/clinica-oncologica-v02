@@ -1,0 +1,62 @@
+{
+  "day_1_15": {
+    "name": "Day 1-15 Flow",
+    "description": "Initial 15-day hormone therapy flow",
+    "steps": {
+      "welcome": {
+        "content": "Welcome to your hormone therapy journey! I'll be here to support you every step of the way."
+      },
+      "daily_check_in": {
+        "content": "How are you feeling today?"
+      },
+      "medication_reminder": {
+        "content": "Don't forget to take your medication as prescribed."
+      },
+      "progress_check": {
+        "content": "Let's check your progress this week."
+      },
+      "completion": {
+        "content": "Congratulations! You've completed the first phase of your treatment."
+      }
+    }
+  },
+  "day_16_45": {
+    "name": "Day 16-45 Flow",
+    "description": "Extended hormone therapy flow for days 16-45",
+    "steps": {
+      "phase_two_welcome": {
+        "content": "Welcome to phase two of your treatment! Let's continue monitoring your progress."
+      },
+      "enhanced_check_in": {
+        "content": "How has your body been responding to the treatment?"
+      },
+      "side_effects_monitor": {
+        "content": "Have you experienced any side effects?"
+      },
+      "lifestyle_check": {
+        "content": "Let's review your lifestyle and habits."
+      },
+      "phase_completion": {
+        "content": "Excellent progress! You're ready for the next phase of treatment."
+      }
+    }
+  },
+  "monthly": {
+    "name": "Monthly Maintenance Flow",
+    "description": "Monthly maintenance flow for ongoing treatment",
+    "steps": {
+      "monthly_welcome": {
+        "content": "Time for your monthly check-in! Let's see how you're doing."
+      },
+      "comprehensive_assessment": {
+        "content": "Let's do a comprehensive review of your health this month."
+      },
+      "goal_review": {
+        "content": "How are you progressing toward your health goals?"
+      },
+      "next_month_prep": {
+        "content": "Great work this month! Let's prepare for continued success."
+      }
+    }
+  }
+}

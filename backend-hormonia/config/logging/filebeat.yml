@@ -1,0 +1,286 @@
+# Filebeat Configuration for Hormonia Backend Log Shipping
+# Collects logs and ships to Elasticsearch/Logstash
+
+filebeat.inputs:
+  # Application logs
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/hormonia/app/*.log
+      - /app/logs/*.log
+    fields:
+      service: hormonia-backend
+      log_type: application
+    fields_under_root: true
+    multiline:
+      pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+      negate: true
+      match: after
+    json:
+      keys_under_root: true
+      add_error_key: true
+      message_key: message
+
+  # Security logs
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/hormonia/security/*.log
+    fields:
+      service: hormonia-backend
+      log_type: security
+      compliance: hipaa
+    fields_under_root: true
+    json:
+      keys_under_root: true
+      add_error_key: true
+
+  # Audit logs (HIPAA compliance - 7 year retention)
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/hormonia/audit/*.log
+    fields:
+      service: hormonia-backend
+      log_type: audit
+      compliance: hipaa
+      retention_days: 2555
+    fields_under_root: true
+    json:
+      keys_under_root: true
+      add_error_key: true
+
+  # Database query logs
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/hormonia/database/*.log
+    fields:
+      service: hormonia-backend
+      log_type: database
+    fields_under_root: true
+    json:
+      keys_under_root: true
+      add_error_key: true
+
+  # API access logs
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/hormonia/api/*.log
+    fields:
+      service: hormonia-backend
+      log_type: api
+    fields_under_root: true
+    json:
+      keys_under_root: true
+      add_error_key: true
+
+  # Error logs
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/hormonia/errors/*.log
+    fields:
+      service: hormonia-backend
+      log_type: error
+      priority: high
+    fields_under_root: true
+    json:
+      keys_under_root: true
+      add_error_key: true
+
+  # Redis logs
+  - type: redis
+    enabled: true
+    hosts: ["${REDIS_HOST:localhost}:${REDIS_PORT:6379}"]
+    password: "${REDIS_PASSWORD:}"
+    key: "logs:*"
+    db: 0
+    timeout: 5s
+
+# Processors for log enrichment
+processors:
+  # Add host information
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+      netinfo.enabled: true
+      cache.ttl: 5m
+
+  # Add cloud metadata (for Railway/cloud deployments)
+  - add_cloud_metadata: ~
+
+  # Add Docker metadata if running in container
+  - add_docker_metadata:
+      host: "unix:///var/run/docker.sock"
+
+  # Add Kubernetes metadata if running in k8s
+  - add_kubernetes_metadata:
+      host: ${NODE_NAME}
+      matchers:
+        - logs_path:
+            logs_path: "/var/log/containers/"
+
+  # Drop debug logs in production (sampling)
+  - drop_event:
+      when:
+        and:
+          - equals:
+              level: DEBUG
+          - equals:
+              environment: production
+          - script:
+              lang: javascript
+              source: >
+                function process(event) {
+                  return Math.random() > 0.1; // Keep only 10%
+                }
+
+  # Redact PHI/PII data for HIPAA compliance
+  - dissect:
+      tokenizer: "%{key}=%{value}"
+      field: "message"
+      target_prefix: "dissected"
+      ignore_failure: true
+
+  - script:
+      lang: javascript
+      source: >
+        function process(event) {
+          var message = event.Get("message");
+          if (message) {
+            // Redact SSN
+            message = message.replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[SSN_REDACTED]');
+            // Redact CPF
+            message = message.replace(/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/g, '[CPF_REDACTED]');
+            // Redact email
+            message = message.replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, '[EMAIL_REDACTED]');
+            // Redact phone
+            message = message.replace(/\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/g, '[PHONE_REDACTED]');
+            event.Put("message", message);
+          }
+          return event;
+        }
+
+  # Add tags based on log content
+  - script:
+      lang: javascript
+      source: >
+        function process(event) {
+          var message = event.Get("message");
+          var tags = [];
+
+          if (message) {
+            if (message.match(/error|exception|failed/i)) {
+              tags.push("error");
+            }
+            if (message.match(/timeout|slow/i)) {
+              tags.push("performance");
+            }
+            if (message.match(/security|authentication|authorization|access denied/i)) {
+              tags.push("security");
+            }
+            if (message.match(/patient|medical|treatment|diagnosis/i)) {
+              tags.push("phi_potential");
+            }
+          }
+
+          if (tags.length > 0) {
+            event.Put("tags", tags);
+          }
+          return event;
+        }
+
+  # Rename fields for consistency
+  - rename:
+      fields:
+        - from: "log.level"
+          to: "level"
+      ignore_missing: true
+
+  # Convert timestamps
+  - timestamp:
+      field: timestamp
+      layouts:
+        - '2006-01-02T15:04:05.999Z'
+        - '2006-01-02T15:04:05Z'
+      test:
+        - '2024-01-01T12:00:00.000Z'
+
+# Output to Logstash for processing
+output.logstash:
+  enabled: true
+  hosts: ["${LOGSTASH_HOST:localhost}:${LOGSTASH_PORT:5044}"]
+  ssl.enabled: ${LOGSTASH_SSL:false}
+  ssl.certificate_authorities: ["/etc/pki/root/ca.pem"]
+  ssl.certificate: "/etc/pki/client/cert.pem"
+  ssl.key: "/etc/pki/client/cert.key"
+  loadbalance: true
+  worker: 2
+  compression_level: 3
+  bulk_max_size: 2048
+  timeout: 30s
+
+# Alternative: Direct to Elasticsearch
+output.elasticsearch:
+  enabled: false
+  hosts: ["${ELASTICSEARCH_HOST:localhost}:${ELASTICSEARCH_PORT:9200}"]
+  username: "${ELASTICSEARCH_USERNAME:elastic}"
+  password: "${ELASTICSEARCH_PASSWORD:changeme}"
+  protocol: "https"
+  ssl.verification_mode: "certificate"
+
+  # Index strategy with ILM
+  index: "hormonia-logs-%{[agent.version]}-%{+yyyy.MM.dd}"
+
+  # Index Lifecycle Management
+  ilm.enabled: true
+  ilm.rollover_alias: "hormonia-logs"
+  ilm.pattern: "{now/d}-000001"
+  ilm.policy_name: "hormonia-ilm-policy"
+
+  # Pipeline for processing
+  pipeline: "hormonia-log-pipeline"
+
+  # Retry settings
+  max_retries: 3
+  backoff.init: 1s
+  backoff.max: 60s
+
+# Alternative: Output to Kafka for high-volume scenarios
+output.kafka:
+  enabled: false
+  hosts: ["${KAFKA_HOST:localhost}:${KAFKA_PORT:9092}"]
+  topic: "hormonia-logs"
+  partition.round_robin:
+    reachable_only: false
+  required_acks: 1
+  compression: gzip
+  max_message_bytes: 1000000
+
+# Monitoring
+monitoring.enabled: true
+monitoring.elasticsearch:
+  hosts: ["${ELASTICSEARCH_HOST:localhost}:${ELASTICSEARCH_PORT:9200}"]
+  username: "${ELASTICSEARCH_USERNAME:elastic}"
+  password: "${ELASTICSEARCH_PASSWORD:changeme}"
+
+# Logging
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
+
+# HTTP endpoint for health checks
+http.enabled: true
+http.host: 0.0.0.0
+http.port: 5066
+
+# Queue settings for reliability
+queue.mem:
+  events: 4096
+  flush.min_events: 2048
+  flush.timeout: 1s

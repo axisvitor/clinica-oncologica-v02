@@ -1,0 +1,60 @@
+"""
+User model for healthcare providers (doctors, admins).
+"""
+from sqlalchemy import Column, String, Boolean, Enum, DateTime
+from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import JSONB
+import enum
+
+from app.models.base import BaseModel
+
+
+class UserRole(enum.Enum):
+    """User role enumeration - ONLY 2 roles."""
+    ADMIN = "admin"      # Full system access
+    DOCTOR = "doctor"    # Clinical operations
+
+
+class AuthProvider(enum.Enum):
+    """Authentication provider enumeration."""
+    LOCAL = "local"
+    FIREBASE = "firebase"
+
+
+class User(BaseModel):
+    """User model for healthcare providers."""
+    __tablename__ = "users"
+
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=True)  # Nullable for Firebase users
+    full_name = Column(String(255), nullable=True)
+    # Use native PostgreSQL enum with explicit name and values_callable to ensure lowercase values
+    role = Column(
+        Enum(UserRole, name='user_role', native_enum=True, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=UserRole.DOCTOR
+    )
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    # Firebase authentication fields
+    firebase_uid = Column(String(255), unique=True, nullable=True, index=True)
+    auth_provider = Column(
+        Enum(AuthProvider, name='auth_provider', native_enum=True, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=AuthProvider.LOCAL
+    )
+    firebase_last_sign_in = Column(DateTime(timezone=True), nullable=True)
+    firebase_created_at = Column(DateTime(timezone=True), nullable=True)
+    firebase_email_verified = Column(Boolean, default=False, nullable=False)
+    firebase_display_name = Column(String(255), nullable=True)
+    firebase_photo_url = Column(String(500), nullable=True)
+    firebase_custom_claims = Column(JSONB, default={}, nullable=False)
+    last_firebase_sync = Column(DateTime(timezone=True), nullable=True)
+    
+    # Relationships
+    patients = relationship("Patient", back_populates="doctor")
+    generated_reports = relationship("MedicalReport", back_populates="generated_by_user")
+    acknowledged_alerts = relationship("Alert", back_populates="acknowledged_by_user")
+    
+    def __repr__(self):
+        return f"<User(email='{self.email}', role='{self.role.value}')>"

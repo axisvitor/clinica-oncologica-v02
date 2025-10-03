@@ -1,0 +1,622 @@
+"""
+Webhook processor for Evolution API integration.
+Handles incoming messages from WhatsApp and processes them through the flow engine.
+"""
+import logging
+from typing import Any, Optional, Dict, List
+from datetime import datetime
+from uuid import UUID
+from sqlalchemy.orm import Session
+import redis.asyncio as redis
+
+from app.models.message import Message, MessageType, MessageStatus, MessageDirection
+from app.models.patient import Patient
+from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion
+from app.services.message import MessageService
+from app.services.patient import PatientService
+from app.services.flow_engine import FlowEngine
+from app.services.enhanced_flow_engine import EnhancedFlowEngine
+from app.services.websocket_events import websocket_events
+from app.schemas.websocket import WebSocketEventType
+from app.schemas.message import MessageCreate
+from app.integrations.openai_client import get_langchain_orchestrator, OpenAIClientError
+from app.integrations.evolution import WebhookEvent
+from app.repositories.connection_state import ConnectionStateRepository
+from app.repositories.flow import FlowStateRepository
+from app.exceptions import ValidationError, NotFoundError
+from app.utils.db_retry import with_db_retry
+from app.core.redis_unified import get_async_redis
+
+logger = logging.getLogger(__name__)
+
+
+class WebhookProcessor:
+    """
+    Process webhooks from Evolution API for WhatsApp messages.
+
+    Responsibilities:
+    1. Normalize and validate incoming webhook data
+    2. Find or create patient based on phone number
+    3. Create inbound message record
+    4. Publish WebSocket events
+    5. Route to appropriate handler (Flow Engine or General Chat)
+    6. Generate and send responses
+    """
+
+    def __init__(
+        self,
+        db: Session,
+        connection_state_repository: Optional[ConnectionStateRepository] = None,
+    ):
+        """
+        Initialize webhook processor with required services.
+
+        Args:
+            db: Database session
+            connection_state_repository: Optional connection state repository
+        """
+        self.db = db
+        self.message_service = MessageService(db)
+        self.patient_service = PatientService(db)
+        self.flow_engine = FlowEngine(db)
+        self.enhanced_flow_engine = EnhancedFlowEngine(db)
+        self.flow_state_repo = FlowStateRepository(db)
+        self.ai_client = get_langchain_orchestrator()
+        self.connection_state_repo = (
+            connection_state_repository or ConnectionStateRepository()
+        )
+
+        logger.info("WebhookProcessor initialized")
+
+    @with_db_retry(max_retries=3)
+    async def process_message_webhook(self, event_data: dict[str, Any]) -> Optional[str]:
+        """
+        Process incoming message webhook from Evolution API.
+
+        Flow:
+        1. Extract and validate message data
+        2. Check idempotency (deduplicate by whatsapp_id)
+        3. Find patient by phone number
+        4. Create inbound message record
+        5. Publish WebSocket event
+        6. Check for active flow
+        7. Route to flow processing or general chat
+        8. Generate and send response
+
+        Args:
+            event_data: Webhook event data from Evolution API
+
+        Returns:
+            Message ID if processed successfully, None otherwise
+        """
+        try:
+            # Step 1: Extract message data from webhook
+            message_data = self._extract_message_data(event_data)
+            if not message_data:
+                logger.warning("No valid message data found in webhook")
+                return None
+
+            whatsapp_id = message_data["whatsapp_id"]
+
+            # Step 2: Idempotency check via Redis (fast path) + DB fallback
+            redis_client = await get_async_redis()
+            idempotency_key = f"webhook:message:{whatsapp_id}"
+
+            # Try Redis first (fast)
+            is_duplicate = await redis_client.exists(idempotency_key)
+            if is_duplicate:
+                logger.info(f"Duplicate webhook message detected (Redis): {whatsapp_id}")
+                # Return existing message_id if stored
+                existing_id = await redis_client.get(idempotency_key)
+                return existing_id.decode() if existing_id else None
+
+            # DB fallback: check if whatsapp_id already exists
+            existing_message = self.db.query(Message).filter(
+                Message.whatsapp_id == whatsapp_id
+            ).first()
+
+            if existing_message:
+                logger.info(f"Duplicate webhook message detected (DB): {whatsapp_id}")
+                # Cache in Redis for future fast-path (TTL 1h)
+                await redis_client.setex(idempotency_key, 3600, str(existing_message.id))
+                return str(existing_message.id)
+
+            # Step 3: Find patient by phone number
+            patient = self._find_patient_by_phone(message_data["phone"])
+            if not patient:
+                logger.warning(f"Patient not found for phone: {message_data['phone']}")
+                # Future: Could implement auto-registration here
+                return None
+
+            # Step 4: Check flow status and add context
+            active_flow = self.flow_state_repo.get_active_flow(patient.id)
+            metadata = message_data.get("metadata", {})
+
+            if active_flow:
+                # Get flow type for context
+                flow_type = self._get_flow_type_from_state(active_flow)
+                metadata["context"] = "flow"
+                metadata["flow_type"] = flow_type
+                metadata["flow_state_id"] = str(active_flow.id)
+                metadata["current_step"] = active_flow.current_step
+            else:
+                metadata["context"] = "general_chat"
+
+            # Step 5: Create inbound message record
+            message = self.message_service.process_inbound_message(
+                patient_id=patient.id,
+                content=message_data["content"],
+                whatsapp_id=message_data["whatsapp_id"],
+                message_type=message_data["type"],
+                message_metadata=metadata,
+            )
+
+            # Cache message_id in Redis for idempotency (TTL 1h)
+            await redis_client.setex(idempotency_key, 3600, str(message.id))
+
+            logger.info(
+                f"Processed inbound message {message.id} from patient {patient.id} "
+                f"(context: {metadata['context']})"
+            )
+
+            # Step 6: Publish WebSocket event for UI updates
+            await self._publish_message_event(message, patient.id)
+
+            # Step 7: Route to appropriate handler
+            if active_flow:
+                await self._handle_flow_message(patient, message, active_flow)
+            else:
+                await self._handle_general_chat(patient, message)
+
+            return str(message.id)
+
+        except Exception as e:
+            logger.error(f"Error processing message webhook: {e}", exc_info=True)
+            return None
+
+    @with_db_retry(max_retries=3)
+    async def process_status_webhook(self, event_data: dict[str, Any]) -> bool:
+        """
+        Process message status update webhook (delivered, read, etc).
+
+        Args:
+            event_data: Webhook event data
+
+        Returns:
+            True if processed successfully
+        """
+        try:
+            # Extract status data
+            whatsapp_id = event_data.get("key", {}).get("id")
+            status = event_data.get("update", {}).get("status")
+
+            if not whatsapp_id or not status:
+                logger.warning("Missing required fields in status webhook")
+                return False
+
+            # Update message status
+            message = self.message_service.update_message_status_by_whatsapp_id(
+                whatsapp_id=whatsapp_id,
+                status=self._map_evolution_status(status)
+            )
+
+            if message:
+                # Publish WebSocket event for status update
+                await websocket_events.publish_message_event(
+                    event_type=WebSocketEventType.MESSAGE_STATUS_UPDATE,
+                    message_id=message.id,
+                    patient_id=message.patient_id,
+                    direction=message.direction.value,
+                    message_type=message.type.value,
+                    status=message.status.value,
+                    metadata={"whatsapp_id": whatsapp_id}
+                )
+
+                logger.info(f"Updated message {message.id} status to {status}")
+                return True
+
+            logger.warning(f"Message not found for WhatsApp ID: {whatsapp_id}")
+            return False
+
+        except Exception as e:
+            logger.error(f"Error processing status webhook: {e}", exc_info=True)
+            return False
+
+    # =========================================================================
+    # PRIVATE HELPER METHODS
+    # =========================================================================
+
+    async def _handle_flow_message(
+        self,
+        patient: Patient,
+        message: Message,
+        flow_state: PatientFlowState
+    ) -> None:
+        """
+        Handle message within active flow context.
+
+        Args:
+            patient: Patient record
+            message: Inbound message
+            flow_state: Active flow state
+        """
+        try:
+            # Check if patient has an active quiz session
+            from app.services.quiz import QuizSessionService
+            quiz_session_service = QuizSessionService(self.db)
+            active_quiz_session = quiz_session_service.get_active_session(patient.id)
+
+            if active_quiz_session:
+                # Route to conversational quiz handler
+                logger.info(f"Routing message to quiz handler for patient {patient.id}")
+                await self._handle_quiz_message(patient, message, active_quiz_session)
+                return
+
+            # Calculate current day
+            current_day = await self.enhanced_flow_engine.calculate_patient_day(patient.id)
+
+            # Process response through enhanced flow engine
+            response = await self.enhanced_flow_engine.process_patient_response(
+                patient_id=patient.id,
+                response_text=message.content,
+                current_day=current_day
+            )
+
+            if response.get("should_advance"):
+                # Advance flow if needed
+                advancement = await self.flow_engine.advance_flow(
+                    patient_id=patient.id,
+                    additional_context={"patient_response": message.content}
+                )
+                logger.info(f"Flow advanced for patient {patient.id}: {advancement}")
+
+            # Generate and send response if available
+            if response.get("ai_response"):
+                await self._send_response(
+                    patient_id=patient.id,
+                    content=response["ai_response"],
+                    metadata={
+                        "context": "flow",
+                        "flow_state_id": str(flow_state.id),
+                        "current_day": current_day,
+                        "response_to": str(message.id)
+                    }
+                )
+
+        except Exception as e:
+            logger.error(
+                f"Error handling flow message for patient {patient.id}: {e}",
+                exc_info=True
+            )
+
+    async def _handle_quiz_message(
+        self,
+        patient: Patient,
+        message: Message,
+        quiz_session: Any
+    ) -> None:
+        """
+        Handle message within active quiz context.
+
+        Args:
+            patient: Patient record
+            message: Inbound message
+            quiz_session: Active quiz session
+        """
+        try:
+            from app.services.quiz_flow_integration import ConversationalQuizService
+
+            quiz_service = ConversationalQuizService(self.db)
+
+            # Process quiz response
+            result = await quiz_service.process_quiz_response(
+                patient_id=patient.id,
+                response_text=message.content,
+                message_metadata={
+                    'message_id': str(message.id),
+                    'timestamp': message.timestamp,
+                    'whatsapp_id': message.whatsapp_id
+                }
+            )
+
+            logger.info(
+                f"Quiz response processed for patient {patient.id}: "
+                f"action={result.get('action')}, success={result.get('success')}"
+            )
+
+            # Handle result actions
+            if result.get('action') == 'quiz_completed':
+                logger.info(f"Quiz completed for patient {patient.id}")
+            elif result.get('action') == 'next_question':
+                logger.info(f"Advanced to next question for patient {patient.id}")
+            elif result.get('action') == 'request_clarification':
+                logger.info(f"Clarification requested for patient {patient.id}")
+
+        except Exception as e:
+            logger.error(
+                f"Error handling quiz message for patient {patient.id}: {e}",
+                exc_info=True
+            )
+
+    async def _handle_general_chat(self, patient: Patient, message: Message) -> None:
+        """
+        Handle general chat message (no active flow).
+
+        Args:
+            patient: Patient record
+            message: Inbound message
+        """
+        try:
+            # Get conversation history for context
+            history = self.message_service.get_conversation_history(
+                patient_id=patient.id,
+                limit=10
+            )
+            conversation_history = [m.content for m in history if m.content]
+
+            # Build patient context
+            patient_context = {
+                "patient_id": str(patient.id),
+                "name": patient.name,
+                "phone": patient.phone,
+                "treatment_type": getattr(patient, "treatment_type", None),
+                "cancer_type": getattr(patient, "cancer_type", None),
+            }
+
+            # Generate AI response
+            ai_response = await self.ai_client.generate_contextual_response(
+                patient_message=message.content,
+                patient_context=patient_context,
+                conversation_history=conversation_history
+            )
+
+            # Send response
+            await self._send_response(
+                patient_id=patient.id,
+                content=ai_response,
+                metadata={
+                    "context": "general_chat",
+                    "response_to": str(message.id)
+                }
+            )
+
+        except Exception as e:
+            logger.error(
+                f"Error handling general chat for patient {patient.id}: {e}",
+                exc_info=True
+            )
+
+    async def _send_response(
+        self,
+        patient_id: UUID,
+        content: str,
+        metadata: Dict[str, Any]
+    ) -> Optional[Message]:
+        """
+        Create and send response message.
+
+        Args:
+            patient_id: Patient ID
+            content: Response content
+            metadata: Message metadata
+
+        Returns:
+            Created message or None
+        """
+        try:
+            # Create outbound message
+            response_data = MessageCreate(
+                patient_id=patient_id,
+                direction=MessageDirection.OUTBOUND,
+                type=MessageType.TEXT,
+                content=content,
+                message_metadata=metadata
+            )
+
+            response_message = self.message_service.create_message(response_data)
+
+            # Publish WebSocket event
+            await self._publish_message_event(response_message, patient_id)
+
+            # Schedule for sending via Evolution API
+            self.message_service.schedule_message(
+                patient_id=patient_id,
+                content=content,
+                scheduled_for=datetime.utcnow(),
+                message_metadata=metadata
+            )
+
+            logger.info(f"Response message {response_message.id} created for patient {patient_id}")
+            return response_message
+
+        except Exception as e:
+            logger.error(f"Error sending response: {e}", exc_info=True)
+            return None
+
+    async def _publish_message_event(self, message: Message, patient_id: UUID) -> None:
+        """
+        Publish WebSocket event for message.
+
+        Args:
+            message: Message to publish
+            patient_id: Patient ID
+        """
+        await websocket_events.publish_message_event(
+            event_type=WebSocketEventType.NEW_MESSAGE,
+            message_id=message.id,
+            patient_id=patient_id,
+            direction=message.direction.value,
+            message_type=message.type.value,
+            content=message.content,
+            whatsapp_id=message.whatsapp_id,
+            metadata=message.metadata
+        )
+
+    def _extract_message_data(self, event_data: dict[str, Any]) -> Optional[dict[str, Any]]:
+        """
+        Extract relevant message data from Evolution API webhook.
+
+        Args:
+            event_data: Raw webhook event data
+
+        Returns:
+            Extracted message data or None if invalid
+        """
+        try:
+            data = event_data.get("data", {})
+
+            # Check for required fields
+            if not data.get("message") or not data.get("key"):
+                return None
+
+            message = data["message"]
+            key = data["key"]
+
+            # Extract phone number from remoteJid
+            remote_jid = key.get("remoteJid", "")
+            phone = self._clean_phone_number(remote_jid)
+
+            if not phone:
+                return None
+
+            # Extract message content
+            content = None
+            message_type = MessageType.TEXT
+
+            if "extendedTextMessage" in message:
+                content = message["extendedTextMessage"].get("text")
+            elif "conversation" in message:
+                content = message["conversation"]
+            elif "imageMessage" in message:
+                content = message["imageMessage"].get("caption", "[Image]")
+                message_type = MessageType.IMAGE
+            elif "audioMessage" in message:
+                content = "[Audio message]"
+                message_type = MessageType.AUDIO
+
+            if not content:
+                return None
+
+            return {
+                "phone": phone,
+                "content": content,
+                "type": message_type,
+                "whatsapp_id": key.get("id"),
+                "metadata": {
+                    "from_me": key.get("fromMe", False),
+                    "timestamp": message.get("messageTimestamp"),
+                    "pushName": data.get("pushName"),
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"Error extracting message data: {e}")
+            return None
+
+    def _find_patient_by_phone(self, phone: str) -> Optional[Patient]:
+        """
+        Find patient by phone number.
+
+        Args:
+            phone: Cleaned phone number
+
+        Returns:
+            Patient or None if not found
+        """
+        try:
+            # Try exact match first
+            patient = self.patient_service.get_by_phone(phone)
+            if patient:
+                return patient
+
+            # Try with country code variations
+            if not phone.startswith("55"):
+                patient = self.patient_service.get_by_phone(f"55{phone}")
+                if patient:
+                    return patient
+
+            # Try without country code
+            if phone.startswith("55"):
+                patient = self.patient_service.get_by_phone(phone[2:])
+                if patient:
+                    return patient
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error finding patient by phone {phone}: {e}")
+            return None
+
+    def _clean_phone_number(self, phone: str) -> str:
+        """
+        Clean and normalize phone number.
+
+        Args:
+            phone: Raw phone number
+
+        Returns:
+            Cleaned phone number
+        """
+        # Remove @s.whatsapp.net suffix
+        if "@" in phone:
+            phone = phone.split("@")[0]
+
+        # Remove non-digit characters
+        cleaned = "".join(filter(str.isdigit, phone))
+
+        # Remove leading zeros
+        cleaned = cleaned.lstrip("0")
+
+        return cleaned
+
+    def _get_flow_type_from_state(self, flow_state: PatientFlowState) -> str:
+        """
+        Get flow type from flow state using template version.
+
+        Args:
+            flow_state: Patient flow state
+
+        Returns:
+            Flow type string
+        """
+        try:
+            template_version = self.db.query(FlowTemplateVersion).filter(
+                FlowTemplateVersion.id == flow_state.template_version_id
+            ).first()
+
+            if not template_version:
+                return "unknown"
+
+            flow_kind = self.db.query(FlowKind).filter(
+                FlowKind.id == template_version.kind_id
+            ).first()
+
+            return flow_kind.flow_type if flow_kind else "unknown"
+
+        except Exception as e:
+            logger.error(f"Error getting flow type: {e}")
+            return "unknown"
+
+    def _map_evolution_status(self, evolution_status: str) -> MessageStatus:
+        """
+        Map Evolution API status to internal MessageStatus.
+
+        Args:
+            evolution_status: Status from Evolution API
+
+        Returns:
+            Internal MessageStatus enum
+        """
+        status_mapping = {
+            "PENDING": MessageStatus.PENDING,
+            "SENT": MessageStatus.SENT,
+            "DELIVERED": MessageStatus.DELIVERED,
+            "READ": MessageStatus.READ,
+            "FAILED": MessageStatus.FAILED,
+            "ERROR": MessageStatus.FAILED,
+        }
+
+        return status_mapping.get(
+            evolution_status.upper(),
+            MessageStatus.PENDING
+        )

@@ -1,0 +1,311 @@
+# Infrastructure Monitoring Configuration
+
+# Resource Monitoring
+resource_monitoring:
+  enabled: true
+  interval_seconds: 60
+  history_size: 1000
+
+  thresholds:
+    cpu:
+      warning: 70.0
+      critical: 90.0
+    memory:
+      warning: 75.0
+      critical: 90.0
+    disk:
+      warning: 80.0
+      critical: 95.0
+
+  # Memory leak detection
+  memory_leak_detection:
+    enabled: true
+    threshold_mb: 100
+    check_interval_seconds: 300
+
+# Service Health Monitoring
+service_health:
+  enabled: true
+  check_interval_seconds: 60
+
+  # API endpoints to monitor
+  api_endpoints:
+    - url: "/api/v1/health"
+      method: "GET"
+      expected_status: 200
+    - url: "/api/v1/patients"
+      method: "GET"
+      expected_status: 200
+    - url: "/api/v1/quiz"
+      method: "GET"
+      expected_status: 200
+
+  # SLA targets
+  sla:
+    api_availability: 99.9
+    api_response_time_ms: 1000
+    database_availability: 99.95
+    database_response_time_ms: 100
+    cache_availability: 99.9
+    cache_response_time_ms: 50
+    error_rate_target: 0.1
+
+  # Health check timeouts
+  timeouts:
+    api: 10
+    database: 5
+    cache: 5
+
+# Capacity Planning
+capacity_planning:
+  enabled: true
+
+  # Resource limits (percentage)
+  resource_limits:
+    cpu: 100.0
+    memory: 100.0
+    disk: 100.0
+    database_connections: 100
+
+  # Forecasting
+  forecasting:
+    enabled: true
+    history_required_hours: 24
+    forecast_horizons:
+      - 1h
+      - 6h
+      - 24h
+      - 7d
+
+  # Recommendation thresholds
+  thresholds:
+    warning: 80.0
+    critical: 95.0
+    scale_down: 30.0
+
+# Alert Management
+alerting:
+  enabled: true
+
+  # Alert rules
+  rules:
+    - rule_id: "cpu_high"
+      name: "High CPU Usage"
+      metric_name: "cpu_percent"
+      condition: "gt"
+      threshold: 70.0
+      severity: "warning"
+      duration_seconds: 300
+      cooldown_seconds: 600
+      enabled: true
+
+    - rule_id: "cpu_critical"
+      name: "Critical CPU Usage"
+      metric_name: "cpu_percent"
+      condition: "gte"
+      threshold: 90.0
+      severity: "critical"
+      duration_seconds: 60
+      cooldown_seconds: 300
+      enabled: true
+
+    - rule_id: "memory_high"
+      name: "High Memory Usage"
+      metric_name: "memory_percent"
+      condition: "gt"
+      threshold: 75.0
+      severity: "warning"
+      duration_seconds: 300
+      cooldown_seconds: 600
+      enabled: true
+
+    - rule_id: "memory_critical"
+      name: "Critical Memory Usage"
+      metric_name: "memory_percent"
+      condition: "gte"
+      threshold: 90.0
+      severity: "critical"
+      duration_seconds: 60
+      cooldown_seconds: 300
+      enabled: true
+
+    - rule_id: "disk_warning"
+      name: "Low Disk Space"
+      metric_name: "disk_percent"
+      condition: "gte"
+      threshold: 80.0
+      severity: "warning"
+      duration_seconds: 0
+      cooldown_seconds: 3600
+      enabled: true
+
+    - rule_id: "disk_critical"
+      name: "Critical Disk Space"
+      metric_name: "disk_percent"
+      condition: "gte"
+      threshold: 95.0
+      severity: "critical"
+      duration_seconds: 0
+      cooldown_seconds: 1800
+      enabled: true
+
+    - rule_id: "db_connections_high"
+      name: "High Database Connections"
+      metric_name: "db_connections"
+      condition: "gt"
+      threshold: 80.0
+      severity: "warning"
+      duration_seconds: 300
+      cooldown_seconds: 600
+      enabled: true
+
+  # Notification channels
+  notifications:
+    email:
+      enabled: true
+      recipients:
+        - "ops@oncology-platform.com"
+        - "admin@oncology-platform.com"
+      severity_filter:
+        - "critical"
+        - "error"
+      rate_limit_per_hour: 10
+      config:
+        smtp_host: "smtp.gmail.com"
+        smtp_port: 587
+        smtp_user: "${SMTP_USER}"
+        smtp_password: "${SMTP_PASSWORD}"
+        from_email: "alerts@oncology-platform.com"
+
+    slack:
+      enabled: true
+      recipients:
+        - "#alerts"
+        - "#ops-critical"
+      severity_filter:
+        - "critical"
+        - "warning"
+      rate_limit_per_hour: 20
+      config:
+        webhook_url: "${SLACK_WEBHOOK_URL}"
+
+    webhook:
+      enabled: false
+      recipients:
+        - "https://hooks.example.com/alerts"
+      severity_filter:
+        - "critical"
+        - "error"
+        - "warning"
+      rate_limit_per_hour: 50
+      config:
+        timeout_seconds: 10
+
+    sms:
+      enabled: false
+      recipients:
+        - "+1234567890"
+      severity_filter:
+        - "critical"
+      rate_limit_per_hour: 5
+      config:
+        provider: "twilio"
+        account_sid: "${TWILIO_ACCOUNT_SID}"
+        auth_token: "${TWILIO_AUTH_TOKEN}"
+        from_number: "${TWILIO_FROM_NUMBER}"
+
+    pagerduty:
+      enabled: false
+      recipients:
+        - "oncology-platform-team"
+      severity_filter:
+        - "critical"
+      rate_limit_per_hour: 10
+      config:
+        integration_key: "${PAGERDUTY_INTEGRATION_KEY}"
+
+  # Escalation policies
+  escalation_policies:
+    - policy_id: "critical_escalation"
+      name: "Critical Alert Escalation"
+      severity_filter:
+        - "critical"
+      levels:
+        - delay_minutes: 0
+          notify:
+            - "slack"
+            - "email"
+        - delay_minutes: 15
+          notify:
+            - "slack"
+            - "email"
+            - "sms"
+        - delay_minutes: 30
+          notify:
+            - "pagerduty"
+
+    - policy_id: "warning_escalation"
+      name: "Warning Alert Escalation"
+      severity_filter:
+        - "warning"
+      levels:
+        - delay_minutes: 0
+          notify:
+            - "slack"
+        - delay_minutes: 60
+          notify:
+            - "slack"
+            - "email"
+
+  # Alert aggregation
+  aggregation:
+    enabled: true
+    window_seconds: 300
+
+# Prometheus Metrics
+prometheus:
+  enabled: true
+  port: 8000
+  path: "/metrics"
+
+  # Metric collection
+  collect_interval_seconds: 15
+
+  # Custom metrics
+  custom_metrics:
+    business_metrics:
+      enabled: true
+      metrics:
+        - "app_active_users"
+        - "app_total_patients"
+        - "app_quiz_sessions_active"
+
+    whatsapp_metrics:
+      enabled: true
+      metrics:
+        - "whatsapp_messages_sent_total"
+        - "whatsapp_messages_received_total"
+
+# Process Monitoring
+process_monitoring:
+  enabled: true
+  monitored_processes:
+    - "python"
+    - "uvicorn"
+    - "gunicorn"
+    - "nginx"
+    - "redis-server"
+    - "postgres"
+
+# Logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  handlers:
+    console:
+      enabled: true
+    file:
+      enabled: true
+      path: "/var/log/monitoring/infrastructure.log"
+      max_bytes: 10485760  # 10MB
+      backup_count: 5

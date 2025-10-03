@@ -1,0 +1,592 @@
+{
+  "dashboards": [
+    {
+      "title": "Hormonia API Performance Dashboard",
+      "uid": "hormonia-api-performance",
+      "tags": ["hormonia", "api", "performance"],
+      "timezone": "browser",
+      "refresh": "30s",
+      "panels": [
+        {
+          "id": 1,
+          "title": "Request Rate (RPM)",
+          "type": "graph",
+          "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+          "targets": [
+            {
+              "expr": "rate(api_requests_total[5m]) * 60",
+              "legendFormat": "{{method}} {{endpoint}}"
+            }
+          ],
+          "yaxis": {
+            "label": "Requests per Minute"
+          },
+          "thresholds": [
+            {"value": 1000, "color": "yellow"},
+            {"value": 5000, "color": "orange"},
+            {"value": 10000, "color": "red"}
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Response Time Percentiles",
+          "type": "graph",
+          "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.50, rate(api_response_time_bucket[5m]))",
+              "legendFormat": "p50"
+            },
+            {
+              "expr": "histogram_quantile(0.95, rate(api_response_time_bucket[5m]))",
+              "legendFormat": "p95"
+            },
+            {
+              "expr": "histogram_quantile(0.99, rate(api_response_time_bucket[5m]))",
+              "legendFormat": "p99"
+            }
+          ],
+          "yaxis": {
+            "label": "Response Time (ms)"
+          },
+          "thresholds": [
+            {"value": 100, "color": "green"},
+            {"value": 500, "color": "yellow"},
+            {"value": 1000, "color": "orange"},
+            {"value": 2000, "color": "red"}
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Error Rate",
+          "type": "graph",
+          "gridPos": {"x": 0, "y": 8, "w": 8, "h": 8},
+          "targets": [
+            {
+              "expr": "(rate(api_requests_total{status=~\"5..\"}[5m]) / rate(api_requests_total[5m])) * 100",
+              "legendFormat": "Error Rate %"
+            }
+          ],
+          "yaxis": {
+            "label": "Error Rate (%)",
+            "max": 10
+          },
+          "thresholds": [
+            {"value": 1.0, "color": "yellow"},
+            {"value": 5.0, "color": "red"}
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Top Slowest Endpoints",
+          "type": "table",
+          "gridPos": {"x": 8, "y": 8, "w": 16, "h": 8},
+          "targets": [
+            {
+              "expr": "topk(10, avg by (endpoint) (api_response_time))",
+              "format": "table"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Request Status Distribution",
+          "type": "piechart",
+          "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+          "targets": [
+            {
+              "expr": "sum by (status) (rate(api_requests_total[5m]))",
+              "legendFormat": "{{status}}"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "Active Requests",
+          "type": "stat",
+          "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+          "targets": [
+            {
+              "expr": "api_active_requests"
+            }
+          ],
+          "thresholds": [
+            {"value": 100, "color": "green"},
+            {"value": 500, "color": "yellow"},
+            {"value": 1000, "color": "red"}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Hormonia Database Performance Dashboard",
+      "uid": "hormonia-db-performance",
+      "tags": ["hormonia", "database", "performance"],
+      "timezone": "browser",
+      "refresh": "30s",
+      "panels": [
+        {
+          "id": 1,
+          "title": "Query Execution Rate",
+          "type": "graph",
+          "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+          "targets": [
+            {
+              "expr": "rate(db_queries_total[5m])",
+              "legendFormat": "{{operation}} {{table}}"
+            }
+          ],
+          "yaxis": {
+            "label": "Queries per Second"
+          }
+        },
+        {
+          "id": 2,
+          "title": "Average Query Time",
+          "type": "graph",
+          "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+          "targets": [
+            {
+              "expr": "avg by (table) (db_query_duration_seconds) * 1000",
+              "legendFormat": "{{table}}"
+            }
+          ],
+          "yaxis": {
+            "label": "Query Time (ms)"
+          },
+          "thresholds": [
+            {"value": 100, "color": "yellow"},
+            {"value": 500, "color": "orange"},
+            {"value": 2000, "color": "red"}
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Connection Pool Utilization",
+          "type": "gauge",
+          "gridPos": {"x": 0, "y": 8, "w": 8, "h": 8},
+          "targets": [
+            {
+              "expr": "(db_pool_active_connections / db_pool_max_connections) * 100"
+            }
+          ],
+          "thresholds": [
+            {"value": 70, "color": "green"},
+            {"value": 85, "color": "yellow"},
+            {"value": 95, "color": "red"}
+          ],
+          "unit": "%"
+        },
+        {
+          "id": 4,
+          "title": "Active Connections",
+          "type": "stat",
+          "gridPos": {"x": 8, "y": 8, "w": 8, "h": 8},
+          "targets": [
+            {
+              "expr": "db_pool_active_connections"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Slow Query Count",
+          "type": "stat",
+          "gridPos": {"x": 16, "y": 8, "w": 8, "h": 8},
+          "targets": [
+            {
+              "expr": "increase(db_slow_queries_total[5m])"
+            }
+          ],
+          "thresholds": [
+            {"value": 10, "color": "yellow"},
+            {"value": 50, "color": "red"}
+          ]
+        },
+        {
+          "id": 6,
+          "title": "Top 10 Slowest Queries",
+          "type": "table",
+          "gridPos": {"x": 0, "y": 16, "w": 24, "h": 10},
+          "targets": [
+            {
+              "expr": "topk(10, db_query_duration_seconds)",
+              "format": "table",
+              "instant": true
+            }
+          ],
+          "columns": [
+            {"text": "Query", "value": "query"},
+            {"text": "Table", "value": "table"},
+            {"text": "Avg Duration (ms)", "value": "Value"},
+            {"text": "Count", "value": "count"}
+          ]
+        },
+        {
+          "id": 7,
+          "title": "Table Access Patterns",
+          "type": "heatmap",
+          "gridPos": {"x": 0, "y": 26, "w": 24, "h": 8},
+          "targets": [
+            {
+              "expr": "rate(db_table_access_total[5m])"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Hormonia System Resources Dashboard",
+      "uid": "hormonia-system-resources",
+      "tags": ["hormonia", "system", "resources"],
+      "timezone": "browser",
+      "refresh": "30s",
+      "panels": [
+        {
+          "id": 1,
+          "title": "CPU Usage",
+          "type": "graph",
+          "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+          "targets": [
+            {
+              "expr": "system_cpu_percent",
+              "legendFormat": "Total CPU"
+            },
+            {
+              "expr": "process_cpu_percent",
+              "legendFormat": "Process CPU"
+            }
+          ],
+          "yaxis": {
+            "label": "CPU Usage (%)",
+            "max": 100
+          },
+          "thresholds": [
+            {"value": 70, "color": "yellow"},
+            {"value": 85, "color": "red"}
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Memory Usage",
+          "type": "graph",
+          "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+          "targets": [
+            {
+              "expr": "system_memory_percent",
+              "legendFormat": "System Memory"
+            },
+            {
+              "expr": "process_memory_percent",
+              "legendFormat": "Process Memory"
+            },
+            {
+              "expr": "heap_memory_mb",
+              "legendFormat": "Heap Memory (MB)",
+              "yAxisIndex": 1
+            }
+          ],
+          "yaxis": {
+            "label": "Memory Usage (%)",
+            "max": 100
+          },
+          "thresholds": [
+            {"value": 75, "color": "yellow"},
+            {"value": 90, "color": "red"}
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Disk I/O",
+          "type": "graph",
+          "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+          "targets": [
+            {
+              "expr": "rate(disk_read_bytes[5m])",
+              "legendFormat": "Read"
+            },
+            {
+              "expr": "rate(disk_write_bytes[5m])",
+              "legendFormat": "Write"
+            }
+          ],
+          "yaxis": {
+            "label": "Bytes/sec"
+          }
+        },
+        {
+          "id": 4,
+          "title": "Network Latency",
+          "type": "graph",
+          "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+          "targets": [
+            {
+              "expr": "network_latency_ms",
+              "legendFormat": "Latency"
+            }
+          ],
+          "yaxis": {
+            "label": "Latency (ms)"
+          },
+          "thresholds": [
+            {"value": 50, "color": "yellow"},
+            {"value": 200, "color": "red"}
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Memory Growth Rate",
+          "type": "graph",
+          "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+          "targets": [
+            {
+              "expr": "deriv(process_memory_bytes[1h])",
+              "legendFormat": "Memory Growth (bytes/sec)"
+            }
+          ],
+          "alert": {
+            "name": "Memory Leak Detection",
+            "conditions": [
+              {
+                "evaluator": {"type": "gt", "params": [13888]},
+                "query": {"params": ["A", "5m", "now"]}
+              }
+            ],
+            "message": "Potential memory leak detected: memory growing > 50MB/hour"
+          }
+        },
+        {
+          "id": 6,
+          "title": "File Descriptors",
+          "type": "gauge",
+          "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+          "targets": [
+            {
+              "expr": "(process_open_fds / process_max_fds) * 100"
+            }
+          ],
+          "thresholds": [
+            {"value": 60, "color": "green"},
+            {"value": 80, "color": "yellow"},
+            {"value": 95, "color": "red"}
+          ],
+          "unit": "%"
+        }
+      ]
+    },
+    {
+      "title": "Hormonia Business Metrics Dashboard",
+      "uid": "hormonia-business-metrics",
+      "tags": ["hormonia", "business", "kpi"],
+      "timezone": "browser",
+      "refresh": "1m",
+      "panels": [
+        {
+          "id": 1,
+          "title": "Patient Registrations",
+          "type": "graph",
+          "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+          "targets": [
+            {
+              "expr": "rate(patient_registrations_total[1h]) * 3600",
+              "legendFormat": "Registrations per Hour"
+            }
+          ],
+          "yaxis": {
+            "label": "Registrations/Hour"
+          },
+          "thresholds": [
+            {"value": 30, "color": "yellow"},
+            {"value": 50, "color": "green"}
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Quiz Completions",
+          "type": "graph",
+          "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+          "targets": [
+            {
+              "expr": "rate(quiz_completions_total[1h]) * 3600",
+              "legendFormat": "Completions per Hour"
+            },
+            {
+              "expr": "rate(quiz_started_total[1h]) * 3600",
+              "legendFormat": "Started per Hour"
+            }
+          ],
+          "yaxis": {
+            "label": "Quiz Events/Hour"
+          }
+        },
+        {
+          "id": 3,
+          "title": "Message Delivery Rate",
+          "type": "graph",
+          "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+          "targets": [
+            {
+              "expr": "rate(messages_sent_total[5m]) * 3600",
+              "legendFormat": "Sent/Hour"
+            },
+            {
+              "expr": "rate(messages_delivered_total[5m]) * 3600",
+              "legendFormat": "Delivered/Hour"
+            },
+            {
+              "expr": "rate(messages_failed_total[5m]) * 3600",
+              "legendFormat": "Failed/Hour"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Active Conversation Flows",
+          "type": "stat",
+          "gridPos": {"x": 12, "y": 8, "w": 6, "h": 8},
+          "targets": [
+            {
+              "expr": "active_flows"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "AI Service Usage",
+          "type": "graph",
+          "gridPos": {"x": 18, "y": 8, "w": 6, "h": 8},
+          "targets": [
+            {
+              "expr": "rate(gemini_requests_total[5m]) * 60",
+              "legendFormat": "Gemini Requests/Min"
+            },
+            {
+              "expr": "avg(gemini_response_time_seconds) * 1000",
+              "legendFormat": "Avg Response (ms)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Hormonia Cache Performance Dashboard",
+      "uid": "hormonia-cache-performance",
+      "tags": ["hormonia", "cache", "redis"],
+      "timezone": "browser",
+      "refresh": "30s",
+      "panels": [
+        {
+          "id": 1,
+          "title": "Cache Hit Rate",
+          "type": "gauge",
+          "gridPos": {"x": 0, "y": 0, "w": 8, "h": 8},
+          "targets": [
+            {
+              "expr": "(rate(cache_hits_total[5m]) / (rate(cache_hits_total[5m]) + rate(cache_misses_total[5m]))) * 100"
+            }
+          ],
+          "thresholds": [
+            {"value": 70, "color": "red"},
+            {"value": 85, "color": "yellow"},
+            {"value": 95, "color": "green"}
+          ],
+          "unit": "%"
+        },
+        {
+          "id": 2,
+          "title": "Cache Operations",
+          "type": "graph",
+          "gridPos": {"x": 8, "y": 0, "w": 16, "h": 8},
+          "targets": [
+            {
+              "expr": "rate(cache_hits_total[5m])",
+              "legendFormat": "Hits"
+            },
+            {
+              "expr": "rate(cache_misses_total[5m])",
+              "legendFormat": "Misses"
+            },
+            {
+              "expr": "rate(cache_sets_total[5m])",
+              "legendFormat": "Sets"
+            },
+            {
+              "expr": "rate(cache_evictions_total[5m])",
+              "legendFormat": "Evictions"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Redis Memory Usage",
+          "type": "graph",
+          "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+          "targets": [
+            {
+              "expr": "redis_memory_used_bytes",
+              "legendFormat": "Used Memory"
+            },
+            {
+              "expr": "redis_memory_max_bytes",
+              "legendFormat": "Max Memory"
+            }
+          ],
+          "yaxis": {
+            "label": "Bytes"
+          }
+        },
+        {
+          "id": 4,
+          "title": "Cache Response Time",
+          "type": "graph",
+          "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, rate(cache_operation_duration_seconds_bucket[5m])) * 1000",
+              "legendFormat": "p95 Response Time (ms)"
+            }
+          ],
+          "thresholds": [
+            {"value": 10, "color": "yellow"},
+            {"value": 50, "color": "red"}
+          ]
+        }
+      ]
+    }
+  ],
+  "annotations": [
+    {
+      "name": "Deployments",
+      "datasource": "Prometheus",
+      "enable": true,
+      "iconColor": "blue",
+      "tags": ["deployment"]
+    },
+    {
+      "name": "Alerts",
+      "datasource": "Prometheus",
+      "enable": true,
+      "iconColor": "red",
+      "tags": ["alert"]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "environment",
+        "type": "query",
+        "query": "label_values(environment)",
+        "current": {
+          "text": "production",
+          "value": "production"
+        }
+      },
+      {
+        "name": "instance",
+        "type": "query",
+        "query": "label_values(instance)",
+        "multi": true
+      }
+    ]
+  }
+}

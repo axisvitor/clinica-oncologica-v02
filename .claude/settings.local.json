@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import sys; print(''\\n''.join(sys.path))\")",
+      "Bash(claude mcp add:*)",
+      "Bash(claude mcp:*)",
+      "Bash(cat:*)",
+      "Bash(python:*)",
+      "Bash(python3 -m pip install:*)",
+      "Bash(del:*)",
+      "Bash(alembic:*)",
+      "Bash(find:*)",
+      "Bash(git rm:*)",
+      "Bash(rm:*)",
+      "Bash(if not exist \".github\\workflows\" mkdir \".github\\workflows\")",
+      "Bash(dir:*)",
+      "Read(//c/c/**)",
+      "Bash(pytest:*)",
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(set TEST_DATABASE_URL=postgresql+asyncpg://postgres.rszpypytdciggybbpnrp:!Clinicaoncologica1@aws-0-sa-east-1.pooler.supabase.com:5432/postgres)",
+      "Bash(move:*)",
+      "Bash(test:*)",
+      "Bash(git init:*)",
+      "Bash(git remote add:*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git reset:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

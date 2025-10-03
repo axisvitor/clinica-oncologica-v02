@@ -1,0 +1,31 @@
+{
+  "common": {
+    "greeting": "Hello {name}!",
+    "goodbye": "Take care and have a great day!",
+    "thank_you": "Thank you for your response.",
+    "error": "I'm sorry, I didn't understand that. Could you please try again?",
+    "help": "If you need help, please contact your healthcare provider."
+  },
+  "medication": {
+    "reminder": "It's time to take your medication.",
+    "confirmation": "Have you taken your medication today?",
+    "missed_dose": "If you missed a dose, please follow your doctor's instructions.",
+    "side_effects": "If you're experiencing side effects, please contact your doctor immediately."
+  },
+  "appointments": {
+    "reminder": "You have an appointment scheduled for {date} at {time}.",
+    "confirmation": "Please confirm your appointment by replying 'YES' or 'NO'.",
+    "reschedule": "To reschedule your appointment, please contact our office."
+  },
+  "wellness": {
+    "mood_check": "How would you rate your mood today on a scale of 1-10?",
+    "energy_check": "How are your energy levels today?",
+    "sleep_check": "How well did you sleep last night?",
+    "symptoms_check": "Are you experiencing any symptoms today?"
+  },
+  "emergency": {
+    "alert": "⚠️ IMPORTANT: If you're experiencing a medical emergency, please call emergency services immediately.",
+    "contact_doctor": "Please contact your doctor as soon as possible.",
+    "urgent_care": "Consider visiting urgent care if symptoms persist."
+  }
+}

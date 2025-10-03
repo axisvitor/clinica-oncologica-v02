@@ -1,0 +1,133 @@
+name: Documentation Quality
+
+on:
+  pull_request:
+    paths:
+      - '**.md'
+      - '**/docs/**'
+      - '.github/workflows/docs-quality.yml'
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - '**.md'
+      - '**/docs/**'
+
+jobs:
+  markdown-lint:
+    name: Lint Markdown Files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install markdownlint-cli2
+        run: npm install -g markdownlint-cli2
+
+      - name: Run markdownlint
+        run: markdownlint-cli2 "**/*.md" "#node_modules" "#.venv"
+        continue-on-error: true
+
+  link-check:
+    name: Check Markdown Links
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check links with Lychee
+        uses: lycheeverse/lychee-action@v1
+        with:
+          args: |
+            --verbose
+            --no-progress
+            --exclude-path node_modules
+            --exclude-path .venv
+            --exclude-path venv
+            --exclude 'localhost'
+            --exclude '127.0.0.1'
+            --exclude 'example.com'
+            '**/*.md'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docs-structure:
+    name: Validate Docs Structure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check required docs exist
+        run: |
+          # Check root README
+          if [ ! -f "README.md" ]; then
+            echo "❌ Root README.md is missing"
+            exit 1
+          fi
+
+          # Check backend docs
+          if [ ! -f "backend-hormonia/docs/README.md" ]; then
+            echo "❌ Backend docs README is missing"
+            exit 1
+          fi
+
+          # Check frontend docs
+          if [ ! -f "frontend-hormonia/docs/README.md" ]; then
+            echo "❌ Frontend docs README is missing"
+            exit 1
+          fi
+
+          # Check quiz docs
+          if [ ! -f "quiz-mensal-interface/docs/README.md" ]; then
+            echo "❌ Quiz docs README is missing"
+            exit 1
+          fi
+
+          echo "✅ All required documentation files exist"
+
+      - name: Check for orphaned docs
+        run: |
+          # Find markdown files not linked from any README
+          echo "Checking for orphaned documentation files..."
+
+          # This is a basic check - could be enhanced with more sophisticated link validation
+          find . -name "*.md" \
+            -not -path "./node_modules/*" \
+            -not -path "./.venv/*" \
+            -not -path "./venv/*" \
+            -not -path "./.git/*" \
+            -type f > all_docs.txt
+
+          echo "Found $(wc -l < all_docs.txt) markdown files"
+
+          # Check for docs in wrong locations (root level that should be archived)
+          root_docs=$(find . -maxdepth 1 -name "*.md" -not -name "README.md" -not -name "DOCS_REFACTOR_PLAN.md" | wc -l)
+
+          if [ $root_docs -gt 0 ]; then
+            echo "⚠️  Warning: Found $root_docs documentation files in root that may need to be moved"
+            find . -maxdepth 1 -name "*.md" -not -name "README.md" -not -name "DOCS_REFACTOR_PLAN.md"
+          else
+            echo "✅ No orphaned docs in root directory"
+          fi
+
+  spelling:
+    name: Check Spelling
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run cSpell
+        uses: streetsidesoftware/cspell-action@v6
+        with:
+          files: '**/*.md'
+          config: '.cspell.json'
+          incremental_files_only: false
+        continue-on-error: true  # Don't fail on spelling errors, just warn

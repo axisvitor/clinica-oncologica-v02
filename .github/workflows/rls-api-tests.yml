@@ -1,0 +1,117 @@
+name: RLS API Tests
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'backend-hormonia/**'
+      - '.github/workflows/rls-api-tests.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'backend-hormonia/**'
+
+jobs:
+  rls-api-tests:
+    name: Test RLS via API
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      # Supabase credentials (from GitHub secrets)
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      # Firebase credentials (from GitHub secrets)
+      FIREBASE_ADMIN_PROJECT_ID: ${{ secrets.FIREBASE_ADMIN_PROJECT_ID }}
+      FIREBASE_ADMIN_PRIVATE_KEY: ${{ secrets.FIREBASE_ADMIN_PRIVATE_KEY }}
+      FIREBASE_ADMIN_CLIENT_EMAIL: ${{ secrets.FIREBASE_ADMIN_CLIENT_EMAIL }}
+
+      # App settings
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      ENVIRONMENT: testing
+      DEBUG: false
+
+      # API testing
+      API_BASE_URL: http://localhost:8000
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: backend-hormonia/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend-hormonia
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx
+
+      - name: Start FastAPI backend (background)
+        working-directory: backend-hormonia
+        run: |
+          # Start server in background
+          nohup python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+
+          # Wait for server to be ready (max 60s)
+          echo "Waiting for server to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8000/health > /dev/null; then
+              echo "✅ Server is ready!"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 2
+          done
+
+          # Verify server is responding
+          curl -f http://localhost:8000/health || (echo "❌ Server failed to start" && exit 1)
+
+      - name: Run RLS API tests
+        working-directory: backend-hormonia
+        run: |
+          pytest tests/security/test_rls_api.py \
+            -v \
+            --tb=short \
+            --no-cov \
+            --durations=10 \
+            --junitxml=test-results/rls-api-tests.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rls-api-test-results
+          path: backend-hormonia/test-results/
+
+      - name: Generate test summary
+        if: always()
+        run: |
+          echo "## 🔒 RLS API Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f backend-hormonia/test-results/rls-api-tests.xml ]; then
+            echo "✅ Tests completed. Check artifacts for detailed results." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Test results file not found." >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Strategy" >> $GITHUB_STEP_SUMMARY
+          echo "These tests validate RLS policies via HTTP API calls, testing the real production flow:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ JWT token → FastAPI middleware → RLS context → PostgreSQL" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Bypasses pgBouncer/AsyncPG compatibility issues" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Tests actual user experience" >> $GITHUB_STEP_SUMMARY
+
+      - name: Stop server
+        if: always()
+        run: |
+          # Kill all uvicorn processes
+          pkill -f "uvicorn app.main:app" || true

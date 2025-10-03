@@ -1,0 +1,361 @@
+{
+  "dashboard": {
+    "title": "Quiz System Metrics - Hormonia",
+    "uid": "quiz-metrics-hormonia",
+    "version": 1,
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "tags": ["quiz", "whatsapp", "patient-engagement"],
+    "refresh": "30s",
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Quiz Completion Rate by Template",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum by (template_id) (redis_gauge{key=~\"quiz_metrics:completions:.*\", key!~\".*:daily:.*\"}) / (sum by (template_id) (redis_gauge{key=~\"quiz_metrics:completions:.*\", key!~\".*:daily:.*\"}) + sum by (template_id) (redis_gauge{key=~\"quiz_metrics:abandonment:.*\"}))",
+            "legendFormat": "Template {{template_id}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 0.7, "color": "yellow"},
+                {"value": 0.85, "color": "green"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "table", "calcs": ["lastNotNull", "mean"]},
+          "tooltip": {"mode": "multi"}
+        }
+      },
+      {
+        "id": 2,
+        "title": "Total Completions (Last 24h)",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "sum(increase(redis_gauge{key=~\"quiz_metrics:completions:.*\", key!~\".*:daily:.*\"}[24h]))",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 10, "color": "yellow"},
+                {"value": 50, "color": "green"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "graphMode": "area",
+          "textMode": "value_and_name"
+        }
+      },
+      {
+        "id": 3,
+        "title": "Abandonment Count (Last 24h)",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "sum(increase(redis_gauge{key=~\"quiz_metrics:abandonment:.*\"}[24h]))",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 5, "color": "yellow"},
+                {"value": 20, "color": "red"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "graphMode": "area",
+          "textMode": "value_and_name"
+        }
+      },
+      {
+        "id": 4,
+        "title": "Send Latency Distribution (p50, p95, p99)",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "redis_sorted_set_percentile{key=~\"quiz_metrics:send_latency:.*:question\", percentile=\"50\"}",
+            "legendFormat": "p50 - {{template_id}}",
+            "refId": "A"
+          },
+          {
+            "expr": "redis_sorted_set_percentile{key=~\"quiz_metrics:send_latency:.*:question\", percentile=\"95\"}",
+            "legendFormat": "p95 - {{template_id}}",
+            "refId": "B"
+          },
+          {
+            "expr": "redis_sorted_set_percentile{key=~\"quiz_metrics:send_latency:.*:question\", percentile=\"99\"}",
+            "legendFormat": "p99 - {{template_id}}",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "min": 0,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 1, "color": "yellow"},
+                {"value": 2, "color": "red"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "table", "calcs": ["lastNotNull", "max"]},
+          "tooltip": {"mode": "multi"}
+        }
+      },
+      {
+        "id": 5,
+        "title": "Response Latency by Question (p95)",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "redis_sorted_set_percentile{key=~\"quiz_metrics:response_latency:.*\", percentile=\"95\"}",
+            "legendFormat": "{{template_id}} - {{question_id}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "min": 0,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 60, "color": "yellow"},
+                {"value": 300, "color": "red"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "table", "calcs": ["lastNotNull", "mean"]},
+          "tooltip": {"mode": "multi"}
+        }
+      },
+      {
+        "id": 6,
+        "title": "Daily Completion Trend (Last 7 Days)",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum by (template_id, day) (redis_gauge{key=~\"quiz_metrics:completions:.*:daily:.*\"})",
+            "legendFormat": "{{template_id}} - {{day}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "list"},
+          "tooltip": {"mode": "multi"}
+        }
+      },
+      {
+        "id": 7,
+        "title": "Clarification Rate (Invalid Responses)",
+        "type": "gauge",
+        "gridPos": {"x": 12, "y": 16, "w": 6, "h": 8},
+        "targets": [
+          {
+            "expr": "sum by (template_id) (redis_gauge{key=~\"quiz_metrics:clarifications:.*\"}) / sum by (template_id) (redis_gauge{key=~\"quiz_metrics:completions:.*\", key!~\".*:daily:.*\"})",
+            "legendFormat": "{{template_id}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "min": 0,
+            "max": 0.5,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 0.1, "color": "yellow"},
+                {"value": 0.2, "color": "red"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "showThresholdLabels": true,
+          "showThresholdMarkers": true
+        }
+      },
+      {
+        "id": 8,
+        "title": "Active Quiz Sessions",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 16, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "count(redis_gauge{key=~\"quiz_session:active:.*\"})",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "blue"},
+                {"value": 10, "color": "green"},
+                {"value": 50, "color": "yellow"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "graphMode": "area",
+          "textMode": "value"
+        }
+      },
+      {
+        "id": 9,
+        "title": "Webhook Idempotency (Duplicates Blocked)",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 24, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(redis_hits{key=~\"webhook:message:.*\"}[5m])",
+            "legendFormat": "Duplicate webhooks blocked/min",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "list"},
+          "tooltip": {"mode": "single"}
+        }
+      },
+      {
+        "id": 10,
+        "title": "Message Send Success Rate",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 24, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(whatsapp_messages_sent_total{status=\"success\"}[5m])) / sum(rate(whatsapp_messages_sent_total[5m]))",
+            "legendFormat": "Success Rate",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 0.95, "color": "yellow"},
+                {"value": 0.99, "color": "green"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "list"},
+          "tooltip": {"mode": "single"}
+        }
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "template_id",
+          "type": "query",
+          "label": "Quiz Template",
+          "query": "label_values(redis_gauge{key=~\"quiz_metrics:completions:.*\"}, template_id)",
+          "multi": true,
+          "includeAll": true,
+          "refresh": 1
+        },
+        {
+          "name": "time_range",
+          "type": "interval",
+          "label": "Time Range",
+          "query": "1h,6h,24h,7d,30d",
+          "auto": false,
+          "current": {"text": "24h", "value": "24h"}
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Deployments",
+          "datasource": "Prometheus",
+          "enable": true,
+          "iconColor": "blue",
+          "expr": "changes(app_build_info[5m]) > 0"
+        },
+        {
+          "name": "High Abandonment Alert",
+          "datasource": "Prometheus",
+          "enable": true,
+          "iconColor": "red",
+          "expr": "ALERTS{alertname=\"HighQuizAbandonmentRate\", alertstate=\"firing\"}"
+        }
+      ]
+    }
+  },
+  "overwrite": true
+}

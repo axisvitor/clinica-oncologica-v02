@@ -1,0 +1,348 @@
+flow_type: "monthly_recurring"
+name: "Monthly Recurring Maintenance Flow"
+description: "Enhanced monthly flow for ongoing treatment support and monitoring"
+version: "2.0.0"
+humanization_level: "high"
+metadata:
+  author: "Hormonia AI Team"
+  created_at: "2024-01-01"
+  target_audience: "Patients in maintenance phase"
+  medical_focus: "Long-term adherence and wellness monitoring"
+
+messages:
+  1:
+    intent: "monthly_welcome_back"
+    base_content: "Que alegria te encontrar novamente!"
+    message_type: "text"
+    core_elements:
+      reunion_joy: true
+      continuity: true
+      personal_connection: true
+    personalization_hints:
+      - "relationship_warmth"
+      - "time_since_last_contact"
+    ai_instructions: |
+      Demonstre alegria genuína pelo reencontro:
+      - Como uma amiga que sente saudades
+      - Reconhecendo o tempo que passou
+      - Mantendo a conexão pessoal estabelecida
+      - Criando ambiente acolhedor para o mês
+    variations:
+      - "Como é bom estar aqui com você novamente!"
+      - "Estava com saudades das nossas conversas!"
+      - "Que prazer te reencontrar!"
+
+  4:
+    intent: "monthly_curiosity_check"
+    base_content: "Me conta as novidades do seu mês!"
+    message_type: "text"
+    core_elements:
+      genuine_curiosity: true
+      life_updates: true
+      personal_interest: true
+    personalization_hints:
+      - "sharing_comfort_level"
+      - "life_focus_areas"
+    ai_instructions: |
+      Demonstre curiosidade genuína sobre a vida dela:
+      - Como uma amiga interessada
+      - Aberta para qualquer tipo de novidade
+      - Celebrando conquistas e apoiando desafios
+      - Focando na pessoa, não apenas no tratamento
+    follow_up:
+      intent: "life_celebration_or_support"
+      delay_seconds: 1800
+      ai_instructions: |
+        Responda às novidades com apropriada:
+        - Celebração para conquistas
+        - Apoio para desafios
+        - Interesse genuíno por detalhes
+    variations:
+      - "Estou curiosa para saber como foi seu mês"
+      - "Quero saber tudo que aconteceu!"
+      - "Me atualiza sobre sua vida!"
+
+  8:
+    intent: "emotional_wellness_deep_check"
+    base_content: "Como está seu coração? Como você tem se sentido emocionalmente?"
+    message_type: "interactive"
+    core_elements:
+      emotional_depth: true
+      heart_connection: true
+      safe_space: true
+    personalization_hints:
+      - "emotional_openness"
+      - "support_style_preference"
+    ai_instructions: |
+      Pergunte sobre bem-estar emocional com profundidade:
+      - Criando espaço seguro para vulnerabilidade
+      - Usando linguagem do coração, não clínica
+      - Validando qualquer sentimento compartilhado
+      - Oferecendo apoio emocional genuíno
+    interactive_elements:
+      type: "buttons"
+      options:
+        - id: "thriving"
+          title: "Florescendo 🌸"
+        - id: "stable"
+          title: "Estável"
+        - id: "ups_downs"
+          title: "Altos e baixos"
+        - id: "struggling"
+          title: "Lutando"
+        - id: "overwhelmed"
+          title: "Sobrecarregada"
+        - id: "need_talk"
+          title: "Preciso conversar"
+
+  11:
+    intent: "lightness_and_joy_check"
+    base_content: "O que tem trazido leveza e alegria para seus dias?"
+    message_type: "text"
+    core_elements:
+      joy_focus: true
+      lightness: true
+      positive_psychology: true
+    personalization_hints:
+      - "joy_sources"
+      - "lightness_appreciation"
+    ai_instructions: |
+      Explore fontes de alegria e leveza:
+      - Focando no que nutre a alma
+      - Celebrando pequenos prazeres
+      - Incentivando cultivo da alegria
+      - Criando momento de gratidão e positividade
+    follow_up:
+      intent: "joy_amplification"
+      delay_seconds: 2400
+      ai_instructions: |
+        Amplifique e celebre as fontes de alegria:
+        - Destacando importância desses momentos
+        - Sugerindo formas de cultivar mais alegria
+        - Criando conexão com bem-estar geral
+    variations:
+      - "O que tem iluminado seus dias?"
+      - "Quais pequenos prazeres você tem descoberto?"
+      - "Me conta sobre os momentos de alegria"
+
+  15:
+    intent: "wellness_tips_sharing"
+    base_content: "Tenho algumas dicas especiais para compartilhar com você"
+    message_type: "text"
+    core_elements:
+      tip_sharing: true
+      personalized_advice: true
+      care_demonstration: true
+    personalization_hints:
+      - "tip_receptivity"
+      - "wellness_focus_areas"
+    ai_instructions: |
+      Compartilhe dicas de bem-estar personalizadas:
+      - Baseadas no perfil e histórico da paciente
+      - Como presentes de cuidado
+      - Práticas e implementáveis
+      - Focadas em melhorar qualidade de vida
+    follow_up:
+      intent: "tip_implementation_support"
+      delay_seconds: 86400  # Next day
+      ai_instructions: |
+        Ofereça apoio para implementar as dicas:
+        - Perguntando sobre experiência
+        - Ajustando sugestões se necessário
+        - Celebrando tentativas de implementação
+    variations:
+      - "Separei algumas ideias especiais para você"
+      - "Tenho uns mimos de bem-estar para te dar"
+      - "Quero compartilhar algo que pode te ajudar"
+
+  18:
+    intent: "quiz_preparation_gentle"
+    base_content: "Nosso quiz mensal está chegando - mas sem pressa nem pressão!"
+    message_type: "text"
+    core_elements:
+      quiz_preparation: true
+      pressure_relief: true
+      partnership: true
+    personalization_hints:
+      - "quiz_comfort_level"
+      - "preparation_style"
+    ai_instructions: |
+      Prepare para o quiz de forma tranquilizadora:
+      - Removendo qualquer ansiedade
+      - Focando no cuidado, não na avaliação
+      - Enfatizando parceria no processo
+      - Criando expectativa positiva
+    follow_up:
+      intent: "quiz_purpose_explanation"
+      delay_seconds: 3600
+      ai_instructions: |
+        Explique o propósito do quiz com carinho:
+        - Como ferramenta de cuidado conjunto
+        - Para entender melhor suas necessidades
+        - Sem julgamento ou comparação
+    variations:
+      - "Vamos fazer nossa conversa especial do mês"
+      - "Hora da nossa checagem carinhosa mensal"
+      - "Nosso momento de cuidado especial está chegando"
+
+  22:
+    intent: "preferences_and_comfort_check"
+    base_content: "Como posso te apoiar melhor? O que você mais precisa agora?"
+    message_type: "interactive"
+    core_elements:
+      preference_inquiry: true
+      support_customization: true
+      needs_assessment: true
+    personalization_hints:
+      - "support_preferences"
+      - "current_needs"
+    ai_instructions: |
+      Pergunte sobre preferências de apoio:
+      - Com genuíno interesse em melhorar
+      - Oferecendo diferentes tipos de suporte
+      - Adaptando-se às necessidades atuais
+      - Demonstrando flexibilidade e cuidado
+    interactive_elements:
+      type: "list"
+      header: "Como posso te apoiar melhor?"
+      options:
+        - id: "emotional_support"
+          title: "Apoio emocional"
+          description: "Conversas sobre sentimentos e bem-estar"
+        - id: "practical_tips"
+          title: "Dicas práticas"
+          description: "Sugestões para rotina e organização"
+        - id: "motivation"
+          title: "Motivação"
+          description: "Encorajamento e celebração de conquistas"
+        - id: "information"
+          title: "Informações"
+          description: "Esclarecimentos sobre tratamento"
+        - id: "listening"
+          title: "Escuta ativa"
+          description: "Espaço para desabafar e compartilhar"
+        - id: "flexibility"
+          title: "Flexibilidade"
+          description: "Adaptar nossa comunicação às suas necessidades"
+
+  26:
+    intent: "quiz_warmup_final"
+    base_content: "Estamos quase prontas para nosso quiz especial!"
+    message_type: "text"
+    core_elements:
+      final_preparation: true
+      excitement: true
+      partnership: true
+    personalization_hints:
+      - "quiz_readiness"
+      - "excitement_level"
+    ai_instructions: |
+      Finalize preparação para quiz com entusiasmo:
+      - Como uma atividade especial juntas
+      - Destacando importância para cuidado
+      - Criando ambiente positivo e seguro
+      - Assegurando que não há pressão
+    follow_up:
+      intent: "quiz_comfort_assurance"
+      delay_seconds: 1800
+      ai_instructions: |
+        Assegure conforto e segurança para o quiz:
+        - Lembrando que pode pausar se precisar
+        - Enfatizando que não há respostas certas ou erradas
+        - Destacando que é para cuidado dela
+    variations:
+      - "Nossa conversa especial está chegando!"
+      - "Que alegria fazer esse cuidado juntas!"
+      - "Estou ansiosa para nosso momento especial!"
+
+  30:
+    intent: "monthly_quiz_trigger"
+    base_content: "Chegou a hora do nosso quiz mensal! Vamos começar?"
+    message_type: "quiz_trigger"
+    core_elements:
+      quiz_initiation: true
+      partnership: true
+      care_focus: true
+    personalization_hints:
+      - "quiz_approach_style"
+      - "comfort_level"
+    ai_instructions: |
+      Inicie o quiz de forma acolhedora:
+      - Como momento especial de cuidado
+      - Enfatizando parceria no processo
+      - Criando ambiente seguro e sem julgamento
+      - Focando no bem-estar dela
+    quiz_configuration:
+      type: "monthly_comprehensive"
+      approach: "conversational"
+      pacing: "patient_controlled"
+      support_level: "high"
+    follow_up:
+      intent: "quiz_completion_celebration"
+      delay_seconds: 3600
+      ai_instructions: |
+        Celebre a conclusão do quiz:
+        - Agradecendo pela participação
+        - Destacando importância para cuidado
+        - Preparando para próximo ciclo mensal
+    variations:
+      - "Vamos fazer nossa conversa especial de cuidado?"
+      - "Pronta para nosso momento de atenção especial?"
+      - "Hora de cuidarmos de você com carinho!"
+
+# Conditional messages for different scenarios
+conditional_messages:
+  quiz_completion_celebration:
+    intent: "quiz_completion_celebration"
+    base_content: "Obrigada por compartilhar tanto comigo! Que conversa rica tivemos."
+    message_type: "text"
+    core_elements:
+      gratitude: true
+      celebration: true
+      information_value: true
+    ai_instructions: |
+      Celebre a conclusão do quiz com gratidão:
+      - Agradecendo pela abertura e confiança
+      - Destacando valor das informações compartilhadas
+      - Preparando para usar informações para melhor cuidado
+      - Criando expectativa positiva para próximo mês
+    
+  emotional_support_response:
+    intent: "emotional_support_response"
+    base_content: "Estou aqui com você, sempre."
+    message_type: "text"
+    core_elements:
+      presence: true
+      support: true
+      availability: true
+    conditions:
+      - type: "emotional_state"
+        field: "needs_support"
+        operator: "equals"
+        value: true
+    ai_instructions: |
+      Ofereça apoio emocional profundo:
+      - Com presença genuína e cuidado
+      - Validando sentimentos e experiências
+      - Oferecendo apoio contínuo
+      - Criando sensação de não estar sozinha
+
+  celebration_response:
+    intent: "celebration_response"
+    base_content: "Que alegria celebrar isso com você!"
+    message_type: "text"
+    core_elements:
+      celebration: true
+      shared_joy: true
+      recognition: true
+    conditions:
+      - type: "emotional_state"
+        field: "positive_news"
+        operator: "equals"
+        value: true
+    ai_instructions: |
+      Celebre conquistas e alegrias:
+      - Com genuína felicidade compartilhada
+      - Destacando importância da conquista
+      - Amplificando sentimentos positivos
+      - Criando memórias positivas da jornada

@@ -1,0 +1,63 @@
+name: Redis Legacy Import Check
+
+on:
+  pull_request:
+    paths:
+      - 'app/**/*.py'
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'app/**/*.py'
+
+jobs:
+  check-redis-imports:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for deprecated Redis imports
+        run: |
+          echo "🔍 Checking for deprecated Redis client imports..."
+
+          # Define deprecated patterns
+          DEPRECATED_PATTERNS=(
+            "from app.core.redis_client_factory"
+            "from app.core.redis_simple"
+            "from app.utils.redis_client"
+            "from app.services.async_redis_client"
+            "from app.services.redis_cloud_client"
+          )
+
+          # Files that are allowed to contain these imports (none, they're deleted)
+          EXCLUDED_FILES=""
+
+          FOUND_ISSUES=0
+
+          for pattern in "${DEPRECATED_PATTERNS[@]}"; do
+            echo "Checking for: $pattern"
+
+            if grep -r "$pattern" app/ --include="*.py" 2>/dev/null; then
+              echo "❌ Found deprecated import: $pattern"
+              FOUND_ISSUES=1
+            fi
+          done
+
+          if [ $FOUND_ISSUES -eq 1 ]; then
+            echo ""
+            echo "❌ FAILED: Deprecated Redis client imports detected!"
+            echo ""
+            echo "Please use the unified Redis client instead:"
+            echo "  from app.core.redis_unified import get_redis_client"
+            echo "  from app.core.redis_unified import get_async_redis"
+            echo "  from app.core.redis_unified import get_sync_redis"
+            echo ""
+            echo "See REDIS_USAGE_GUIDE.md for more information."
+            exit 1
+          fi
+
+          echo "✅ No deprecated Redis imports found!"
+          echo "✅ All Redis client usage is properly unified."

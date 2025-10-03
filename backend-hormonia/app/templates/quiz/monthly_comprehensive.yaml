@@ -1,0 +1,224 @@
+name: "monthly_comprehensive"
+version: "1.0.0"
+description: "Comprehensive monthly health assessment for hormone therapy patients"
+is_active: true
+
+questions:
+  - id: "overall_wellbeing"
+    type: "scale"
+    text: "Como você avaliaria seu bem-estar geral neste último mês?"
+    description: "Escala de 1 (muito mal) a 5 (excelente)"
+    required: true
+    validation_rules:
+      - type: "range"
+        value: 
+          min: 1
+          max: 5
+        message: "Por favor, escolha um valor entre 1 e 5"
+    metadata:
+      category: "general_health"
+      importance: "high"
+
+  - id: "energy_levels"
+    type: "multiple_choice"
+    text: "Como têm estado seus níveis de energia?"
+    required: true
+    options:
+      - id: "very_low"
+        text: "Muito baixos - sinto-me constantemente cansada"
+        value: 1
+      - id: "low"
+        text: "Baixos - tenho pouca disposição"
+        value: 2
+      - id: "moderate"
+        text: "Moderados - alguns dias melhor que outros"
+        value: 3
+      - id: "good"
+        text: "Bons - sinto-me disposta na maior parte do tempo"
+        value: 4
+      - id: "excellent"
+        text: "Excelentes - tenho muita energia e disposição"
+        value: 5
+    metadata:
+      category: "energy"
+      importance: "high"
+
+  - id: "mood_changes"
+    type: "multiple_choice"
+    text: "Como você descreveria suas mudanças de humor no último mês?"
+    required: true
+    options:
+      - id: "very_unstable"
+        text: "Muito instáveis - mudanças bruscas e frequentes"
+        value: 1
+      - id: "somewhat_unstable"
+        text: "Um pouco instáveis - algumas oscilações"
+        value: 2
+      - id: "stable"
+        text: "Estáveis - humor consistente"
+        value: 3
+      - id: "very_stable"
+        text: "Muito estáveis - me sinto equilibrada"
+        value: 4
+    metadata:
+      category: "emotional_health"
+      importance: "high"
+
+  - id: "sleep_quality"
+    type: "multiple_choice"
+    text: "Como tem sido a qualidade do seu sono?"
+    required: true
+    options:
+      - id: "very_poor"
+        text: "Muito ruim - acordo várias vezes, não me sinto descansada"
+        value: 1
+      - id: "poor"
+        text: "Ruim - tenho dificuldades para dormir ou manter o sono"
+        value: 2
+      - id: "fair"
+        text: "Regular - durmo, mas não sempre bem"
+        value: 3
+      - id: "good"
+        text: "Bom - durmo bem na maioria das noites"
+        value: 4
+      - id: "excellent"
+        text: "Excelente - durmo profundamente e acordo descansada"
+        value: 5
+    metadata:
+      category: "sleep"
+      importance: "high"
+
+  - id: "physical_symptoms"
+    type: "multiple_choice"
+    text: "Quais sintomas físicos você tem sentido mais?"
+    required: false
+    options:
+      - id: "hot_flashes"
+        text: "Ondas de calor"
+        value: "hot_flashes"
+      - id: "headaches"
+        text: "Dores de cabeça"
+        value: "headaches"
+      - id: "joint_pain"
+        text: "Dores nas articulações"
+        value: "joint_pain"
+      - id: "breast_tenderness"
+        text: "Sensibilidade nos seios"
+        value: "breast_tenderness"
+      - id: "bloating"
+        text: "Inchaço/retenção de líquidos"
+        value: "bloating"
+      - id: "none"
+        text: "Nenhum sintoma significativo"
+        value: "none"
+    metadata:
+      category: "physical_symptoms"
+      importance: "medium"
+      multiple_selection: true
+
+  - id: "medication_adherence"
+    type: "multiple_choice"
+    text: "Como tem sido sua adesão ao tratamento hormonal?"
+    required: true
+    options:
+      - id: "perfect"
+        text: "Perfeita - tomo sempre no horário correto"
+        value: 5
+      - id: "very_good"
+        text: "Muito boa - raramente esqueço"
+        value: 4
+      - id: "good"
+        text: "Boa - às vezes esqueço, mas recupero rapidamente"
+        value: 3
+      - id: "fair"
+        text: "Regular - esqueço com alguma frequência"
+        value: 2
+      - id: "poor"
+        text: "Ruim - esqueço frequentemente"
+        value: 1
+    metadata:
+      category: "treatment_adherence"
+      importance: "critical"
+
+  - id: "side_effects"
+    type: "open_text"
+    text: "Você tem sentido algum efeito colateral que gostaria de relatar?"
+    description: "Descreva qualquer sintoma ou mudança que você acredita estar relacionada ao tratamento"
+    required: false
+    validation_rules:
+      - type: "max_length"
+        value: 500
+        message: "Por favor, mantenha sua resposta em até 500 caracteres"
+    metadata:
+      category: "side_effects"
+      importance: "high"
+
+  - id: "lifestyle_changes"
+    type: "open_text"
+    text: "Houve alguma mudança importante na sua rotina ou estilo de vida neste mês?"
+    description: "Mudanças na alimentação, exercícios, trabalho, relacionamentos, etc."
+    required: false
+    validation_rules:
+      - type: "max_length"
+        value: 300
+        message: "Por favor, mantenha sua resposta em até 300 caracteres"
+    metadata:
+      category: "lifestyle"
+      importance: "medium"
+
+  - id: "concerns_questions"
+    type: "open_text"
+    text: "Há alguma preocupação ou pergunta que você gostaria de compartilhar com sua equipe médica?"
+    required: false
+    validation_rules:
+      - type: "max_length"
+        value: 500
+        message: "Por favor, mantenha sua resposta em até 500 caracteres"
+    metadata:
+      category: "concerns"
+      importance: "high"
+
+  - id: "satisfaction_rating"
+    type: "scale"
+    text: "O quanto você está satisfeita com seu tratamento atual?"
+    description: "Escala de 1 (muito insatisfeita) a 5 (muito satisfeita)"
+    required: true
+    validation_rules:
+      - type: "range"
+        value:
+          min: 1
+          max: 5
+        message: "Por favor, escolha um valor entre 1 e 5"
+    metadata:
+      category: "satisfaction"
+      importance: "high"
+
+metadata:
+  estimated_duration_minutes: 8
+  categories:
+    - "general_health"
+    - "emotional_health"
+    - "physical_symptoms"
+    - "treatment_adherence"
+    - "lifestyle"
+    - "satisfaction"
+  scoring:
+    wellbeing_score:
+      questions: ["overall_wellbeing", "energy_levels", "mood_changes", "sleep_quality"]
+      weight: 0.4
+    adherence_score:
+      questions: ["medication_adherence"]
+      weight: 0.3
+    satisfaction_score:
+      questions: ["satisfaction_rating"]
+      weight: 0.3
+  alerts:
+    - condition: "medication_adherence <= 2"
+      priority: "high"
+      message: "Patient reporting poor medication adherence"
+    - condition: "overall_wellbeing <= 2"
+      priority: "medium"
+      message: "Patient reporting low overall wellbeing"
+    - condition: "side_effects contains text"
+      priority: "medium"
+      message: "Patient reporting side effects"

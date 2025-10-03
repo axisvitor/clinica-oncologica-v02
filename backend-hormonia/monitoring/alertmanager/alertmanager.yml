@@ -1,0 +1,139 @@
+# Alertmanager configuration for routing quiz alerts
+
+global:
+  resolve_timeout: 5m
+  # Slack webhook (replace with your webhook URL)
+  slack_api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+
+# Templates for custom alert messages
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Routing tree
+route:
+  # Default receiver
+  receiver: 'default-receiver'
+
+  # Group alerts by these labels
+  group_by: ['alertname', 'cluster', 'service']
+
+  # Wait time before sending first notification
+  group_wait: 10s
+
+  # Wait time before sending additional notifications for alerts in same group
+  group_interval: 5m
+
+  # Wait time before re-sending notification if alert still firing
+  repeat_interval: 3h
+
+  # Child routes for specific alert routing
+  routes:
+    # Critical alerts → PagerDuty + Slack
+    - match:
+        severity: critical
+      receiver: 'pagerduty-critical'
+      continue: true
+      routes:
+        - match:
+            service: quiz_system
+          receiver: 'slack-quiz-critical'
+
+    # Warning alerts → Slack only
+    - match:
+        severity: warning
+      receiver: 'slack-quiz-warnings'
+
+    # Info alerts → Email
+    - match:
+        severity: info
+      receiver: 'email-info'
+
+# Alert receivers
+receivers:
+  # Default receiver (logs only)
+  - name: 'default-receiver'
+    webhook_configs:
+      - url: 'http://localhost:5001/webhook'
+        send_resolved: true
+
+  # PagerDuty for critical alerts
+  - name: 'pagerduty-critical'
+    pagerduty_configs:
+      - service_key: 'YOUR_PAGERDUTY_SERVICE_KEY'
+        description: '{{ .CommonAnnotations.summary }}'
+        details:
+          severity: '{{ .CommonLabels.severity }}'
+          alert_url: '{{ .CommonAnnotations.dashboard }}'
+          runbook: '{{ .CommonAnnotations.runbook }}'
+
+  # Slack for critical quiz alerts
+  - name: 'slack-quiz-critical'
+    slack_configs:
+      - channel: '#alerts-quiz-critical'
+        title: '🚨 CRITICAL: {{ .CommonAnnotations.summary }}'
+        text: |
+          *Alert:* {{ .CommonLabels.alertname }}
+          *Severity:* {{ .CommonLabels.severity }}
+          *Service:* {{ .CommonLabels.service }}
+
+          *Description:*
+          {{ .CommonAnnotations.description }}
+
+          *Dashboard:* {{ .CommonAnnotations.dashboard }}
+          *Runbook:* {{ .CommonAnnotations.runbook }}
+        color: 'danger'
+        send_resolved: true
+
+  # Slack for warning quiz alerts
+  - name: 'slack-quiz-warnings'
+    slack_configs:
+      - channel: '#alerts-quiz-warnings'
+        title: '⚠️ WARNING: {{ .CommonAnnotations.summary }}'
+        text: |
+          *Alert:* {{ .CommonLabels.alertname }}
+          *Service:* {{ .CommonLabels.service }}
+
+          {{ .CommonAnnotations.description }}
+
+          *Dashboard:* {{ .CommonAnnotations.dashboard }}
+        color: 'warning'
+        send_resolved: true
+
+  # Email for info alerts
+  - name: 'email-info'
+    email_configs:
+      - to: 'devops@example.com'
+        from: 'alertmanager@hormonia.com'
+        smarthost: 'smtp.example.com:587'
+        auth_username: 'alertmanager@hormonia.com'
+        auth_password: 'YOUR_SMTP_PASSWORD'
+        headers:
+          Subject: '[Hormonia] {{ .CommonLabels.alertname }}'
+        text: |
+          Alert: {{ .CommonLabels.alertname }}
+          Severity: {{ .CommonLabels.severity }}
+
+          {{ .CommonAnnotations.description }}
+
+# Inhibition rules (suppress alerts based on other active alerts)
+inhibit_rules:
+  # Don't alert on send latency if Redis is down
+  - source_match:
+      alertname: 'RedisMetricsUnavailable'
+    target_match:
+      alertname: 'HighQuizSendLatency'
+    equal: ['service']
+
+  # Don't alert on abandonment if completions are zero
+  - source_match:
+      alertname: 'ZeroCompletionsIn24Hours'
+    target_match:
+      alertname: 'HighQuizAbandonmentRate'
+    equal: ['template_id']
+
+  # Suppress warning if critical alert is firing
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'service']

@@ -1,0 +1,278 @@
+# Prometheus Alerting Rules for Quiz System
+# Place in Prometheus config: rule_files: ["/etc/prometheus/rules/quiz_alerts.yml"]
+
+groups:
+  - name: quiz_completion_slos
+    interval: 30s
+    rules:
+      - alert: HighQuizAbandonmentRate
+        expr: |
+          (
+            sum by (template_id) (redis_gauge{key=~"quiz_metrics:abandonment:.*"})
+            /
+            (
+              sum by (template_id) (redis_gauge{key=~"quiz_metrics:completions:.*", key!~".*:daily:.*"})
+              +
+              sum by (template_id) (redis_gauge{key=~"quiz_metrics:abandonment:.*"})
+            )
+          ) > 0.20
+        for: 10m
+        labels:
+          severity: warning
+          service: quiz_system
+          component: engagement
+        annotations:
+          summary: "High quiz abandonment rate detected"
+          description: |
+            Quiz template {{ $labels.template_id }} has an abandonment rate of {{ $value | humanizePercentage }}.
+            This indicates patients are starting quizzes but not completing them.
+
+            Possible causes:
+            - Questions too complex or confusing
+            - Technical issues with message delivery
+            - Poor timing of quiz prompts
+
+            Action: Review question clarity and patient engagement timing.
+          dashboard: "https://grafana.example.com/d/quiz-metrics-hormonia"
+          runbook: "https://docs.example.com/runbooks/high-quiz-abandonment"
+
+      - alert: CriticalQuizAbandonmentRate
+        expr: |
+          (
+            sum by (template_id) (redis_gauge{key=~"quiz_metrics:abandonment:.*"})
+            /
+            (
+              sum by (template_id) (redis_gauge{key=~"quiz_metrics:completions:.*", key!~".*:daily:.*"})
+              +
+              sum by (template_id) (redis_gauge{key=~"quiz_metrics:abandonment:.*"})
+            )
+          ) > 0.40
+        for: 5m
+        labels:
+          severity: critical
+          service: quiz_system
+          component: engagement
+        annotations:
+          summary: "CRITICAL: Quiz abandonment rate above 40%"
+          description: |
+            Quiz template {{ $labels.template_id }} has a critical abandonment rate of {{ $value | humanizePercentage }}.
+            Immediate investigation required.
+
+            Action: Escalate to on-call engineer immediately.
+
+  - name: quiz_latency_slos
+    interval: 30s
+    rules:
+      - alert: HighQuizSendLatency
+        expr: |
+          redis_sorted_set_percentile{
+            key=~"quiz_metrics:send_latency:.*:question",
+            percentile="95"
+          } > 2.0
+        for: 5m
+        labels:
+          severity: warning
+          service: quiz_system
+          component: whatsapp_delivery
+        annotations:
+          summary: "High quiz message send latency (p95 > 2s)"
+          description: |
+            Quiz template {{ $labels.template_id }} has p95 send latency of {{ $value }}s.
+            Messages are taking longer than 2 seconds to be delivered.
+
+            Possible causes:
+            - Evolution API rate limiting
+            - Network issues
+            - Queue backlog
+
+            Action: Check Evolution API health and queue depth.
+          dashboard: "https://grafana.example.com/d/quiz-metrics-hormonia"
+
+      - alert: CriticalQuizSendLatency
+        expr: |
+          redis_sorted_set_percentile{
+            key=~"quiz_metrics:send_latency:.*:question",
+            percentile="95"
+          } > 5.0
+        for: 2m
+        labels:
+          severity: critical
+          service: quiz_system
+          component: whatsapp_delivery
+        annotations:
+          summary: "CRITICAL: Quiz send latency p95 > 5s"
+          description: |
+            Quiz template {{ $labels.template_id }} has critical p95 send latency of {{ $value }}s.
+            Patient experience severely degraded.
+
+            Action: Immediate escalation required. Check Evolution API and circuit breakers.
+
+      - alert: SlowPatientResponseTime
+        expr: |
+          redis_sorted_set_percentile{
+            key=~"quiz_metrics:response_latency:.*",
+            percentile="50"
+          } > 600
+        for: 30m
+        labels:
+          severity: info
+          service: quiz_system
+          component: patient_engagement
+        annotations:
+          summary: "Patient response time increasing (p50 > 10 min)"
+          description: |
+            Question {{ $labels.question_id }} in template {{ $labels.template_id }}
+            has p50 response time of {{ $value }}s ({{ $value | humanizeDuration }}).
+
+            This may indicate:
+            - Question is confusing or difficult
+            - Patients are distracted or busy
+            - Optimal timing needs adjustment
+
+            Action: Review question wording and delivery timing.
+
+  - name: quiz_quality_slos
+    interval: 1m
+    rules:
+      - alert: HighClarificationRate
+        expr: |
+          (
+            sum by (template_id, question_id) (redis_gauge{key=~"quiz_metrics:clarifications:.*"})
+            /
+            sum by (template_id) (redis_gauge{key=~"quiz_metrics:completions:.*", key!~".*:daily:.*"})
+          ) > 0.15
+        for: 10m
+        labels:
+          severity: warning
+          service: quiz_system
+          component: question_quality
+        annotations:
+          summary: "High clarification rate (> 15%)"
+          description: |
+            Question {{ $labels.question_id }} in template {{ $labels.template_id }}
+            requires clarification in {{ $value | humanizePercentage }} of responses.
+
+            This indicates patients are providing invalid or unclear answers.
+
+            Possible causes:
+            - Question wording is ambiguous
+            - Answer options are unclear
+            - Input validation too strict
+
+            Action: Review question design and validation rules.
+
+      - alert: ZeroCompletionsIn24Hours
+        expr: |
+          sum by (template_id) (increase(redis_gauge{key=~"quiz_metrics:completions:.*", key!~".*:daily:.*"}[24h])) == 0
+        for: 30m
+        labels:
+          severity: warning
+          service: quiz_system
+          component: quiz_delivery
+        annotations:
+          summary: "No quiz completions in 24 hours"
+          description: |
+            Quiz template {{ $labels.template_id }} has had zero completions in the last 24 hours.
+
+            Possible causes:
+            - Quiz not being triggered
+            - Flow engine issues
+            - All patients opted out
+
+            Action: Check quiz triggers and flow engine status.
+
+  - name: quiz_infrastructure_slos
+    interval: 30s
+    rules:
+      - alert: HighWebhookDuplicationRate
+        expr: |
+          rate(redis_hits{key=~"webhook:message:.*"}[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: quiz_system
+          component: webhook_processing
+        annotations:
+          summary: "High webhook duplication rate (> 10/min)"
+          description: |
+            Webhook idempotency is blocking {{ $value }} duplicate webhooks per minute.
+
+            Possible causes:
+            - Evolution API retrying excessively
+            - Network instability
+            - Webhook endpoint timeout issues
+
+            Action: Review Evolution webhook configuration and endpoint performance.
+
+      - alert: QuizMessageSendFailureRate
+        expr: |
+          (
+            sum(rate(whatsapp_messages_sent_total{status="failed", message_type=~"quiz_.*"}[5m]))
+            /
+            sum(rate(whatsapp_messages_sent_total{message_type=~"quiz_.*"}[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: quiz_system
+          component: whatsapp_delivery
+        annotations:
+          summary: "Quiz message send failure rate > 5%"
+          description: |
+            {{ $value | humanizePercentage }} of quiz messages are failing to send.
+
+            Possible causes:
+            - Evolution API issues
+            - Invalid phone numbers
+            - Rate limiting
+
+            Action: Check Evolution API logs and circuit breaker status.
+
+      - alert: RedisMetricsUnavailable
+        expr: |
+          absent(redis_gauge{key=~"quiz_metrics:.*"})
+        for: 5m
+        labels:
+          severity: critical
+          service: quiz_system
+          component: metrics
+        annotations:
+          summary: "Redis metrics unavailable - monitoring blind"
+          description: |
+            Quiz metrics are not being collected from Redis.
+            Dashboard and alerting are non-functional.
+
+            Possible causes:
+            - Redis exporter down
+            - Redis instance unavailable
+            - Network connectivity issues
+
+            Action: Verify Redis health and exporter status immediately.
+
+  - name: quiz_business_kpis
+    interval: 5m
+    rules:
+      - alert: QuizEngagementDropping
+        expr: |
+          (
+            sum(increase(redis_gauge{key=~"quiz_metrics:completions:.*:daily:.*"}[24h]))
+            /
+            sum(increase(redis_gauge{key=~"quiz_metrics:completions:.*:daily:.*"}[24h] offset 7d))
+          ) < 0.7
+        for: 1h
+        labels:
+          severity: info
+          service: quiz_system
+          component: business_metrics
+        annotations:
+          summary: "Quiz engagement dropped by > 30% week-over-week"
+          description: |
+            Quiz completions have decreased by {{ (1 - $value) | humanizePercentage }}
+            compared to last week.
+
+            Possible causes:
+            - Seasonal variation
+            - Patient fatigue
+            - System issues
+
+            Action: Review patient engagement trends and adjust quiz frequency if needed.

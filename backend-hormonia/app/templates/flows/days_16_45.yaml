@@ -1,0 +1,423 @@
+flow_type: "days_16_45"
+name: "Days 16-45 Engagement Flow"
+description: "Enhanced flow for deeper engagement and treatment optimization"
+version: "2.0.0"
+humanization_level: "high"
+metadata:
+  author: "Hormonia AI Team"
+  created_at: "2024-01-01"
+  target_audience: "Patients in treatment adaptation phase"
+  medical_focus: "Treatment optimization and lifestyle integration"
+
+messages:
+  16:
+    intent: "phase_two_welcome"
+    base_content: "Bem-vinda à segunda fase da nossa jornada!"
+    message_type: "text"
+    core_elements:
+      phase_transition: true
+      continuity: true
+      excitement: true
+    personalization_hints:
+      - "transition_comfort"
+      - "progress_recognition"
+    ai_instructions: |
+      Celebre a transição para a segunda fase:
+      - Reconhecendo o progresso feito
+      - Criando expectativa positiva
+      - Mantendo a continuidade da relação
+      - Demonstrando orgulho pelo avanço
+    variations:
+      - "Que alegria chegar até aqui com você!"
+      - "Olha só como você evoluiu!"
+      - "Estamos prontas para a próxima etapa!"
+
+  18:
+    intent: "deeper_wellness_check"
+    base_content: "Como seu corpo tem respondido ao tratamento?"
+    message_type: "interactive"
+    core_elements:
+      body_awareness: true
+      treatment_response: true
+      detailed_inquiry: true
+    personalization_hints:
+      - "body_awareness_level"
+      - "medical_comfort"
+    ai_instructions: |
+      Pergunte sobre resposta corporal de forma cuidadosa:
+      - Com interesse genuíno, não clínico
+      - Validando qualquer experiência
+      - Focando em mudanças positivas quando possível
+      - Oferecendo apoio para desafios
+    interactive_elements:
+      type: "buttons"
+      options:
+        - id: "very_well"
+          title: "Muito bem!"
+        - id: "well"
+          title: "Bem"
+        - id: "some_changes"
+          title: "Algumas mudanças"
+        - id: "adjusting"
+          title: "Ainda me adaptando"
+        - id: "challenges"
+          title: "Alguns desafios"
+        - id: "need_support"
+          title: "Preciso de apoio"
+
+  20:
+    intent: "lifestyle_integration_challenge"
+    base_content: "Vamos pensar em como integrar o tratamento na sua rotina de forma mais natural"
+    message_type: "text"
+    core_elements:
+      lifestyle_integration: true
+      practical_solutions: true
+      empowerment: true
+    personalization_hints:
+      - "routine_flexibility"
+      - "integration_challenges"
+    ai_instructions: |
+      Aborde integração do tratamento na vida:
+      - Como solução de problemas em parceria
+      - Focando na praticidade e simplicidade
+      - Empoderando a paciente
+      - Oferecendo estratégias personalizadas
+    follow_up:
+      intent: "routine_optimization_tips"
+      delay_seconds: 1800
+      ai_instructions: |
+        Ofereça dicas práticas de otimização:
+        - Baseadas no perfil da paciente
+        - Simples de implementar
+        - Focadas em facilitar, não complicar
+
+  22:
+    intent: "movement_and_energy"
+    base_content: "Como está sua energia e disposição para atividades?"
+    message_type: "interactive"
+    core_elements:
+      energy_levels: true
+      activity_interest: true
+      movement_encouragement: true
+    personalization_hints:
+      - "activity_level"
+      - "energy_patterns"
+    ai_instructions: |
+      Explore energia e movimento de forma positiva:
+      - Celebrando qualquer nível de atividade
+      - Sem pressão por performance
+      - Focando em bem-estar, não exercício
+      - Adaptando sugestões ao nível atual
+    interactive_elements:
+      type: "list"
+      header: "Como você se sente para atividades?"
+      options:
+        - id: "energetic"
+          title: "Cheia de energia"
+          description: "Me sinto disposta para várias atividades"
+        - id: "moderate"
+          title: "Energia moderada"
+          description: "Consigo fazer atividades leves"
+        - id: "low_energy"
+          title: "Pouca energia"
+          description: "Prefiro atividades mais tranquilas"
+        - id: "variable"
+          title: "Varia muito"
+          description: "Alguns dias melhor que outros"
+
+  24:
+    intent: "progress_celebration"
+    base_content: "Vamos celebrar seus progressos até aqui!"
+    message_type: "text"
+    core_elements:
+      celebration: true
+      progress_recognition: true
+      motivation: true
+    personalization_hints:
+      - "celebration_style"
+      - "progress_awareness"
+    ai_instructions: |
+      Celebre progressos de forma genuína:
+      - Destacando conquistas específicas
+      - Reconhecendo esforços, não apenas resultados
+      - Criando momento de alegria e orgulho
+      - Motivando para continuar
+    variations:
+      - "Você tem feito um trabalho incrível!"
+      - "Que orgulho de ver sua evolução!"
+      - "Cada passo seu é uma vitória!"
+
+  26:
+    intent: "questions_and_concerns"
+    base_content: "Tem alguma dúvida ou preocupação que gostaria de compartilhar?"
+    message_type: "text"
+    core_elements:
+      open_dialogue: true
+      concern_validation: true
+      support_offer: true
+    personalization_hints:
+      - "question_comfort_level"
+      - "concern_sharing_style"
+    ai_instructions: |
+      Abra espaço para dúvidas e preocupações:
+      - Criando ambiente seguro para compartilhar
+      - Validando qualquer preocupação
+      - Oferecendo apoio sem minimizar
+      - Demonstrando disponibilidade genuína
+    follow_up:
+      intent: "concern_addressing"
+      delay_seconds: 300
+      ai_instructions: |
+        Responda a preocupações com empatia:
+        - Validando sentimentos
+        - Oferecendo perspectivas úteis
+        - Sugerindo recursos quando apropriado
+
+  28:
+    intent: "self_care_focus"
+    base_content: "Como você tem cuidado de si mesma além do tratamento?"
+    message_type: "text"
+    core_elements:
+      self_care: true
+      holistic_wellness: true
+      personal_interests: true
+    personalization_hints:
+      - "self_care_practices"
+      - "personal_interests"
+    ai_instructions: |
+      Explore autocuidado de forma ampla:
+      - Incluindo aspectos emocionais e sociais
+      - Celebrando pequenos atos de autocuidado
+      - Sugerindo ideias personalizadas
+      - Enfatizando importância do bem-estar integral
+    variations:
+      - "Me conta sobre seus momentos de autocuidado"
+      - "O que te faz sentir bem consigo mesma?"
+      - "Como você nutre sua alma além do corpo?"
+
+  30:
+    intent: "mid_treatment_consultation_prep"
+    base_content: "Vamos nos preparar para sua próxima consulta médica"
+    message_type: "text"
+    core_elements:
+      consultation_preparation: true
+      empowerment: true
+      organization: true
+    personalization_hints:
+      - "medical_interaction_comfort"
+      - "preparation_style"
+    ai_instructions: |
+      Prepare para consulta de forma empoderadora:
+      - Ajudando a organizar informações
+      - Encorajando participação ativa
+      - Sugerindo perguntas relevantes
+      - Reduzindo ansiedade sobre a consulta
+    follow_up:
+      intent: "consultation_questions_help"
+      delay_seconds: 3600
+      ai_instructions: |
+        Ajude a formular perguntas para o médico:
+        - Baseadas no histórico da paciente
+        - Focando em preocupações reais
+        - Encorajando comunicação aberta
+
+  32:
+    intent: "nutrition_and_wellness"
+    base_content: "Como está sua relação com a alimentação?"
+    message_type: "interactive"
+    core_elements:
+      nutrition_focus: true
+      relationship_with_food: true
+      wellness_approach: true
+    personalization_hints:
+      - "food_relationship"
+      - "nutrition_interest"
+    ai_instructions: |
+      Aborde alimentação de forma positiva:
+      - Focando em bem-estar, não restrição
+      - Celebrando escolhas saudáveis
+      - Sem julgamento sobre hábitos
+      - Oferecendo apoio para melhorias desejadas
+    interactive_elements:
+      type: "buttons"
+      options:
+        - id: "great"
+          title: "Ótima! 🥗"
+        - id: "improving"
+          title: "Melhorando"
+        - id: "challenging"
+          title: "Desafiadora"
+        - id: "confused"
+          title: "Confusa"
+        - id: "need_help"
+          title: "Preciso de ajuda"
+
+  34:
+    intent: "social_support_check"
+    base_content: "Como está o apoio das pessoas ao seu redor?"
+    message_type: "text"
+    core_elements:
+      social_support: true
+      relationship_wellness: true
+      community: true
+    personalization_hints:
+      - "social_comfort_level"
+      - "support_system_strength"
+    ai_instructions: |
+      Explore suporte social com sensibilidade:
+      - Reconhecendo diferentes tipos de apoio
+      - Validando desafios relacionais
+      - Celebrando conexões positivas
+      - Oferecendo estratégias para fortalecer apoio
+    variations:
+      - "Como estão as pessoas importantes para você?"
+      - "Você se sente apoiada pelas pessoas próximas?"
+      - "Me conta sobre sua rede de apoio"
+
+  36:
+    intent: "future_preparation"
+    base_content: "Vamos nos preparar para a próxima fase do tratamento"
+    message_type: "text"
+    core_elements:
+      future_focus: true
+      preparation: true
+      confidence_building: true
+    personalization_hints:
+      - "future_orientation"
+      - "confidence_level"
+    ai_instructions: |
+      Prepare para próxima fase com otimismo:
+      - Destacando competências desenvolvidas
+      - Criando expectativa positiva
+      - Oferecendo ferramentas para sucesso
+      - Fortalecendo confiança na capacidade
+    follow_up:
+      intent: "skills_recognition"
+      delay_seconds: 1800
+      ai_instructions: |
+        Reconheça habilidades desenvolvidas:
+        - Destacando crescimento pessoal
+        - Celebrando resiliência
+        - Preparando para independência
+
+  38:
+    intent: "treatment_benefits_recognition"
+    base_content: "Quais benefícios do tratamento você já consegue perceber?"
+    message_type: "text"
+    core_elements:
+      benefit_recognition: true
+      positive_focus: true
+      motivation: true
+    personalization_hints:
+      - "benefit_awareness"
+      - "positive_focus_ability"
+    ai_instructions: |
+      Ajude a reconhecer benefícios do tratamento:
+      - Focando em mudanças positivas
+      - Celebrando pequenas melhorias
+      - Fortalecendo motivação para continuar
+      - Criando narrativa de sucesso
+    variations:
+      - "O que de bom você já notou?"
+      - "Quais mudanças positivas você percebe?"
+      - "Me conta sobre as melhorias que sente"
+
+  40:
+    intent: "motivation_reinforcement"
+    base_content: "Você é mais forte do que imagina"
+    message_type: "text"
+    core_elements:
+      strength_recognition: true
+      motivation: true
+      empowerment: true
+    personalization_hints:
+      - "strength_recognition_style"
+      - "motivation_type"
+    ai_instructions: |
+      Reforce força e capacidade da paciente:
+      - Com genuína admiração
+      - Destacando evidências de força
+      - Inspirando confiança
+      - Preparando para desafios futuros
+    variations:
+      - "Sua determinação me inspira"
+      - "Você tem uma força incrível"
+      - "Admiro sua coragem e persistência"
+
+  42:
+    intent: "skills_reinforcement"
+    base_content: "Você desenvolveu tantas habilidades importantes nessa jornada"
+    message_type: "text"
+    core_elements:
+      skill_recognition: true
+      growth_celebration: true
+      competence_building: true
+    personalization_hints:
+      - "skill_awareness"
+      - "growth_recognition"
+    ai_instructions: |
+      Reconheça habilidades desenvolvidas:
+      - Destacando crescimento específico
+      - Celebrando competências adquiridas
+      - Fortalecendo autoconfiança
+      - Preparando para próxima fase
+    follow_up:
+      intent: "skill_application_encouragement"
+      delay_seconds: 2400
+      ai_instructions: |
+        Encoraje aplicação das habilidades:
+        - Em diferentes contextos
+        - Com confiança crescente
+        - Celebrando versatilidade
+
+  44:
+    intent: "monthly_phase_warmup"
+    base_content: "Estamos nos aproximando de uma nova fase - a fase mensal!"
+    message_type: "text"
+    core_elements:
+      transition_preparation: true
+      excitement: true
+      continuity_assurance: true
+    personalization_hints:
+      - "transition_comfort"
+      - "change_adaptation"
+    ai_instructions: |
+      Prepare para transição para fase mensal:
+      - Com entusiasmo e otimismo
+      - Assegurando continuidade do apoio
+      - Destacando conquistas até aqui
+      - Criando expectativa positiva
+    variations:
+      - "Que evolução incrível até aqui!"
+      - "Estamos prontas para o próximo nível!"
+      - "Sua jornada está ficando cada vez mais forte!"
+
+  45:
+    intent: "phase_completion_and_quiz_prep"
+    base_content: "Chegou o momento do nosso primeiro quiz mensal!"
+    message_type: "text"
+    core_elements:
+      quiz_introduction: true
+      achievement_celebration: true
+      preparation: true
+    personalization_hints:
+      - "quiz_comfort_level"
+      - "achievement_recognition"
+    ai_instructions: |
+      Introduza o quiz de forma positiva:
+      - Como celebração do progresso
+      - Sem ansiedade ou pressão
+      - Focando na utilidade para cuidado
+      - Preparando com confiança
+    follow_up:
+      intent: "quiz_explanation"
+      delay_seconds: 600
+      ai_instructions: |
+        Explique o quiz de forma tranquilizadora:
+        - Como ferramenta de cuidado
+        - Sem julgamento ou avaliação
+        - Focando em benefícios para ela
+    variations:
+      - "Vamos fazer nossa primeira avaliação juntas!"
+      - "Hora de celebrar seu progresso com um quiz!"
+      - "Que tal vermos como você está se saindo?"

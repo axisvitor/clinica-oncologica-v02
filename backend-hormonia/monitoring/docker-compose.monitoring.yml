@@ -1,0 +1,170 @@
+# Docker Compose for monitoring stack (Prometheus + Grafana + Redis Exporter)
+# Usage: docker-compose -f docker-compose.monitoring.yml up -d
+
+version: '3.8'
+
+services:
+  # Redis Exporter for metrics scraping
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.55.0
+    container_name: hormonia-redis-exporter
+    restart: unless-stopped
+    ports:
+      - "9121:9121"
+    environment:
+      REDIS_ADDR: ${REDIS_HOST:-redis}:${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      # Custom Lua scripts for quiz metrics aggregation
+      REDIS_EXPORTER_CHECK_KEYS: "quiz_metrics:*,webhook:message:*"
+      REDIS_EXPORTER_CHECK_SINGLE_KEYS: "quiz_metrics:completions:*,quiz_metrics:abandonment:*"
+      REDIS_EXPORTER_SCRIPT: |
+        -- Custom script to calculate quiz metrics percentiles
+        local function get_sorted_set_percentile(key, percentile)
+          local count = redis.call('ZCARD', key)
+          if count == 0 then return 0 end
+          local index = math.floor(count * percentile)
+          local values = redis.call('ZRANGE', key, index, index, 'WITHSCORES')
+          if #values >= 2 then
+            return tonumber(values[2])
+          end
+          return 0
+        end
+
+        -- Export percentiles for send latency
+        local send_latency_keys = redis.call('KEYS', 'quiz_metrics:send_latency:*:question')
+        for _, key in ipairs(send_latency_keys) do
+          local template_id = key:match('quiz_metrics:send_latency:(.+):question')
+          redis.call('SET', 'metric:quiz_send_latency_p50:' .. template_id, get_sorted_set_percentile(key, 0.50))
+          redis.call('SET', 'metric:quiz_send_latency_p95:' .. template_id, get_sorted_set_percentile(key, 0.95))
+          redis.call('SET', 'metric:quiz_send_latency_p99:' .. template_id, get_sorted_set_percentile(key, 0.99))
+        end
+
+        -- Export percentiles for response latency
+        local response_latency_keys = redis.call('KEYS', 'quiz_metrics:response_latency:*')
+        for _, key in ipairs(response_latency_keys) do
+          local parts = key:match('quiz_metrics:response_latency:(.+):(.+)')
+          if parts then
+            local template_id, question_id = parts:match('([^:]+):(.+)')
+            local p95 = get_sorted_set_percentile(key, 0.95)
+            redis.call('SET', 'metric:quiz_response_latency_p95:' .. template_id .. ':' .. question_id, p95)
+          end
+        end
+
+        return 'OK'
+    networks:
+      - monitoring
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9121/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: hormonia-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - monitoring
+    depends_on:
+      - redis-exporter
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: hormonia-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: redis-datasource
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - grafana-data:/var/lib/grafana
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Alertmanager for alert routing
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: hormonia-alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    networks:
+      - monitoring
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Redis (if not already running externally)
+  redis:
+    image: redis:7-alpine
+    container_name: hormonia-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    networks:
+      - monitoring
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+networks:
+  monitoring:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  alertmanager-data:
+    driver: local
+  redis-data:
+    driver: local

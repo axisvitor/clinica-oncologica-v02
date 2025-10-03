@@ -1,0 +1,68 @@
+[MASTER]
+# Add files or directories matching the regex patterns to the ignore list.
+ignore=alembic,migrations,.git,__pycache__,venv,env,.venv
+
+[MESSAGES CONTROL]
+# Enable literal comparison checking
+enable=literal-comparison,
+       comparison-with-itself,
+       consider-using-in
+
+# Disable less critical warnings
+disable=C0111,  # missing-docstring
+        C0103,  # invalid-name
+        R0913,  # too-many-arguments
+        R0914,  # too-many-locals
+
+[BASIC]
+# Naming style conventions
+argument-naming-style=snake_case
+attr-naming-style=snake_case
+class-naming-style=PascalCase
+const-naming-style=UPPER_CASE
+function-naming-style=snake_case
+method-naming-style=snake_case
+module-naming-style=snake_case
+variable-naming-style=snake_case
+
+[FORMAT]
+# Maximum number of characters on a single line
+max-line-length=120
+
+# String quote consistency
+check-quote-consistency=yes
+
+[DESIGN]
+# Complexity metrics
+max-args=8
+max-attributes=12
+max-branches=15
+max-locals=20
+max-returns=8
+max-statements=60
+
+[STRING]
+# Check for literal string comparisons
+check-str-concat-over-line-jumps=yes
+
+[SECURITY]
+# Check for security-related issues including hardcoded strings in comparisons
+
+[TYPECHECK]
+# List of decorators that produce context managers
+contextmanager-decorators=contextlib.contextmanager
+
+[CUSTOM RULES]
+# Custom rules to prevent string role comparisons
+# Use: pylint --load-plugins=pylint_custom_rules
+# This configuration enforces using UserRole enum instead of string literals
+# for role comparisons throughout the codebase.
+#
+# FORBIDDEN PATTERNS:
+# - role == "admin" or role != "admin"
+# - role == 'admin' or role != 'admin'
+# - role == "doctor" or role != "doctor"
+#
+# REQUIRED PATTERN:
+# - role in {UserRole.ADMIN, UserRole.SUPER_ADMIN}
+# - role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}

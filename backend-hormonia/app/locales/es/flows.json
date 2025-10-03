@@ -1,0 +1,62 @@
+{
+  "day_1_15": {
+    "name": "Flujo Días 1-15",
+    "description": "Flujo inicial de 15 días de terapia hormonal",
+    "steps": {
+      "welcome": {
+        "content": "¡Bienvenida a tu jornada de terapia hormonal! Estaré aquí para apoyarte en cada paso del camino."
+      },
+      "daily_check_in": {
+        "content": "¿Cómo te sientes hoy?"
+      },
+      "medication_reminder": {
+        "content": "No olvides tomar tu medicación según lo prescrito."
+      },
+      "progress_check": {
+        "content": "Revisemos tu progreso de esta semana."
+      },
+      "completion": {
+        "content": "¡Felicitaciones! Has completado la primera fase de tu tratamiento."
+      }
+    }
+  },
+  "day_16_45": {
+    "name": "Flujo Días 16-45",
+    "description": "Flujo extendido de terapia hormonal para los días 16-45",
+    "steps": {
+      "phase_two_welcome": {
+        "content": "¡Bienvenida a la segunda fase de tu tratamiento! Continuemos monitoreando tu progreso."
+      },
+      "enhanced_check_in": {
+        "content": "¿Cómo ha estado respondiendo tu cuerpo al tratamiento?"
+      },
+      "side_effects_monitor": {
+        "content": "¿Has experimentado algún efecto secundario?"
+      },
+      "lifestyle_check": {
+        "content": "Revisemos tu estilo de vida y hábitos."
+      },
+      "phase_completion": {
+        "content": "¡Excelente progreso! Estás lista para la siguiente fase del tratamiento."
+      }
+    }
+  },
+  "monthly": {
+    "name": "Flujo de Mantenimiento Mensual",
+    "description": "Flujo de mantenimiento mensual para tratamiento continuo",
+    "steps": {
+      "monthly_welcome": {
+        "content": "¡Es hora de tu revisión mensual! Veamos cómo estás."
+      },
+      "comprehensive_assessment": {
+        "content": "Hagamos una revisión integral de tu salud este mes."
+      },
+      "goal_review": {
+        "content": "¿Cómo estás progresando hacia tus objetivos de salud?"
+      },
+      "next_month_prep": {
+        "content": "¡Excelente trabajo este mes! Preparémonos para el éxito continuo."
+      }
+    }
+  }
+}
