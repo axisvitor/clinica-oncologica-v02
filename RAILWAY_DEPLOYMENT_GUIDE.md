@@ -60,7 +60,23 @@ PASSLIB_BUILTIN_BCRYPT=enabled
 #### Banco de Dados & Cache
 ```bash
 DATABASE_URL=postgresql+psycopg://user:pass@host:5432/db
-REDIS_URL=rediss://default:password@host:6379
+
+# Redis Cloud (já configurado - copie exatamente como está)
+REDIS_URL=redis://default:6V7Bg9HKlUuxhXtbpnS4ygeiPKB3WQsR@redis-14149.c322.us-east-1-2.ec2.redns.redis-cloud.com:14149
+REDIS_PASSWORD=6V7Bg9HKlUuxhXtbpnS4ygeiPKB3WQsR
+REDIS_HOST=redis-14149.c322.us-east-1-2.ec2.redns.redis-cloud.com
+REDIS_PORT=14149
+REDIS_SSL=false
+REDIS_SSL_CERT_REQS=none
+REDIS_MAX_CONNECTIONS=25
+REDIS_SOCKET_TIMEOUT=10.0
+REDIS_ENABLE_DB_ISOLATION=true
+REDIS_CACHE_DB=1
+REDIS_BROKER_DB=0
+
+# Celery (usa mesmo Redis, DB 0 para broker)
+CELERY_BROKER_URL=redis://default:6V7Bg9HKlUuxhXtbpnS4ygeiPKB3WQsR@redis-14149.c322.us-east-1-2.ec2.redns.redis-cloud.com:14149/0
+CELERY_RESULT_BACKEND=redis://default:6V7Bg9HKlUuxhXtbpnS4ygeiPKB3WQsR@redis-14149.c322.us-east-1-2.ec2.redns.redis-cloud.com:14149/0
 ```
 
 #### Segurança

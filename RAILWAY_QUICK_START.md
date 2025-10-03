@@ -121,8 +121,16 @@ NEXT_PUBLIC_API_URL=https://<backend>.railway.app
 # Database
 DATABASE_URL=postgresql+psycopg://user:pass@host:5432/db
 
-# Cache
-REDIS_URL=rediss://default:pass@host:6379
+# Cache (Redis Cloud - já configurado)
+REDIS_URL=redis://default:6V7Bg9HKlUuxhXtbpnS4ygeiPKB3WQsR@redis-14149.c322.us-east-1-2.ec2.redns.redis-cloud.com:14149
+REDIS_PASSWORD=6V7Bg9HKlUuxhXtbpnS4ygeiPKB3WQsR
+REDIS_HOST=redis-14149.c322.us-east-1-2.ec2.redns.redis-cloud.com
+REDIS_PORT=14149
+REDIS_SSL=false
+
+# Celery (usa mesmo Redis com DB 0)
+CELERY_BROKER_URL=redis://default:6V7Bg9HKlUuxhXtbpnS4ygeiPKB3WQsR@redis-14149.c322.us-east-1-2.ec2.redns.redis-cloud.com:14149/0
+CELERY_RESULT_BACKEND=redis://default:6V7Bg9HKlUuxhXtbpnS4ygeiPKB3WQsR@redis-14149.c322.us-east-1-2.ec2.redns.redis-cloud.com:14149/0
 
 # Security
 SECRET_KEY=YOUR_SECRET_KEY_MIN_32_CHARS_HERE
