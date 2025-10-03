@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+import path from 'node:path'
+
 const nextConfig = {
   // Essential production configuration
   // Temporary: disable standalone to avoid Windows pnpm symlink issues
@@ -102,6 +104,13 @@ const nextConfig = {
           }
         }
       };
+    }
+
+    // Ensure alias '@' resolves to project root for tsconfig paths '@/*'
+    config.resolve = config.resolve || {}
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      '@': path.resolve(process.cwd()),
     }
 
     return config;
