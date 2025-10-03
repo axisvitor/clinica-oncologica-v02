@@ -380,6 +380,16 @@ class EnhancedSecurityMiddleware(BaseHTTPMiddleware):
 
     async def _validate_request(self, request: Request) -> None:
         """Validate incoming request for security threats."""
+        # Allow public endpoints without strict validation (health/metrics/docs)
+        url_path = str(request.url.path)
+        if (
+            url_path == "/health" or url_path.startswith("/health") or
+            url_path.startswith("/api/v1/health") or
+            url_path == "/metrics" or url_path == "/openapi.json" or
+            url_path.startswith("/docs") or url_path.startswith("/redoc")
+        ):
+            return
+
         # Check content length
         content_length = int(request.headers.get("content-length", 0))
         if content_length > self.config.max_request_size:
