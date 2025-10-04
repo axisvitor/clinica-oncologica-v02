@@ -198,7 +198,10 @@ export function MessagesPage() {
             <>
               {/* Messages List */}
               <MessagesList
-                messages={messagesData?.items || []}
+                messages={(messagesData?.items || []).map(msg => ({
+                  ...msg,
+                  message_type: msg.type
+                }))}
                 isLoading={messagesLoading}
                 patientName={selectedPatient.name}
               />

@@ -282,18 +282,16 @@ class ApiClient {
         is_active: boolean;
       }>('/api/v1/auth/me');
 
-      // Transform to match frontend expectations
+      // Return in snake_case format to match User type
       return {
         data: {
           id: user['id'],
           email: user['email'],
-          fullName: user['full_name'],
+          full_name: user['full_name'],
           role: user['role'],
-          isActive: user.is_active,
+          is_active: user.is_active,
           permissions: [],
-          createdAt: new Date().toISOString(),
-          firstName: user['full_name']?.split(' ')[0] || '',
-          lastName: user['full_name']?.split(' ').slice(1).join(' ') || ''
+          created_at: new Date().toISOString()
         }
       };
     },

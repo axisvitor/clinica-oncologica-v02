@@ -62,31 +62,37 @@ export const supabaseWithFirebaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON
     }
   },
   global: {
-    headers: async () => {
+    // Custom fetch wrapper to inject Firebase token dynamically
+    fetch: async (url, options = {}) => {
       try {
-        const user = firebaseAuth.currentUser;
+        const user = await firebaseAuth.getCurrentUser();
+        const headers: Record<string, string> = {
+          'X-Client-Info': 'clinica-oncologica-frontend',
+          ...(options.headers as Record<string, string> || {})
+        };
 
         if (user) {
           // Get fresh Firebase ID token
           const token = await user.getIdToken();
-
-          return {
-            'Authorization': `Bearer ${token}`,
-            'X-Client-Info': 'clinica-oncologica-frontend',
-            'X-Auth-Provider': 'firebase'
-          };
+          headers['Authorization'] = `Bearer ${token}`;
+          headers['X-Auth-Provider'] = 'firebase';
         }
 
-        // No user authenticated
-        return {
-          'X-Client-Info': 'clinica-oncologica-frontend'
-        };
+        return fetch(url, {
+          ...options,
+          headers
+        });
       } catch (error) {
         console.error('[Supabase] Failed to get Firebase token:', error);
 
-        return {
-          'X-Client-Info': 'clinica-oncologica-frontend'
-        };
+        // Fallback to fetch without token
+        return fetch(url, {
+          ...options,
+          headers: {
+            'X-Client-Info': 'clinica-oncologica-frontend',
+            ...(options.headers as Record<string, string> || {})
+          }
+        });
       }
     }
   }
@@ -114,7 +120,7 @@ export async function verifyRLSIntegration(): Promise<{
   error?: string;
 }> {
   try {
-    const user = firebaseAuth.currentUser;
+    const user = await firebaseAuth.getCurrentUser();
 
     if (!user) {
       return {

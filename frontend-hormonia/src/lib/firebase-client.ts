@@ -10,6 +10,7 @@ import {
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   onAuthStateChanged,
+  onIdTokenChanged,
   User as FirebaseUser,
   Auth,
   updateProfile,
@@ -206,6 +207,13 @@ export const firebaseAuth = {
    */
   onAuthStateChange(callback: (user: FirebaseUser | null) => void): () => void {
     return onAuthStateChanged(auth, callback)
+  },
+
+  /**
+   * Listen to ID token changes (for token refresh)
+   */
+  onIdTokenChanged(callback: (user: FirebaseUser | null) => void): () => void {
+    return onIdTokenChanged(auth, callback)
   }
 }
 

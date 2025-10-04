@@ -342,7 +342,7 @@ export function PatientDetailPage() {
             {/* Left Column - Timeline */}
             <div className="lg:col-span-2 space-y-6">
               <PatientTimeline
-                timeline={timeline}
+                timeline={timeline ? { events: timeline.events } : undefined}
                 isLoading={timelineLoading}
               />
             </div>
@@ -359,7 +359,7 @@ export function PatientDetailPage() {
 
         <TabsContent value="timeline" className="space-y-6">
           <PatientTimeline
-            timeline={timeline}
+            timeline={timeline ? { events: timeline.events } : undefined}
             isLoading={timelineLoading}
           />
         </TabsContent>

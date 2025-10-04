@@ -70,7 +70,7 @@ export interface Patient {
   treatment_type?: string
   treatment_start_date?: string
   current_day?: number
-  status: 'active' | 'inactive' | 'completed'
+  status: 'active' | 'inactive' | 'completed' | 'paused'
   created_at: string
   updated_at: string
   metadata?: Record<string, unknown>

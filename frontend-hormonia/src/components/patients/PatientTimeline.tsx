@@ -1,10 +1,10 @@
 import React from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { 
-  MessageSquare, 
-  AlertTriangle, 
-  Activity, 
+import {
+  MessageSquare,
+  AlertTriangle,
+  Activity,
   FileText,
   Clock
 } from 'lucide-react'
@@ -12,18 +12,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { LoadingSpinner } from '../ui/loading-spinner'
-
-interface TimelineEvent {
-  id: string
-  type: 'message' | 'quiz' | 'alert' | 'flow_change' | 'report'
-  title: string
-  description: string
-  timestamp: string
-  metadata?: Record<string, any>
-}
+import type { TimelineEvent } from '@/types/api-responses'
 
 interface PatientTimelineProps {
-  timeline?: { events: TimelineEvent[] }
+  timeline?: { events: TimelineEvent[] } | undefined
   isLoading: boolean
 }
 
@@ -104,22 +96,22 @@ export function PatientTimeline({ timeline, isLoading }: PatientTimelineProps) {
           <ScrollArea className="h-[500px]">
             <div className="space-y-4">
               {timeline.events.map((event, index) => {
-                const Icon = getEventIcon(event.type)
-                const colorClass = getEventColor(event.type)
+                const Icon = getEventIcon(event.event_type)
+                const colorClass = getEventColor(event.event_type)
                 const isLast = index === timeline.events.length - 1
-                
+
                 return (
                   <div key={event.id} className="relative">
                     {/* Timeline line */}
                     {!isLast && (
                       <div className="absolute left-4 top-8 w-0.5 h-full bg-gray-200" />
                     )}
-                    
+
                     <div className="flex items-start space-x-3">
                       <div className={`flex items-center justify-center w-8 h-8 rounded-full ${colorClass} relative z-10`}>
                         <Icon className="w-4 h-4" />
                       </div>
-                      
+
                       <div className="flex-1 min-w-0 pb-4">
                         <div className="flex items-center justify-between mb-1">
                           <h4 className="text-sm font-medium text-gray-900">
@@ -127,10 +119,10 @@ export function PatientTimeline({ timeline, isLoading }: PatientTimelineProps) {
                           </h4>
                           <div className="flex items-center space-x-2">
                             <Badge variant="outline" className="text-xs">
-                              {getEventLabel(event.type)}
+                              {getEventLabel(event.event_type)}
                             </Badge>
                             <span className="text-xs text-gray-500">
-                              {formatDistanceToNow(new Date(event.timestamp), {
+                              {formatDistanceToNow(new Date(event.created_at), {
                                 addSuffix: true,
                                 locale: ptBR
                               })}

@@ -39,7 +39,13 @@
       "Bash(grep:*)",
       "Bash(findstr:*)",
       "Bash(git check-ignore:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm install:*)",
+      "Bash(if exist tsconfig.tsbuildinfo del tsconfig.tsbuildinfo)",
+      "Bash(awk:*)"
     ],
     "deny": [],
     "ask": []

@@ -30,6 +30,6 @@
       "./node_modules/@types"
     ]
   },
-  "include": ["**/*.ts", "**/*.tsx"],
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "vite.config.ts", "client.ts", "tests/**/*", "scripts/**/*", "hooks/**/*", "**/__tests__/**/*", "**/*.test.*", "**/*.spec.*", "types/index.ts"]
 }

@@ -91,11 +91,11 @@ export function useApiAuth({
       const u: User = {
         id: result.data['id'],
         email: result.data['email'],
-        full_name: result.data['fullName'],
+        full_name: result.data['full_name'],
         role: result.data['role'],
-        is_active: result.data['isActive'],
+        is_active: result.data['is_active'],
         permissions: result.data['permissions'] || [],
-        created_at: result.data.createdAt
+        created_at: result.data.created_at
       }
       setUser(u)
       return u

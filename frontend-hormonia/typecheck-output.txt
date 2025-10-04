@@ -1,0 +1,101 @@
+
+> frontend@1.0.1 typecheck
+> tsc --noEmit
+
+src/config.ts(136,51): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config.ts(137,43): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config.ts(138,46): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config.ts(139,43): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config.ts(140,39): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config.ts(141,50): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config.ts(142,40): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config.ts(143,39): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config.ts(144,53): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config.ts(145,61): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config.ts(148,44): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config.ts(148,98): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config.ts(149,49): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config.ts(149,108): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config.ts(150,48): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config.ts(150,106): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config.ts(151,55): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config.ts(151,120): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config.ts(178,37): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config.ts(179,33): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config/mock.config.ts(10,22): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config/mock.config.ts(17,22): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/config/mock.config.ts(24,22): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/contexts/AuthContext.tsx(71,7): error TS2739: Type '{ id: string; email: string; fullName: string; role: string; isActive: boolean; permissions: never[]; createdAt: string; firstName: string; lastName: string; }' is missing the following properties from type 'User': full_name, is_active, created_at
+src/contexts/AuthContext.tsx(89,18): error TS7030: Not all code paths return a value.
+src/lib/api-client.ts(47,38): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/firebase-client.ts(27,23): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/firebase-client.ts(28,27): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/firebase-client.ts(29,26): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/firebase-client.ts(30,30): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/firebase-client.ts(31,34): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/firebase-client.ts(32,22): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/mock-auth-service.ts(351,19): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/mock-auth-service.ts(365,19): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(101,17): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(102,17): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(126,38): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(127,43): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(128,51): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(129,33): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(130,38): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(131,37): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(132,48): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(135,40): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(136,43): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(137,40): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(140,41): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(141,46): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(142,45): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(143,52): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(146,36): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(147,47): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(150,37): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(151,36): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(152,41): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(153,49): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(154,39): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(155,46): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(158,42): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(159,43): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(160,47): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(217,23): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(223,21): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(236,21): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(247,25): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(253,23): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(271,31): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(281,21): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(294,19): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(306,35): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(315,34): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/runtime-config.ts(322,21): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/supabase-client.ts(9,39): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/supabase-client.ts(82,29): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/supabase-client.ts(83,33): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/supabase-firebase-integration.ts(29,36): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/supabase-firebase-integration.ts(30,36): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/supabase.ts(16,36): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/supabase.ts(17,36): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/websocket.ts(5,31): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/websocket.ts(21,33): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/websocket.ts(67,25): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/websocket.ts(81,27): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/websocket.ts(113,27): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/websocket.ts(187,23): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/websocket.ts(198,21): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/websocket.ts(263,23): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/pages/PatientDetailPage.tsx(344,16): error TS2375: Type '{ isLoading: boolean; timeline?: { events: TimelineEvent[]; }; }' is not assignable to type 'PatientTimelineProps' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  The types of 'timeline.events' are incompatible between these types.
+    Type 'import("C:/Meu Projetos/clinica-oncologica-v02/frontend-hormonia/src/types/api-responses").TimelineEvent[]' is not assignable to type 'TimelineEvent[]'.
+      Type 'TimelineEvent' is missing the following properties from type 'TimelineEvent': type, timestamp
+src/pages/PatientDetailPage.tsx(361,12): error TS2375: Type '{ isLoading: boolean; timeline?: { events: TimelineEvent[]; }; }' is not assignable to type 'PatientTimelineProps' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+  The types of 'timeline.events' are incompatible between these types.
+    Type 'import("C:/Meu Projetos/clinica-oncologica-v02/frontend-hormonia/src/types/api-responses").TimelineEvent[]' is not assignable to type 'TimelineEvent[]'.
+      Type 'TimelineEvent' is missing the following properties from type 'TimelineEvent': type, timestamp
+src/services/whatsapp/WhatsAppService.ts(82,32): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/services/whatsapp/WhatsAppService.ts(83,31): error TS2339: Property 'env' does not exist on type 'ImportMeta'.

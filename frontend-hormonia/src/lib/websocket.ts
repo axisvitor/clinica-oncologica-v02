@@ -31,6 +31,9 @@ const APP_CONFIG = {
 export interface WebSocketMessage {
   event: string
   data: any
+  timestamp?: string
+  patient_id?: string
+  session_id?: string
 }
 
 export type WebSocketEventHandler = (data: any) => void

@@ -60,14 +60,19 @@ export function CreatePatientDialog({ open, onOpenChange }: CreatePatientDialogP
 
   const createPatientMutation = useMutation({
     mutationFn: (data: CreatePatientFormData) => {
-      // Clean up empty strings
-      const cleanData = {
-        ...data,
-        email: data['email'] || undefined,
-        birth_date: data.birth_date || undefined,
-        treatment_start_date: data.treatment_start_date || undefined,
-        notes: data.notes || undefined
+      // Build payload omitting undefined optional fields (exactOptionalPropertyTypes compliance)
+      const cleanData: any = {
+        name: data.name,
+        phone: data.phone,
+        treatment_type: data.treatment_type
       }
+
+      // Only include optional fields if they have values
+      if (data['email']) cleanData.email = data['email']
+      if (data.birth_date) cleanData.birth_date = data.birth_date
+      if (data.treatment_start_date) cleanData.treatment_start_date = data.treatment_start_date
+      if (data.notes) cleanData.notes = data.notes
+
       return apiClient.patients.create(cleanData)
     },
     onSuccess: () => {

@@ -71,24 +71,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return response.data
     } catch (error) {
       console.warn('[AuthContext] Could not fetch user from backend, using Firebase data:', error)
-      // Fallback to Firebase user data
+      // Fallback to Firebase user data (snake_case to match User type)
       return {
         id: firebaseUser.uid,
         email: firebaseUser.email || '',
-        fullName: firebaseUser.displayName || '',
-        firstName: firebaseUser.displayName?.split(' ')[0] || '',
-        lastName: firebaseUser.displayName?.split(' ').slice(1).join(' ') || '',
+        full_name: firebaseUser.displayName || '',
         role: 'user',
-        isActive: true,
+        is_active: true,
         permissions: [],
-        createdAt: firebaseUser.metadata.creationTime || new Date().toISOString()
+        created_at: firebaseUser.metadata.creationTime || new Date().toISOString()
       }
     }
   }, [])
 
   // Initialize from session
   useEffect(() => {
-    const init = async () => {
+    const init = async (): Promise<void | (() => void)> => {
       console.log('[AuthContext] Initializing authentication...')
 
       if (isMockAuthEnabled()) {
@@ -109,6 +107,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           console.error('[AuthContext] Mock auth initialization error:', error)
         }
         setIsLoading(false)
+        return undefined
       } else {
         console.log('[AuthContext] Using Firebase authentication')
 
