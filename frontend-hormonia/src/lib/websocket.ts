@@ -1,8 +1,26 @@
-// WebSocket configuration from environment
-const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL
+// WebSocket configuration resolution (lazy, non-fatal)
+import { getRuntimeConfigSync } from './runtime-config'
+
+function resolveWsBaseUrl(): string | null {
+  const envUrl = (import.meta.env as any).VITE_WS_BASE_URL as string | undefined
+  if (envUrl && envUrl.length) return envUrl
+
+  const runtime = getRuntimeConfigSync()
+  if (runtime?.VITE_WS_BASE_URL) return runtime.VITE_WS_BASE_URL
+
+  // Fallback to current host proxy (/ws) if available
+  if (typeof window !== 'undefined') {
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+    return `${proto}://${window.location.host}/ws`
+  }
+  return null
+}
+
+let WS_BASE_URL: string | null = resolveWsBaseUrl()
 
 if (!WS_BASE_URL && import.meta.env.MODE === 'production') {
-  throw new Error('VITE_WS_BASE_URL is required in production')
+  // Do not throw — disable WS gracefully and allow UI to render
+  console.warn('[WebSocket] VITE_WS_BASE_URL not set; WebSocket features disabled')
 }
 
 const APP_CONFIG = {
@@ -13,9 +31,6 @@ const APP_CONFIG = {
 export interface WebSocketMessage {
   event: string
   data: any
-  timestamp: string
-  session_id?: string
-  patient_id?: string
 }
 
 export type WebSocketEventHandler = (data: any) => void
@@ -44,7 +59,17 @@ class WebSocketManager {
     this.isConnecting = true
 
     this.connectionPromise = new Promise((resolve, reject) => {
-      const wsUrl = `${WS_BASE_URL}?token=${token}`
+      const base = WS_BASE_URL || resolveWsBaseUrl()
+      if (!base) {
+        if (import.meta.env.DEV) {
+          console.warn('WS base URL missing; skipping WebSocket connect')
+        }
+        this.isConnecting = false
+        this.shouldReconnect = false
+        return resolve()
+      }
+
+      const wsUrl = `${base}?token=${token}`
 
       try {
         this.ws = new WebSocket(wsUrl)

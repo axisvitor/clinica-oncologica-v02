@@ -56,22 +56,18 @@ FROM nginx:alpine AS production
 # Install curl for health checks
 RUN apk add --no-cache curl
 
-# Copy built assets
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Create runtime config script placeholder
-# Configuration will be loaded from /api/config endpoint at runtime
-RUN echo 'window.ENV_CONFIG = {};' > /usr/share/nginx/html/config.js && \
-    echo '// Configuration loaded dynamically from /api/config' >> /usr/share/nginx/html/config.js
+# Do not overwrite Vite-emitted runtime config loader (config.js)
+# The build emits config.js that fetches /api/config at runtime.
 
 # Create startup script
 RUN printf '#!/bin/sh\n\
 set -e\n\
 \n\
-# Update nginx port if PORT is set (Railway sets this)\n\
 if [ -n "$PORT" ]; then\n\
   sed -i "s/listen 3000;/listen $PORT;/g" /etc/nginx/conf.d/default.conf\n\
   echo " Configured nginx to listen on port $PORT"\n\
