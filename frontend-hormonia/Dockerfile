@@ -48,8 +48,8 @@ RUN echo "🔨 Building with environment:" && \
     echo "  VITE_API_BASE_URL=${VITE_API_BASE_URL:+[SET]}" && \
     echo "  VITE_WS_BASE_URL=${VITE_WS_BASE_URL:+[SET]}"
 
-# Build application (use build:prod to skip standalone tsc, vite handles TS checking)
-RUN npm run build:prod
+# Build application with runtime config generation
+RUN npm run build:runtime
 
 FROM nginx:alpine AS production
 
