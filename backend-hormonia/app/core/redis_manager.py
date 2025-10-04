@@ -11,6 +11,8 @@ import os
 from typing import Optional, Union, Any
 import redis.asyncio as redis_async
 import redis as redis_sync
+from redis.asyncio.connection import SSLConnection as AsyncSSLConnection
+from redis.connection import SSLConnection as SyncSSLConnection
 from redis.exceptions import ConnectionError, TimeoutError
 from contextlib import asynccontextmanager
 import threading
@@ -105,11 +107,11 @@ class RedisManager:
             elif self.redis_url and self.redis_url.startswith('redis://') and os.getenv('REDIS_SSL') == 'true':
                 import ssl
                 connection_kwargs.update({
-                    'ssl': True,
+                    'connection_class': AsyncSSLConnection,
                     'ssl_cert_reqs': ssl.CERT_NONE,
                     'ssl_check_hostname': False
                 })
-                logger.info("Redis Cloud SSL configuration applied: ssl=True, cert_reqs=CERT_NONE")
+                logger.info("Redis Cloud SSL configuration applied: AsyncSSLConnection with cert_reqs=CERT_NONE")
 
             # Create async connection pool
             self._async_pool = redis_async.ConnectionPool.from_url(
@@ -154,11 +156,11 @@ class RedisManager:
             elif self.redis_url and self.redis_url.startswith('redis://') and os.getenv('REDIS_SSL') == 'true':
                 import ssl
                 connection_kwargs.update({
-                    'ssl': True,
+                    'connection_class': SyncSSLConnection,
                     'ssl_cert_reqs': ssl.CERT_NONE,
                     'ssl_check_hostname': False
                 })
-                logger.info("Redis Cloud SSL configuration applied: ssl=True, cert_reqs=CERT_NONE")
+                logger.info("Redis Cloud SSL configuration applied: SyncSSLConnection with cert_reqs=CERT_NONE")
 
             # Create sync connection pool
             self._sync_pool = redis_sync.ConnectionPool.from_url(
