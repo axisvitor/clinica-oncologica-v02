@@ -10,7 +10,7 @@ name = "backend-api"
 source = "backend-hormonia"
 
 [services.build]
-builder = "DOCKERFILE"
+builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
 [services.deploy]
@@ -29,7 +29,7 @@ name = "celery-worker"
 source = "backend-hormonia"
 
 [services.build]
-builder = "DOCKERFILE"
+builder = "dockerfile"
 dockerfilePath = "Dockerfile.worker"
 
 [services.deploy]
@@ -45,7 +45,7 @@ name = "celery-beat"
 source = "backend-hormonia"
 
 [services.build]
-builder = "DOCKERFILE"
+builder = "dockerfile"
 dockerfilePath = "Dockerfile.beat"
 
 [services.deploy]
@@ -61,7 +61,7 @@ name = "frontend"
 source = "frontend-hormonia"
 
 [services.build]
-builder = "DOCKERFILE"
+builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
 [services.deploy]

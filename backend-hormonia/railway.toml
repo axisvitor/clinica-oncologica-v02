@@ -2,7 +2,7 @@
 # FastAPI application with Gunicorn + Uvicorn workers
 
 [build]
-builder = "DOCKERFILE"
+builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
 [deploy]
