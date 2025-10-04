@@ -1,0 +1,24 @@
+ANALYSIS: Error Handling Review
+
+=== FRONTEND ERROR HANDLING ===
+1. API Client (api-client.ts):
+   - Timeout error (408): 'A requisição demorou muito para responder'
+   - Network error (0): 'Falha ao conectar ao servidor'
+   - Generic error (500): 'Erro de rede'
+
+2. Auth Error Handler (auth-error-handler.ts):
+   - Rate limiting (429): Detected and handled
+   - Authentication errors: Categorized with user-friendly messages
+   - RLS violations: Detected with patterns
+   - Network errors: Retryable flag set to true
+
+3. WebSocket (websocket.ts):
+   - Automatic reconnection with exponential backoff
+   - Max reconnection attempts: 5
+   - Event-based error handling
+
+=== BACKEND ERROR HANDLING ===
+1. Rate Limiter (rate_limiter.py):
+   - Returns 429 with retry_after information
+   - Portuguese error messages
+   - IP-based rate limiting with proxy support
