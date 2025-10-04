@@ -61,14 +61,32 @@ function validateFirebaseConfig(config: FirebaseOptions): void {
 }
 
 /**
+ * Check if Firebase configuration is complete and valid
+ * Returns true if all required fields have real values (not placeholders)
+ */
+function isFirebaseConfigured(): boolean {
+  const hasApiKey = firebaseConfig.apiKey &&
+                    firebaseConfig.apiKey.length > 0 &&
+                    !firebaseConfig.apiKey.startsWith('${') && // Not a placeholder
+                    !firebaseConfig.apiKey.includes('undefined')
+
+  const hasProjectId = firebaseConfig.projectId &&
+                       firebaseConfig.projectId.length > 0 &&
+                       !firebaseConfig.projectId.startsWith('${') &&
+                       !firebaseConfig.projectId.includes('undefined')
+
+  return hasApiKey && hasProjectId
+}
+
+/**
  * Initialize Firebase app safely
  * Prevents "Firebase app already exists" errors by checking for existing instances
  * Handles HMR (Hot Module Replacement) and module re-imports gracefully
  *
- * @returns Firebase app instance (existing or newly created)
- * @throws Error if configuration is incomplete
+ * @returns Firebase app instance (existing or newly created), or null if not configured
+ * @throws Error only if initialization fails (not if config missing)
  */
-function initializeFirebaseApp(): FirebaseApp {
+function initializeFirebaseApp(): FirebaseApp | null {
   // Check if any Firebase apps are already initialized
   const existingApps = getApps()
 
@@ -77,16 +95,17 @@ function initializeFirebaseApp(): FirebaseApp {
     return existingApps[0]
   }
 
+  // Check if Firebase is configured
+  if (!isFirebaseConfigured()) {
+    logger.warn('Firebase not configured - environment variables missing or invalid')
+    logger.info('App will run with mock authentication. Set VITE_USE_MOCK_AUTH=true or configure Firebase credentials.')
+    return null
+  }
+
   logger.info('Initializing new Firebase app...')
 
   // Validate configuration before initialization
   validateFirebaseConfig(firebaseConfig)
-
-  if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-    throw new Error(
-      'Firebase configuration is incomplete. Check environment variables (VITE_FIREBASE_API_KEY, VITE_FIREBASE_PROJECT_ID).'
-    )
-  }
 
   try {
     const app = initializeApp(firebaseConfig)
@@ -94,13 +113,14 @@ function initializeFirebaseApp(): FirebaseApp {
     return app
   } catch (error: any) {
     logger.error('Failed to initialize Firebase:', error)
-    throw new Error(`Firebase initialization failed: ${error.message}`)
+    logger.warn('Continuing without Firebase authentication')
+    return null
   }
 }
 
-// Initialize Firebase app safely
-const app: FirebaseApp = initializeFirebaseApp()
-const auth: Auth = getAuth(app)
+// Initialize Firebase app safely (may be null if not configured)
+const app: FirebaseApp | null = initializeFirebaseApp()
+const auth: Auth | null = app ? getAuth(app) : null
 
 // Development environment checks
 if (import.meta.env.DEV) {
@@ -172,6 +192,15 @@ export const firebaseAuth = {
     session: { access_token: string } | null
     error: Error | null
   }> {
+    if (!auth) {
+      logger.error('Firebase not initialized - cannot sign in')
+      return {
+        user: null,
+        session: null,
+        error: new Error('Autenticação não disponível. Use credenciais mock ou configure Firebase.')
+      }
+    }
+
     try {
       logger.info('Attempting sign in...')
 
@@ -216,6 +245,15 @@ export const firebaseAuth = {
     session: { access_token: string } | null
     error: Error | null
   }> {
+    if (!auth) {
+      logger.error('Firebase not initialized - cannot sign up')
+      return {
+        user: null,
+        session: null,
+        error: new Error('Autenticação não disponível. Use credenciais mock ou configure Firebase.')
+      }
+    }
+
     try {
       logger.info('Creating user...')
       const userCredential: UserCredential = await createUserWithEmailAndPassword(
@@ -261,6 +299,11 @@ export const firebaseAuth = {
    * Sign out
    */
   async signOut(): Promise<{ error: Error | null }> {
+    if (!auth) {
+      logger.warn('Firebase not initialized - no sign out needed')
+      return { error: null }
+    }
+
     try {
       logger.info('Signing out user')
       await firebaseSignOut(auth)
@@ -281,6 +324,8 @@ export const firebaseAuth = {
    * Get current session
    */
   async getCurrentSession(): Promise<{ access_token: string } | null> {
+    if (!auth) return null
+
     try {
       const user = auth.currentUser
       if (user) {
@@ -299,13 +344,15 @@ export const firebaseAuth = {
    * Get current user
    */
   async getCurrentUser(): Promise<FirebaseUser | null> {
-    return auth.currentUser
+    return auth ? auth.currentUser : null
   },
 
   /**
    * Refresh session (get new token)
    */
   async refreshSession(): Promise<{ access_token: string } | null> {
+    if (!auth) return null
+
     try {
       const user = auth.currentUser
       if (user) {
@@ -324,6 +371,10 @@ export const firebaseAuth = {
    * Send password reset email
    */
   async resetPasswordForEmail(email: string): Promise<{ error: Error | null }> {
+    if (!auth) {
+      return { error: new Error('Autenticação não disponível.') }
+    }
+
     try {
       logger.info('Sending password reset email...')
       await sendPasswordResetEmail(auth, email)
@@ -344,6 +395,7 @@ export const firebaseAuth = {
    * Set auth persistence
    */
   async setPersistence(rememberMe: boolean): Promise<void> {
+    if (!auth) return
     const persistence = rememberMe ? browserLocalPersistence : browserSessionPersistence
     await setPersistence(auth, persistence)
   },
@@ -352,6 +404,10 @@ export const firebaseAuth = {
    * Listen to auth state changes
    */
   onAuthStateChange(callback: (user: FirebaseUser | null) => void): () => void {
+    if (!auth) {
+      // Return no-op unsubscribe function
+      return () => {}
+    }
     return onAuthStateChanged(auth, callback)
   },
 
@@ -359,7 +415,18 @@ export const firebaseAuth = {
    * Listen to ID token changes (for token refresh)
    */
   onIdTokenChanged(callback: (user: FirebaseUser | null) => void): () => void {
+    if (!auth) {
+      // Return no-op unsubscribe function
+      return () => {}
+    }
     return onIdTokenChanged(auth, callback)
+  },
+
+  /**
+   * Check if Firebase is properly configured and initialized
+   */
+  isConfigured(): boolean {
+    return auth !== null && isFirebaseConfigured()
   }
 }
 
