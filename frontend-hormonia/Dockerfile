@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile optimized for Railway
 # Stage 1: Dependencies
-FROM node:20-alpine AS deps
+FROM node:20-alpine@sha256:2d07db07a2df6830718ae2a47db6fedce6745f5bcd174c398f2acdda90a11c03 AS deps
 WORKDIR /app
 
 # Copy package files
@@ -16,8 +16,7 @@ RUN if [ ! -f package-lock.json ]; then \
     fi
 
 # Stage 2: Builder
-# TODO: Pin with SHA256 from main agent
-FROM node:20-alpine AS builder
+FROM node:20-alpine@sha256:2d07db07a2df6830718ae2a47db6fedce6745f5bcd174c398f2acdda90a11c03 AS builder
 WORKDIR /app
 
 # Copy dependencies from deps stage
@@ -61,8 +60,7 @@ RUN echo "🔨 Building with environment:" && \
 # Build application with runtime config generation
 RUN npm run build:runtime
 
-# TODO: Pin with SHA256 from main agent
-FROM nginx:alpine AS production
+FROM nginx:alpine@sha256:2140dad235c130ac861018a4e13a6bc8aea3a35f3a40e20c1b060d51a7efd250 AS production
 
 # Install curl for health checks
 RUN apk add --no-cache curl

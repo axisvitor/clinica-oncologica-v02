@@ -1,5 +1,5 @@
-# Backend Dockerfile - Python 3.13 + Node.js for hybrid dependencies
-FROM python:3.13-slim
+# Backend Dockerfile - Python 3.13 (Node.js removed)
+FROM python:3.13-slim@sha256:77cab44fc9bb15aad23d6df227e651b0a6c7a57e788ab318d5f68c7e5b4f3d42
 
 # Set working directory
 WORKDIR /app

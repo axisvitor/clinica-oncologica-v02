@@ -1,5 +1,5 @@
 # Backend Worker Dockerfile - Celery Worker
-FROM python:3.13-slim
+FROM python:3.13-slim@sha256:77cab44fc9bb15aad23d6df227e651b0a6c7a57e788ab318d5f68c7e5b4f3d42
 
 # Set working directory
 WORKDIR /app
