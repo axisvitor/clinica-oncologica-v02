@@ -95,7 +95,7 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
   VITE_API_URL: {
     required: true,
     type: 'url',
-    pattern: /^https?:\/\/.+/,
+    format: /^https?:\/\/.+/,
     description: 'Backend API URL',
     validator: (value) => {
       if (value.includes('localhost') || value.includes('127.0.0.1')) {

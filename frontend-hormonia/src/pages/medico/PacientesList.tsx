@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMedicoAuth } from '../../contexts/MedicoAuthContext'
@@ -28,7 +30,7 @@ export default function PacientesList() {
   const fetchPacientes = async () => {
     try {
       setLoading(true)
-      const apiUrl = import.meta.env.VITE_API_URL
+      const apiUrl = import.meta.env['VITE_API_URL']
       const response = await fetch(`${apiUrl}/api/pacientes`, {
         headers: {
           'Authorization': `Bearer ${state.token}`,

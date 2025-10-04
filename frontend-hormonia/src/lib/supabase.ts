@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 import { createClient } from '@supabase/supabase-js'
 import { getRuntimeConfigSync } from './runtime-config'
 

@@ -12,7 +12,7 @@ import { UserDetailsModal } from './UserDetailsModal'
 import { AdminUser } from '@/types/admin'
 import { createLogger } from '../../../lib/logger'
 
-const logger = createLogger({ component: 'UserListPage' })
+const logger = createLogger('UserListPage')
 
 export function UserListPage() {
   const [currentPage, setCurrentPage] = useState(1)

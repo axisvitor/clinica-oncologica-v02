@@ -50,7 +50,7 @@ import AdminSessionManager from './AdminSessionManager'
 import AdminUserActivityMonitor from './AdminUserActivityMonitor'
 import { createLogger } from '../../lib/logger'
 
-const logger = createLogger({ component: 'AdminDashboard' })
+const logger = createLogger('AdminDashboard')
 
 interface AdminDashboardProps {
   children?: React.ReactNode

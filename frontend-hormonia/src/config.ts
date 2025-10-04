@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 /**
  * Configuration System with Runtime Support for Railway Deployment
  *

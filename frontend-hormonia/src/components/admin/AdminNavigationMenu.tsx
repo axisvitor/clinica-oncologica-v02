@@ -37,7 +37,7 @@ import { AdminNavItem, AdminUser } from '../../types/admin'
 import { useAuth } from '../../contexts/AuthContext'
 import { createLogger } from '../../lib/logger'
 
-const logger = createLogger({ component: 'AdminNavigationMenu' })
+const logger = createLogger('AdminNavigationMenu')
 
 interface AdminNavigationMenuProps {
   className?: string

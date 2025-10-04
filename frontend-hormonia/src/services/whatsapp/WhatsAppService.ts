@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 /**
  * WhatsApp Integration Service for Frontend
  * Handles all WhatsApp-related operations through the backend API
@@ -79,7 +81,7 @@ class WhatsAppService {
   private apiKey?: string;
 
   constructor() {
-    this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    this.baseUrl = import.meta.env['VITE_API_URL'] || 'http://localhost:8000';
     this.apiKey = import.meta.env['VITE_API_KEY'];
   }
 

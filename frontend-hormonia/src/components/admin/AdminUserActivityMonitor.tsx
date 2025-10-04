@@ -61,7 +61,7 @@ import {
 } from '../../types/admin'
 import { createLogger } from '../../lib/logger'
 
-const logger = createLogger({ component: 'AdminUserActivityMonitor' })
+const logger = createLogger('AdminUserActivityMonitor')
 
 interface AdminUserActivityMonitorProps {
   className?: string

@@ -16,7 +16,7 @@ import { SessionWarning } from '../../types/admin'
 import { useAdminAuth } from '../../contexts/AdminAuthContext'
 import { createLogger } from '../../lib/logger'
 
-const logger = createLogger({ component: 'AdminSessionManager' })
+const logger = createLogger('AdminSessionManager')
 
 interface AdminSessionManagerProps {
   className?: string

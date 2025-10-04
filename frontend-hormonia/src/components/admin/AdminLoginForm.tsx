@@ -18,7 +18,7 @@ import {
 } from '../../types/admin'
 import { createLogger } from '../../lib/logger'
 
-const logger = createLogger({ component: 'AdminLoginForm' })
+const logger = createLogger('AdminLoginForm')
 
 // Password strength validation
 const calculatePasswordStrength = (password: string): PasswordStrength => {

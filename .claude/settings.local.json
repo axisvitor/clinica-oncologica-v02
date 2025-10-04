@@ -28,7 +28,8 @@
       "Bash(powershell:*)",
       "Bash(py:*)",
       "Bash(docker buildx:*)",
-      "Bash(docker:*)"
+      "Bash(docker:*)",
+      "Bash(npm run build:runtime:*)"
     ],
     "deny": []
   }

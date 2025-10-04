@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useMedicoAuth } from '../../contexts/MedicoAuthContext'
@@ -37,7 +39,7 @@ export default function ProntuarioView() {
   const fetchProntuario = async () => {
     try {
       setLoading(true)
-      const apiUrl = import.meta.env.VITE_API_URL
+      const apiUrl = import.meta.env['VITE_API_URL']
 
       // Fetch paciente data
       const pacienteResponse = await fetch(`${apiUrl}/api/pacientes/${pacienteId}`, {

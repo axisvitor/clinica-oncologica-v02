@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 /**
  * Firebase Authentication Client
  * Replaces Supabase Auth with Firebase Auth

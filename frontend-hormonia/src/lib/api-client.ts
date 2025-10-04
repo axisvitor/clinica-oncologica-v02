@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 import { API_BASE_URL } from '../config'
 import { transformPaginationResponse, transformFlowListResponse, transformReportDownload } from './response-transformers'
 import { isMockApiEnabled } from '../config/mock.config'
@@ -47,7 +49,7 @@ const logger = createLogger('ApiClient')
 
 // Use a default URL in case config hasn't loaded yet
 const getApiUrl = () => {
-  return API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000'
+  return API_BASE_URL || import.meta.env['VITE_API_URL'] || 'http://localhost:8000'
 }
 
 export interface ApiResponse<T> {
@@ -322,6 +324,16 @@ class ApiClient {
         full_name: string;
         role: string;
         is_active: boolean;
+        // Optional medico-specific fields
+        crm?: string;
+        nome?: string;
+        updated_at?: string;
+        last_login?: string;
+        login_count?: number;
+        two_factor_enabled?: boolean;
+        especialidade?: string;
+        conselho_regional?: string;
+        pacientes_atribuidos?: any[];
       }>('/api/v1/auth/me');
 
       // Return in snake_case format to match User type
@@ -333,7 +345,17 @@ class ApiClient {
           role: user['role'],
           is_active: user.is_active,
           permissions: [],
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          // Include optional medico-specific fields if present
+          crm: user['crm'],
+          nome: user['nome'],
+          updated_at: user['updated_at'],
+          last_login: user['last_login'],
+          login_count: user['login_count'],
+          two_factor_enabled: user['two_factor_enabled'],
+          especialidade: user['especialidade'],
+          conselho_regional: user['conselho_regional'],
+          pacientes_atribuidos: user['pacientes_atribuidos']
         }
       };
     },

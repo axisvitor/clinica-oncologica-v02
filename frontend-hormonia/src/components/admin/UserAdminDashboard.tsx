@@ -20,7 +20,7 @@ import { RoleAssignmentModal } from './RoleAssignmentModal'
 import { PermissionGuard } from './PermissionGuard'
 import { createLogger } from '../../lib/logger'
 
-const logger = createLogger({ component: 'UserAdminDashboard' })
+const logger = createLogger('UserAdminDashboard')
 
 interface FilterState {
   search: string

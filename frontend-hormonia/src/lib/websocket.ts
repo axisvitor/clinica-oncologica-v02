@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 // WebSocket configuration resolution (lazy, non-fatal)
 import { getRuntimeConfigSync } from './runtime-config'
 import { createLogger } from './logger'

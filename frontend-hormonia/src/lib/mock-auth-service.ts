@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 /**
  * Mock Authentication Service
  * Temporary authentication service for MVP development

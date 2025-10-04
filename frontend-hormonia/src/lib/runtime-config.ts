@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 /**
  * Runtime Configuration Loader for Railway Deployment
  *
@@ -128,32 +130,32 @@ async function loadRuntimeConfiguration(): Promise<RuntimeConfig> {
       VITE_SUPABASE_URL: import.meta.env['VITE_SUPABASE_URL'] || '',
       VITE_SUPABASE_ANON_KEY: import.meta.env['VITE_SUPABASE_ANON_KEY'] || '',
       VITE_SUPABASE_REALTIME_ENABLED: import.meta.env['VITE_SUPABASE_REALTIME_ENABLED'],
-      VITE_API_URL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000',
-      VITE_WS_URL: import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:8000/ws',
-      VITE_WHATSAPP_INSTANCE_NAME: import.meta.env.VITE_WHATSAPP_INSTANCE_NAME,
+      VITE_API_URL: import.meta.env['VITE_API_URL'] || 'http://127.0.0.1:8000',
+      VITE_WS_URL: import.meta.env['VITE_WS_URL'] || 'ws://127.0.0.1:8000/ws',
+      VITE_WHATSAPP_INSTANCE_NAME: import.meta.env['VITE_WHATSAPP_INSTANCE_NAME'],
 
       // AI Services - Development defaults
-      VITE_OPENAI_API_KEY: import.meta.env.VITE_OPENAI_API_KEY,
-      VITE_LANGCHAIN_API_KEY: import.meta.env.VITE_LANGCHAIN_API_KEY,
-      VITE_GEMINI_API_KEY: import.meta.env.VITE_GEMINI_API_KEY,
+      VITE_OPENAI_API_KEY: import.meta.env['VITE_OPENAI_API_KEY'],
+      VITE_LANGCHAIN_API_KEY: import.meta.env['VITE_LANGCHAIN_API_KEY'],
+      VITE_GEMINI_API_KEY: import.meta.env['VITE_GEMINI_API_KEY'],
 
       // AI Feature Flags - Development defaults (enabled if API keys present)
-      VITE_AI_CHAT_ENABLED: import.meta.env.VITE_AI_CHAT_ENABLED || 'true',
-      VITE_AI_ANALYTICS_ENABLED: import.meta.env.VITE_AI_ANALYTICS_ENABLED || 'true',
-      VITE_AI_INSIGHTS_ENABLED: import.meta.env.VITE_AI_INSIGHTS_ENABLED || 'true',
-      VITE_AI_RECOMMENDATIONS_ENABLED: import.meta.env.VITE_AI_RECOMMENDATIONS_ENABLED || 'true',
+      VITE_AI_CHAT_ENABLED: import.meta.env['VITE_AI_CHAT_ENABLED'] || 'true',
+      VITE_AI_ANALYTICS_ENABLED: import.meta.env['VITE_AI_ANALYTICS_ENABLED'] || 'true',
+      VITE_AI_INSIGHTS_ENABLED: import.meta.env['VITE_AI_INSIGHTS_ENABLED'] || 'true',
+      VITE_AI_RECOMMENDATIONS_ENABLED: import.meta.env['VITE_AI_RECOMMENDATIONS_ENABLED'] || 'true',
 
       // Monitoring & Analytics
-      VITE_SENTRY_DSN: import.meta.env.VITE_SENTRY_DSN,
-      VITE_ANALYTICS_TRACKING_ID: import.meta.env.VITE_ANALYTICS_TRACKING_ID,
+      VITE_SENTRY_DSN: import.meta.env['VITE_SENTRY_DSN'],
+      VITE_ANALYTICS_TRACKING_ID: import.meta.env['VITE_ANALYTICS_TRACKING_ID'],
 
       // Environment Settings
-      VITE_ENVIRONMENT: import.meta.env.VITE_ENVIRONMENT,
-      VITE_DEBUG_MODE: import.meta.env.VITE_DEBUG_MODE,
-      VITE_SESSION_TIMEOUT: import.meta.env.VITE_SESSION_TIMEOUT,
-      VITE_TOKEN_REFRESH_THRESHOLD: import.meta.env.VITE_TOKEN_REFRESH_THRESHOLD,
-      VITE_MAX_FILE_SIZE: import.meta.env.VITE_MAX_FILE_SIZE,
-      VITE_SUPPORTED_FILE_TYPES: import.meta.env.VITE_SUPPORTED_FILE_TYPES,
+      VITE_ENVIRONMENT: import.meta.env['VITE_ENVIRONMENT'],
+      VITE_DEBUG_MODE: import.meta.env['VITE_DEBUG_MODE'],
+      VITE_SESSION_TIMEOUT: import.meta.env['VITE_SESSION_TIMEOUT'],
+      VITE_TOKEN_REFRESH_THRESHOLD: import.meta.env['VITE_TOKEN_REFRESH_THRESHOLD'],
+      VITE_MAX_FILE_SIZE: import.meta.env['VITE_MAX_FILE_SIZE'],
+      VITE_SUPPORTED_FILE_TYPES: import.meta.env['VITE_SUPPORTED_FILE_TYPES'],
 
       // Evolution and Demo Configuration
       VITE_ENABLE_EVOLUTION: import.meta.env['VITE_ENABLE_EVOLUTION'],
@@ -215,13 +217,13 @@ async function loadFromRuntimeAPI(): Promise<RuntimeConfig | null> {
 
     if (response.ok) {
       const config = await response.json();
-      if (import.meta.env.DEV) {
+      if (import.meta.env['DEV']) {
         logger.log('Loaded from API endpoint');
       }
       return config;
     }
   } catch (error) {
-    if (import.meta.env.DEV) {
+    if (import.meta.env['DEV']) {
       logger.warn('API endpoint not available:', error);
     }
   }
@@ -234,7 +236,7 @@ async function loadFromRuntimeAPI(): Promise<RuntimeConfig | null> {
 async function loadFromWindowConfig(): Promise<RuntimeConfig | null> {
   // Check if config was injected by server-side rendering or runtime script
   if (typeof window !== 'undefined' && (window as any).__ENV_CONFIG__) {
-    if (import.meta.env.DEV) {
+    if (import.meta.env['DEV']) {
       logger.log('Loaded from window.__ENV_CONFIG__');
     }
     return (window as any).__ENV_CONFIG__;
@@ -245,13 +247,13 @@ async function loadFromWindowConfig(): Promise<RuntimeConfig | null> {
     try {
       const config = await (window as any).__RUNTIME_CONFIG__.loadConfig();
       if (config) {
-        if (import.meta.env.DEV) {
+        if (import.meta.env['DEV']) {
           logger.log('Loaded from window.__RUNTIME_CONFIG__');
         }
         return config;
       }
     } catch (error) {
-      if (import.meta.env.DEV) {
+      if (import.meta.env['DEV']) {
         logger.warn('Runtime config loader failed:', error);
       }
     }
@@ -279,7 +281,7 @@ async function loadFromMetaEnv(): Promise<RuntimeConfig | null> {
   if (hasAnyConfig) {
     // Merge with fallback config for missing values
     const config = { ...PRODUCTION_FALLBACK_CONFIG, ...metaEnvConfig };
-    if (import.meta.env.DEV) {
+    if (import.meta.env['DEV']) {
       logger.log('Loaded from import.meta.env with fallbacks');
     }
     return config;
@@ -292,7 +294,7 @@ async function loadFromMetaEnv(): Promise<RuntimeConfig | null> {
  * Returns the production fallback configuration
  */
 async function loadFromFallback(): Promise<RuntimeConfig> {
-  if (import.meta.env.DEV) {
+  if (import.meta.env['DEV']) {
     logger.log('Using production fallback configuration');
   }
   return PRODUCTION_FALLBACK_CONFIG;
@@ -313,14 +315,14 @@ function isValidConfig(config: any): config is RuntimeConfig {
 
   const missingFields = requiredFields.filter(field => {
     const hasField = config && typeof config[field] === 'string' && config[field].length > 0;
-    if (!hasField && import.meta.env.DEV) {
+    if (!hasField && import.meta.env['DEV']) {
       logger.warn(`Missing required field: ${field}`);
     }
     return !hasField;
   });
 
   if (missingFields.length > 0) {
-    if (import.meta.env.DEV) {
+    if (import.meta.env['DEV']) {
       logger.warn(`Configuration validation: missing ${missingFields.join(', ')}`);
       // In dev mode with mock auth, allow partial config
       if (useMockAuth) {

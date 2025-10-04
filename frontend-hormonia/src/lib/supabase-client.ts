@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 import { createClient, SupabaseClient, User, Session, AuthError } from '@supabase/supabase-js'
 import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { errorHandler, isRLSError, createUserFriendlyError, getPermissionContext } from './auth-error-handler'
