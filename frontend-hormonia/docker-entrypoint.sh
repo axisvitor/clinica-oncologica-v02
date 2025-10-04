@@ -15,15 +15,17 @@ ls -la /etc/nginx/nginx.conf 2>/dev/null || echo "⚠️ nginx.conf doesn't exis
 # Railway Internal Network: use .railway.internal domain (no port needed)
 export BACKEND_HOST="${BACKEND_HOST:-clinica-oncologica-v02.railway.internal}"
 export BACKEND_PORT="${BACKEND_PORT:-80}"
+export PORT="${PORT:-3000}"
 
 # Debug: show backend configuration BEFORE substitution
 echo "🔗 Backend configuration (with defaults applied):"
 echo "   BACKEND_HOST=${BACKEND_HOST}"
 echo "   BACKEND_PORT=${BACKEND_PORT}"
+echo "   PORT=${PORT}"
 
 # Process nginx.conf template with environment variables
 # Write directly to /etc/nginx/nginx.conf (nginx user has write permission)
-envsubst '${BACKEND_HOST} ${BACKEND_PORT}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+envsubst '${BACKEND_HOST} ${BACKEND_PORT} ${PORT}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
 
 # Verify nginx config was created successfully
 if [ ! -f /etc/nginx/nginx.conf ]; then

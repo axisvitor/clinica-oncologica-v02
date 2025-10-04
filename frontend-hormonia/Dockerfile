@@ -74,8 +74,8 @@ COPY nginx.conf /etc/nginx/nginx.conf.template
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
-# Expose port (Railway will override with PORT env var)
-EXPOSE 3000
+# Expose port (Railway will set PORT env var dynamically)
+EXPOSE ${PORT:-3000}
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
