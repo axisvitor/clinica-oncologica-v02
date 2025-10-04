@@ -1,13 +1,12 @@
 
 [build]
-builder = "nixpacks"
-buildCommand = "npm run build:runtime"
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "npm run preview"
-healthcheckPath = "/"
+healthcheckPath = "/health"
 healthcheckTimeout = 100
-restartPolicyType = "never"
+restartPolicyType = "on_failure"
 
 [[services]]
 name = "frontend"
