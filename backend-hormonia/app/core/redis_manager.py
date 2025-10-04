@@ -106,16 +106,12 @@ class RedisManager:
             # Handle Redis Cloud SSL (redis:// with SSL=true environment variable)
             elif self.redis_url and self.redis_url.startswith('redis://') and os.getenv('REDIS_SSL') == 'true':
                 import ssl
-                # Create SSL context for Redis Cloud (redis-py 5.0+ compatible)
-                ssl_context = ssl.create_default_context()
-                ssl_context.check_hostname = False
-                ssl_context.verify_mode = ssl.CERT_NONE
-
+                # Redis Cloud SSL: use ssl_cert_reqs without connection_class
                 connection_kwargs.update({
-                    'connection_class': AsyncSSLConnection,
-                    'ssl': ssl_context
+                    'ssl_cert_reqs': ssl.CERT_NONE,
+                    'ssl_check_hostname': False
                 })
-                logger.info("Redis Cloud SSL configuration applied: AsyncSSLConnection with SSLContext")
+                logger.info("Redis Cloud SSL configuration applied: ssl_cert_reqs=CERT_NONE")
 
             # Create async connection pool
             self._async_pool = redis_async.ConnectionPool.from_url(
@@ -159,16 +155,12 @@ class RedisManager:
             # Handle Redis Cloud SSL (redis:// with SSL=true environment variable)
             elif self.redis_url and self.redis_url.startswith('redis://') and os.getenv('REDIS_SSL') == 'true':
                 import ssl
-                # Create SSL context for Redis Cloud (redis-py 5.0+ compatible)
-                ssl_context = ssl.create_default_context()
-                ssl_context.check_hostname = False
-                ssl_context.verify_mode = ssl.CERT_NONE
-
+                # Redis Cloud SSL: use ssl_cert_reqs without connection_class
                 connection_kwargs.update({
-                    'connection_class': SyncSSLConnection,
-                    'ssl': ssl_context
+                    'ssl_cert_reqs': ssl.CERT_NONE,
+                    'ssl_check_hostname': False
                 })
-                logger.info("Redis Cloud SSL configuration applied: SyncSSLConnection with SSLContext")
+                logger.info("Redis Cloud SSL configuration applied: ssl_cert_reqs=CERT_NONE")
 
             # Create sync connection pool
             self._sync_pool = redis_sync.ConnectionPool.from_url(
