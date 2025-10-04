@@ -1,63 +1,75 @@
 /**
- * Railway Environment Configuration Endpoint
+ * Runtime Configuration - Entrypoint Substitution
  *
- * This endpoint provides runtime configuration for the frontend application.
- * It reads environment variables that Railway sets at runtime and exposes them
- * to the frontend in a safe way.
+ * This file contains placeholders that are replaced by the Docker entrypoint at runtime.
+ * This allows dynamic configuration without rebuilding the frontend image.
  *
- * This file should be served as a static asset by the web server.
- * In Railway, this will be served at /api/config
+ * Placeholders replaced by entrypoint.sh:
+ * - BACKEND_URL_PLACEHOLDER → $BACKEND_URL environment variable
+ *
+ * The entrypoint uses sed to perform substitution before nginx serves this file.
  */
 
-// Check if we're in a browser environment
-if (typeof window !== 'undefined') {
-  // Browser environment - provide configuration
-  // SECURITY: These placeholder values should be replaced by Railway environment variables
-  window.__ENV_CONFIG__ = {
-    VITE_SUPABASE_URL: '',
-    VITE_SUPABASE_ANON_KEY: '',
-    // VITE_API_URL is deprecated - use VITE_API_BASE_URL instead
-    VITE_API_BASE_URL: 'https://backend-production-e0bd.up.railway.app',
-    VITE_WS_BASE_URL: 'wss://backend-production-e0bd.up.railway.app/ws/connect',
-    VITE_WHATSAPP_INSTANCE_NAME: 'hormonia-instance',
-    VITE_ENVIRONMENT: 'production',
-    VITE_DEBUG_MODE: 'false',
-    VITE_SESSION_TIMEOUT: '3600000',
-    VITE_TOKEN_REFRESH_THRESHOLD: '300000',
-    VITE_MAX_FILE_SIZE: '10485760',
-    VITE_SUPPORTED_FILE_TYPES: 'image/jpeg,image/png,image/gif,application/pdf'
-  };
+// Runtime configuration - valores substituídos pelo entrypoint
+window.__RUNTIME_CONFIG__ = {
+  // These placeholders are replaced by entrypoint.sh at container startup
+  apiUrl: 'BACKEND_URL_PLACEHOLDER/api/v1',
+  wsUrl: 'BACKEND_URL_PLACEHOLDER/ws'.replace('https://', 'wss://').replace('http://', 'ws://'),
+  backendUrl: 'BACKEND_URL_PLACEHOLDER',
 
-  // Also make it available as a response for fetch requests
-  if (window.location.pathname === '/api/config') {
-    // Return as JSON response
-    document.body.innerHTML = JSON.stringify(window.__ENV_CONFIG__, null, 2);
-    document.body.style.fontFamily = 'monospace';
-    document.body.style.whiteSpace = 'pre';
-  }
-} else {
-  // Node.js environment (if this file is somehow loaded in Node.js)
-  // SECURITY: These placeholder values should be replaced by Railway environment variables
-  const config = {
-    VITE_SUPABASE_URL: process.env['VITE_SUPABASE_URL'] || '',
-    VITE_SUPABASE_ANON_KEY: process.env['VITE_SUPABASE_ANON_KEY'] || '',
-    // VITE_API_URL is deprecated - use VITE_API_BASE_URL instead
-    VITE_API_BASE_URL: process.env['VITE_API_BASE_URL'] || 'https://backend-production-e0bd.up.railway.app',
-    VITE_WS_BASE_URL: process.env['VITE_WS_BASE_URL'] || 'wss://backend-production-e0bd.up.railway.app/ws/connect',
-    VITE_WHATSAPP_INSTANCE_NAME: process.env['VITE_WHATSAPP_INSTANCE_NAME'] || 'hormonia-instance',
-    VITE_OPENAI_API_KEY: process.env['VITE_OPENAI_API_KEY'],
-    VITE_LANGCHAIN_API_KEY: process.env['VITE_LANGCHAIN_API_KEY'],
-    VITE_SENTRY_DSN: process.env['VITE_SENTRY_DSN'],
-    VITE_ANALYTICS_TRACKING_ID: process.env['VITE_ANALYTICS_TRACKING_ID'],
-    VITE_ENVIRONMENT: process.env['VITE_ENVIRONMENT'] || 'production',
-    VITE_DEBUG_MODE: process.env['VITE_DEBUG_MODE'] || 'false',
-    VITE_SESSION_TIMEOUT: process.env['VITE_SESSION_TIMEOUT'] || '3600000',
-    VITE_TOKEN_REFRESH_THRESHOLD: process.env['VITE_TOKEN_REFRESH_THRESHOLD'] || '300000',
-    VITE_MAX_FILE_SIZE: process.env['VITE_MAX_FILE_SIZE'] || '10485760',
-    VITE_SUPPORTED_FILE_TYPES: process.env['VITE_SUPPORTED_FILE_TYPES'] || 'image/jpeg,image/png,image/gif,application/pdf'
-  };
+  // Build-time fallbacks (se entrypoint falhar ou para desenvolvimento local)
+  fallbackApiUrl: typeof window.__ENV__ !== 'undefined' ? window.__ENV__.VITE_API_URL : undefined,
+  fallbackWsUrl: typeof window.__ENV__ !== 'undefined' ? window.__ENV__.VITE_WS_BASE_URL : undefined,
+}
 
-  if (typeof module !== 'undefined' && module.exports) {
-    module.exports = config;
+/**
+ * Helper function para obter configuração válida
+ *
+ * Verifica se o placeholder foi substituído e usa fallbacks se necessário.
+ * Em desenvolvimento local, usa valores do .env automaticamente.
+ *
+ * @returns {Object} Configuração com apiUrl, wsUrl e backendUrl
+ */
+window.getRuntimeConfig = function() {
+  const config = window.__RUNTIME_CONFIG__
+
+  // Se placeholder ainda existe, usar fallback
+  if (config.backendUrl.includes('PLACEHOLDER')) {
+    console.warn('[Config] Runtime config not substituted, using build-time fallbacks')
+    return {
+      apiUrl: config.fallbackApiUrl || 'http://localhost:8000/api/v1',
+      wsUrl: config.fallbackWsUrl || 'ws://localhost:8000/ws',
+      backendUrl: config.fallbackApiUrl?.replace('/api/v1', '') || 'http://localhost:8000'
+    }
   }
+
+  return {
+    apiUrl: config.apiUrl,
+    wsUrl: config.wsUrl,
+    backendUrl: config.backendUrl
+  }
+}
+
+// Backward compatibility - mantém window.__ENV_CONFIG__ para código legado
+window.__ENV_CONFIG__ = {
+  VITE_API_BASE_URL: window.getRuntimeConfig().backendUrl,
+  VITE_WS_BASE_URL: window.getRuntimeConfig().wsUrl,
+  VITE_SUPABASE_URL: '',
+  VITE_SUPABASE_ANON_KEY: '',
+  VITE_WHATSAPP_INSTANCE_NAME: 'hormonia-instance',
+  VITE_ENVIRONMENT: 'production',
+  VITE_DEBUG_MODE: 'false',
+  VITE_SESSION_TIMEOUT: '3600000',
+  VITE_TOKEN_REFRESH_THRESHOLD: '300000',
+  VITE_MAX_FILE_SIZE: '10485760',
+  VITE_SUPPORTED_FILE_TYPES: 'image/jpeg,image/png,image/gif,application/pdf'
+}
+
+console.log('[Config] Runtime config loaded:', window.getRuntimeConfig())
+
+// Suporte para renderização JSON (se acessado diretamente)
+if (window.location.pathname === '/api/config') {
+  document.body.innerHTML = JSON.stringify(window.getRuntimeConfig(), null, 2);
+  document.body.style.fontFamily = 'monospace';
+  document.body.style.whiteSpace = 'pre';
 }

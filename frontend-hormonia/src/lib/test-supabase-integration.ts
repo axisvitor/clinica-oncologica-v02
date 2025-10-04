@@ -1,11 +1,14 @@
 /**
  * Supabase Integration Test
- * 
+ *
  * This file provides utilities to test the Supabase integration
  * Run this in the browser console or create a test component
  */
 
 import { supabase, auth, database, realtimeManager, utils } from './supabase-client'
+import { createLogger } from './logger'
+
+const logger = createLogger('TestSupabaseIntegration')
 
 export interface TestResult {
   test: string
@@ -19,15 +22,15 @@ export class SupabaseIntegrationTester {
 
   async runAllTests(): Promise<TestResult[]> {
     this.results = []
-    
-    console.log('🧪 Starting Supabase Integration Tests...')
-    
+
+    logger.info('Starting Supabase Integration Tests')
+
     await this.testConfiguration()
     await this.testHealthCheck()
     await this.testAuthFunctions()
     await this.testDatabaseOperations()
     await this.testRealtimeManager()
-    
+
     this.printResults()
     return this.results
   }
@@ -112,27 +115,28 @@ export class SupabaseIntegrationTester {
   private addResult(test: string, passed: boolean, message: string, data?: any) {
     const result: TestResult = { test, passed, message, data }
     this.results.push(result)
-    
-    const emoji = passed ? '✅' : '❌'
-    console.log(`${emoji} ${test}: ${message}`)
-    
-    if (data && Object.keys(data).length > 0) {
-      console.log('   📊 Data:', data)
+
+    if (passed) {
+      logger.info(`Test passed: ${test}`, { message, data })
+    } else {
+      logger.error(`Test failed: ${test}`, { message, data })
     }
   }
 
   private printResults() {
     const passed = this.results.filter(r => r.passed).length
     const total = this.results.length
-    
-    console.log('\n📋 Test Summary:')
-    console.log(`✅ Passed: ${passed}/${total}`)
-    console.log(`❌ Failed: ${total - passed}/${total}`)
-    
+
+    logger.info('Test Summary', {
+      passed: `${passed}/${total}`,
+      failed: `${total - passed}/${total}`,
+      allPassed: passed === total
+    })
+
     if (passed === total) {
-      console.log('🎉 All tests passed! Supabase integration is working correctly.')
+      logger.info('All tests passed! Supabase integration is working correctly.')
     } else {
-      console.log('⚠️ Some tests failed. Check the results above for details.')
+      logger.warn('Some tests failed. Check the results above for details.')
     }
   }
 
@@ -181,11 +185,11 @@ export class SupabaseIntegrationTester {
       
       if (patientId) {
         subscription = realtimeManager.subscribeToPatientMessages(patientId, (payload) => {
-          console.log('📨 Real-time message:', payload)
+          logger.debug('Real-time message received', { payload })
         })
       } else {
         subscription = realtimeManager.subscribeToPatients((payload) => {
-          console.log('👥 Real-time patient update:', payload)
+          logger.debug('Real-time patient update received', { payload })
         })
       }
 
@@ -193,7 +197,7 @@ export class SupabaseIntegrationTester {
         // Test for 5 seconds then unsubscribe
         setTimeout(() => {
           realtimeManager.unsubscribeAll()
-          console.log('🔌 Unsubscribed from real-time')
+          logger.info('Unsubscribed from real-time')
         }, 5000)
 
         return {

@@ -76,35 +76,9 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Do not overwrite Vite-emitted runtime config loader (config.js)
-# The build emits config.js that fetches /api/config at runtime.
-
-# Create startup script
-RUN printf '#!/bin/sh\n\
-set -e\n\
-\n\
-if [ -n "$PORT" ]; then\n\
-  sed -i "s/listen 3000;/listen $PORT;/g" /etc/nginx/conf.d/default.conf\n\
-  echo " Configured nginx to listen on port $PORT"\n\
-fi\n\
-\n\
-# Configure BACKEND_URL for proxy_pass\n\
-if [ -z "$BACKEND_URL" ] && [ -n "$VITE_API_BASE_URL" ]; then\n\
-  BACKEND_URL="$VITE_API_BASE_URL"\n\
-fi\n\
-\n\
-if [ -z "$BACKEND_URL" ]; then\n\
-  BACKEND_URL="http://backend:8000"\n\
-  echo " BACKEND_URL not set; defaulting to $BACKEND_URL"\n\
-fi\n\
-\n\
-# Substitute placeholder in nginx config\n\
-sed -i "s|\\${BACKEND_URL}|$BACKEND_URL|g" /etc/nginx/conf.d/default.conf\n\
-echo " Configured BACKEND_URL to $BACKEND_URL in nginx config"\n\
-\n\
-echo " Starting nginx..."\n\
-exec nginx -g "daemon off;"\n' > /docker-entrypoint.sh && \
-    chmod +x /docker-entrypoint.sh
+# Copy robust entrypoint script
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 # Expose port (Railway will override with PORT env var)
 EXPOSE 3000
@@ -112,6 +86,19 @@ EXPOSE 3000
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:${PORT:-3000}/health || exit 1
+
+# Set permissions for non-root execution
+# Note: nginx:alpine already has nginx user (uid 101)
+RUN chown -R nginx:nginx /usr/share/nginx/html && \
+    chown -R nginx:nginx /var/cache/nginx && \
+    chown -R nginx:nginx /var/log/nginx && \
+    chown -R nginx:nginx /etc/nginx/conf.d && \
+    touch /var/run/nginx.pid && \
+    chown -R nginx:nginx /var/run/nginx.pid && \
+    chown nginx:nginx /docker-entrypoint.sh
+
+# Switch to non-root user
+USER nginx
 
 # Start nginx
 ENTRYPOINT ["/docker-entrypoint.sh"]
