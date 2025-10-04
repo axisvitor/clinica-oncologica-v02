@@ -116,24 +116,30 @@ if (typeof process !== 'undefined' && process.env) {
     fs.writeFileSync(path.join(apiDir, 'config-railway.js'), railwayConfigContent);
     console.log('[PostBuild] ✓ Created Railway-compatible config endpoint');
 
-    // Create config.json for static serving
+    // Create config.json for static serving (build-time values)
+    // This file will be replaced by Railway's entrypoint script at runtime
     const staticConfig = {
       VITE_SUPABASE_URL: process.env['VITE_SUPABASE_URL'] || '',
       VITE_SUPABASE_ANON_KEY: process.env['VITE_SUPABASE_ANON_KEY'] || '',
       VITE_API_URL: process.env['VITE_API_URL'] || 'http://localhost:8000/api/v1',
       VITE_API_BASE_URL: process.env['VITE_API_BASE_URL'] || 'http://localhost:8000',
       VITE_WS_BASE_URL: process.env['VITE_WS_BASE_URL'] || 'ws://localhost:8000/ws',
-      VITE_WHATSAPP_INSTANCE_NAME: 'hormonia-instance',
-      VITE_ENVIRONMENT: 'production',
-      VITE_DEBUG_MODE: 'false',
-      VITE_SESSION_TIMEOUT: '3600000',
-      VITE_TOKEN_REFRESH_THRESHOLD: '300000',
-      VITE_MAX_FILE_SIZE: '10485760',
-      VITE_SUPPORTED_FILE_TYPES: 'image/jpeg,image/png,image/gif,application/pdf'
+      VITE_WHATSAPP_INSTANCE_NAME: process.env['VITE_WHATSAPP_INSTANCE_NAME'] || 'hormonia-instance',
+      VITE_ENVIRONMENT: process.env['VITE_ENVIRONMENT'] || 'production',
+      VITE_DEBUG_MODE: process.env['VITE_DEBUG_MODE'] || 'false',
+      VITE_SESSION_TIMEOUT: process.env['VITE_SESSION_TIMEOUT'] || '3600000',
+      VITE_TOKEN_REFRESH_THRESHOLD: process.env['VITE_TOKEN_REFRESH_THRESHOLD'] || '300000',
+      VITE_MAX_FILE_SIZE: process.env['VITE_MAX_FILE_SIZE'] || '10485760',
+      VITE_SUPPORTED_FILE_TYPES: process.env['VITE_SUPPORTED_FILE_TYPES'] || 'image/jpeg,image/png,image/gif,application/pdf'
     };
 
     fs.writeFileSync(path.join(apiDir, 'config'), JSON.stringify(staticConfig, null, 2));
-    console.log('[PostBuild] ✓ Created static config.json endpoint');
+    console.log('[PostBuild] ✓ Created static config JSON endpoint');
+
+    // Also create a .js version for direct script loading
+    const configJsContent = `window.__ENV_CONFIG__ = ${JSON.stringify(staticConfig, null, 2)};`;
+    fs.writeFileSync(path.join(apiDir, 'config.js'), configJsContent);
+    console.log('[PostBuild] ✓ Created static config.js endpoint');
 
   } catch (error) {
     console.error('[PostBuild] Error creating runtime config files:', error);

@@ -1,180 +1,278 @@
-# 🚀 Railway Deploy - Quick Start
+# Railway Quick Start Guide
 
-## TL;DR - Copy/Paste Guide
+## ⚡ 5-Minute Deployment
 
-### 1. Backend API
-
-```yaml
-Root Directory: backend-hormonia
-Builder: DOCKERFILE
-Health Path: /health
-Health Timeout: 120
-```
-
-**Vars essenciais**:
+### 1. Install Railway CLI
 ```bash
-DATABASE_URL=postgresql+psycopg://...
-REDIS_URL=rediss://...
-SECRET_KEY=<32+ chars>
-JWT_SECRET_KEY=<32+ chars>
-ALLOWED_ORIGINS=["https://<frontend>.railway.app","https://<quiz>.railway.app"]
-FRONTEND_URL=https://<frontend>.railway.app
-QUIZ_URL=https://<quiz>.railway.app
+npm i -g @railway/cli
+railway login
 ```
 
----
-
-### 2. Celery Worker
-
-```yaml
-Root Directory: backend-hormonia  # ⚠️ NÃO use /worker/
-Builder: DOCKERFILE
-Dockerfile Path: Dockerfile.worker
-```
-
-**Vars**: Mesmas do Backend
-
----
-
-### 3. Celery Beat
-
-```yaml
-Root Directory: backend-hormonia  # ⚠️ NÃO use /beat/
-Builder: DOCKERFILE
-Dockerfile Path: Dockerfile.beat
-```
-
-**Vars**: Mesmas do Backend
-
----
-
-### 4. Frontend
-
-```yaml
-Root Directory: frontend-hormonia
-Builder: DOCKERFILE
-Health Path: /health
-Health Timeout: 120
-```
-
-**Var OBRIGATÓRIA** (senão nginx crashea):
+### 2. Create Project & Resources
 ```bash
-BACKEND_URL=https://<backend>.railway.app  # SEM /api no final!
+# Navigate to project root
+cd clinica-oncologica-v02
+
+# Initialize Railway project
+railway init
+
+# Add PostgreSQL
+railway add --database postgres
+
+# Add Redis
+railway add --plugin redis
 ```
 
----
+### 3. Set Critical Environment Variables
 
-### 5. Quiz
-
-```yaml
-Root Directory: quiz-mensal-interface
-Builder: DOCKERFILE
-Health Path: /api/health
-Health Timeout: 300
-```
-
-**Vars**:
+**Generate Secure Keys First:**
 ```bash
-NODE_ENV=production
-NEXT_PUBLIC_API_URL=https://<backend>.railway.app
+# SECRET_KEY
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+
+# JWT_SECRET_KEY
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+
+# ENCRYPTION_KEY
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
----
-
-## ✅ Checklist 30 segundos
-
-- [ ] **Backend**: Root=`backend-hormonia`, Health=`/health`, Vars=DB+REDIS+SECRETS ✓
-- [ ] **Worker**: Root=`backend-hormonia`, Dockerfile=`Dockerfile.worker` ✓
-- [ ] **Beat**: Root=`backend-hormonia`, Dockerfile=`Dockerfile.beat` ✓
-- [ ] **Frontend**: Root=`frontend-hormonia`, **BACKEND_URL definido** ✓
-- [ ] **Quiz**: Root=`quiz-mensal-interface`, Var=NEXT_PUBLIC_API_URL ✓
-- [ ] Todos no **mesmo branch** com **Auto Deploy ON** ✓
-
----
-
-## 🔥 Erro mais comum
-
-### ❌ Frontend crashea: "host not found in upstream 'backend'"
-
-**Causa**: Faltou definir `BACKEND_URL`
-
-**Fix** (2 cliques):
-1. Frontend → Settings → Variables
-2. Add: `BACKEND_URL=https://<seu-backend>.railway.app`
-3. Redeploy
-
----
-
-## 🎯 Ordem de Deploy
-
-1. **Backend** → espere health ✓
-2. **Worker** + **Beat** (paralelo)
-3. **Frontend** (com BACKEND_URL!)
-4. **Quiz**
-
----
-
-## 📋 Template de Variáveis (copie e ajuste)
-
-### Backend/Worker/Beat
+**Set Backend Variables:**
 ```bash
-# Database
-DATABASE_URL=postgresql+psycopg://user:pass@host:5432/db
+# Security (use generated keys from above)
+railway variables set SECRET_KEY="<generated-secret-key>"
+railway variables set JWT_SECRET_KEY="<generated-jwt-secret>"
+railway variables set ENCRYPTION_KEY="<generated-encryption-key>"
 
-# Cache (Redis Cloud - já configurado)
-REDIS_URL=redis://default:6V7Bg9HKlUuxhXtbpnS4ygeiPKB3WQsR@redis-14149.c322.us-east-1-2.ec2.redns.redis-cloud.com:14149
-REDIS_PASSWORD=6V7Bg9HKlUuxhXtbpnS4ygeiPKB3WQsR
-REDIS_HOST=redis-14149.c322.us-east-1-2.ec2.redns.redis-cloud.com
-REDIS_PORT=14149
-REDIS_SSL=false
+# Python
+railway variables set PYTHONUNBUFFERED="1"
+railway variables set PYTHONDONTWRITEBYTECODE="1"
+railway variables set PASSLIB_BUILTIN_BCRYPT="enabled"
+railway variables set ENVIRONMENT="production"
+railway variables set LOG_LEVEL="info"
 
-# Celery (usa mesmo Redis com DB 0)
-CELERY_BROKER_URL=redis://default:6V7Bg9HKlUuxhXtbpnS4ygeiPKB3WQsR@redis-14149.c322.us-east-1-2.ec2.redns.redis-cloud.com:14149/0
-CELERY_RESULT_BACKEND=redis://default:6V7Bg9HKlUuxhXtbpnS4ygeiPKB3WQsR@redis-14149.c322.us-east-1-2.ec2.redns.redis-cloud.com:14149/0
+# Supabase
+railway variables set VITE_SUPABASE_URL="https://your-project.supabase.co"
+railway variables set VITE_SUPABASE_ANON_KEY="your-anon-key"
 
-# Security
-SECRET_KEY=YOUR_SECRET_KEY_MIN_32_CHARS_HERE
-JWT_SECRET_KEY=YOUR_JWT_SECRET_KEY_MIN_32_CHARS_HERE
+# AI
+railway variables set GEMINI_API_KEY="your-gemini-api-key"
 
-# CORS (ajuste domínios)
-ALLOWED_ORIGINS=["https://frontend-xxx.up.railway.app","https://quiz-xxx.up.railway.app","http://localhost:3000"]
-FRONTEND_URL=https://frontend-xxx.up.railway.app
-QUIZ_URL=https://quiz-xxx.up.railway.app
-
-# Environment
-ENVIRONMENT=production
-DEBUG=false
-LOG_LEVEL=info
+# WhatsApp
+railway variables set WHATSAPP_API_URL="https://your-evolution-api.com"
+railway variables set WHATSAPP_API_KEY="your-api-key"
+railway variables set WHATSAPP_INSTANCE_NAME="hormonia-instance"
 ```
+
+**Set Frontend Variables:**
+```bash
+# Build Config
+railway variables set NODE_ENV="production"
+railway variables set VITE_ENVIRONMENT="production"
+railway variables set VITE_DEBUG_MODE="false"
+
+# API URLs (replace with your actual Railway URLs after first deploy)
+railway variables set VITE_API_URL="https://backend-api.up.railway.app/api/v1"
+railway variables set VITE_API_BASE_URL="https://backend-api.up.railway.app"
+railway variables set VITE_WS_BASE_URL="wss://backend-api.up.railway.app/ws"
+```
+
+### 4. Deploy All Services
+
+**Option A: Automatic (using railway.toml)**
+```bash
+# Commit railway.toml
+git add railway.toml
+git commit -m "feat: add Railway multi-service configuration"
+git push origin main
+
+# Railway auto-deploys all 4 services!
+```
+
+**Option B: Manual (Railway Dashboard)**
+1. Go to Railway dashboard
+2. New Service → GitHub Repo
+3. Select root directory for each service:
+   - Backend: `backend-hormonia`
+   - Worker: `backend-hormonia` (use Dockerfile.worker)
+   - Beat: `backend-hormonia` (use Dockerfile.beat)
+   - Frontend: `frontend-hormonia`
+
+### 5. Run Database Migrations
+```bash
+railway run --service backend-api "alembic upgrade head"
+```
+
+### 6. Verify Deployment
+```bash
+# Check backend health
+curl https://backend-api.up.railway.app/health
+
+# Check frontend
+curl https://frontend.up.railway.app/health
+
+# View logs
+railway logs --service backend-api
+```
+
+## 📝 Service Configuration Summary
+
+| Service | Root Directory | Dockerfile | Port | Health Check |
+|---------|---------------|------------|------|--------------|
+| Backend API | `backend-hormonia` | `Dockerfile` | 8000 | `/health` |
+| Celery Worker | `backend-hormonia` | `Dockerfile.worker` | N/A | N/A |
+| Celery Beat | `backend-hormonia` | `Dockerfile.beat` | N/A | N/A |
+| Frontend | `frontend-hormonia` | `Dockerfile` | 3000 | `/health` |
+
+## 🔑 Required Environment Variables
+
+### Backend (All Services)
+- ✅ `DATABASE_URL` (auto-generated by Railway)
+- ✅ `REDIS_URL` (auto-generated by Railway)
+- ✅ `SECRET_KEY` (generate: 32+ chars)
+- ✅ `JWT_SECRET_KEY` (generate: 32+ chars)
+- ✅ `ENCRYPTION_KEY` (generate: Fernet key)
+- ✅ `VITE_SUPABASE_URL`
+- ✅ `VITE_SUPABASE_ANON_KEY`
+- ✅ `GEMINI_API_KEY`
+- ✅ `WHATSAPP_API_URL`
+- ✅ `WHATSAPP_API_KEY`
 
 ### Frontend
+- ✅ `VITE_API_URL`
+- ✅ `VITE_API_BASE_URL`
+- ✅ `VITE_WS_BASE_URL`
+- ✅ `VITE_SUPABASE_URL`
+- ✅ `VITE_SUPABASE_ANON_KEY`
+- ✅ `NODE_ENV=production`
+
+## 🚨 Common Issues & Solutions
+
+### Issue: Service Won't Start
 ```bash
-# ⚠️ OBRIGATÓRIO
-BACKEND_URL=https://backend-xxx.up.railway.app
+# Check logs
+railway logs --service backend-api --tail 100
+
+# Common causes:
+# - Missing environment variables
+# - Wrong root directory
+# - Dockerfile not found
 ```
 
-### Quiz
+### Issue: Frontend Can't Reach Backend
 ```bash
-NODE_ENV=production
-NEXT_PUBLIC_API_URL=https://backend-xxx.up.railway.app
+# Update frontend environment variables with correct backend URL
+railway variables set VITE_API_URL="https://[your-backend-url]/api/v1"
+
+# Check CORS in backend allows frontend domain
 ```
+
+### Issue: Database Connection Failed
+```bash
+# Verify DATABASE_URL is set (should be auto-generated)
+railway variables get DATABASE_URL
+
+# Check if PostgreSQL plugin is added
+railway plugins
+```
+
+### Issue: Build Fails
+```bash
+# Clear build cache
+railway build --clear-cache
+
+# Test Dockerfile locally
+docker build -t test -f backend-hormonia/Dockerfile backend-hormonia
+```
+
+## 📊 Monitoring
+
+```bash
+# View all services status
+railway status
+
+# View specific service logs
+railway logs --service backend-api --tail 50
+
+# Follow logs in real-time
+railway logs --service backend-api --follow
+
+# Check environment variables
+railway variables list
+```
+
+## 🔄 Updating Deployment
+
+```bash
+# Make changes locally
+git add .
+git commit -m "feat: update feature"
+git push origin main
+
+# Railway auto-deploys on push to main
+# Monitor deployment
+railway logs --follow
+```
+
+## 🎯 Next Steps
+
+1. ✅ **Configure Custom Domains**
+   ```bash
+   railway domain add api.yourdomain.com --service backend-api
+   railway domain add app.yourdomain.com --service frontend
+   ```
+
+2. ✅ **Set Up CI/CD**
+   - GitHub Actions workflow already created: `.github/workflows/railway-deploy.yml`
+   - Add `RAILWAY_TOKEN` secret to GitHub
+
+3. ✅ **Enable Monitoring**
+   - Add Sentry DSN: `railway variables set SENTRY_DSN="..."`
+   - Configure alerts in Railway dashboard
+
+4. ✅ **Scale Services**
+   ```bash
+   railway service scale --replicas 3 backend-api
+   railway service scale --replicas 2 frontend
+   railway service scale --replicas 4 celery-worker
+   ```
+
+## 📚 Additional Resources
+
+- **Full Deployment Guide:** `docs/deployment/RAILWAY_DEPLOYMENT_GUIDE.md`
+- **Environment Variables Checklist:** `docs/deployment/RAILWAY_ENV_VARS_CHECKLIST.md`
+- **Networking Architecture:** `docs/deployment/RAILWAY_NETWORKING_ARCHITECTURE.md`
+- **GitHub Actions CI/CD:** `.github/workflows/railway-deploy.yml`
+
+## 💡 Pro Tips
+
+1. **Use Railway's Private Networking**
+   - Database and Redis automatically use internal network
+   - No egress costs for internal traffic
+
+2. **Enable Health Checks**
+   - Backend: `/health` endpoint (already configured)
+   - Frontend: `/health` endpoint (already configured)
+
+3. **Monitor Resource Usage**
+   - Check Railway dashboard for CPU/Memory metrics
+   - Right-size your instances
+
+4. **Use Environment-Specific Configs**
+   - Set `ENVIRONMENT=production` in Railway
+   - Use `.env.production` locally
+
+5. **Rotate Secrets Regularly**
+   - Update `SECRET_KEY`, `JWT_SECRET_KEY` quarterly
+   - Rotate database credentials annually
+
+## 🆘 Getting Help
+
+- **Railway Discord:** https://discord.gg/railway
+- **Railway Docs:** https://docs.railway.app
+- **Project Issues:** GitHub Issues
+- **Railway Status:** https://status.railway.app
 
 ---
 
-## 🧪 Testes rápidos
-
-```bash
-# Backend
-curl https://<backend>/health  # → 200
-
-# Frontend
-curl https://<frontend>/health  # → 200
-curl https://<frontend>/api/v1/health  # → 200 (via proxy)
-
-# Quiz
-curl https://<quiz>/api/health  # → 200 com backend status
-```
-
----
-
-**Guia completo**: Ver [RAILWAY_DEPLOYMENT_GUIDE.md](RAILWAY_DEPLOYMENT_GUIDE.md)
+**Ready to deploy?** Start with Step 1 above! 🚀
