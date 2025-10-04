@@ -12,8 +12,9 @@ ls -la /etc/nginx/nginx.conf 2>/dev/null || echo "⚠️ nginx.conf doesn't exis
 # CRITICAL FIX: Expand variables with defaults BEFORE envsubst
 # This allows nginx.conf.template to use simple ${VAR} syntax
 # while still providing default values when Railway env vars are missing
-export BACKEND_HOST="${BACKEND_HOST:-backend}"
-export BACKEND_PORT="${BACKEND_PORT:-8000}"
+# Railway Internal Network: use .railway.internal domain (no port needed)
+export BACKEND_HOST="${BACKEND_HOST:-clinica-oncologica-v02.railway.internal}"
+export BACKEND_PORT="${BACKEND_PORT:-80}"
 
 # Debug: show backend configuration BEFORE substitution
 echo "🔗 Backend configuration (with defaults applied):"
