@@ -93,9 +93,10 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
 
   // API Configuration (Critical)
   VITE_API_URL: {
-    required: false,
+    required: true,
     type: 'url',
-    description: 'Backend API base URL',
+    pattern: /^https?:\/\/.+/,
+    description: 'Backend API URL',
     validator: (value) => {
       if (value.includes('localhost') || value.includes('127.0.0.1')) {
         return 'Development URL detected'
@@ -104,13 +105,7 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
     }
   },
 
-  VITE_API_BASE_URL: {
-    required: false,
-    type: 'url',
-    description: 'Alternative backend API base URL'
-  },
-
-  VITE_WS_BASE_URL: {
+  VITE_WS_URL: {
     required: false,
     type: 'string',
     format: /^wss?:\/\//,

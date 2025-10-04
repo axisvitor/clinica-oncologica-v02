@@ -5,11 +5,11 @@ import { createLogger } from './logger'
 const logger = createLogger('WebSocket')
 
 function resolveWsBaseUrl(): string | null {
-  const envUrl = (import.meta.env as any).VITE_WS_BASE_URL as string | undefined
+  const envUrl = (import.meta.env as any).VITE_WS_URL as string | undefined
   if (envUrl && envUrl.length) return envUrl
 
   const runtime = getRuntimeConfigSync()
-  if (runtime?.VITE_WS_BASE_URL) return runtime.VITE_WS_BASE_URL
+  if (runtime?.VITE_WS_URL) return runtime.VITE_WS_URL
 
   // Fallback to current host proxy (/ws/connect) if available
   if (typeof window !== 'undefined') {
@@ -23,7 +23,7 @@ let WS_BASE_URL: string | null = resolveWsBaseUrl()
 
 if (!WS_BASE_URL && import.meta.env.MODE === 'production') {
   // Do not throw — disable WS gracefully and allow UI to render
-  logger.warn('VITE_WS_BASE_URL not set; WebSocket features disabled')
+  logger.warn('VITE_WS_URL not set; WebSocket features disabled')
 }
 
 const APP_CONFIG = {

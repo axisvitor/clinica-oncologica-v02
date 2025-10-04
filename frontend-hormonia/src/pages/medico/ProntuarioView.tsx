@@ -37,7 +37,7 @@ export default function ProntuarioView() {
   const fetchProntuario = async () => {
     try {
       setLoading(true)
-      const apiUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL
+      const apiUrl = import.meta.env.VITE_API_URL
 
       // Fetch paciente data
       const pacienteResponse = await fetch(`${apiUrl}/api/pacientes/${pacienteId}`, {

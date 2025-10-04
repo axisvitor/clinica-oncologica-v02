@@ -23,8 +23,7 @@ export interface RuntimeConfig {
   VITE_SUPABASE_ANON_KEY: string;
   VITE_SUPABASE_REALTIME_ENABLED?: string;
   VITE_API_URL: string;
-  VITE_API_BASE_URL: string;
-  VITE_WS_BASE_URL: string;
+  VITE_WS_URL: string;
   VITE_WHATSAPP_INSTANCE_NAME?: string;
 
   // AI Service Configuration
@@ -63,8 +62,7 @@ const PRODUCTION_FALLBACK_CONFIG: RuntimeConfig = {
   VITE_SUPABASE_ANON_KEY: '',
   VITE_SUPABASE_REALTIME_ENABLED: 'true',
   VITE_API_URL: 'https://backend-production-e0bd.up.railway.app',
-  VITE_API_BASE_URL: 'https://backend-production-e0bd.up.railway.app',
-  VITE_WS_BASE_URL: 'wss://backend-production-e0bd.up.railway.app/ws',
+  VITE_WS_URL: 'wss://backend-production-e0bd.up.railway.app/ws',
   VITE_WHATSAPP_INSTANCE_NAME: 'hormonia-instance',
 
   // AI Services - Empty in fallback, should be set via environment
@@ -131,8 +129,7 @@ async function loadRuntimeConfiguration(): Promise<RuntimeConfig> {
       VITE_SUPABASE_ANON_KEY: import.meta.env['VITE_SUPABASE_ANON_KEY'] || '',
       VITE_SUPABASE_REALTIME_ENABLED: import.meta.env['VITE_SUPABASE_REALTIME_ENABLED'],
       VITE_API_URL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000',
-      VITE_API_BASE_URL: import.meta.env['VITE_API_BASE_URL'] || 'http://127.0.0.1:8000',
-      VITE_WS_BASE_URL: import.meta.env.VITE_WS_BASE_URL || 'ws://127.0.0.1:8000/ws',
+      VITE_WS_URL: import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:8000/ws',
       VITE_WHATSAPP_INSTANCE_NAME: import.meta.env.VITE_WHATSAPP_INSTANCE_NAME,
 
       // AI Services - Development defaults
@@ -311,8 +308,8 @@ function isValidConfig(config: any): config is RuntimeConfig {
 
   // Required fields depend on environment
   const requiredFields = useMockAuth
-    ? ['VITE_API_URL', 'VITE_API_BASE_URL'] // Mock auth only needs API URLs
-    : ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', 'VITE_API_URL', 'VITE_API_BASE_URL'];
+    ? ['VITE_API_URL'] // Mock auth only needs API URL
+    : ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', 'VITE_API_URL'];
 
   const missingFields = requiredFields.filter(field => {
     const hasField = config && typeof config[field] === 'string' && config[field].length > 0;

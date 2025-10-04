@@ -25,7 +25,7 @@ interface WebSocketHookOptions {
 export function useWebSocket(options: WebSocketHookOptions = {}) {
   const { config } = useConfig()
   const {
-    url = config?.VITE_WS_BASE_URL || 'ws://localhost:8080/ws',
+    url = config?.VITE_WS_URL || 'ws://localhost:8080/ws',
     reconnectAttempts = 5,
     reconnectInterval = 3000,
     onMessage,

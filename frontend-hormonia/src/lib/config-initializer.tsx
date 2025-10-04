@@ -71,8 +71,7 @@ export function ConfigProvider({
           VITE_SUPABASE_ANON_KEY: '',
           VITE_SUPABASE_REALTIME_ENABLED: 'false',
           VITE_API_URL: 'http://127.0.0.1:8000',
-          VITE_API_BASE_URL: 'http://127.0.0.1:8000',
-          VITE_WS_BASE_URL: 'ws://127.0.0.1:8000/ws',
+          VITE_WS_URL: 'ws://127.0.0.1:8000/ws',
           VITE_WHATSAPP_INSTANCE_NAME: 'local-instance',
           VITE_AI_CHAT_ENABLED: 'false',
           VITE_AI_ANALYTICS_ENABLED: 'false',
@@ -85,8 +84,8 @@ export function ConfigProvider({
         logger.info('Fallback configuration applied');
       }
 
-      // Initialize API client with runtime config (use VITE_API_BASE_URL without /api/v1)
-      const apiUrl = runtimeConfig.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+      // Initialize API client with runtime config
+      const apiUrl = runtimeConfig.VITE_API_URL || 'http://127.0.0.1:8000';
       logger.info('Initializing API client with base URL:', apiUrl);
       apiClient.setBaseURL(apiUrl);
 
@@ -271,8 +270,8 @@ export function useConfigValidation() {
   return {
     isValid: !!config && !error,
     hasSupabase: !!(config?.VITE_SUPABASE_URL && config?.VITE_SUPABASE_ANON_KEY),
-    hasAPI: !!config?.VITE_API_BASE_URL,
-    hasWebSocket: !!config?.VITE_WS_BASE_URL,
+    hasAPI: !!config?.VITE_API_URL,
+    hasWebSocket: !!config?.VITE_WS_URL,
     config,
     error
   };

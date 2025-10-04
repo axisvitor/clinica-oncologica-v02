@@ -16,10 +16,16 @@ class Settings(BaseSettings):
     DEBUG: bool = Field(default=True, description="Debug mode")
     ENVIRONMENT: str = Field(default="development", description="Environment name")
     SECRET_KEY: str = Field(..., description="Secret key for JWT signing")
+    JWT_SECRET_KEY: Optional[str] = Field(default=None, description="JWT secret key (fallback to SECRET_KEY if not set)")
+    ENCRYPTION_KEY: Optional[str] = Field(default=None, description="Encryption key for sensitive data")
     ALGORITHM: str = Field(default="HS256", description="JWT algorithm")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, description="JWT expiration time")
     REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7, description="Refresh token expiration time in days")
     BCRYPT_ROUNDS: int = Field(default=12, description="Bcrypt hashing rounds for password security (12-15 recommended for production)")
+
+    # Security: Session and Cookie Configuration
+    SESSION_COOKIE_SECURE: bool = Field(default=False, description="Require HTTPS for session cookies")
+    SECURE_SSL_REDIRECT: bool = Field(default=False, description="Force HTTPS redirect")
     
     # Supabase Configuration
     SUPABASE_URL: str = Field(..., description="Supabase project URL")
@@ -50,6 +56,17 @@ class Settings(BaseSettings):
         default_factory=list,
         description="Authorized email domains for Firebase user creation (no public domains allowed)"
     )
+
+    @field_validator('SECRET_KEY', 'JWT_SECRET_KEY', 'ENCRYPTION_KEY', mode='after')
+    @classmethod
+    def validate_not_placeholder(cls, v, info):
+        """Validate that security keys are not using placeholder values."""
+        if v and ('CHANGE_THIS' in v.upper() or 'YOUR_' in v.upper()):
+            raise ValueError(
+                f"{info.field_name} must be changed from placeholder value. "
+                f"Never use default/example values in production."
+            )
+        return v
 
     @field_validator('FIREBASE_ALLOWED_DOMAINS', mode='before')
     @classmethod
@@ -367,6 +384,7 @@ class Settings(BaseSettings):
         super().__init__(**kwargs)
         self._validate_firebase_config()
         self._validate_cors_config()
+        self._validate_production_config()
 
     def _validate_firebase_config(self):
         """Validate Firebase configuration at runtime."""
@@ -405,6 +423,33 @@ class Settings(BaseSettings):
             import logging
             logger = logging.getLogger(__name__)
             logger.info(f"✅ CORS configured with {len(self.ALLOWED_ORIGINS)} allowed origins")
+
+    def _validate_production_config(self):
+        """Validate production environment has secure configurations."""
+        if self.ENVIRONMENT.lower() == 'production':
+            errors = []
+
+            # DEBUG must be False in production
+            if self.DEBUG:
+                errors.append("DEBUG must be False in production environment")
+
+            # Redis SSL must be enabled in production
+            if not self.REDIS_SSL:
+                errors.append("REDIS_SSL must be True in production environment")
+
+            # Session cookies must be secure in production
+            if not self.SESSION_COOKIE_SECURE:
+                errors.append("SESSION_COOKIE_SECURE must be True in production environment")
+
+            # SSL redirect should be enabled in production
+            if not self.SECURE_SSL_REDIRECT:
+                errors.append("SECURE_SSL_REDIRECT must be True in production environment")
+
+            if errors:
+                raise ValueError(
+                    f"Production environment security validation failed:\n" +
+                    "\n".join(f"  - {error}" for error in errors)
+                )
 
 
 # Global settings instance

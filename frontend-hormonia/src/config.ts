@@ -33,11 +33,11 @@ export async function loadConfig() {
           SUPABASE_URL: runtimeConfig.VITE_SUPABASE_URL,
           SUPABASE_ANON_KEY: runtimeConfig.VITE_SUPABASE_ANON_KEY,
 
-          // API Configuration - Prefer VITE_API_BASE_URL (without /api/v1) over VITE_API_URL
-          API_BASE_URL: runtimeConfig.VITE_API_BASE_URL || runtimeConfig.VITE_API_URL,
+          // API Configuration
+          API_BASE_URL: runtimeConfig.VITE_API_URL,
 
           // WebSocket Configuration
-          WS_BASE_URL: runtimeConfig.VITE_WS_BASE_URL,
+          WS_BASE_URL: runtimeConfig.VITE_WS_URL,
 
           // WhatsApp Configuration
           WHATSAPP_INSTANCE_NAME: runtimeConfig.VITE_WHATSAPP_INSTANCE_NAME || 'hormonia-instance',
