@@ -23,6 +23,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { LoadingSpinner, LoadingOverlay } from '@/components/ui/loading-spinner'
 import { Separator } from '@/components/ui/separator'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('QuestionariosPage');
 
 // Types
 interface QuizTemplate {
@@ -145,7 +148,7 @@ export function QuestionariosPage() {
             const analytics = await (apiClient as any).quizzes.getTemplateAnalytics(template.id)
             return { ...template, analytics }
           } catch (error) {
-            console.error(`Failed to get analytics for template ${template.id}:`, error)
+            logger.warn(`Failed to get analytics for template`, { templateId: template.id, error });
             return {
               ...template,
               analytics: {
@@ -170,8 +173,12 @@ export function QuestionariosPage() {
 
   // Create mutation
   const createMutation = useMutation({
-    mutationFn: (data: CreateQuizForm) => apiClient.quizzes.createTemplate(data),
+    mutationFn: (data: CreateQuizForm) => {
+      logger.info('Creating quiz template', { name: data.name, version: data.version });
+      return apiClient.quizzes.createTemplate(data);
+    },
     onSuccess: () => {
+      logger.info('Quiz template created successfully');
       toast({
         title: 'Questionário criado',
         description: 'O questionário foi criado com sucesso.',
@@ -181,7 +188,7 @@ export function QuestionariosPage() {
       reset()
     },
     onError: (error: any) => {
-      console.error('Create quiz error:', error)
+      logger.error('Create quiz error', { error });
       toast({
         title: 'Erro ao criar questionário',
         description: error?.data?.message || 'Não foi possível criar o questionário.',
@@ -192,8 +199,12 @@ export function QuestionariosPage() {
 
   // Delete mutation
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => apiClient.quizzes.deleteTemplate(id),
+    mutationFn: (id: string) => {
+      logger.info('Deleting quiz template', { templateId: id });
+      return apiClient.quizzes.deleteTemplate(id);
+    },
     onSuccess: () => {
+      logger.info('Quiz template deleted successfully');
       toast({
         title: 'Questionário excluído',
         description: 'O questionário foi desativado com sucesso.',
@@ -201,7 +212,7 @@ export function QuestionariosPage() {
       queryClient.invalidateQueries({ queryKey: ['quiz-templates'] })
     },
     onError: (error: any) => {
-      console.error('Delete quiz error:', error)
+      logger.error('Delete quiz error', { error });
       toast({
         title: 'Erro ao excluir questionário',
         description: error?.data?.message || 'Não foi possível excluir o questionário.',

@@ -1,6 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { SessionData, AuthTokens } from './types'
 import { TOKEN_REFRESH_THRESHOLD, SESSION_TIMEOUT } from '../../config'
+import { createLogger } from '../../lib/logger'
+
+const logger = createLogger('useSessionManagement')
 
 interface UseSessionManagementOptions {
   onRefreshNeeded: () => Promise<void>
@@ -52,7 +55,7 @@ export function useSessionManagement({
       const refreshTime = Math.max(0, (expiresIn * 1000) - TOKEN_REFRESH_THRESHOLD)
       refreshTimeoutRef.current = setTimeout(() => {
         onRefreshNeeded().catch((error) => {
-          console.error('Auto refresh failed:', error)
+          logger.error('Auto refresh failed:', error)
         })
       }, refreshTime)
     }

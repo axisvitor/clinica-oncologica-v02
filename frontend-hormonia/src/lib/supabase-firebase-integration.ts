@@ -11,6 +11,9 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { firebaseAuth } from './firebase-client'
 import { getRuntimeConfigSync } from './runtime-config'
+import { createLogger } from './logger'
+
+const logger = createLogger('SupabaseFirebaseIntegration')
 
 /**
  * Get Supabase configuration from runtime config
@@ -83,7 +86,7 @@ export const supabaseWithFirebaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON
           headers
         });
       } catch (error) {
-        console.error('[Supabase] Failed to get Firebase token:', error);
+        logger.error('Failed to get Firebase token', { error });
 
         // Fallback to fetch without token
         return fetch(url, {
@@ -106,7 +109,7 @@ export const supabaseWithFirebaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON
 export async function setSupabaseAuthToken(token: string | null): Promise<void> {
   // Supabase client with custom headers handles this automatically
   // This function is kept for compatibility
-  console.log('[Supabase] Token set:', token ? 'present' : 'null');
+  logger.debug('Token set', { hasToken: !!token });
 }
 
 /**

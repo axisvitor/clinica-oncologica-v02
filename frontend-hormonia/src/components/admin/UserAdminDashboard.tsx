@@ -18,6 +18,9 @@ import { UserEditModal } from './UserEditModal'
 import { UserDetailsPanel } from './UserDetailsPanel'
 import { RoleAssignmentModal } from './RoleAssignmentModal'
 import { PermissionGuard } from './PermissionGuard'
+import { createLogger } from '../../lib/logger'
+
+const logger = createLogger({ component: 'UserAdminDashboard' })
 
 interface FilterState {
   search: string
@@ -140,7 +143,7 @@ export function UserAdminDashboard() {
       }
       setSelectedUsers([])
     } catch (error) {
-      console.error('Bulk action failed:', error)
+      logger.error('Bulk action failed', { error, action, selectedUsers })
     }
   }
 

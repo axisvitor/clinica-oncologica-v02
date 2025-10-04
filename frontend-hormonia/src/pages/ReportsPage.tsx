@@ -12,6 +12,9 @@ import { ReportGenerator } from '../components/reports/ReportGenerator'
 import { ReportPreviewModal } from '../components/reports/ReportPreviewModal'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuth } from '../hooks/useAuth'
+import { createLogger } from '../lib/logger'
+
+const logger = createLogger('ReportsPage')
 import {
   Dialog,
   DialogContent,
@@ -120,7 +123,7 @@ export function ReportsPage() {
         description: `Relatório ${filename} baixado com sucesso.`,
       })
     } catch (error: any) {
-      console.error('Download error:', error)
+      logger.error('Download error', { reportId, error })
       toast({
         title: 'Erro no download',
         description: error.message || 'Não foi possível baixar o relatório.',

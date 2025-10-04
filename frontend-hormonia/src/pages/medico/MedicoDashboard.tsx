@@ -1,6 +1,9 @@
 import React from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMedicoAuth } from '../../contexts/MedicoAuthContext'
+import { createLogger } from '../../lib/logger'
+
+const logger = createLogger('MedicoDashboard')
 
 export default function MedicoDashboard() {
   const navigate = useNavigate()
@@ -8,10 +11,12 @@ export default function MedicoDashboard() {
 
   const handleLogout = async () => {
     try {
+      logger.info('Logging out medico');
       await signOut()
+      logger.info('Medico logged out successfully');
       navigate('/medico/login')
     } catch (error) {
-      console.error('Logout failed:', error)
+      logger.error('Logout failed', { error });
       // Still navigate to login page even on error
       navigate('/medico/login')
     }

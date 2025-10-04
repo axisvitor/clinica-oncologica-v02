@@ -7,6 +7,9 @@ import {
   type Condition
 } from '../types/flow'
 import { apiClient } from '../api-client'
+import { createLogger } from '../logger'
+
+const logger = createLogger('TemplateManager')
 
 export class TemplateManager {
   private templates: Map<FlowType, FlowTemplate> = new Map()
@@ -111,8 +114,9 @@ export class TemplateManager {
       templates.forEach(template => {
         this.templates.set(template.flow_type, template)
       })
+      logger.info('Templates loaded from API', { count: templates.length })
     } catch (error) {
-      console.error('Failed to load templates from API:', error)
+      logger.error('Failed to load templates from API, using defaults', { error })
       // Fall back to default templates
     }
   }
@@ -175,15 +179,18 @@ export class TemplateManager {
   // Create new template
   async createTemplate(template: FlowTemplate): Promise<FlowTemplate> {
     if (!this.validateTemplate(template)) {
+      logger.warn('Template validation failed', { templateId: template.id })
       throw new Error('Invalid template structure')
     }
 
     try {
+      logger.info('Creating template', { templateId: template.id, flowType: template.flow_type })
       const createdTemplate = await apiClient.flows.createTemplate(template)
       this.templates.set(template.flow_type, createdTemplate)
+      logger.info('Template created successfully', { templateId: createdTemplate.id })
       return createdTemplate
     } catch (error) {
-      console.error('Failed to create template:', error)
+      logger.error('Failed to create template', { templateId: template.id, error })
       throw error
     }
   }
@@ -191,15 +198,18 @@ export class TemplateManager {
   // Update existing template
   async updateTemplate(template: FlowTemplate): Promise<FlowTemplate> {
     if (!this.validateTemplate(template)) {
+      logger.warn('Template validation failed', { templateId: template.id })
       throw new Error('Invalid template structure')
     }
 
     try {
+      logger.info('Updating template', { templateId: template.id, flowType: template.flow_type })
       const updatedTemplate = await apiClient.flows.updateTemplate(template.id, template)
       this.templates.set(template.flow_type, updatedTemplate)
+      logger.info('Template updated successfully', { templateId: updatedTemplate.id })
       return updatedTemplate
     } catch (error) {
-      console.error('Failed to update template:', error)
+      logger.error('Failed to update template', { templateId: template.id, error })
       throw error
     }
   }
@@ -207,10 +217,12 @@ export class TemplateManager {
   // Delete template
   async deleteTemplate(templateId: string, flowType: FlowType): Promise<void> {
     try {
+      logger.info('Deleting template', { templateId, flowType })
       await apiClient.flows.deleteTemplate(templateId)
       this.templates.delete(flowType)
+      logger.info('Template deleted successfully', { templateId })
     } catch (error) {
-      console.error('Failed to delete template:', error)
+      logger.error('Failed to delete template', { templateId, error })
       throw error
     }
   }

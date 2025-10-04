@@ -13,6 +13,9 @@
  */
 
 import { PostgrestError } from '@supabase/supabase-js'
+import { createLogger } from './logger'
+
+const logger = createLogger('AuthErrorHandler')
 
 // Error types for better categorization
 export enum AuthErrorType {
@@ -354,7 +357,7 @@ export class SupabaseErrorHandler {
       try {
         listener(userFriendlyError)
       } catch (listenerError) {
-        console.error('Error in error listener:', listenerError)
+        logger.error('Error in error listener:', listenerError)
       }
     })
 

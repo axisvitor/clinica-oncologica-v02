@@ -18,6 +18,9 @@ import { useDebounce } from '@/hooks/useDebounce'
 import { FEATURES } from '@/config'
 import type { AIInsight, AIRecommendation } from '@/lib/types/ai'
 import { ChatRole } from '../../types/api'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('PhysicianDashboard')
 
 interface DashboardMetrics {
   total_patients: number
@@ -105,7 +108,8 @@ export default function PhysicianDashboard() {
                 engagement_score: insights.engagement_score || 50,
                 has_alerts: insights.has_alerts || false
               }
-            } catch {
+            } catch (error) {
+              logger.warn('Failed to fetch AI insights for patient', { patientId: patient.id, error });
               return {
                 id: patient.id,
                 name: patient.full_name || `${patient.first_name} ${patient.last_name}`,
@@ -149,10 +153,12 @@ export default function PhysicianDashboard() {
     queryKey: ['physician-insights-summary'],
     queryFn: async () => {
       try {
+        logger.info('Fetching summary AI insights');
         const response = await apiClient.ai.insights('all', 'week')
+        logger.debug('Summary insights loaded', { insightsCount: response.insights?.length });
         return response
       } catch (error) {
-        console.error('Failed to fetch summary insights:', error)
+        logger.error('Failed to fetch summary insights', { error });
         return { insights: [], recommendations: [] }
       }
     },
@@ -172,6 +178,7 @@ export default function PhysicianDashboard() {
       return response
     },
     onSuccess: (data) => {
+      logger.info('AI chat response received');
       setChatMessages(prev => [
         ...prev,
         {
@@ -183,7 +190,7 @@ export default function PhysicianDashboard() {
       ])
     },
     onError: (error) => {
-      console.error('Chat error:', error)
+      logger.error('Chat error', { error });
       setChatMessages(prev => [
         ...prev,
         {

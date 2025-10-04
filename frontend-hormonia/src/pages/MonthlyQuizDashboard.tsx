@@ -8,6 +8,9 @@ import { apiClient } from '@/lib/api-client'
 import { useMonthlyQuizAdmin } from '@/hooks/useMonthlyQuizAdmin'
 import { SendQuizLinkModal } from '@/components/quiz/SendQuizLinkModal'
 import { QuizLinkStatus } from '@/components/quiz/QuizLinkStatus'
+import { createLogger } from '../lib/logger'
+
+const logger = createLogger('MonthlyQuizDashboard')
 import {
   Table,
   TableBody,
@@ -43,7 +46,7 @@ export function MonthlyQuizDashboard() {
     try {
       await resendQuizLink(sessionId)
     } catch (error) {
-      console.error('Error resending quiz link:', error)
+      logger.error('Error resending quiz link', { sessionId, error })
     }
   }
 

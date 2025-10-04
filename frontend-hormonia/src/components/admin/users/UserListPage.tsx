@@ -10,6 +10,9 @@ import { UsersTable } from './UsersTable'
 import { CreateUserModal } from './CreateUserModal'
 import { UserDetailsModal } from './UserDetailsModal'
 import { AdminUser } from '@/types/admin'
+import { createLogger } from '../../../lib/logger'
+
+const logger = createLogger({ component: 'UserListPage' })
 
 export function UserListPage() {
   const [currentPage, setCurrentPage] = useState(1)
@@ -53,7 +56,7 @@ export function UserListPage() {
 
   const handleExport = () => {
     // TODO: Implement export functionality
-    console.log('Export users data')
+    logger.info('Export users data requested')
   }
 
   const handleViewUser = (user: AdminUser) => {

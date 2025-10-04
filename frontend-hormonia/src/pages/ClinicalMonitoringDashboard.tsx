@@ -48,6 +48,9 @@ import { apiClient } from '@/lib/api-client';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { format, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { createLogger } from '../lib/logger';
+
+const logger = createLogger('ClinicalMonitoringDashboard');
 
 // Tipos para métricas clínicas
 interface ClinicalMetrics {
@@ -136,12 +139,14 @@ const ClinicalMonitoringDashboard: React.FC = () => {
   const fetchClinicalMetrics = async () => {
     try {
       setLoading(true);
+      logger.info('Fetching clinical metrics', { timeRange: selectedTimeRange });
       const response = await apiClient.get<ApiResponse<ClinicalMetrics>>('/api/v1/metrics/clinical', {
         params: { timeRange: selectedTimeRange }
       });
       setMetrics(response['data']);
+      logger.debug('Clinical metrics loaded', { metrics: response['data'] });
     } catch (error) {
-      console.error('Error fetching clinical metrics:', error);
+      logger.error('Error fetching clinical metrics', { error, timeRange: selectedTimeRange });
     } finally {
       setLoading(false);
     }
@@ -149,21 +154,25 @@ const ClinicalMonitoringDashboard: React.FC = () => {
 
   const fetchRiskPatients = async () => {
     try {
+      logger.info('Fetching risk patients');
       const response = await apiClient.get<ApiResponse<PatientRisk[]>>('/api/v1/patients/at-risk');
       setRiskPatients(response['data']);
+      logger.debug('Risk patients loaded', { count: response['data'].length });
     } catch (error) {
-      console.error('Error fetching risk patients:', error);
+      logger.error('Error fetching risk patients', { error });
     }
   };
 
   const fetchAdherenceData = async () => {
     try {
+      logger.info('Fetching adherence data', { days: parseInt(selectedTimeRange) });
       const response = await apiClient.get<ApiResponse<TreatmentAdherence[]>>('/api/v1/analytics/adherence', {
         params: { days: parseInt(selectedTimeRange) }
       });
       setAdherenceData(response['data']);
+      logger.debug('Adherence data loaded', { dataPoints: response['data'].length });
     } catch (error) {
-      console.error('Error fetching adherence data:', error);
+      logger.error('Error fetching adherence data', { error, days: parseInt(selectedTimeRange) });
     }
   };
 

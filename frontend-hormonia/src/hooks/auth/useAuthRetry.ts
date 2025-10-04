@@ -1,5 +1,8 @@
 import { useState, useCallback, useRef } from 'react'
 import { AuthError, AuthRetryConfig } from './types'
+import { createLogger } from '../../lib/logger'
+
+const logger = createLogger('useAuthRetry')
 
 const DEFAULT_RETRY_CONFIG: AuthRetryConfig = {
   maxRetries: 3,
@@ -94,7 +97,7 @@ export function useAuthRetry({
         lastError = error as AuthError
         attempt++
 
-        console.warn(`${operationName} attempt ${attempt} failed:`, lastError.message)
+        logger.warn(`${operationName} attempt ${attempt} failed:`, lastError.message)
 
         // Check if we should retry
         if (attempt > retryConfig.maxRetries || !isRetryableError(lastError)) {
@@ -106,7 +109,7 @@ export function useAuthRetry({
           ? Math.max(lastError.retryAfter * 1000, calculateDelay(attempt))
           : calculateDelay(attempt)
 
-        console.log(`Retrying ${operationName} in ${delay}ms...`)
+        logger.debug(`Retrying ${operationName} in ${delay}ms...`)
 
         await new Promise(resolve => {
           retryTimeoutRef.current = setTimeout(resolve, delay)

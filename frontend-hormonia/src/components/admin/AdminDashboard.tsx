@@ -48,6 +48,9 @@ import { useAuth } from '../../contexts/AuthContext'
 import AdminNavigationMenu from './AdminNavigationMenu'
 import AdminSessionManager from './AdminSessionManager'
 import AdminUserActivityMonitor from './AdminUserActivityMonitor'
+import { createLogger } from '../../lib/logger'
+
+const logger = createLogger({ component: 'AdminDashboard' })
 
 interface AdminDashboardProps {
   children?: React.ReactNode
@@ -157,7 +160,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
         setSecurityMetrics(mockSecurityMetrics)
         setRecentActivity(mockRecentActivity)
       } catch (error) {
-        console.error('Failed to load dashboard data:', error)
+        logger.error('Failed to load dashboard data', { error })
       } finally {
         setIsLoading(false)
       }

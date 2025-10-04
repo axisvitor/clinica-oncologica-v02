@@ -10,6 +10,9 @@ import { LoadingSpinner } from '../components/ui/loading-spinner'
 import { AlertCard } from '../components/alerts/AlertCard'
 import { useToast } from '@/components/ui/use-toast'
 import { Checkbox } from '@/components/ui/checkbox'
+import { createLogger } from '../lib/logger'
+
+const logger = createLogger('AlertsPage')
 import {
   Select,
   SelectContent,
@@ -59,7 +62,7 @@ export function AlertsPage() {
       })
     },
     onError: (error: any) => {
-      console.error('Acknowledge error:', error)
+      logger.error('Acknowledge error', { error })
       toast({
         title: 'Erro ao reconhecer alerta',
         description: error.data?.message || 'Ocorreu um erro inesperado.',
@@ -78,7 +81,7 @@ export function AlertsPage() {
       })
     },
     onError: (error: any) => {
-      console.error('Resolve error:', error)
+      logger.error('Resolve error', { error })
       toast({
         title: 'Erro ao resolver alerta',
         description: error.data?.message || 'Ocorreu um erro inesperado.',

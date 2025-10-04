@@ -10,6 +10,9 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { getRuntimeConfig, type RuntimeConfig } from './runtime-config';
 import { apiClient } from './api-client';
 import { initializeSupabase } from './supabase-client';
+import { createLogger } from './logger';
+
+const logger = createLogger('ConfigInitializer');
 
 // Configuration context
 interface ConfigContextType {
@@ -42,8 +45,8 @@ export function ConfigProvider({
       setLoading(true);
       setError(null);
 
-      console.log('[ConfigProvider] Loading runtime configuration...');
-      console.log('[ConfigProvider] Timeout protection: 3 seconds');
+      logger.info('Loading runtime configuration...');
+      logger.info('Timeout protection: 3 seconds');
 
       // Create timeout promise that rejects after 3 seconds
       const timeoutPromise = new Promise<never>((_, reject) =>
@@ -56,11 +59,11 @@ export function ConfigProvider({
 
       try {
         runtimeConfig = await Promise.race([configPromise, timeoutPromise]) as RuntimeConfig;
-        console.log('[ConfigProvider] Configuration loaded successfully');
+        logger.info('Configuration loaded successfully');
       } catch (timeoutError) {
         // If timeout occurs, use fallback configuration
-        console.warn('[ConfigProvider] Timeout occurred, using fallback configuration');
-        console.error('[ConfigProvider] Timeout error:', timeoutError);
+        logger.warn('Timeout occurred, using fallback configuration');
+        logger.error('Timeout error:', timeoutError);
 
         // Create minimal fallback config for local development
         runtimeConfig = {
@@ -79,12 +82,12 @@ export function ConfigProvider({
           VITE_DEBUG_MODE: 'true'
         } as RuntimeConfig;
 
-        console.log('[ConfigProvider] Fallback configuration applied');
+        logger.info('Fallback configuration applied');
       }
 
       // Initialize API client with runtime config (use VITE_API_BASE_URL without /api/v1)
       const apiUrl = runtimeConfig.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
-      console.log('[ConfigProvider] Initializing API client with base URL:', apiUrl);
+      logger.info('Initializing API client with base URL:', apiUrl);
       apiClient.setBaseURL(apiUrl);
 
       // Initialize Supabase client with runtime config
@@ -93,22 +96,22 @@ export function ConfigProvider({
       const realtimeEnabled = runtimeConfig.VITE_SUPABASE_REALTIME_ENABLED === 'true';
 
       if (supabaseUrl && supabaseAnonKey) {
-        console.log('[ConfigProvider] Initializing Supabase client');
+        logger.info('Initializing Supabase client');
         initializeSupabase(supabaseUrl, supabaseAnonKey, realtimeEnabled);
       } else {
-        console.warn('[ConfigProvider] Supabase credentials missing in runtime config');
-        console.log('[ConfigProvider] App will run without Supabase features');
+        logger.warn('Supabase credentials missing in runtime config');
+        logger.info('App will run without Supabase features');
       }
 
       setConfig(runtimeConfig);
-      console.log('[ConfigProvider] Configuration initialization complete');
+      logger.info('Configuration initialization complete');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load configuration';
-      console.error('[ConfigProvider] Configuration loading failed:', err);
+      logger.error('Configuration loading failed:', err);
       setError(errorMessage);
     } finally {
       // CRITICAL: Always set loading to false, no matter what happens
-      console.log('[ConfigProvider] Setting loading state to false');
+      logger.info('Setting loading state to false');
       setLoading(false);
     }
   };
@@ -251,12 +254,12 @@ function DefaultErrorComponent({ error, reload }: DefaultErrorComponentProps) {
 // Utility function to initialize config outside of React
 export async function initializeConfiguration(): Promise<RuntimeConfig> {
   try {
-    console.log('[ConfigInitializer] Initializing runtime configuration...');
+    logger.info('Initializing runtime configuration...');
     const config = await getRuntimeConfig();
-    console.log('[ConfigInitializer] Configuration initialized successfully');
+    logger.info('Configuration initialized successfully');
     return config;
   } catch (error) {
-    console.error('[ConfigInitializer] Failed to initialize configuration:', error);
+    logger.error('Failed to initialize configuration:', error);
     throw error;
   }
 }

@@ -17,6 +17,9 @@ import {
   Activity, BarChart3, TrendingUp, Users, Brain, Target,
   Settings, Download, RefreshCw, AlertTriangle
 } from 'lucide-react';
+import { createLogger } from '../lib/logger'
+
+const logger = createLogger('MetricsDashboardPage')
 
 const MetricsDashboardPage: React.FC = () => {
   const { user } = useAuth();
@@ -77,7 +80,7 @@ const MetricsDashboardPage: React.FC = () => {
         document.body.removeChild(a);
       }
     } catch (err) {
-      console.error('Error exporting metrics:', err);
+      logger.error('Error exporting metrics', { error: err });
     }
   };
 

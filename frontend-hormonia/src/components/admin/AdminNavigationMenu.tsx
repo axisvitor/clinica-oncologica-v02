@@ -35,6 +35,9 @@ import {
 } from '../ui/dropdown-menu'
 import { AdminNavItem, AdminUser } from '../../types/admin'
 import { useAuth } from '../../contexts/AuthContext'
+import { createLogger } from '../../lib/logger'
+
+const logger = createLogger({ component: 'AdminNavigationMenu' })
 
 interface AdminNavigationMenuProps {
   className?: string
@@ -273,7 +276,7 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
       await logout()
       navigate('/admin/login')
     } catch (error) {
-      console.error('Logout failed:', error)
+      logger.error('Logout failed', { error })
     }
   }
 

@@ -16,6 +16,9 @@ import {
   AdminLoginResponse,
   AdminAuthError
 } from '../../types/admin'
+import { createLogger } from '../../lib/logger'
+
+const logger = createLogger({ component: 'AdminLoginForm' })
 
 // Password strength validation
 const calculatePasswordStrength = (password: string): PasswordStrength => {
@@ -225,7 +228,7 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
         throw new AdminAuthError(response.error || 'Login failed')
       }
     } catch (error) {
-      console.error('Login error:', error)
+      logger.error('Login error', { error })
 
       if (error instanceof AdminAuthError) {
         setLoginError(error.message)

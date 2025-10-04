@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../lib/api-client'
+import { createLogger } from '../lib/logger'
 import { toast } from './use-toast'
+
+const logger = createLogger('useSettings')
 
 // Types for settings
 export interface UserProfile {
@@ -76,7 +79,7 @@ function saveFrontendOnlyPreferences(prefs: Partial<FrontendOnlyPreferences>) {
     const updated = { ...current, ...prefs }
     localStorage.setItem('frontend_only_preferences', JSON.stringify(updated))
   } catch (error) {
-    console.error('Failed to save frontend-only preferences:', error)
+    logger.error('Failed to save frontend-only preferences', { error })
   }
 }
 

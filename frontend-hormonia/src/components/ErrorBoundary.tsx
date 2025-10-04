@@ -2,6 +2,9 @@ import React, { Component, ErrorInfo, ReactNode } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { createLogger } from '../lib/logger'
+
+const logger = createLogger('ErrorBoundary')
 
 interface Props {
   children: ReactNode
@@ -24,8 +27,8 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Error caught by boundary:', error, errorInfo)
-    
+    logger.error('Error caught by boundary:', error, errorInfo)
+
     // Here you could send error to monitoring service
     // Example: Sentry.captureException(error, { contexts: { errorInfo } })
   }

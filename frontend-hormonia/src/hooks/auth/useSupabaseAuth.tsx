@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { auth } from '@/lib/supabase-client'
+import { createLogger } from '../../lib/logger'
+
+const logger = createLogger('useSupabaseAuth')
 
 export interface UseSupabaseAuthReturn {
   user: User | null
@@ -33,7 +36,7 @@ export function useSupabaseAuth(): UseSupabaseAuthReturn {
       setUser(session?.user || null)
       setLoading(false)
     }).catch(error => {
-      console.error('Error getting initial session:', error)
+      logger.error('Error getting initial session:', error)
       setError(error)
       setLoading(false)
     })
@@ -88,7 +91,7 @@ export function useSupabaseAuth(): UseSupabaseAuthReturn {
 
       if (!session) {
         const error = new Error('Session refresh failed')
-        console.error('Session refresh error:', error)
+        logger.error('Session refresh error:', error)
         setError(error.message)
         return { session: null, error }
       }
@@ -98,7 +101,7 @@ export function useSupabaseAuth(): UseSupabaseAuthReturn {
       return { session, error: null }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Session refresh failed'
-      console.error('Session refresh error:', error)
+      logger.error('Session refresh error:', error)
       setError(errorMsg)
       return { session: null, error: { message: errorMsg } }
     } finally {

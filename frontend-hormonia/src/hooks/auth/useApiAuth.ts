@@ -3,6 +3,9 @@ import { apiClient } from '../../lib/api-client'
 import { wsManager } from '../../lib/websocket'
 import { User, LoginResponse, AuthTokens, AuthError } from './types'
 import { useAuthRetry } from './useAuthRetry'
+import { createLogger } from '../../lib/logger'
+
+const logger = createLogger('useApiAuth')
 
 interface LoginCredentials {
   email: string
@@ -31,7 +34,7 @@ export function useApiAuth({
   autoConnectWebSocket = true,
   persistTokens = true
 }: UseApiAuthOptions = {}) {
-  console.warn('[useApiAuth] DEPRECATED: This hook is deprecated. Use useMedicoAuth from MedicoAuthContext instead.')
+  logger.warn('DEPRECATED: This hook is deprecated. Use useMedicoAuth from MedicoAuthContext instead.')
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [refreshToken, setRefreshToken] = useState<string | null>(null)
@@ -40,7 +43,7 @@ export function useApiAuth({
 
   const { executeWithRetry, createAuthError } = useAuthRetry({
     onRetryFailed: (error, attempts) => {
-      console.error(`API auth failed after ${attempts} attempts:`, error)
+      logger.error(`API auth failed after ${attempts} attempts:`, error)
       // Emit a custom event for auth failures if needed
     }
   })

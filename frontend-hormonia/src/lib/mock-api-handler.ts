@@ -16,6 +16,9 @@ import {
   getMockQuizSessions,
   getMockMonthlyQuizStats
 } from '../mocks'
+import { createLogger } from './logger'
+
+const logger = createLogger('MockApiHandler')
 
 interface MockApiResponse<T> {
   data: T
@@ -58,7 +61,7 @@ export class MockApiHandler {
     const searchParams = url.searchParams
     const method = options?.method || 'GET'
 
-    console.log(`[MockAPI] ${method} ${pathname}`)
+    logger.debug(`${method} ${pathname}`)
 
     // Parse request body if present
     let body: any = null
@@ -66,7 +69,7 @@ export class MockApiHandler {
       try {
         body = JSON.parse(options.body)
       } catch (e) {
-        console.warn('[MockAPI] Failed to parse request body')
+        logger.warn('Failed to parse request body', { error: e })
       }
     }
 
@@ -93,7 +96,7 @@ export class MockApiHandler {
       return this.handleAiEndpoint(pathname, method, body) as T
     }
 
-    console.warn(`[MockAPI] Unhandled endpoint: ${pathname}`)
+    logger.warn('Unhandled endpoint', { pathname })
     return { message: 'Mock endpoint not implemented' } as T
   }
 

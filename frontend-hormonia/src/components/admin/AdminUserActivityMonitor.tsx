@@ -59,6 +59,9 @@ import {
   AdminActivityFilter,
   AdminPaginatedResponse
 } from '../../types/admin'
+import { createLogger } from '../../lib/logger'
+
+const logger = createLogger({ component: 'AdminUserActivityMonitor' })
 
 interface AdminUserActivityMonitorProps {
   className?: string
@@ -178,7 +181,7 @@ export const AdminUserActivityMonitor: React.FC<AdminUserActivityMonitorProps> =
       await new Promise(resolve => setTimeout(resolve, 1000))
       setActivities(mockActivityData)
     } catch (error) {
-      console.error('Failed to load activities:', error)
+      logger.error('Failed to load activities', { error })
     } finally {
       setIsLoading(false)
     }

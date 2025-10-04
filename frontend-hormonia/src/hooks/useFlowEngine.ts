@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { createLogger } from '../lib/logger'
 import { flowEngine } from '../lib/flow-engine/FlowEngine'
 import { templateManager } from '../lib/flow-engine/TemplateManager'
 import {
@@ -12,6 +13,8 @@ import {
   type FlowEvent
 } from '../lib/types/flow'
 
+const logger = createLogger('useFlowEngine')
+
 export function useFlowEngine() {
   const queryClient = useQueryClient()
   const [isInitialized, setIsInitialized] = useState(false)
@@ -23,8 +26,9 @@ export function useFlowEngine() {
         await flowEngine.loadTemplates()
         await templateManager.loadTemplates()
         setIsInitialized(true)
+        logger.info('Flow engine initialized successfully')
       } catch (error) {
-        console.error('Failed to initialize flow engine:', error)
+        logger.error('Failed to initialize flow engine', { error })
       }
     }
 

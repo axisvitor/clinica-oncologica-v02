@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from './useAuth'
 import { useConfig } from '@/lib/config-initializer'
+import { createLogger } from '../lib/logger'
+
+const logger = createLogger('useWebSocket')
 
 interface WebSocketMessage {
   type: string
@@ -45,7 +48,7 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
     // Use the token from user or direct token
     const authToken = user?.token || token
     if (!authToken) {
-      console.warn('Cannot connect WebSocket: no authentication token available')
+      logger.warn('Cannot connect WebSocket: no authentication token available')
       return
     }
 
@@ -73,7 +76,7 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
           setLastMessage(message)
           onMessage?.(message)
         } catch (error) {
-          console.error('Failed to parse WebSocket message:', error)
+          logger.error('Failed to parse WebSocket message:', error)
         }
       }
 
@@ -95,7 +98,7 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
         onError?.(error)
       }
     } catch (error) {
-      console.error('Failed to create WebSocket connection:', error)
+      logger.error('Failed to create WebSocket connection:', error)
       setConnectionState('error')
     }
   }, [url, user?.token, token, reconnectAttempts, reconnectInterval, onMessage, onError, onOpen, onClose])

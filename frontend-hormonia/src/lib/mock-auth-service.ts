@@ -4,6 +4,10 @@
  * Will be replaced with Firebase Auth when frontend is complete
  */
 
+import { createLogger } from './logger'
+
+const logger = createLogger('MockAuthService')
+
 export interface MockUser {
   id: string
   email: string
@@ -153,7 +157,7 @@ export function getMockSession(): MockSession | null {
 
     return session
   } catch (error) {
-    console.error('[MockAuth] Error getting session:', error)
+    logger.error('Error getting session', { error })
     return null
   }
 }
@@ -165,7 +169,7 @@ function storeMockSession(session: MockSession): void {
   try {
     localStorage.setItem(SESSION_KEY, JSON.stringify(session))
   } catch (error) {
-    console.error('[MockAuth] Error storing session:', error)
+    logger.error('Error storing session', { error })
   }
 }
 
@@ -187,7 +191,7 @@ function findUserByEmail(email: string): MockUser | null {
  * Mock sign in with email and password
  */
 export async function mockSignIn(email: string, password: string): Promise<MockAuthResponse> {
-  console.log('[MockAuth] Attempting sign in:', email)
+  logger.debug('Attempting sign in', { email })
 
   await simulateDelay()
 
@@ -195,7 +199,7 @@ export async function mockSignIn(email: string, password: string): Promise<MockA
   const user = findUserByEmail(email)
 
   if (!user) {
-    console.error('[MockAuth] User not found:', email)
+    logger.error('User not found', { email })
     return {
       success: false,
       error: 'Usuário não encontrado'
@@ -204,7 +208,7 @@ export async function mockSignIn(email: string, password: string): Promise<MockA
 
   // Check if user is active
   if (!user.is_active) {
-    console.error('[MockAuth] User is inactive:', email)
+    logger.error('User is inactive', { email })
     return {
       success: false,
       error: 'Usuário inativo'
@@ -213,7 +217,7 @@ export async function mockSignIn(email: string, password: string): Promise<MockA
 
   // Validate password
   if (password !== MOCK_PASSWORD) {
-    console.error('[MockAuth] Invalid password')
+    logger.error('Invalid password')
     return {
       success: false,
       error: 'Senha incorreta'
@@ -237,7 +241,7 @@ export async function mockSignIn(email: string, password: string): Promise<MockA
 
   storeMockSession(session)
 
-  console.log('[MockAuth] Sign in successful:', user.email)
+  logger.info('Sign in successful', { email: user.email, role: user.role })
 
   return {
     success: true,
@@ -250,13 +254,13 @@ export async function mockSignIn(email: string, password: string): Promise<MockA
  * Mock sign out
  */
 export async function mockSignOut(): Promise<{ success: boolean; error?: string }> {
-  console.log('[MockAuth] Signing out')
+  logger.debug('Signing out')
 
   await simulateDelay(100, 300)
 
   clearMockSession()
 
-  console.log('[MockAuth] Sign out successful')
+  logger.info('Sign out successful')
 
   return { success: true }
 }
@@ -280,13 +284,14 @@ export function mockIsAuthenticated(): boolean {
  * Refresh session (extend expiry)
  */
 export async function mockRefreshSession(): Promise<MockAuthResponse> {
-  console.log('[MockAuth] Refreshing session')
+  logger.debug('Refreshing session')
 
   await simulateDelay(200, 400)
 
   const currentSession = getMockSession()
 
   if (!currentSession) {
+    logger.warn('No active session to refresh')
     return {
       success: false,
       error: 'No active session'
@@ -303,7 +308,7 @@ export async function mockRefreshSession(): Promise<MockAuthResponse> {
 
   storeMockSession(newSession)
 
-  console.log('[MockAuth] Session refreshed')
+  logger.debug('Session refreshed', { userId: currentSession.user.id })
 
   return {
     success: true,

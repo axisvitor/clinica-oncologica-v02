@@ -25,12 +25,15 @@ import { AIPersonalizationChart } from './charts/AIPersonalizationChart';
 import { SystemHealthChart } from './charts/SystemHealthChart';
 import { AlertsPanel } from './AlertsPanel';
 import { MetricsWebSocket } from './MetricsWebSocket';
+import { createLogger } from '../../lib/logger';
 
 import type {
   MetricsSummary,
   RealTimeMetrics,
   Alert as AlertType
 } from '@/types/metrics';
+
+const logger = createLogger('metrics:dashboard');
 
 interface MetricsDashboardProps {
   userRole: 'doctor' | 'admin';
@@ -116,7 +119,7 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
       const data = await response.json();
       setAlerts(data.alerts || []);
     } catch (err) {
-      console.error('Failed to fetch alerts:', err);
+      logger.error('Failed to fetch alerts', { error: err });
     }
   }, []);
 
@@ -166,7 +169,7 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
         setAlerts(prev => prev.filter(alert => alert.id !== alertId));
       }
     } catch (err) {
-      console.error('Failed to acknowledge alert:', err);
+      logger.error('Failed to acknowledge alert', { alertId, error: err });
     }
   };
 

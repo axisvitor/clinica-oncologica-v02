@@ -5,6 +5,9 @@
  * connection state management, and message handling for the healthcare dashboard.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createLogger } from '../../lib/logger';
+
+const logger = createLogger('metrics:websocket');
 
 interface WebSocketOptions {
   onMessage?: (data: any) => void;
@@ -52,7 +55,7 @@ export const MetricsWebSocket = ({
   }, []);
 
   const handleOpen = useCallback(() => {
-    console.log('Metrics WebSocket connected');
+    logger.info('Metrics WebSocket connected');
     setIsConnected(true);
     setIsConnecting(false);
     setError(null);
@@ -67,13 +70,13 @@ export const MetricsWebSocket = ({
       setLastMessage(data);
       onMessage?.(data);
     } catch (err) {
-      console.error('Error parsing WebSocket message:', err);
+      logger.error('Error parsing WebSocket message', { error: err });
       setError('Erro ao processar dados recebidos');
     }
   }, [onMessage]);
 
   const handleError = useCallback((event: Event) => {
-    console.error('Metrics WebSocket error:', event);
+    logger.error('Metrics WebSocket error', { event });
     setError('Erro de conexão WebSocket');
     setIsConnected(false);
     setIsConnecting(false);
@@ -82,7 +85,7 @@ export const MetricsWebSocket = ({
   }, [onError]);
 
   const handleClose = useCallback((event: CloseEvent) => {
-    console.log('Metrics WebSocket closed:', event.code, event.reason);
+    logger.info('Metrics WebSocket closed', { code: event.code, reason: event.reason });
     setIsConnected(false);
     setIsConnecting(false);
 
@@ -160,7 +163,7 @@ export const MetricsWebSocket = ({
       });
 
     } catch (err) {
-      console.error('Error creating WebSocket connection:', err);
+      logger.error('Error creating WebSocket connection', { error: err });
       setError('Erro ao criar conexão WebSocket');
       setIsConnecting(false);
     }
@@ -253,7 +256,7 @@ export const MetricsWebSocket = ({
         try {
           ws.current.send(JSON.stringify({ type: 'ping' }));
         } catch (err) {
-          console.error('Heartbeat failed:', err);
+          logger.error('Heartbeat failed', { error: err });
           setError('Conexão instável');
           disconnect();
         }

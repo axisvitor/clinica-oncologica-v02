@@ -13,6 +13,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { LoadingSpinner } from '../components/ui/loading-spinner'
 import { isProduction } from '@/lib/runtime-config'
 import { useConfig } from '@/lib/config-initializer'
+import { createLogger } from '../lib/logger'
+
+const logger = createLogger('LoginPage')
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -70,8 +73,8 @@ export function LoginPage() {
       setIsSubmittingForm(true)
       await login(data['email'], data['password'])
     } catch (error: any) {
-      console.error('Login error:', error)
-      
+      logger.error('Login error', { error })
+
       // Handle different types of errors
       let errorMessage = 'Erro ao fazer login. Tente novamente.'
       

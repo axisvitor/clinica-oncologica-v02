@@ -11,7 +11,10 @@ import {
   type FlowStateMachine
 } from '../types/flow'
 import { apiClient } from '../api-client'
+import { createLogger } from '../logger'
 import EventEmitter from 'eventemitter3'
+
+const logger = createLogger('FlowEngine')
 
 export class FlowEngine extends EventEmitter {
   private templates: Map<FlowType, FlowTemplate> = new Map()
@@ -53,8 +56,9 @@ export class FlowEngine extends EventEmitter {
       templates.forEach(template => {
         this.templates.set(template.flow_type, template)
       })
+      logger.info('Flow templates loaded', { count: templates.length })
     } catch (error) {
-      console.error('Failed to load flow templates:', error)
+      logger.error('Failed to load flow templates', { error })
     }
   }
 
@@ -64,10 +68,11 @@ export class FlowEngine extends EventEmitter {
       const flowState = await apiClient.flows.getState(patientId)
       if (flowState) {
         this.activeFlows.set(patientId, flowState)
+        logger.debug('Flow state retrieved', { patientId, flowType: flowState.flow_type })
       }
       return flowState
     } catch (error) {
-      console.error('Failed to get flow state:', error)
+      logger.error('Failed to get flow state', { patientId, error })
       return null
     }
   }
@@ -75,9 +80,10 @@ export class FlowEngine extends EventEmitter {
   // Start a new flow for a patient
   async startFlow(patientId: string, flowType: FlowType): Promise<FlowState> {
     try {
+      logger.info('Starting flow', { patientId, flowType })
       const flowState = await apiClient.flows.start(patientId, flowType)
       this.activeFlows.set(patientId, flowState)
-      
+
       this.emit('flow_started', {
         type: 'flow_started',
         patient_id: patientId,
@@ -86,9 +92,10 @@ export class FlowEngine extends EventEmitter {
         timestamp: new Date().toISOString()
       } as FlowEvent)
 
+      logger.info('Flow started successfully', { patientId, flowId: flowState.id })
       return flowState
     } catch (error) {
-      console.error('Failed to start flow:', error)
+      logger.error('Failed to start flow', { patientId, flowType, error })
       throw error
     }
   }
@@ -96,9 +103,10 @@ export class FlowEngine extends EventEmitter {
   // Advance flow to next state
   async advanceFlow(patientId: string, forceDay?: number): Promise<FlowState> {
     try {
+      logger.info('Advancing flow', { patientId, forceDay })
       const flowState = await apiClient.flows.advance(patientId, forceDay)
       this.activeFlows.set(patientId, flowState)
-      
+
       this.emit('flow_advanced', {
         type: 'message_sent',
         patient_id: patientId,
@@ -107,9 +115,10 @@ export class FlowEngine extends EventEmitter {
         timestamp: new Date().toISOString()
       } as FlowEvent)
 
+      logger.info('Flow advanced successfully', { patientId, currentDay: flowState.current_day })
       return flowState
     } catch (error) {
-      console.error('Failed to advance flow:', error)
+      logger.error('Failed to advance flow', { patientId, forceDay, error })
       throw error
     }
   }
@@ -117,9 +126,10 @@ export class FlowEngine extends EventEmitter {
   // Pause a flow
   async pauseFlow(patientId: string): Promise<FlowState> {
     try {
+      logger.info('Pausing flow', { patientId })
       const flowState = await apiClient.flows.pause(patientId)
       this.activeFlows.set(patientId, flowState)
-      
+
       this.emit('flow_paused', {
         type: 'flow_paused',
         patient_id: patientId,
@@ -127,9 +137,10 @@ export class FlowEngine extends EventEmitter {
         timestamp: new Date().toISOString()
       } as FlowEvent)
 
+      logger.info('Flow paused successfully', { patientId, flowId: flowState.id })
       return flowState
     } catch (error) {
-      console.error('Failed to pause flow:', error)
+      logger.error('Failed to pause flow', { patientId, error })
       throw error
     }
   }
@@ -137,9 +148,10 @@ export class FlowEngine extends EventEmitter {
   // Resume a flow
   async resumeFlow(patientId: string): Promise<FlowState> {
     try {
+      logger.info('Resuming flow', { patientId })
       const flowState = await apiClient.flows.resume(patientId)
       this.activeFlows.set(patientId, flowState)
-      
+
       this.emit('flow_resumed', {
         type: 'flow_resumed',
         patient_id: patientId,
@@ -147,9 +159,10 @@ export class FlowEngine extends EventEmitter {
         timestamp: new Date().toISOString()
       } as FlowEvent)
 
+      logger.info('Flow resumed successfully', { patientId, flowId: flowState.id })
       return flowState
     } catch (error) {
-      console.error('Failed to resume flow:', error)
+      logger.error('Failed to resume flow', { patientId, error })
       throw error
     }
   }
@@ -157,14 +170,15 @@ export class FlowEngine extends EventEmitter {
   // Process patient response
   async processResponse(patientId: string, message: InboundMessage): Promise<ResponseResult> {
     try {
+      logger.info('Processing patient response', { patientId, messageId: message.id })
       // @ts-expect-error TODO: fix message type
       const result = await apiClient.flows.processResponse(patientId, message)
-      
+
       this.emit('response_received', {
         type: 'response_received',
         patient_id: patientId,
         flow_id: message.id,
-        data: { 
+        data: {
           content: message.content,
           sentiment: result.sentiment_score,
           requires_attention: result.requires_attention
@@ -172,9 +186,14 @@ export class FlowEngine extends EventEmitter {
         timestamp: new Date().toISOString()
       } as FlowEvent)
 
+      logger.info('Response processed successfully', {
+        patientId,
+        sentiment: result.sentiment_score,
+        requiresAttention: result.requires_attention
+      })
       return result
     } catch (error) {
-      console.error('Failed to process response:', error)
+      logger.error('Failed to process response', { patientId, error })
       throw error
     }
   }
@@ -207,9 +226,11 @@ export class FlowEngine extends EventEmitter {
   // Get flow analytics
   async getAnalytics(): Promise<any> {
     try {
-      return await apiClient.flows.getAnalytics()
+      const analytics = await apiClient.flows.getAnalytics()
+      logger.debug('Flow analytics retrieved', { analytics })
+      return analytics
     } catch (error) {
-      console.error('Failed to get flow analytics:', error)
+      logger.error('Failed to get flow analytics', { error })
       return null
     }
   }

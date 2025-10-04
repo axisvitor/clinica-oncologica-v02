@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../lib/api-client'
+import { createLogger } from '../lib/logger'
 import {
   ChatMessage,
   ChatSession,
@@ -16,6 +17,8 @@ import {
 } from '../lib/types/ai'
 import { ChatRole, SentimentLabel } from '../../types/api'
 import { FEATURES } from '../config'
+
+const logger = createLogger('useAI')
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -246,8 +249,8 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       return response
 
     } catch (error) {
-      console.error('Failed to send message:', error)
-      
+      logger.error('Failed to send message', { error, content })
+
       const errorMessage: ChatMessage = {
         id: `msg-${Date.now() + 1}`,
         role: ChatRole.ASSISTANT,
@@ -290,7 +293,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       }
       setSession(mockSession)
     } catch (error) {
-      console.error('Failed to load session:', error)
+      logger.error('Failed to load session', { error, sessionId })
       throw error
     }
   }, [patient_id])

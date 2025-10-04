@@ -14,6 +14,9 @@ import {
 import { Badge } from '../ui/badge'
 import { SessionWarning } from '../../types/admin'
 import { useAdminAuth } from '../../contexts/AdminAuthContext'
+import { createLogger } from '../../lib/logger'
+
+const logger = createLogger({ component: 'AdminSessionManager' })
 
 interface AdminSessionManagerProps {
   className?: string
@@ -72,7 +75,7 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
     try {
       await logout()
     } catch (error) {
-      console.error('Logout failed:', error)
+      logger.error('Logout failed', { error })
     }
   }, [logout])
 
@@ -174,7 +177,7 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
 
     if (shouldRefresh && !sessionWarning) {
       refreshToken().catch(error => {
-        console.error('Auto token refresh failed:', error)
+        logger.error('Auto token refresh failed', { error })
       })
     }
   }, [state.isAuthenticated, state.sessionExpiry, sessionWarning, refreshToken, getTimeRemaining])

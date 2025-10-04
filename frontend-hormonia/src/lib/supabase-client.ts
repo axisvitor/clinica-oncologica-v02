@@ -3,6 +3,9 @@ import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supab
 import { errorHandler, isRLSError, createUserFriendlyError, getPermissionContext } from './auth-error-handler'
 import { validateRuntimeConfig, validateAndLogConfig } from './env-validator'
 import { getRuntimeConfig, RuntimeConfig } from './runtime-config'
+import { createLogger } from './logger'
+
+const logger = createLogger('SupabaseClient')
 
 // Deferred initialization state
 let supabaseInstance: SupabaseClient | null = null
@@ -21,7 +24,7 @@ export function initializeSupabase(url: string, anonKey: string, realtimeEnabled
       'Supabase configuration missing: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required. ' +
       'Please check your environment variables or .env file.'
     )
-    console.error('[Supabase] Missing credentials for initialization:', error.message)
+    logger.error('Missing credentials for initialization', { error: error.message })
     throw error
   }
 
@@ -36,7 +39,7 @@ export function initializeSupabase(url: string, anonKey: string, realtimeEnabled
     throw new Error('Supabase configuration validation failed. Check console for details.')
   }
 
-  console.log('[Supabase] Initializing client with URL:', url)
+  logger.info('Initializing client', { url })
 
   if (realtimeEnabled !== undefined) {
     realtimeEnabledFlag = realtimeEnabled
@@ -64,10 +67,10 @@ export function initializeSupabase(url: string, anonKey: string, realtimeEnabled
     })
 
     isInitialized = true
-    console.log('[Supabase] Client initialized successfully')
+    logger.info('Client initialized successfully')
     return supabaseInstance
   } catch (error) {
-    console.error('[Supabase] Failed to initialize client:', error)
+    logger.error('Failed to initialize client', { error })
     throw new Error(`Failed to initialize Supabase client: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
@@ -87,11 +90,11 @@ function getSupabaseClient(): SupabaseClient {
         'Supabase not initialized and configuration is missing. ' +
         'Please ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your environment variables.'
       )
-      console.error('[Supabase] Configuration error:', error.message)
+      logger.error('Configuration error', { error: error.message })
       throw error
     }
 
-    console.warn('[Supabase] Using lazy initialization from configuration')
+    logger.warn('Using lazy initialization from configuration')
     return initializeSupabase(url, anonKey)
   }
 
@@ -122,7 +125,7 @@ export async function initializeSupabaseFromConfig(): Promise<SupabaseClient> {
       config.VITE_SUPABASE_REALTIME_ENABLED === 'true'
     )
   } catch (error) {
-    console.error('[Supabase] Failed to initialize from config:', error)
+    logger.error('Failed to initialize from config', { error })
     throw error
   }
 }
@@ -266,7 +269,7 @@ export const auth = {
     const client = getSupabaseClient()
     const { data: { user }, error } = await client.auth.getUser()
     if (error) {
-      console.error('Error getting current user:', error.message)
+      logger.error('Error getting current user', { error: error.message })
       return null
     }
     return user
@@ -277,7 +280,7 @@ export const auth = {
     const client = getSupabaseClient()
     const { data: { session }, error } = await client.auth.getSession()
     if (error) {
-      console.error('Error getting session:', error.message)
+      logger.error('Error getting session', { error: error.message })
       return null
     }
     return session
@@ -594,7 +597,7 @@ export class RealtimeManager {
 
   constructor() {
     if (!this.isEnabled) {
-      console.warn('Supabase real-time is disabled. Set VITE_SUPABASE_REALTIME_ENABLED=true to enable.')
+      logger.warn('Real-time is disabled. Set VITE_SUPABASE_REALTIME_ENABLED=true to enable.')
     }
   }
 

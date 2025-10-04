@@ -13,6 +13,9 @@
  */
 
 import { RuntimeConfig } from './runtime-config'
+import { createLogger } from './logger'
+
+const logger = createLogger('EnvValidator')
 
 export interface ValidationRule<T = string> {
   required: boolean
@@ -511,32 +514,32 @@ export function validateAndLogConfig(config: Partial<RuntimeConfig>): boolean {
   const result = validateRuntimeConfig(config)
 
   if (result.errors.length > 0) {
-    console.group('❌ Environment Configuration Errors')
+    logger.group('❌ Environment Configuration Errors')
     result.errors.forEach(error => {
-      console.error(`${error.field}: ${error.message}`)
+      logger.error(`${error.field}: ${error.message}`)
       if (error.suggestion) {
-        console.info(`💡 Suggestion: ${error.suggestion}`)
+        logger.info(`💡 Suggestion: ${error.suggestion}`)
       }
     })
-    console.groupEnd()
+    logger.groupEnd()
   }
 
   if (result.warnings.length > 0) {
-    console.group('⚠️ Environment Configuration Warnings')
+    logger.group('⚠️ Environment Configuration Warnings')
     result.warnings.forEach(warning => {
-      console.warn(`${warning.field}: ${warning.message}`)
+      logger.warn(`${warning.field}: ${warning.message}`)
       if (warning.suggestion) {
-        console.info(`💡 Suggestion: ${warning.suggestion}`)
+        logger.info(`💡 Suggestion: ${warning.suggestion}`)
       }
     })
-    console.groupEnd()
+    logger.groupEnd()
   }
 
   if (result.isValid && result.warnings.length === 0) {
-    console.log('✅ Environment configuration is valid')
+    logger.log('✅ Environment configuration is valid')
   }
 
-  console.log(`📊 Configuration Summary:`, result.summary)
+  logger.log(`📊 Configuration Summary:`, result.summary)
 
   return result.isValid
 }
