@@ -97,8 +97,8 @@ class RedisManager:
             if self.redis_url and self.redis_url.startswith('rediss://'):
                 import ssl
                 connection_kwargs.update({
-                    'ssl_cert_reqs': ssl.CERT_NONE,
-                    'ssl_check_hostname': False
+                    'ssl_cert_reqs': ssl.CERT_REQUIRED,  # Production-safe: validate certificates
+                    'ssl_check_hostname': True
                 })
 
             # Handle Redis Cloud SSL (redis:// with SSL=true environment variable)
@@ -146,8 +146,8 @@ class RedisManager:
             if self.redis_url and self.redis_url.startswith('rediss://'):
                 import ssl
                 connection_kwargs.update({
-                    'ssl_cert_reqs': ssl.CERT_NONE,
-                    'ssl_check_hostname': False
+                    'ssl_cert_reqs': ssl.CERT_REQUIRED,  # Production-safe: validate certificates
+                    'ssl_check_hostname': True
                 })
 
             # Handle Redis Cloud SSL (redis:// with SSL=true environment variable)
