@@ -40,6 +40,9 @@ COPY --chown=appuser:appuser . .
 RUN mkdir -p /app/logs /app/uploads && \
     chown -R appuser:appuser /app/logs /app/uploads
 
+# Add graceful shutdown support
+STOPSIGNAL SIGTERM
+
 # Switch to non-root user
 USER appuser
 

@@ -16,6 +16,7 @@ RUN if [ ! -f package-lock.json ]; then \
     fi
 
 # Stage 2: Builder
+# TODO: Pin with SHA256 from main agent
 FROM node:20-alpine AS builder
 WORKDIR /app
 
@@ -32,12 +33,13 @@ ARG VITE_SUPABASE_ANON_KEY
 ARG VITE_API_URL
 ARG VITE_API_BASE_URL
 ARG VITE_WS_BASE_URL
-ARG VITE_FIREBASE_API_KEY
-ARG VITE_FIREBASE_AUTH_DOMAIN
-ARG VITE_FIREBASE_PROJECT_ID
-ARG VITE_FIREBASE_STORAGE_BUCKET
-ARG VITE_FIREBASE_MESSAGING_SENDER_ID
-ARG VITE_FIREBASE_APP_ID
+# Firebase build args removed - loaded at runtime via /api/config
+# ARG VITE_FIREBASE_API_KEY
+# ARG VITE_FIREBASE_AUTH_DOMAIN
+# ARG VITE_FIREBASE_PROJECT_ID
+# ARG VITE_FIREBASE_STORAGE_BUCKET
+# ARG VITE_FIREBASE_MESSAGING_SENDER_ID
+# ARG VITE_FIREBASE_APP_ID
 
 # Set environment variables for build
 ENV NODE_ENV=production \
@@ -45,13 +47,8 @@ ENV NODE_ENV=production \
     VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY} \
     VITE_API_URL=${VITE_API_URL} \
     VITE_API_BASE_URL=${VITE_API_BASE_URL} \
-    VITE_WS_BASE_URL=${VITE_WS_BASE_URL} \
-    VITE_FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY} \
-    VITE_FIREBASE_AUTH_DOMAIN=${VITE_FIREBASE_AUTH_DOMAIN} \
-    VITE_FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID} \
-    VITE_FIREBASE_STORAGE_BUCKET=${VITE_FIREBASE_STORAGE_BUCKET} \
-    VITE_FIREBASE_MESSAGING_SENDER_ID=${VITE_FIREBASE_MESSAGING_SENDER_ID} \
-    VITE_FIREBASE_APP_ID=${VITE_FIREBASE_APP_ID}
+    VITE_WS_BASE_URL=${VITE_WS_BASE_URL}
+    # Firebase env vars removed - loaded at runtime
 
 # Debug: Print environment variables (without sensitive data)
 RUN echo "🔨 Building with environment:" && \
@@ -59,13 +56,12 @@ RUN echo "🔨 Building with environment:" && \
     echo "  VITE_API_URL=${VITE_API_URL:+[SET]}" && \
     echo "  VITE_API_BASE_URL=${VITE_API_BASE_URL:+[SET]}" && \
     echo "  VITE_WS_BASE_URL=${VITE_WS_BASE_URL:+[SET]}" && \
-    echo "  VITE_FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY:+[SET]}" && \
-    echo "  VITE_FIREBASE_AUTH_DOMAIN=${VITE_FIREBASE_AUTH_DOMAIN:+[SET]}" && \
-    echo "  VITE_FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID:+[SET]}"
+    echo "  Firebase vars loaded at runtime"
 
 # Build application with runtime config generation
 RUN npm run build:runtime
 
+# TODO: Pin with SHA256 from main agent
 FROM nginx:alpine AS production
 
 # Install curl for health checks
@@ -73,8 +69,8 @@ RUN apk add --no-cache curl
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy nginx configuration as template
+COPY nginx.conf /etc/nginx/nginx.conf.template
 
 # Copy robust entrypoint script
 COPY docker-entrypoint.sh /docker-entrypoint.sh

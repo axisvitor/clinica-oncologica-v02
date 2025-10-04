@@ -4,7 +4,7 @@ import path from 'node:path'
 const nextConfig = {
   // Essential production configuration
   // Temporary: disable standalone to avoid Windows pnpm symlink issues
-  // output: 'standalone',
+  output: 'standalone',
   compress: true,
   poweredByHeader: false,
 

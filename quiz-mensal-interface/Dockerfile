@@ -1,7 +1,7 @@
 # Quiz Mensal Interface - Next.js 14 (Dockerfile)
 # Single-stage build for simplicity on Railway
 
-FROM node:20-alpine
+FROM node:20-alpine@sha256:2d07db07a2df6830718ae2a47db6fedce6745f5bcd174c398f2acdda90a11c03
 
 # System dependencies (curl for healthcheck)
 RUN apk add --no-cache curl
@@ -37,4 +37,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 
 # Start Next in production, binding to 0.0.0.0 and PORT
 # Use pnpm exec to avoid arg forwarding issues
+USER node
 CMD ["sh", "-c", "pnpm exec next start -p ${PORT:-3000} -H 0.0.0.0"]
