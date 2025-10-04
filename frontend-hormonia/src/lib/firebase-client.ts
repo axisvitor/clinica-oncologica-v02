@@ -21,6 +21,9 @@ import {
   browserSessionPersistence,
   UserCredential
 } from 'firebase/auth'
+import { createLogger } from './logger'
+
+const logger = createLogger('FirebaseClient')
 
 // Firebase configuration from environment variables
 const firebaseConfig: FirebaseOptions = {
@@ -44,13 +47,13 @@ function validateFirebaseConfig(config: FirebaseOptions): void {
   for (const field of requiredFields) {
     if (!config[field]) {
       missingFields.push(`VITE_FIREBASE_${field.toUpperCase().replace(/([A-Z])/g, '_$1')}`)
-      console.error(`[Firebase] ${field} is not configured`)
+      logger.error(`${field} is not configured`)
     }
   }
 
   if (missingFields.length > 0) {
-    console.error(
-      `[Firebase] Missing required environment variables: ${missingFields.join(', ')}`
+    logger.error(
+      `Missing required environment variables: ${missingFields.join(', ')}`
     )
   }
 }
@@ -68,11 +71,11 @@ function initializeFirebaseApp(): FirebaseApp {
   const existingApps = getApps()
 
   if (existingApps.length > 0 && existingApps[0]) {
-    console.log('[Firebase] Using existing Firebase app instance')
+    logger.info('Using existing Firebase app instance')
     return existingApps[0]
   }
 
-  console.log('[Firebase] Initializing new Firebase app...')
+  logger.info('Initializing new Firebase app...')
 
   // Validate configuration before initialization
   validateFirebaseConfig(firebaseConfig)
@@ -85,10 +88,10 @@ function initializeFirebaseApp(): FirebaseApp {
 
   try {
     const app = initializeApp(firebaseConfig)
-    console.log('[Firebase] Firebase initialized successfully with project:', firebaseConfig.projectId)
+    logger.info('Firebase initialized successfully with project:', firebaseConfig.projectId)
     return app
   } catch (error: any) {
-    console.error('[Firebase] Failed to initialize Firebase:', error)
+    logger.error('Failed to initialize Firebase:', error)
     throw new Error(`Firebase initialization failed: ${error.message}`)
   }
 }
@@ -101,10 +104,10 @@ const auth: Auth = getAuth(app)
 if (import.meta.env.DEV) {
   // Verify single app instance
   const apps = getApps()
-  console.log('[Firebase] Total apps initialized:', apps.length)
+  logger.info('Total apps initialized:', apps.length)
 
   if (apps.length > 1) {
-    console.warn('[Firebase] Multiple Firebase apps detected! This may cause issues.')
+    logger.warn('Multiple Firebase apps detected! This may cause issues.')
   }
 }
 
@@ -168,7 +171,7 @@ export const firebaseAuth = {
     error: Error | null
   }> {
     try {
-      console.log('[Firebase] Attempting sign in...')
+      logger.info('Attempting sign in...')
 
       const userCredential: UserCredential = await signInWithEmailAndPassword(
         auth,
@@ -177,7 +180,7 @@ export const firebaseAuth = {
       )
 
       const token = await userCredential.user.getIdToken()
-      console.log('[Firebase] Sign in successful')
+      logger.info('Sign in successful')
 
       return {
         user: userCredential.user,
@@ -189,7 +192,7 @@ export const firebaseAuth = {
       const userMessage = mapFirebaseErrorToMessage(errorCode)
 
       // Log actual error for debugging (but don't expose to user)
-      console.error('[Firebase] Sign in error:', errorCode, error)
+      logger.error('Sign in error:', errorCode, error)
 
       return {
         user: null,
@@ -212,7 +215,7 @@ export const firebaseAuth = {
     error: Error | null
   }> {
     try {
-      console.log('[Firebase] Creating user...')
+      logger.info('Creating user...')
       const userCredential: UserCredential = await createUserWithEmailAndPassword(
         auth,
         credentials.email,
@@ -231,7 +234,7 @@ export const firebaseAuth = {
 
       const token = await userCredential.user.getIdToken()
 
-      console.log('[Firebase] User created successfully')
+      logger.info('User created successfully')
       return {
         user: userCredential.user,
         session: { access_token: token },
@@ -242,7 +245,7 @@ export const firebaseAuth = {
       const userMessage = mapFirebaseErrorToMessage(errorCode)
 
       // Log actual error for debugging (but don't expose to user)
-      console.error('[Firebase] Sign up error:', errorCode, error)
+      logger.error('Sign up error:', errorCode, error)
 
       return {
         user: null,
@@ -257,16 +260,16 @@ export const firebaseAuth = {
    */
   async signOut(): Promise<{ error: Error | null }> {
     try {
-      console.log('[Firebase] Signing out user')
+      logger.info('Signing out user')
       await firebaseSignOut(auth)
-      console.log('[Firebase] Sign out successful')
+      logger.info('Sign out successful')
       return { error: null }
     } catch (error: unknown) {
       const errorCode = getFirebaseErrorCode(error)
       const userMessage = mapFirebaseErrorToMessage(errorCode)
 
       // Log actual error for debugging
-      console.error('[Firebase] Sign out error:', errorCode, error)
+      logger.error('Sign out error:', errorCode, error)
 
       return { error: new Error(userMessage) }
     }
@@ -285,7 +288,7 @@ export const firebaseAuth = {
       return null
     } catch (error: unknown) {
       const errorCode = getFirebaseErrorCode(error)
-      console.error('[Firebase] Get session error:', errorCode, error)
+      logger.error('Get session error:', errorCode, error)
       return null
     }
   },
@@ -310,7 +313,7 @@ export const firebaseAuth = {
       return null
     } catch (error: unknown) {
       const errorCode = getFirebaseErrorCode(error)
-      console.error('[Firebase] Refresh session error:', errorCode, error)
+      logger.error('Refresh session error:', errorCode, error)
       return null
     }
   },
@@ -320,16 +323,16 @@ export const firebaseAuth = {
    */
   async resetPasswordForEmail(email: string): Promise<{ error: Error | null }> {
     try {
-      console.log('[Firebase] Sending password reset email...')
+      logger.info('Sending password reset email...')
       await sendPasswordResetEmail(auth, email)
-      console.log('[Firebase] Password reset email sent')
+      logger.info('Password reset email sent')
       return { error: null }
     } catch (error: unknown) {
       const errorCode = getFirebaseErrorCode(error)
       const userMessage = mapFirebaseErrorToMessage(errorCode)
 
       // Log actual error for debugging
-      console.error('[Firebase] Password reset error:', errorCode, error)
+      logger.error('Password reset error:', errorCode, error)
 
       return { error: new Error(userMessage) }
     }

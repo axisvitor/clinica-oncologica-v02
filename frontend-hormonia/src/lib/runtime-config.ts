@@ -13,6 +13,10 @@
  * - Support for Railway's dynamic environment injection
  */
 
+import { createLogger } from './logger';
+
+const logger = createLogger('RuntimeConfig');
+
 // Environment configuration interface
 export interface RuntimeConfig {
   VITE_SUPABASE_URL: string;
@@ -117,7 +121,7 @@ async function loadRuntimeConfiguration(): Promise<RuntimeConfig> {
 
   const isProduction = isProductionMode();
   if (!isProduction) {
-    console.log('[RuntimeConfig] Loading configuration, production mode:', isProduction);
+    logger.log('Loading configuration, production mode:', isProduction);
   }
 
   // In development, use Vite's import.meta.env directly
@@ -177,21 +181,21 @@ async function loadRuntimeConfiguration(): Promise<RuntimeConfig> {
       const config = await loadSource();
       if (config && isValidConfig(config)) {
         if (!isProduction) {
-          console.log('[RuntimeConfig] Successfully loaded from:', loadSource.name);
+          logger.log('Successfully loaded from:', loadSource.name);
         }
         runtimeConfig = config;
         return config;
       }
     } catch (error) {
       if (!isProduction) {
-        console.warn(`[RuntimeConfig] Failed to load from ${loadSource.name}:`, error);
+        logger.warn(`Failed to load from ${loadSource.name}:`, error);
       }
     }
   }
 
   // Final fallback
   if (!isProduction) {
-    console.warn('[RuntimeConfig] Using production fallback configuration');
+    logger.warn('Using production fallback configuration');
   }
   runtimeConfig = PRODUCTION_FALLBACK_CONFIG;
   return PRODUCTION_FALLBACK_CONFIG;
@@ -215,13 +219,13 @@ async function loadFromRuntimeAPI(): Promise<RuntimeConfig | null> {
     if (response.ok) {
       const config = await response.json();
       if (import.meta.env.DEV) {
-        console.log('[RuntimeConfig] Loaded from API endpoint');
+        logger.log('Loaded from API endpoint');
       }
       return config;
     }
   } catch (error) {
     if (import.meta.env.DEV) {
-      console.warn('[RuntimeConfig] API endpoint not available:', error);
+      logger.warn('API endpoint not available:', error);
     }
   }
   return null;
@@ -234,7 +238,7 @@ async function loadFromWindowConfig(): Promise<RuntimeConfig | null> {
   // Check if config was injected by server-side rendering or runtime script
   if (typeof window !== 'undefined' && (window as any).__ENV_CONFIG__) {
     if (import.meta.env.DEV) {
-      console.log('[RuntimeConfig] Loaded from window.__ENV_CONFIG__');
+      logger.log('Loaded from window.__ENV_CONFIG__');
     }
     return (window as any).__ENV_CONFIG__;
   }
@@ -245,13 +249,13 @@ async function loadFromWindowConfig(): Promise<RuntimeConfig | null> {
       const config = await (window as any).__RUNTIME_CONFIG__.loadConfig();
       if (config) {
         if (import.meta.env.DEV) {
-          console.log('[RuntimeConfig] Loaded from window.__RUNTIME_CONFIG__');
+          logger.log('Loaded from window.__RUNTIME_CONFIG__');
         }
         return config;
       }
     } catch (error) {
       if (import.meta.env.DEV) {
-        console.warn('[RuntimeConfig] Runtime config loader failed:', error);
+        logger.warn('Runtime config loader failed:', error);
       }
     }
   }
@@ -279,7 +283,7 @@ async function loadFromMetaEnv(): Promise<RuntimeConfig | null> {
     // Merge with fallback config for missing values
     const config = { ...PRODUCTION_FALLBACK_CONFIG, ...metaEnvConfig };
     if (import.meta.env.DEV) {
-      console.log('[RuntimeConfig] Loaded from import.meta.env with fallbacks');
+      logger.log('Loaded from import.meta.env with fallbacks');
     }
     return config;
   }
@@ -292,7 +296,7 @@ async function loadFromMetaEnv(): Promise<RuntimeConfig | null> {
  */
 async function loadFromFallback(): Promise<RuntimeConfig> {
   if (import.meta.env.DEV) {
-    console.log('[RuntimeConfig] Using production fallback configuration');
+    logger.log('Using production fallback configuration');
   }
   return PRODUCTION_FALLBACK_CONFIG;
 }
@@ -313,21 +317,21 @@ function isValidConfig(config: any): config is RuntimeConfig {
   const missingFields = requiredFields.filter(field => {
     const hasField = config && typeof config[field] === 'string' && config[field].length > 0;
     if (!hasField && import.meta.env.DEV) {
-      console.warn(`[RuntimeConfig] Missing required field: ${field}`);
+      logger.warn(`Missing required field: ${field}`);
     }
     return !hasField;
   });
 
   if (missingFields.length > 0) {
     if (import.meta.env.DEV) {
-      console.warn(`[RuntimeConfig] Configuration validation: missing ${missingFields.join(', ')}`);
+      logger.warn(`Configuration validation: missing ${missingFields.join(', ')}`);
       // In dev mode with mock auth, allow partial config
       if (useMockAuth) {
-        console.log('[RuntimeConfig] Using mock auth, allowing partial configuration');
+        logger.log('Using mock auth, allowing partial configuration');
         return true;
       }
     }
-    console.error(`[RuntimeConfig] Configuration validation failed. Missing required fields: ${missingFields.join(', ')}`);
+    logger.error(`Configuration validation failed. Missing required fields: ${missingFields.join(', ')}`);
     return false;
   }
 

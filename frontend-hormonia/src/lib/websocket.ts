@@ -1,5 +1,8 @@
 // WebSocket configuration resolution (lazy, non-fatal)
 import { getRuntimeConfigSync } from './runtime-config'
+import { createLogger } from './logger'
+
+const logger = createLogger('WebSocket')
 
 function resolveWsBaseUrl(): string | null {
   const envUrl = (import.meta.env as any).VITE_WS_BASE_URL as string | undefined
@@ -20,7 +23,7 @@ let WS_BASE_URL: string | null = resolveWsBaseUrl()
 
 if (!WS_BASE_URL && import.meta.env.MODE === 'production') {
   // Do not throw — disable WS gracefully and allow UI to render
-  console.warn('[WebSocket] VITE_WS_BASE_URL not set; WebSocket features disabled')
+  logger.warn('VITE_WS_BASE_URL not set; WebSocket features disabled')
 }
 
 const APP_CONFIG = {
@@ -82,9 +85,7 @@ class WebSocketManager {
     this.connectionPromise = new Promise((resolve, reject) => {
       const base = WS_BASE_URL || resolveWsBaseUrl()
       if (!base) {
-        if (import.meta.env.DEV) {
-          console.warn('WS base URL missing; skipping WebSocket connect')
-        }
+        logger.warn('WS base URL missing; skipping WebSocket connect')
         this.isConnecting = false
         this.shouldReconnect = false
         return resolve()
@@ -96,9 +97,7 @@ class WebSocketManager {
         this.ws = new WebSocket(wsUrl)
 
         this.ws.onopen = () => {
-          if (import.meta.env.DEV) {
-            console.log('WebSocket connected')
-          }
+          logger.log('WebSocket connected')
           this.isConnecting = false
           this.reconnectAttempts = 0
           this.emit('connected', {})
@@ -123,14 +122,12 @@ class WebSocketManager {
             const message: WebSocketMessage = JSON.parse(event.data)
             this.handleMessage(message)
           } catch (error) {
-            console.error('Failed to parse WebSocket message:', error)
+            logger.error('Failed to parse WebSocket message:', error)
           }
         }
 
         this.ws.onclose = (event) => {
-          if (import.meta.env.DEV) {
-            console.log('WebSocket disconnected:', event.code, event.reason)
-          }
+          logger.log('WebSocket disconnected:', event.code, event.reason)
           this.isConnecting = false
           this.ws = null
           this.emit('disconnected', { code: event.code, reason: event.reason })
@@ -145,13 +142,13 @@ class WebSocketManager {
         }
 
         this.ws.onerror = (error) => {
-          console.error('WebSocket error:', error)
+          logger.error('WebSocket error:', error)
           this.isConnecting = false
           this.emit('error', { error })
           reject(error)
         }
       } catch (error) {
-        console.error('Failed to create WebSocket connection:', error)
+        logger.error('Failed to create WebSocket connection:', error)
         this.isConnecting = false
         this.emit('error', { error })
         reject(error)
@@ -204,7 +201,7 @@ class WebSocketManager {
         try {
           handler(message.data)
         } catch (error) {
-          console.error(`Error in WebSocket event handler for ${message.event}:`, error)
+          logger.error(`Error in WebSocket event handler for ${message.event}:`, error)
         }
       })
     }
@@ -245,9 +242,7 @@ class WebSocketManager {
 
   private attemptReconnect(token: string) {
     if (this.reconnectAttempts >= APP_CONFIG.reconnectAttempts) {
-      if (import.meta.env.DEV) {
-        console.log('Max reconnection attempts reached')
-      }
+      logger.log('Max reconnection attempts reached')
       this.emit('max_reconnect_attempts', {})
       this.shouldReconnect = false
       return
@@ -256,9 +251,7 @@ class WebSocketManager {
     const delay = APP_CONFIG.reconnectDelay * Math.pow(2, this.reconnectAttempts)
     this.reconnectAttempts++
 
-    if (import.meta.env.DEV) {
-      console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`)
-    }
+    logger.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`)
 
     this.reconnectTimer = setTimeout(() => {
       if (this.shouldReconnect) {
@@ -306,7 +299,7 @@ class WebSocketManager {
         try {
           handler(data)
         } catch (error) {
-          console.error(`Error in event handler for ${event}:`, error)
+          logger.error(`Error in event handler for ${event}:`, error)
         }
       })
     }
@@ -332,13 +325,9 @@ class WebSocketManager {
 
       this.ws.send(JSON.stringify(backendMessage))
 
-      if (import.meta.env.DEV) {
-        console.log(`[WebSocket] Sent: ${event} -> ${backendType}`, data)
-      }
+      logger.log(`Sent: ${event} -> ${backendType}`, data)
     } else {
-      if (import.meta.env.DEV) {
-        console.warn('WebSocket is not connected. Cannot send message:', event, data)
-      }
+      logger.warn('WebSocket is not connected. Cannot send message:', event, data)
     }
   }
 

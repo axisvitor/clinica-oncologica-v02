@@ -6,6 +6,9 @@ import mockAuthService from '../lib/mock-auth-service'
 import { firebaseAuth } from '../lib/firebase-client'
 import type { User as FirebaseUser } from 'firebase/auth'
 import { wsManager } from '../lib/websocket'
+import { createLogger } from '../lib/logger'
+
+const logger = createLogger('AuthContext')
 
 interface AuthContextType {
   user: User | null
@@ -70,7 +73,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const response = await apiClient.auth.me()
       return response.data
     } catch (error) {
-      console.warn('[AuthContext] Could not fetch user from backend, using Firebase data:', error)
+      logger.warn('Could not fetch user from backend, using Firebase data:', error)
       // Fallback to Firebase user data (snake_case to match User type)
       return {
         id: firebaseUser.uid,
@@ -87,34 +90,34 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Initialize from session
   useEffect(() => {
     const init = async (): Promise<void | (() => void)> => {
-      console.log('[AuthContext] Initializing authentication...')
+      logger.log('Initializing authentication...')
 
       if (isMockAuthEnabled()) {
-        console.log('[AuthContext] Using mock authentication')
+        logger.log('Using mock authentication')
         try {
           const mockUser = mockAuthService.getCurrentUser()
           const mockSession = mockAuthService.getSession()
 
           if (mockUser && mockSession) {
-            console.log('[AuthContext] Mock session found:', mockUser.email)
+            logger.log('Mock session found:', mockUser.email)
             setUser(mockUser)
             setSession({ access_token: mockSession.access_token })
             apiClient.setAuthToken(mockSession.access_token)
           } else {
-            console.log('[AuthContext] No active mock session')
+            logger.log('No active mock session')
           }
         } catch (error) {
-          console.error('[AuthContext] Mock auth initialization error:', error)
+          logger.error('Mock auth initialization error:', error)
         }
         setIsLoading(false)
         return undefined
       } else {
-        console.log('[AuthContext] Using Firebase authentication')
+        logger.log('Using Firebase authentication')
 
         // Set up Firebase auth state listener
         const unsubscribe = firebaseAuth.onAuthStateChange(async (firebaseUser) => {
           if (firebaseUser) {
-            console.log('[AuthContext] Firebase user signed in:', firebaseUser.email)
+            logger.log('Firebase user signed in:', firebaseUser.email)
             try {
               const token = await firebaseUser.getIdToken()
               const appUser = await transformFirebaseUser(firebaseUser)
@@ -124,23 +127,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
               apiClient.setAuthToken(token)
 
               // Connect WebSocket with Firebase token
-              console.log('[AuthContext] Connecting WebSocket...')
+              logger.log('Connecting WebSocket...')
               wsManager.connect(token)
             } catch (error) {
-              console.error('[AuthContext] Error transforming Firebase user:', error)
+              logger.error('Error transforming Firebase user:', error)
               setUser(null)
               setSession(null)
               apiClient.setAuthToken(null)
               wsManager.disconnect()
             }
           } else {
-            console.log('[AuthContext] No Firebase user signed in')
+            logger.log('No Firebase user signed in')
             setUser(null)
             setSession(null)
             apiClient.setAuthToken(null)
 
             // Disconnect WebSocket when user logs out
-            console.log('[AuthContext] Disconnecting WebSocket...')
+            logger.log('Disconnecting WebSocket...')
             wsManager.disconnect()
           }
           setIsLoading(false)
@@ -151,7 +154,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           if (firebaseUser) {
             try {
               const newToken = await firebaseUser.getIdToken()
-              console.log('[AuthContext] Firebase token refreshed')
+              logger.log('Firebase token refreshed')
 
               // Update WebSocket with new token
               wsManager.updateToken(newToken)
@@ -160,14 +163,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
               apiClient.setAuthToken(newToken)
               setSession({ access_token: newToken })
             } catch (error) {
-              console.error('[AuthContext] Error refreshing token:', error)
+              logger.error('Error refreshing token:', error)
             }
           }
         })
 
         // Cleanup subscription on unmount
         return () => {
-          console.log('[AuthContext] Cleaning up Firebase auth listeners')
+          logger.log('Cleaning up Firebase auth listeners')
           unsubscribe()
           unsubscribeTokenRefresh()
           wsManager.disconnect()
@@ -181,7 +184,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const login = async (email: string, password: string) => {
     setIsLoading(true)
     try {
-      console.log('[AuthContext] Attempting login:', email)
+      logger.log('Attempting login:', email)
 
       if (isMockAuthEnabled()) {
         const result = await mockAuthService.signIn(email, password)
@@ -190,7 +193,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           throw new Error(result.error || 'Login failed')
         }
 
-        console.log('[AuthContext] Mock login successful:', result.user.email)
+        logger.log('Mock login successful:', result.user.email)
         setUser(result.user)
         setSession({ access_token: result.session.access_token })
         apiClient.setAuthToken(result.session.access_token)
@@ -204,7 +207,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           throw result.error || new Error('Login failed')
         }
 
-        console.log('[AuthContext] Firebase login successful:', result.user.email)
+        logger.log('Firebase login successful:', result.user.email)
 
         const appUser = await transformFirebaseUser(result.user)
         setUser(appUser)
@@ -215,7 +218,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         wsManager.connect(result.session.access_token)
       }
     } catch (error: any) {
-      console.error('[AuthContext] Login failed:', error)
+      logger.error('Login failed:', error)
       setUser(null)
       setSession(null)
       apiClient.setAuthToken(null)
@@ -227,7 +230,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const logout = useCallback(async () => {
     try {
-      console.log('[AuthContext] Logging out...')
+      logger.log('Logging out...')
 
       if (isMockAuthEnabled()) {
         await mockAuthService.signOut()
@@ -241,9 +244,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Disconnect WebSocket on logout
       wsManager.disconnect()
-      console.log('[AuthContext] Logout complete')
+      logger.log('Logout complete')
     } catch (error) {
-      console.error('[AuthContext] Logout error:', error)
+      logger.error('Logout error:', error)
       apiClient.setAuthToken(null)
       setUser(null)
       setSession(null)

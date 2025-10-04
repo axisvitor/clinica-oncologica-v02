@@ -6,7 +6,10 @@
  * properly passed to the Vite build process.
  */
 
+import { createLogger } from './lib/logger';
 import { getRuntimeConfig, getRuntimeConfigSync, isProduction } from './lib/runtime-config';
+
+const logger = createLogger('Config');
 
 // Re-export runtime config functions for external access
 export { getRuntimeConfig, getRuntimeConfigSync, isProduction } from './lib/runtime-config';
@@ -74,21 +77,21 @@ export async function loadConfig() {
 
         // Supabase is optional (only required if using Supabase features)
         if (!config.SUPABASE_URL) {
-          console.warn('[Config] Supabase URL not configured. Supabase features will be disabled.');
+          logger.warn('Supabase URL not configured. Supabase features will be disabled.');
         }
         if (!config.SUPABASE_ANON_KEY) {
-          console.warn('[Config] Supabase Anon Key not configured. Supabase features will be disabled.');
+          logger.warn('Supabase Anon Key not configured. Supabase features will be disabled.');
         }
 
         // WebSocket is optional
         if (!config.WS_BASE_URL) {
-          console.warn('[Config] WebSocket URL not configured. Real-time features may be limited.');
+          logger.warn('WebSocket URL not configured. Real-time features may be limited.');
         }
 
         syncConfig = config;
         return config;
       } catch (error) {
-        console.error('[Config] Failed to load configuration:', error);
+        logger.error('Failed to load configuration:', error);
         throw error;
       }
     })();
@@ -129,7 +132,7 @@ loadConfig().then(config => {
   if (config.API_BASE_URL !== API_BASE_URL) API_BASE_URL = config.API_BASE_URL;
   if (config.WS_BASE_URL !== WS_BASE_URL) WS_BASE_URL = config.WS_BASE_URL;
 }).catch(error => {
-  console.error('[Config] Failed to initialize configuration:', error);
+  logger.error('Failed to initialize configuration:', error);
 });
 
 // Static fallback values from environment

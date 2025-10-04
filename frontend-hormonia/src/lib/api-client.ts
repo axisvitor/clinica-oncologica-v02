@@ -2,6 +2,7 @@ import { API_BASE_URL } from '../config'
 import { transformPaginationResponse, transformFlowListResponse, transformReportDownload } from './response-transformers'
 import { isMockApiEnabled } from '../config/mock.config'
 import { mockApiHandler } from './mock-api-handler'
+import { createLogger } from './logger'
 import type {
   PaginatedResponse,
   Patient,
@@ -41,6 +42,8 @@ import type {
   PatientAnalytics,
   EngagementAnalytics,
 } from '../types/api-responses'
+
+const logger = createLogger('ApiClient')
 
 // Use a default URL in case config hasn't loaded yet
 const getApiUrl = () => {
@@ -85,10 +88,10 @@ class ApiClient {
    */
   setBaseURL(url: string) {
     if (!url) {
-      console.warn('[ApiClient] Attempted to set empty base URL')
+      logger.warn('Attempted to set empty base URL')
       return
     }
-    console.log('[ApiClient] Setting base URL:', url)
+    logger.log('Setting base URL:', url)
     this.baseURL = url
     this.initialized = true
   }
@@ -120,10 +123,10 @@ class ApiClient {
   private buildUrl(endpoint: string, params?: Record<string, string | number | boolean>): string {
     // Warn if using uninitialized client
     if (!this.initialized) {
-      console.warn('[ApiClient] Making request before initialization. Using fallback URL:', this.baseURL)
+      logger.warn('Making request before initialization. Using fallback URL:', this.baseURL)
     }
     const url = new URL(`${this.baseURL}${endpoint}`)
-    
+
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -131,7 +134,7 @@ class ApiClient {
         }
       })
     }
-    
+
     return url.toString()
   }
 
@@ -163,7 +166,7 @@ class ApiClient {
   ): Promise<T> {
     // Use mock API if enabled
     if (isMockApiEnabled()) {
-      console.log('[ApiClient] Using mock API for:', endpoint)
+      logger.log('Using mock API for:', endpoint)
       const { params, ...fetchOptions } = options
       const url = this.buildUrl(endpoint, params)
       return mockApiHandler.handleRequest<T>(url, fetchOptions)
@@ -259,7 +262,7 @@ class ApiClient {
 
         // Retry with exponential backoff
         const delay = baseDelay * Math.pow(2, attempt - 1)
-        console.log(`[ApiClient] Tentativa ${attempt}/${maxAttempts} falhou. Tentando novamente em ${delay}ms...`)
+        logger.log(`Tentativa ${attempt}/${maxAttempts} falhou. Tentando novamente em ${delay}ms...`)
         await this._sleep(delay)
       }
     }
