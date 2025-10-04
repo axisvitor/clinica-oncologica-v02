@@ -76,13 +76,18 @@
 ### Database (PostgreSQL + Supabase)
 **Score**: ✅ **100/100** - Production Ready
 
-#### ✅ Migrations Aplicadas
-- [x] Schema v2 completo (20251004_schema_v2_migration.sql)
-- [x] Materialized views para analytics
-- [x] GIN indexes para JSONB
-- [x] RLS policies para admin
+#### ✅ Schema Completo (SCHEMA_MASTER_COMPLETO.sql)
+- [x] 41 tabelas criadas
+- [x] 110+ índices otimizados (incluindo 14 GIN indexes)
+- [x] 10 ENUMs customizados
+- [x] 5 materialized views para analytics
+- [x] 12+ triggers automáticos
+- [x] 6+ funções (cleanup, audit)
+- [x] RLS policies completas
 - [x] Foreign key cascade rules
-- [x] Message type enum expandido
+
+**Arquivo**: `backend-hormonia/sql/SCHEMA_MASTER_COMPLETO.sql` (66 KB, 1.670 linhas)
+**Migrations**: NÃO necessárias (schema já consolidado)
 
 **Readiness**: **PRONTO PARA PRODUÇÃO**
 
@@ -138,7 +143,36 @@ CORS_ORIGINS=["https://frontend-hormonia.railway.app"]
 # 4. Verificar health: /health endpoint
 ```
 
-### Fase 2: Frontend Service
+### Fase 2: Criar Schema no Supabase (CRÍTICO)
+
+⚠️ **ANTES de testar o backend, crie o schema do banco!**
+
+```sql
+-- 1. Acesse: https://app.supabase.com
+-- 2. Selecione seu projeto
+-- 3. Vá em: SQL Editor (menu lateral)
+-- 4. Clique em "New Query"
+-- 5. Abra: backend-hormonia/sql/SCHEMA_MASTER_COMPLETO.sql no VS Code
+-- 6. Copie TODO o conteúdo (1.670 linhas)
+-- 7. Cole no SQL Editor
+-- 8. Clique em "Run" (▶️)
+-- 9. Aguarde ~30-60 segundos
+-- 10. Verifique sucesso:
+--     ✅ Created 4 extensions
+--     ✅ Created 10 custom types
+--     ✅ Created 41 tables
+--     ✅ Created 110+ indexes
+--     ✅ Created 5 materialized views
+--     ✅ Created 6 functions
+--     ✅ Created 12 triggers
+```
+
+**IMPORTANTE:**
+- ❌ **NÃO executar migrations individuais** (pasta `migrations/`)
+- ✅ **USAR APENAS** `SCHEMA_MASTER_COMPLETO.sql` (já contém tudo)
+- 📖 **Ver guia completo**: `docs/deployment/DATABASE_DEPLOYMENT_STRATEGY.md`
+
+### Fase 3: Frontend Service
 ```bash
 # 1. Criar service "frontend-hormonia"
 # 2. Configurar environment variables:
@@ -148,11 +182,10 @@ BACKEND_URL=https://backend-hormonia.railway.app
 # 4. Verificar: / (deve retornar index.html)
 ```
 
-### Fase 3: Validação Pós-Deploy
+### Fase 4: Validação Pós-Deploy
 ```bash
 # 1. Atualizar CORS no backend (adicionar frontend URL)
-# 2. Executar migrations no Railway Postgres
-# 3. Testar health checks:
+# 2. Testar health checks:
 curl https://backend-hormonia.railway.app/health
 curl https://frontend-hormonia.railway.app/
 
