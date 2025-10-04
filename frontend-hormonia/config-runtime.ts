@@ -5,8 +5,7 @@ interface RuntimeConfig {
   VITE_SUPABASE_URL: string;
   VITE_SUPABASE_ANON_KEY: string;
   VITE_API_URL: string;
-  VITE_API_BASE_URL: string;
-  VITE_WS_BASE_URL: string;
+  VITE_WS_URL: string;
   NODE_ENV: string;
 }
 
@@ -39,10 +38,9 @@ export function getRuntimeConfig(): RuntimeConfig {
   const buildTimeConfig: RuntimeConfig = {
     VITE_SUPABASE_URL: import.meta.env['VITE_SUPABASE_URL'] || '',
     VITE_SUPABASE_ANON_KEY: import.meta.env['VITE_SUPABASE_ANON_KEY'] || '',
-    VITE_API_URL: import.meta.env['VITE_API_URL'] || 'https://backend-production-e0bd.up.railway.app/api/v1', // deprecated, use VITE_API_BASE_URL
-    VITE_API_BASE_URL: import.meta.env['VITE_API_BASE_URL'] || 'https://backend-production-e0bd.up.railway.app',
-    VITE_WS_BASE_URL: import.meta.env['VITE_WS_BASE_URL'] || 'wss://backend-production-e0bd.up.railway.app/ws',
-    NODE_ENV: import.meta.env['NODE_ENV'] || 'production'
+    VITE_API_URL: import.meta.env['VITE_API_URL'] || 'http://localhost:8000/api/v1',
+    VITE_WS_URL: import.meta.env['VITE_WS_URL'] || 'ws://localhost:8000/ws',
+    NODE_ENV: import.meta.env['NODE_ENV'] || 'development'
   };
 
   if (isDevelopment) {
@@ -59,8 +57,7 @@ export function getApiConfig() {
 
   return {
     apiUrl: config.VITE_API_URL,
-    apiBaseUrl: config.VITE_API_BASE_URL,
-    wsUrl: config.VITE_WS_BASE_URL,
+    wsUrl: config.VITE_WS_URL,
     supabaseUrl: config.VITE_SUPABASE_URL,
     supabaseAnonKey: config.VITE_SUPABASE_ANON_KEY,
     isProduction: config.NODE_ENV === 'production'
@@ -76,8 +73,7 @@ export function debugConfig() {
     console.group('🔧 Frontend Configuration Debug');
     console.log('Supabase URL:', config.VITE_SUPABASE_URL);
     console.log('API URL:', config.VITE_API_URL);
-    console.log('API Base URL:', config.VITE_API_BASE_URL);
-    console.log('WebSocket URL:', config.VITE_WS_BASE_URL);
+    console.log('WebSocket URL:', config.VITE_WS_URL);
     console.log('Environment:', config.NODE_ENV);
     console.groupEnd();
   }

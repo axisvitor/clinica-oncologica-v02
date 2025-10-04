@@ -28,7 +28,8 @@ export default function PacientesList() {
   const fetchPacientes = async () => {
     try {
       setLoading(true)
-      const response = await fetch('http://localhost:3003/api/pacientes', {
+      const apiUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL
+      const response = await fetch(`${apiUrl}/api/pacientes`, {
         headers: {
           'Authorization': `Bearer ${state.token}`,
         },

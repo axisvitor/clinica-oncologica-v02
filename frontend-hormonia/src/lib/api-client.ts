@@ -135,6 +135,28 @@ class ApiClient {
     return url.toString()
   }
 
+  private _shouldRetry(error: any, attempt: number): boolean {
+    // Don't retry on last attempt
+    if (attempt >= 3) return false
+
+    // Retry on network errors
+    if (error instanceof TypeError) return true
+
+    // Retry on timeout
+    if (error instanceof DOMException && error.name === 'AbortError') return true
+
+    // Retry on server errors and rate limits
+    if (error instanceof ApiError) {
+      return [408, 429, 500, 502, 503, 504].includes(error.status)
+    }
+
+    return false
+  }
+
+  private async _sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms))
+  }
+
   async request<T>(
     endpoint: string,
     options: RequestOptions = {}
@@ -147,86 +169,103 @@ class ApiClient {
       return mockApiHandler.handleRequest<T>(url, fetchOptions)
     }
 
-    const { params, ...fetchOptions } = options
-    const url = this.buildUrl(endpoint, params)
+    const maxAttempts = 3
+    const baseDelay = 1000 // 1 second
 
-    // Check if body is FormData to avoid setting Content-Type header
-    const isFormData = fetchOptions.body instanceof FormData
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const { params, ...fetchOptions } = options
+        const url = this.buildUrl(endpoint, params)
 
-    const headers: Record<string, string> = {
-      ...(options.headers as Record<string, string> | undefined)
-    }
+        // Check if body is FormData to avoid setting Content-Type header
+        const isFormData = fetchOptions.body instanceof FormData
 
-    // Only set Content-Type if not FormData (browser will set correct multipart boundary)
-    if (!isFormData) {
-      headers['Content-Type'] = 'application/json'
-    }
-
-    // Allow overriding Content-Type if specified in options (and not FormData)
-    if (!isFormData && options.headers && 'Content-Type' in options.headers) {
-      headers['Content-Type'] = (options.headers as any)['Content-Type']
-    }
-
-    if (this.authToken) {
-      headers['Authorization'] = `Bearer ${this.authToken}`
-    }
-
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
-
-      const response = await fetch(url, {
-        ...fetchOptions,
-        headers,
-        signal: controller.signal
-      })
-
-      clearTimeout(timeoutId)
-
-      if (!response.ok) {
-        let errorData: any = {}
-        try {
-          errorData = await response.json()
-        } catch {
-          errorData = { message: `HTTP ${response.status}: ${response.statusText}` }
+        const headers: Record<string, string> = {
+          ...(options.headers as Record<string, string> | undefined)
         }
-        throw new ApiError(response.status, errorData, errorData.message)
-      }
 
-      const contentType = response.headers.get('content-type')
-      const contentLength = response.headers.get('content-length')
+        // Only set Content-Type if not FormData (browser will set correct multipart boundary)
+        if (!isFormData) {
+          headers['Content-Type'] = 'application/json'
+        }
 
-      if (response.status === 204 || response.status === 205 || response.status === 304 || (!contentType && (!contentLength || contentLength === '0'))) {
-        return undefined as T
-      }
+        // Allow overriding Content-Type if specified in options (and not FormData)
+        if (!isFormData && options.headers && 'Content-Type' in options.headers) {
+          headers['Content-Type'] = (options.headers as any)['Content-Type']
+        }
 
-      if (contentType && contentType.includes('application/json')) {
-        return await response.json()
-      }
+        if (this.authToken) {
+          headers['Authorization'] = `Bearer ${this.authToken}`
+        }
 
-      if (contentType && contentType.includes('text/plain')) {
-        return (await response.text()) as unknown as T
-      }
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
 
-      return response as unknown as T
-    } catch (error) {
-      if (error instanceof ApiError) {
-        throw error
-      }
-      
-      // Handle network errors
-      if (error instanceof TypeError && 'message' in error && String(error.message).includes('fetch')) {
-        throw new ApiError(0, { message: 'Falha ao conectar ao servidor' }, 'Não foi possível conectar ao servidor. Verifique sua conexão com a internet.')
-      }
+        const response = await fetch(url, {
+          ...fetchOptions,
+          headers,
+          signal: controller.signal
+        })
 
-      // Handle timeout errors
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        throw new ApiError(408, { message: 'Timeout' }, 'A requisição demorou muito para responder. Tente novamente.')
+        clearTimeout(timeoutId)
+
+        if (!response.ok) {
+          let errorData: any = {}
+          try {
+            errorData = await response.json()
+          } catch {
+            errorData = { message: `HTTP ${response.status}: ${response.statusText}` }
+          }
+          throw new ApiError(response.status, errorData, errorData.message)
+        }
+
+        const contentType = response.headers.get('content-type')
+        const contentLength = response.headers.get('content-length')
+
+        if (response.status === 204 || response.status === 205 || response.status === 304 || (!contentType && (!contentLength || contentLength === '0'))) {
+          return undefined as T
+        }
+
+        if (contentType && contentType.includes('application/json')) {
+          return await response.json()
+        }
+
+        if (contentType && contentType.includes('text/plain')) {
+          return (await response.text()) as unknown as T
+        }
+
+        return response as unknown as T
+
+      } catch (error) {
+        // If this is not retryable or last attempt, throw immediately
+        if (!this._shouldRetry(error, attempt)) {
+          if (error instanceof ApiError) {
+            throw error
+          }
+
+          // Handle network errors
+          if (error instanceof TypeError && 'message' in error && String(error.message).includes('fetch')) {
+            throw new ApiError(0, { message: 'Falha ao conectar ao servidor' }, 'Não foi possível conectar ao servidor. Verifique sua conexão com a internet.')
+          }
+
+          // Handle timeout errors
+          if (error instanceof DOMException && error.name === 'AbortError') {
+            throw new ApiError(408, { message: 'Timeout' }, 'A requisição demorou muito para responder. Tente novamente.')
+          }
+
+          // Handle other errors
+          throw new ApiError(500, { message: 'Erro de rede' }, 'Erro de conexão. Verifique sua internet e tente novamente.')
+        }
+
+        // Retry with exponential backoff
+        const delay = baseDelay * Math.pow(2, attempt - 1)
+        console.log(`[ApiClient] Tentativa ${attempt}/${maxAttempts} falhou. Tentando novamente em ${delay}ms...`)
+        await this._sleep(delay)
       }
-      
-      // Handle other errors
-      throw new ApiError(500, { message: 'Erro de rede' }, 'Erro de conexão. Verifique sua internet e tente novamente.')
     }
+
+    // This should never be reached but TypeScript requires it
+    throw new ApiError(500, { message: 'Erro de rede' }, 'Erro após múltiplas tentativas.')
   }
 
   // Convenience methods that wrap the request() method

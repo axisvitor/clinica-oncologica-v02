@@ -160,17 +160,35 @@ def create_enhanced_cors_middleware(
 
 
 # Quiz-specific CORS configuration
-QUIZ_CORS_PATTERNS = [
-    # Local development
-    "http://localhost:3001",
-    "http://localhost:5174",
-    # Railway production patterns - explicit and wildcard
-    "https://interface-quiz-production.up.railway.app",  # Explicit Interface URL
-    "https://*.railway.app",
-    "https://quiz-*.railway.app",
-    "https://*-quiz.railway.app",
-    "https://quiz-mensal-interface.railway.app"
-]
+def get_quiz_cors_patterns() -> List[str]:
+    """Get CORS patterns based on environment - NO wildcards in production."""
+    import os
+
+    environment = os.getenv('ENVIRONMENT', 'development').lower()
+
+    patterns = [
+        # Local development
+        "http://localhost:3001",
+        "http://localhost:5174",
+        # Railway production - EXPLICIT URLs ONLY
+        "https://interface-quiz-production.up.railway.app",
+        "https://quiz-mensal-interface.railway.app",
+        "https://quiz-interface-production.up.railway.app",
+        "https://frontend-production-18bb.up.railway.app",
+        "https://hormonia-frontend.railway.app"
+    ]
+
+    # ONLY allow wildcards in development/staging
+    if environment in ['development', 'staging', 'dev']:
+        patterns.extend([
+            "https://*.railway.app",
+            "https://quiz-*.railway.app",
+            "https://*-quiz.railway.app"
+        ])
+
+    return patterns
+
+QUIZ_CORS_PATTERNS = get_quiz_cors_patterns()
 
 
 def get_quiz_cors_config() -> dict:

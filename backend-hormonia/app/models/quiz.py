@@ -1,7 +1,7 @@
 """
 Quiz and assessment models.
 """
-from sqlalchemy import Column, String, Text, Boolean, DateTime, ForeignKey, Integer, Index, CheckConstraint, UniqueConstraint
+from sqlalchemy import Column, String, Text, Boolean, DateTime, ForeignKey, Integer, Numeric, Index, CheckConstraint, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, validates
 
@@ -62,31 +62,37 @@ class QuizSession(BaseModel):
     patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
     quiz_template_id = Column(UUID(as_uuid=True), ForeignKey("quiz_templates.id", ondelete="RESTRICT"), nullable=False)
 
-    # Session state
-    current_question_index = Column(Integer, nullable=False, default=0)
-    is_completed = Column(Boolean, nullable=False, default=False)
-    status = Column(String(50), nullable=False, default="in_progress")  # in_progress, completed, cancelled
-    total_score = Column(Integer, nullable=True, default=0)
+    # Session state - FIX: Match actual database schema
+    status = Column(String(50), nullable=False, default="started")  # started, completed, cancelled
+    current_question = Column(Integer, nullable=True, default=0)  # FIX: Renamed from current_question_index
+    total_questions = Column(Integer, nullable=True)
+    answered_questions = Column(Integer, nullable=True, default=0)
 
-    # Session metadata for tracking additional info
-    session_metadata = Column(JSONB, nullable=True, default=dict)
+    # Scores - FIX: Match actual database schema (DECIMAL not INTEGER)
+    score = Column(Numeric(5, 2), nullable=True)  # FIX: Renamed from total_score
+    max_score = Column(Numeric(5, 2), nullable=True)
+    passed = Column(Boolean, nullable=True)
 
     # Timing
     started_at = Column(DateTime(timezone=True), nullable=False)
     completed_at = Column(DateTime(timezone=True), nullable=True)
+    time_spent_seconds = Column(Integer, nullable=True)
+
+    # Session metadata for tracking additional info
+    session_metadata = Column(JSONB, nullable=True, default=dict)
 
     # Relationships
     patient = relationship("Patient", back_populates="quiz_sessions")
     quiz_template = relationship("QuizTemplate", back_populates="sessions")
     responses = relationship("QuizResponse", back_populates="quiz_session")
 
-    # Database constraints and indexes
+    # Database constraints and indexes - FIX: Match actual database schema
     __table_args__ = (
         # Check constraints for data integrity
-        CheckConstraint('current_question_index >= 0', name='ck_quiz_session_question_index_positive'),
-        CheckConstraint('total_score >= 0', name='ck_quiz_session_score_positive'),
+        CheckConstraint('current_question >= 0', name='ck_quiz_session_question_positive'),
+        CheckConstraint('score >= 0', name='ck_quiz_session_score_positive'),
         CheckConstraint(
-            "status IN ('in_progress', 'completed', 'cancelled')",
+            "status IN ('started', 'completed', 'cancelled')",
             name='ck_quiz_session_status_valid'
         ),
         CheckConstraint(
@@ -110,21 +116,22 @@ class QuizSession(BaseModel):
 
     @validates('status')
     def validate_status(self, key, status):
-        valid_statuses = ['in_progress', 'completed', 'cancelled']
+        # FIX: Match actual database status values
+        valid_statuses = ['started', 'completed', 'cancelled']
         if status not in valid_statuses:
             raise ValueError(f"Status must be one of: {valid_statuses}")
         return status
 
-    @validates('current_question_index')
+    @validates('current_question')
     def validate_question_index(self, key, index):
         if index < 0:
             raise ValueError("Question index must be non-negative")
         return index
 
-    @validates('total_score')
-    def validate_total_score(self, key, score):
+    @validates('score')
+    def validate_score(self, key, score):
         if score is not None and score < 0:
-            raise ValueError("Total score must be non-negative")
+            raise ValueError("Score must be non-negative")
         return score
     
     def __repr__(self):
@@ -132,13 +139,13 @@ class QuizSession(BaseModel):
 
 
 
-# Partial unique index ensures at most one in-progress session per patient and template.
+# Partial unique index ensures at most one started session per patient and template.
 Index(
     'ix_quiz_session_active_unique',
     QuizSession.patient_id,
     QuizSession.quiz_template_id,
     unique=True,
-    postgresql_where=QuizSession.status == 'in_progress'
+    postgresql_where=QuizSession.status == 'started'
 )
 class QuizResponse(BaseModel):
     """Patient responses to quiz questions."""

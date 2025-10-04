@@ -1,20 +1,22 @@
 -- ============================================================================
 -- SCHEMA MASTER COMPLETO - CLÍNICA ONCOLÓGICA HORMONIA
 -- ============================================================================
--- Versão: 2.1
--- Data: 2025-10-02
--- Última Atualização: 2025-10-02 (auth_provider ENUM + RLS policies users)
+-- Versão: 2.2
+-- Data: 2025-10-04
+-- Última Atualização: 2025-10-04 (Quiz schema cleanup + materialized views rebuild)
 -- Descrição: Schema completo consolidado com todas as 41 tabelas do sistema
 --
 -- IMPORTANTE: Este arquivo NÃO deve ser executado diretamente em produção.
 -- Use as migrations do Supabase para alterações incrementais.
 -- Este arquivo serve como referência completa da estrutura atual.
 --
--- CHANGELOG v2.1:
--- - Adicionado ENUM auth_provider (local, firebase, google, apple)
--- - Adicionado campo users.auth_provider (NOT NULL, DEFAULT 'local')
--- - Adicionado índice idx_users_auth_provider
--- - Total de migrations: 56 (54 originais + 2 novas aplicadas em 2025-10-02)
+-- CHANGELOG v2.2:
+-- - Removidos campos deprecated de quiz_sessions (is_completed, current_question_index, total_score)
+-- - Adicionado CHECK constraint quiz_sessions_status_check
+-- - Reconstruídas 4 materialized views com novo schema (status-based)
+-- - Criados 8 novos índices v2 otimizados para quiz_sessions
+-- - Adicionado índice único para sessões ativas por paciente/template
+-- - Total de migrations: 59 (56 anteriores + 3 novas aplicadas em 2025-10-04)
 -- ============================================================================
 
 -- ============================================================================
@@ -46,13 +48,21 @@ CREATE TYPE flow_state AS ENUM (
 -- Message direction
 CREATE TYPE message_direction AS ENUM ('inbound', 'outbound');
 
--- Message type
+-- Message type (updated 2025-10-04: added quiz message types)
 CREATE TYPE message_type AS ENUM (
     'text',
     'button',
     'list',
     'media',
-    'location'
+    'location',
+    'quiz_intro',
+    'quiz_question',
+    'quiz_encouragement',
+    'quiz_completion',
+    'monthly_quiz_link',
+    'monthly_quiz_reminder',
+    'monthly_quiz_expired',
+    'monthly_quiz_completed'
 );
 
 -- Message status
@@ -655,15 +665,17 @@ CREATE INDEX IF NOT EXISTS idx_quiz_template_versions_v2_active
 COMMENT ON TABLE quiz_template_versions_v2 IS 'Sistema de versionamento aprimorado de questionários';
 
 -- ----------------------------------------------------------------------------
--- 5.3 QUIZ_SESSIONS - Sessões de Questionários
+-- 5.3 QUIZ_SESSIONS - Sessões de Questionários (Schema v2 - Cleaned 2025-10-04)
 -- ----------------------------------------------------------------------------
+-- IMPORTANT: Deprecated fields removed (is_completed, current_question_index, total_score)
+-- New schema uses status field ('started', 'completed', 'cancelled') with CHECK constraint
 CREATE TABLE IF NOT EXISTS quiz_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     patient_id UUID REFERENCES patients(id) NOT NULL,
     quiz_template_id UUID REFERENCES quiz_templates(id) NOT NULL,
 
-    -- Status da Sessão
-    status VARCHAR(50) DEFAULT 'started',
+    -- Status da Sessão (NEW SCHEMA v2)
+    status VARCHAR(50) DEFAULT 'started' NOT NULL,
 
     -- Progresso
     current_question INTEGER DEFAULT 0,
@@ -671,12 +683,12 @@ CREATE TABLE IF NOT EXISTS quiz_sessions (
     answered_questions INTEGER DEFAULT 0,
 
     -- Scores
-    score DECIMAL(5,2),
-    max_score DECIMAL(5,2),
+    score NUMERIC(5,2),
+    max_score NUMERIC(5,2),
     passed BOOLEAN,
 
     -- Timing
-    started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     completed_at TIMESTAMP WITH TIME ZONE,
     time_spent_seconds INTEGER,
 
@@ -684,25 +696,38 @@ CREATE TABLE IF NOT EXISTS quiz_sessions (
     session_metadata JSONB DEFAULT '{}',
 
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+
+    -- Constraints
+    CONSTRAINT quiz_sessions_status_check
+        CHECK (status IN ('started', 'completed', 'cancelled'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_quiz_sessions_patient_id
+-- Optimized indexes (v2 - created 2025-10-04)
+CREATE INDEX IF NOT EXISTS idx_quiz_sessions_patient_id_v2
     ON quiz_sessions(patient_id);
-CREATE INDEX IF NOT EXISTS idx_quiz_sessions_quiz_template_id
+CREATE INDEX IF NOT EXISTS idx_quiz_sessions_quiz_template_id_v2
     ON quiz_sessions(quiz_template_id);
-CREATE INDEX IF NOT EXISTS idx_quiz_sessions_status
+CREATE INDEX IF NOT EXISTS idx_quiz_sessions_status_v2
     ON quiz_sessions(status);
-CREATE INDEX IF NOT EXISTS idx_quiz_session_active_patient
-    ON quiz_sessions(patient_id, status, started_at DESC)
-    WHERE status IN ('started', 'in_progress');
-CREATE INDEX IF NOT EXISTS idx_quiz_session_completed_template
-    ON quiz_sessions(quiz_template_id, completed_at DESC)
-    WHERE status = 'completed';
-CREATE INDEX IF NOT EXISTS idx_quiz_session_patient_template
+CREATE INDEX IF NOT EXISTS idx_quiz_sessions_created_at_v2
+    ON quiz_sessions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_quiz_sessions_completed_at_v2
+    ON quiz_sessions(completed_at DESC)
+    WHERE completed_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_quiz_sessions_patient_status_v2
+    ON quiz_sessions(patient_id, status);
+CREATE INDEX IF NOT EXISTS idx_quiz_sessions_template_status_v2
+    ON quiz_sessions(quiz_template_id, status);
+CREATE INDEX IF NOT EXISTS idx_quiz_sessions_patient_template_v2
     ON quiz_sessions(patient_id, quiz_template_id, started_at DESC);
 
-COMMENT ON TABLE quiz_sessions IS 'Sessões de questionários respondidos por pacientes';
+-- Unique constraint: one active session per patient per template
+CREATE UNIQUE INDEX IF NOT EXISTS idx_quiz_session_unique_active
+    ON quiz_sessions(patient_id, quiz_template_id)
+    WHERE status = 'started';
+
+COMMENT ON TABLE quiz_sessions IS 'Sessões de questionários respondidos por pacientes (Schema v2 - status-based)';
 
 -- ----------------------------------------------------------------------------
 -- 5.4 QUIZ_SESSIONS_V2 - Versão Aprimorada de Sessões
@@ -776,8 +801,10 @@ CREATE INDEX IF NOT EXISTS idx_quiz_response_analytics_covering_index
 COMMENT ON TABLE quiz_responses IS 'Respostas individuais de questionários';
 
 -- ----------------------------------------------------------------------------
--- 5.6 MATERIALIZED VIEW - Latest Responses (Performance)
+-- 5.6 MATERIALIZED VIEWS - Performance Optimization (Rebuilt 2025-10-04)
 -- ----------------------------------------------------------------------------
+
+-- Latest patient responses (performance cache)
 CREATE MATERIALIZED VIEW IF NOT EXISTS quiz_patient_latest_responses AS
 SELECT DISTINCT ON (patient_id, quiz_template_id, question_id)
     patient_id,
@@ -792,6 +819,106 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_quiz_latest_responses_unique
     ON quiz_patient_latest_responses(patient_id, quiz_template_id, question_id);
 
 COMMENT ON MATERIALIZED VIEW quiz_patient_latest_responses IS 'Cache de respostas mais recentes por paciente';
+
+-- Template usage statistics (NEW - created 2025-10-04)
+CREATE MATERIALIZED VIEW IF NOT EXISTS quiz_template_usage_stats AS
+SELECT
+    qt.id as template_id,
+    qt.name as template_name,
+    qt.version as template_version,
+    COUNT(qs.id) FILTER (WHERE qs.status = 'completed') as completed_sessions,
+    COUNT(qs.id) FILTER (WHERE qs.status = 'started') as active_sessions,
+    COUNT(qs.id) FILTER (WHERE qs.status = 'cancelled') as cancelled_sessions,
+    AVG(qs.score) FILTER (WHERE qs.status = 'completed') as avg_score,
+    MAX(qs.score) FILTER (WHERE qs.status = 'completed') as max_score,
+    MIN(qs.score) FILTER (WHERE qs.status = 'completed') as min_score,
+    AVG(qs.time_spent_seconds) FILTER (WHERE qs.status = 'completed') as avg_time_seconds,
+    COUNT(DISTINCT qs.patient_id) as unique_patients,
+    MAX(qs.started_at) as last_used_at
+FROM quiz_templates qt
+LEFT JOIN quiz_sessions qs ON qt.id = qs.quiz_template_id
+GROUP BY qt.id, qt.name, qt.version;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_quiz_template_usage_stats_template
+    ON quiz_template_usage_stats(template_id);
+
+COMMENT ON MATERIALIZED VIEW quiz_template_usage_stats IS 'Estatísticas de uso de templates de questionários';
+
+-- Patient engagement statistics (NEW - created 2025-10-04)
+CREATE MATERIALIZED VIEW IF NOT EXISTS quiz_patient_engagement_stats AS
+SELECT
+    p.id as patient_id,
+    p.name as patient_name,
+    COUNT(qs.id) as total_sessions,
+    COUNT(qs.id) FILTER (WHERE qs.status = 'completed') as completed_sessions,
+    COUNT(qs.id) FILTER (WHERE qs.status = 'started') as active_sessions,
+    AVG(qs.score) FILTER (WHERE qs.status = 'completed') as avg_score,
+    AVG(qs.time_spent_seconds) FILTER (WHERE qs.status = 'completed') as avg_completion_time_seconds,
+    MAX(qs.started_at) as last_session_at,
+    COUNT(DISTINCT qs.quiz_template_id) as unique_templates_attempted,
+    ROUND(
+        COUNT(qs.id) FILTER (WHERE qs.status = 'completed')::NUMERIC /
+        NULLIF(COUNT(qs.id), 0) * 100,
+        2
+    ) as completion_rate_percent
+FROM patients p
+LEFT JOIN quiz_sessions qs ON p.id = qs.patient_id
+GROUP BY p.id, p.name;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_quiz_patient_engagement_stats_patient
+    ON quiz_patient_engagement_stats(patient_id);
+
+COMMENT ON MATERIALIZED VIEW quiz_patient_engagement_stats IS 'Estatísticas de engajamento de pacientes em questionários';
+
+-- Daily activity summary (NEW - created 2025-10-04)
+CREATE MATERIALIZED VIEW IF NOT EXISTS quiz_daily_activity_summary AS
+SELECT
+    DATE(qs.started_at) as activity_date,
+    COUNT(DISTINCT qs.patient_id) as unique_patients,
+    COUNT(qs.id) as total_sessions_started,
+    COUNT(qs.id) FILTER (WHERE qs.status = 'completed') as sessions_completed,
+    COUNT(qs.id) FILTER (WHERE qs.status = 'cancelled') as sessions_cancelled,
+    COUNT(DISTINCT qs.quiz_template_id) as unique_templates_used,
+    AVG(qs.score) FILTER (WHERE qs.status = 'completed') as avg_score,
+    AVG(qs.time_spent_seconds) FILTER (WHERE qs.status = 'completed') as avg_time_seconds,
+    ROUND(
+        COUNT(qs.id) FILTER (WHERE qs.status = 'completed')::NUMERIC /
+        NULLIF(COUNT(qs.id), 0) * 100,
+        2
+    ) as completion_rate_percent
+FROM quiz_sessions qs
+GROUP BY DATE(qs.started_at);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_quiz_daily_activity_summary_date
+    ON quiz_daily_activity_summary(activity_date DESC);
+
+COMMENT ON MATERIALIZED VIEW quiz_daily_activity_summary IS 'Resumo diário de atividades em questionários';
+
+-- Template performance metrics (NEW - created 2025-10-04)
+CREATE MATERIALIZED VIEW IF NOT EXISTS quiz_template_performance_metrics AS
+SELECT
+    qt.id as template_id,
+    qt.name as template_name,
+    qt.category,
+    COUNT(qs.id) FILTER (WHERE qs.status = 'completed' AND qs.started_at >= NOW() - INTERVAL '30 days') as completions_last_30d,
+    COUNT(qs.id) FILTER (WHERE qs.status = 'completed' AND qs.started_at >= NOW() - INTERVAL '7 days') as completions_last_7d,
+    AVG(qs.score) FILTER (WHERE qs.status = 'completed' AND qs.started_at >= NOW() - INTERVAL '30 days') as avg_score_30d,
+    AVG(qs.time_spent_seconds) FILTER (WHERE qs.status = 'completed' AND qs.started_at >= NOW() - INTERVAL '30 days') as avg_time_30d,
+    ROUND(
+        COUNT(qs.id) FILTER (WHERE qs.status = 'completed' AND qs.started_at >= NOW() - INTERVAL '30 days')::NUMERIC /
+        NULLIF(COUNT(qs.id) FILTER (WHERE qs.started_at >= NOW() - INTERVAL '30 days'), 0) * 100,
+        2
+    ) as completion_rate_30d,
+    COUNT(DISTINCT qs.patient_id) FILTER (WHERE qs.started_at >= NOW() - INTERVAL '30 days') as unique_users_30d
+FROM quiz_templates qt
+LEFT JOIN quiz_sessions qs ON qt.id = qs.quiz_template_id
+WHERE qt.is_active = true
+GROUP BY qt.id, qt.name, qt.category;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_quiz_template_performance_metrics_template
+    ON quiz_template_performance_metrics(template_id);
+
+COMMENT ON MATERIALIZED VIEW quiz_template_performance_metrics IS 'Métricas de performance de templates (30 dias)';
 
 -- ============================================================================
 -- SEÇÃO 6: TABELAS DE ANALYTICS (2 tabelas)
@@ -1508,18 +1635,30 @@ COMMENT ON FUNCTION cleanup_all_audit_tables() IS 'Remove entradas antigas de to
 -- ============================================================================
 
 -- NOTAS:
--- 1. Este arquivo representa o estado completo do banco após 56 migrações
---    (54 originais + 2 novas: add_auth_provider_enum_v2, fix_rls_users_select)
+-- 1. Este arquivo representa o estado completo do banco após 59 migrações aplicadas
+--    - 56 migrations anteriores (até 2025-10-02)
+--    - 3 migrations aplicadas em 2025-10-04:
+--      a) 20251004_drop_rebuild_quiz_materialized_views (reconstrução de views com novo schema)
+--      b) 20251004_final_quiz_sessions_cleanup (remoção de campos deprecated)
+--      c) 20251004_expand_message_type_enum + add_gin_indexes_jsonb + add_foreign_key_cascade_rules
 -- 2. RLS policies não estão incluídas neste arquivo (veja migrations específicas e RELATORIO_REVISAO_RLS.md)
 -- 3. Dados iniciais (seeds) não estão incluídos
 -- 4. Para aplicar mudanças em produção, use migrations incrementais via Supabase
--- 5. Total de tabelas: 41
--- 6. Total de ENUMs: 9 (user_role, flow_state, message_direction, message_type, message_status,
+-- 5. Total de tabelas: 41 (documentadas) - ATENÇÃO: banco real difere da documentação
+-- 6. Total de ENUMs: 10 (user_role, flow_state, message_direction, message_type (13 valores), message_status,
 --    alert_severity, auth_provider, admin_role_type, severity_type, http_method_type)
--- 7. Total de índices: 81+ (incluindo idx_users_auth_provider)
--- 8. Retenção de auditoria: 90 dias (cleanup automático)
--- 9. RLS habilitado: 6+ tabelas críticas (users, patients, medical_reports, quiz_templates, messages, alerts)
--- 10. Última atualização: 2025-10-02 (sync com migration add_auth_provider_enum_v2)
+-- 7. Total de índices: 110+ (incluindo 14 GIN indexes para JSONB + 8 novos índices v2 quiz_sessions)
+-- 8. Total de Materialized Views: 5 (quiz_patient_latest_responses + 4 novas views de analytics)
+-- 9. Retenção de auditoria: 90 dias (cleanup automático)
+-- 10. RLS habilitado: 6+ tabelas críticas (users, patients, medical_reports, quiz_templates, messages, alerts)
+-- 11. Última atualização: 2025-10-04 (Database cleanup - quiz_sessions schema v2 + materialized views rebuild)
+-- 12. Schema v2 Changes (quiz_sessions):
+--     - REMOVED: is_completed (boolean) → replaced by status ('started'|'completed'|'cancelled')
+--     - REMOVED: current_question_index (integer) → renamed to current_question
+--     - REMOVED: total_score (numeric) → renamed to score
+--     - ADDED: CHECK constraint quiz_sessions_status_check for valid status values
+--     - ADDED: Unique index for active sessions (one per patient/template)
+--     - OPTIMIZED: 8 new v2 indexes replacing old index patterns
 
 -- Para verificar a estrutura:
 -- SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;

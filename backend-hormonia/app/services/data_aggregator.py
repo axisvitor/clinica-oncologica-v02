@@ -245,7 +245,7 @@ class DataAggregator:
             
             # Calculate statistics
             total_responses = len(responses)
-            completed_sessions = len([s for s in sessions if s.is_completed])
+            completed_sessions = len([s for s in sessions if s.status == 'completed'])
             total_sessions = len(sessions)
             
             completion_rate = 0.0
@@ -503,12 +503,12 @@ class DataAggregator:
             quizzes_today = self.db.query(QuizSession).filter(
                 QuizSession.completed_at >= today_start,
                 QuizSession.completed_at <= today_end,
-                QuizSession.is_completed == True
+                QuizSession.status == 'completed'
             ).count()
             
             quizzes_week = self.db.query(QuizSession).filter(
                 QuizSession.completed_at >= week_start,
-                QuizSession.is_completed == True
+                QuizSession.status == 'completed'
             ).count()
             
             # Alert counts

@@ -127,7 +127,7 @@ class QuizResponseProcessor:
             if not session:
                 raise NotFoundError(f"Quiz session {session_id} not found")
             
-            if not session.is_completed:
+            if session.status != 'completed':
                 raise ValidationError(f"Quiz session {session_id} is not completed")
             
             # Get quiz responses

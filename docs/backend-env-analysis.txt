@@ -1,0 +1,156 @@
+═══════════════════════════════════════════════════════════════
+BACKEND ENVIRONMENT VARIABLES ANALYSIS
+═══════════════════════════════════════════════════════════════
+
+File: backend-hormonia/.env
+Environment: PRODUCTION
+Date: 2025-10-04
+
+═══════════════════════════════════════════════════════════════
+1. API & CORS CONFIGURATION
+═══════════════════════════════════════════════════════════════
+
+✓ Backend API URLs:
+  - HOST: 0.0.0.0
+  - PORT: 8000
+  - Expected URL: https://clinica-oncologica-v02-production.up.railway.app
+
+✓ CORS Configuration (ALLOWED_ORIGINS):
+  - https://frontend-production-18bb.up.railway.app
+  - https://quiz-interface-production.up.railway.app
+  - https://hormonia-frontend.railway.app
+  - https://quiz-mensal-interface.railway.app
+
+⚠️ MISSING: Frontend URL from .env not in ALLOWED_ORIGINS
+  - FRONTEND_URL=https://frontend-production-18bb.up.railway.app ✓ (included)
+  - QUIZ_URL=https://quiz-interface-production.up.railway.app ✓ (included)
+
+✓ Additional CORS in config.py (lines 205-256):
+  - localhost:3000, 5173, 5174-5179 (dev)
+  - 127.0.0.1 equivalents
+  - All Railway production URLs included
+
+═══════════════════════════════════════════════════════════════
+2. FIREBASE CONFIGURATION
+═══════════════════════════════════════════════════════════════
+
+✓ Backend Admin SDK (PRIVATE - backend only):
+  - FIREBASE_ADMIN_PROJECT_ID: sistema-oncologico-auth
+  - FIREBASE_ADMIN_PRIVATE_KEY: [ENCRYPTED - OK]
+  - FIREBASE_ADMIN_CLIENT_EMAIL: firebase-adminsdk-fbsvc@sistema-oncologico-auth.iam.gserviceaccount.com
+
+✓ Firebase Web Config (PUBLIC - shared with frontend):
+  - FIREBASE_WEB_API_KEY: AIzaSyDbZHMNV2eZQty03TgA4yNo_3L6UDSpHdI
+  - FIREBASE_WEB_PROJECT_ID: sistema-oncologico-auth
+  - FIREBASE_WEB_APP_ID: 1:608742835827:web:fa12840b0bd4949b7c8c06
+  - FIREBASE_AUTH_DOMAIN: sistema-oncologico-auth.firebaseapp.com
+
+✓ Security Settings:
+  - FIREBASE_BLOCK_PUBLIC_DOMAINS: true
+  - FIREBASE_ALLOWED_DOMAINS: neoplasiaslitoral.com.br,clinicahormonia.com.br
+
+═══════════════════════════════════════════════════════════════
+3. SUPABASE CONFIGURATION
+═══════════════════════════════════════════════════════════════
+
+✓ Supabase URLs and Keys:
+  - SUPABASE_URL: https://rszpypytdciggybbpnrp.supabase.co
+  - SUPABASE_ANON_KEY: eyJhbGc... [VALID JWT TOKEN]
+  - SUPABASE_SERVICE_ROLE_KEY: eyJhbGc... [PRIVATE - backend only]
+
+✓ Security:
+  - SUPABASE_USE_SERVICE_ROLE: true (backend has elevated permissions)
+  - SUPABASE_BYPASS_RLS: true (backend bypasses Row Level Security)
+  - SUPABASE_AVATARS_BUCKET: avatars
+
+═══════════════════════════════════════════════════════════════
+4. WEBSOCKET CONFIGURATION
+═══════════════════════════════════════════════════════════════
+
+⚠️ WARNING: No explicit WebSocket URL in backend .env
+   Derived from FRONTEND_API_URL:
+   - Expected WS URL: wss://clinica-oncologica-v02-production.up.railway.app/ws
+
+✓ Backend should accept WebSocket connections at /ws endpoint
+
+═══════════════════════════════════════════════════════════════
+5. EXTERNAL INTEGRATIONS
+═══════════════════════════════════════════════════════════════
+
+✓ WhatsApp (Evolution API):
+  - ENABLE_EVOLUTION: true
+  - EVOLUTION_API_URL: https://evolution.axisvanguard.site
+  - EVOLUTION_API_KEY: 8635EBA73252-46A9-A965-7E534F24E72C
+  - EVOLUTION_INSTANCE_NAME: clinica_oncologica
+  - EVOLUTION_WEBHOOK_URL: https://clinica-oncologica-v02-production.up.railway.app/webhooks/whatsapp/evolution/clinica_oncologica
+
+✓ Monthly Quiz:
+  - MONTHLY_QUIZ_VIA_LINK: true
+  - MONTHLY_QUIZ_BASE_URL: https://quiz-interface-production.up.railway.app/quiz/monthly
+  - MONTHLY_QUIZ_TOKEN_SECRET: [ENCRYPTED]
+  - MONTHLY_QUIZ_TOKEN_EXPIRY_HOURS: 72
+
+✓ Google Gemini AI:
+  - GEMINI_API_KEY: AIzaSyBg8v_IuE16HjtCBF2VBlDUpQE55IDzs18
+  - GEMINI_MODEL: gemini-2.5-flash-preview-09-2025
+  - GEMINI_TEMPERATURE: 0.7
+  - GEMINI_MAX_OUTPUT_TOKENS: 4096
+
+═══════════════════════════════════════════════════════════════
+6. DATABASE & CACHE
+═══════════════════════════════════════════════════════════════
+
+✓ PostgreSQL (via Supabase):
+  - DATABASE_URL: postgresql+psycopg://postgres:***@db.rszpypytdciggybbpnrp.supabase.co:5432/postgres
+  - DB_POOL_SIZE: 30
+  - DB_MAX_OVERFLOW: 40
+
+✓ Redis (Cache & Celery):
+  - ENABLE_REDIS: true
+  - REDIS_URL: redis://default:***@redis-14149.c322.us-east-1-2.ec2.redns.redis-cloud.com:14149
+  - REDIS_SSL: true
+  - REDIS_MAX_CONNECTIONS: 25
+
+✓ Celery Task Queue:
+  - CELERY_BROKER_URL: redis://... [db 0]
+  - CELERY_RESULT_BACKEND: redis://... [db 0]
+  - CELERY_WORKER_CONCURRENCY: 4
+
+═══════════════════════════════════════════════════════════════
+7. HARDCODED URLs IN BACKEND CODE
+═══════════════════════════════════════════════════════════════
+
+⚠️ FOUND in app/config.py (development defaults):
+  - Line 162: "http://localhost:8080" (Evolution API default)
+  - Lines 205-256: Extensive localhost URLs for development
+
+✓ These are FALLBACK values only, overridden by .env in production
+
+⚠️ FOUND in app/integrations/evolution.py:
+  - Line 130: Fallback to 'https://api.evolution.dev' if not configured
+
+⚠️ FOUND in app/api/v1/config.py:
+  - Lines 72-78: Runtime URL detection logic with fallbacks
+  - Line 72: "https://backend-production.railway.app" (generic fallback)
+  - Line 78: "http://localhost:{port}" (dev fallback)
+
+═══════════════════════════════════════════════════════════════
+SUMMARY - BACKEND CONFIGURATION STATUS
+═══════════════════════════════════════════════════════════════
+
+✅ CORRECT:
+  1. Firebase credentials properly separated (Admin SDK vs Web Config)
+  2. Supabase credentials consistent
+  3. CORS includes all required frontend URLs
+  4. Security settings appropriate for production
+  5. External integrations properly configured
+
+⚠️ WARNINGS:
+  1. No explicit WebSocket URL variable (derived from API URL)
+  2. Multiple fallback URLs in code (acceptable for dev/prod flexibility)
+  3. Evolution API has generic fallback URL in code
+
+💡 RECOMMENDATIONS:
+  1. Add WEBSOCKET_URL environment variable for clarity
+  2. Consider documenting all fallback URLs in deployment guide
+  3. Ensure Railway environment variables override all fallbacks

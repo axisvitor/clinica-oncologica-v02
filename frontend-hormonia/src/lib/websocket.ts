@@ -8,10 +8,10 @@ function resolveWsBaseUrl(): string | null {
   const runtime = getRuntimeConfigSync()
   if (runtime?.VITE_WS_BASE_URL) return runtime.VITE_WS_BASE_URL
 
-  // Fallback to current host proxy (/ws) if available
+  // Fallback to current host proxy (/ws/connect) if available
   if (typeof window !== 'undefined') {
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    return `${proto}://${window.location.host}/ws`
+    return `${proto}://${window.location.host}/ws/connect`
   }
   return null
 }
@@ -37,6 +37,24 @@ export interface WebSocketMessage {
 }
 
 export type WebSocketEventHandler = (data: any) => void
+
+// Backend protocol structures
+interface BackendMessage {
+  type: string
+  data: Record<string, any>
+}
+
+// Protocol mapping: frontend events -> backend types
+const PROTOCOL_MAP: Record<string, string> = {
+  'join:patient': 'join_room',
+  'leave:patient': 'leave_room',
+  'subscribe:quiz': 'subscribe',
+  'unsubscribe:quiz': 'unsubscribe',
+  'subscribe:flow': 'subscribe',
+  'unsubscribe:flow': 'unsubscribe',
+  'ping': 'ping',
+  'pong': 'pong'
+}
 
 class WebSocketManager {
   private ws: WebSocket | null = null
@@ -143,7 +161,17 @@ class WebSocketManager {
     return this.connectionPromise
   }
 
-  private handleMessage(message: WebSocketMessage) {
+  private handleMessage(messageOrBackend: WebSocketMessage | BackendMessage) {
+    let message: WebSocketMessage
+
+    // Convert backend protocol to frontend format for backward compatibility
+    if ('type' in messageOrBackend && !('event' in messageOrBackend)) {
+      const backendMsg = messageOrBackend as BackendMessage
+      message = this.convertBackendToFrontend(backendMsg)
+    } else {
+      message = messageOrBackend as WebSocketMessage
+    }
+
     // Handle system messages
     if (message.event.startsWith('system:')) {
       this.emit(message.event, message.data)
@@ -179,6 +207,39 @@ class WebSocketManager {
           console.error(`Error in WebSocket event handler for ${message.event}:`, error)
         }
       })
+    }
+  }
+
+  /**
+   * Convert backend protocol message to frontend format
+   */
+  private convertBackendToFrontend(backendMsg: BackendMessage): WebSocketMessage {
+    const typeToEvent: Record<string, string> = {
+      'connected': 'system:connected',
+      'disconnected': 'system:disconnected',
+      'authenticated': 'system:authenticated',
+      'ping': 'system:ping',
+      'pong': 'system:pong',
+      'error': 'system:error',
+      'patient_updated': 'patient:updated',
+      'patient_flow_changed': 'patient:flow_changed',
+      'patient_status_changed': 'patient:status_changed',
+      'flow_state_changed': 'flow:state_changed',
+      'flow_message_sent': 'flow:message_sent',
+      'flow_progression': 'flow:progression',
+      'quiz_started': 'quiz:started',
+      'quiz_response_submitted': 'quiz:response_submitted',
+      'quiz_completed': 'quiz:completed',
+      'new_message': 'message:new',
+      'message_status_updated': 'message:status_updated'
+    }
+
+    return {
+      event: typeToEvent[backendMsg.type] || backendMsg.type,
+      data: backendMsg.data,
+      timestamp: backendMsg.data['timestamp'] as string || new Date().toISOString(),
+      patient_id: backendMsg.data['patient_id'] as string,
+      session_id: backendMsg.data['session_id'] as string
     }
   }
 
@@ -251,14 +312,29 @@ class WebSocketManager {
     }
   }
 
+  /**
+   * Send message using backend protocol
+   * Converts frontend event format to backend { type, data } format
+   */
   send(event: string, data: any) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      const message: WebSocketMessage = {
-        event,
-        data,
-        timestamp: new Date().toISOString()
+      // Map frontend event to backend type
+      const backendType = PROTOCOL_MAP[event] || event
+
+      // Create backend protocol message
+      const backendMessage: BackendMessage = {
+        type: backendType,
+        data: {
+          ...data,
+          timestamp: new Date().toISOString()
+        }
       }
-      this.ws.send(JSON.stringify(message))
+
+      this.ws.send(JSON.stringify(backendMessage))
+
+      if (import.meta.env.DEV) {
+        console.log(`[WebSocket] Sent: ${event} -> ${backendType}`, data)
+      }
     } else {
       if (import.meta.env.DEV) {
         console.warn('WebSocket is not connected. Cannot send message:', event, data)
@@ -267,40 +343,79 @@ class WebSocketManager {
   }
 
   // Room management methods
+  /**
+   * Join patient room for real-time updates
+   * Uses backend join_room message type
+   */
   joinPatientRoom(patientId: string) {
     const roomKey = `patient:${patientId}`
     this.roomSubscriptions.add(roomKey)
+    // Backend expects 'join:patient' -> 'join_room' with patient_id
     this.send('join:patient', { patient_id: patientId })
   }
 
+  /**
+   * Leave patient room
+   * Uses backend leave_room message type
+   */
   leavePatientRoom(patientId: string) {
     const roomKey = `patient:${patientId}`
     this.roomSubscriptions.delete(roomKey)
+    // Backend expects 'leave:patient' -> 'leave_room' with patient_id
     this.send('leave:patient', { patient_id: patientId })
   }
 
+  /**
+   * Subscribe to quiz events using enhanced endpoint pattern
+   * Uses backend subscribe message type with channel
+   */
   subscribeToQuizEvents(sessionId: string) {
     const roomKey = `quiz:${sessionId}`
     this.roomSubscriptions.add(roomKey)
-    this.send('subscribe:quiz', { session_id: sessionId })
+    // Enhanced endpoint uses 'subscribe' with channel parameter
+    this.send('subscribe:quiz', {
+      channel: `quiz:${sessionId}`,
+      session_id: sessionId
+    })
   }
 
+  /**
+   * Unsubscribe from quiz events
+   */
   unsubscribeFromQuizEvents(sessionId: string) {
     const roomKey = `quiz:${sessionId}`
     this.roomSubscriptions.delete(roomKey)
-    this.send('unsubscribe:quiz', { session_id: sessionId })
+    // Enhanced endpoint uses 'unsubscribe' with channel parameter
+    this.send('unsubscribe:quiz', {
+      channel: `quiz:${sessionId}`,
+      session_id: sessionId
+    })
   }
 
+  /**
+   * Subscribe to flow events using enhanced endpoint pattern
+   */
   subscribeToFlowEvents(flowId: string) {
     const roomKey = `flow:${flowId}`
     this.roomSubscriptions.add(roomKey)
-    this.send('subscribe:flow', { flow_id: flowId })
+    // Enhanced endpoint uses 'subscribe' with channel parameter
+    this.send('subscribe:flow', {
+      channel: `flow:${flowId}`,
+      flow_id: flowId
+    })
   }
 
+  /**
+   * Unsubscribe from flow events
+   */
   unsubscribeFromFlowEvents(flowId: string) {
     const roomKey = `flow:${flowId}`
     this.roomSubscriptions.delete(roomKey)
-    this.send('unsubscribe:flow', { flow_id: flowId })
+    // Enhanced endpoint uses 'unsubscribe' with channel parameter
+    this.send('unsubscribe:flow', {
+      channel: `flow:${flowId}`,
+      flow_id: flowId
+    })
   }
 
   disconnect() {

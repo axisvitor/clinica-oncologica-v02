@@ -1,0 +1,360 @@
+═══════════════════════════════════════════════════════════════
+ENVIRONMENT VARIABLES CONSISTENCY REPORT
+Backend vs Frontend Analysis
+═══════════════════════════════════════════════════════════════
+
+Date: 2025-10-04
+Analyst: Hive Mind Analysis Agent
+
+═══════════════════════════════════════════════════════════════
+EXECUTIVE SUMMARY
+═══════════════════════════════════════════════════════════════
+
+Overall Status: ⚠️ MODERATE RISK - Critical hardcoded URLs found
+
+✅ Passing Checks: 8/12 (67%)
+⚠️ Warnings: 4/12 (33%)
+❌ Critical Failures: 2 files with hardcoded production-breaking URLs
+
+Risk Level: 🔴 HIGH - Production deployment will fail for medico portal
+
+═══════════════════════════════════════════════════════════════
+1. API URL CONSISTENCY MATRIX
+═══════════════════════════════════════════════════════════════
+
+Backend .env:
+  FRONTEND_API_URL = https://clinica-oncologica-v02-production.up.railway.app
+
+Frontend .env:
+  VITE_API_URL = https://clinica-oncologica-v02-production.up.railway.app
+  VITE_API_BASE_URL = https://clinica-oncologica-v02-production.up.railway.app
+
+Status: ✅ MATCH
+
+Frontend Runtime Fallback (runtime-config.ts):
+  Line 61: 'https://backend-production-e0bd.up.railway.app'
+
+Status: ❌ MISMATCH - Outdated URL from previous deployment
+
+Impact: ⚠️ MEDIUM - Will use correct .env in production, but confusing in code
+
+═══════════════════════════════════════════════════════════════
+2. WEBSOCKET URL CONSISTENCY
+═══════════════════════════════════════════════════════════════
+
+Backend Expected:
+  wss://clinica-oncologica-v02-production.up.railway.app/ws
+
+Frontend .env:
+  VITE_WS_URL = wss://clinica-oncologica-v02-production.up.railway.app/ws/connect
+  VITE_WS_BASE_URL = wss://clinica-oncologica-v02-production.up.railway.app/ws/connect
+
+Status: ⚠️ PATH MISMATCH
+  - Backend likely expects: /ws
+  - Frontend connects to: /ws/connect
+
+Impact: 🔴 HIGH - WebSocket connections may fail if backend not configured for /ws/connect
+
+Action Required:
+  [ ] Verify backend WebSocket route configuration
+  [ ] Update frontend to /ws OR update backend to accept /ws/connect
+  [ ] Test WebSocket connection in production
+
+Frontend Fallback (useWebSocket.ts):
+  Line 25: 'ws://localhost:8080/ws'
+
+Status: ⚠️ INCONSISTENT PORT - Uses 8080 instead of 8000
+
+Impact: ⚠️ LOW - Only affects local development, but confusing
+
+═══════════════════════════════════════════════════════════════
+3. FIREBASE CONFIGURATION CONSISTENCY
+═══════════════════════════════════════════════════════════════
+
+Comparison Matrix:
+
+| Config Field                | Backend                          | Frontend                         | Status |
+|----------------------------|----------------------------------|----------------------------------|--------|
+| API Key                    | AIzaSyDbZHMNV2eZQty...          | AIzaSyDbZHMNV2eZQty...          | ✅ MATCH|
+| Project ID                 | sistema-oncologico-auth          | sistema-oncologico-auth          | ✅ MATCH|
+| App ID                     | 1:608742835827:web:fa...         | 1:608742835827:web:fa...         | ✅ MATCH|
+| Auth Domain                | sistema-oncologico-auth...       | sistema-oncologico-auth...       | ✅ MATCH|
+| Storage Bucket             | (not set)                        | sistema-oncologico-auth...       | ℹ️ INFO |
+| Messaging Sender ID        | (not set)                        | 608742835827                     | ℹ️ INFO |
+| Measurement ID             | (not set)                        | G-2QZQFKJMH2                     | ℹ️ INFO |
+
+Overall Status: ✅ CONSISTENT - Core credentials match perfectly
+
+Notes:
+  - Frontend has additional optional Firebase configs (Storage, Analytics)
+  - Backend correctly keeps Admin SDK private key separate
+  - No security issues - proper separation of public/private keys
+
+═══════════════════════════════════════════════════════════════
+4. SUPABASE CONFIGURATION CONSISTENCY
+═══════════════════════════════════════════════════════════════
+
+Comparison Matrix:
+
+| Config Field                | Backend                          | Frontend                         | Status |
+|----------------------------|----------------------------------|----------------------------------|--------|
+| URL                        | https://rszpypytdciggy...        | https://rszpypytdciggy...        | ✅ MATCH|
+| Anon Key                   | eyJhbGciOiJIUzI1Ni...           | eyJhbGciOiJIUzI1Ni...           | ✅ MATCH|
+| Service Role Key           | eyJhbGciOiJIUzI1Ni...           | (not set - correct!)             | ✅ SECURE|
+| Auth Enabled               | (implicit)                       | true                             | ✅ OK  |
+| Realtime Enabled           | (implicit)                       | true                             | ✅ OK  |
+
+Overall Status: ✅ CONSISTENT & SECURE
+
+Security Check: ✅ PASSED
+  - Service Role Key correctly kept backend-only
+  - Frontend only has public Anon Key
+  - RLS bypass flag only on backend (correct)
+
+═══════════════════════════════════════════════════════════════
+5. CORS ORIGINS VERIFICATION
+═══════════════════════════════════════════════════════════════
+
+Backend ALLOWED_ORIGINS (.env):
+  ✓ https://frontend-production-18bb.up.railway.app
+  ✓ https://quiz-interface-production.up.railway.app
+  ✓ https://hormonia-frontend.railway.app
+  ✓ https://quiz-mensal-interface.railway.app
+
+Backend Additional Origins (config.py):
+  ✓ All localhost ports (3000, 5173-5179) for development
+  ✓ All 127.0.0.1 equivalents
+  ✓ https://clinica-oncologica-v02-production.up.railway.app (self)
+  ✓ https://interface-quiz-production.up.railway.app
+  ✓ https://frontend-v2.railway.app
+
+Frontend Deployment URL (expected):
+  ⚠️ Assumed: https://frontend-production-18bb.up.railway.app
+  ⚠️ Check: Verify actual Railway deployment URL matches CORS list
+
+Status: ✅ COMPREHENSIVE - All frontend URLs covered
+
+Potential Issues:
+  [ ] Multiple frontend URLs listed - verify which is active
+  [ ] Consider consolidating to single production frontend URL
+
+═══════════════════════════════════════════════════════════════
+6. CRITICAL: HARDCODED URLs IN SOURCE CODE
+═══════════════════════════════════════════════════════════════
+
+❌ PRODUCTION-BREAKING ISSUES:
+
+File: frontend-hormonia/src/pages/medico/PacientesList.tsx
+  Line 31: fetch('http://localhost:3003/api/pacientes', ...)
+
+  Impact: 🔴 CRITICAL
+    - Medico portal will not work in production
+    - Requests will fail (localhost not accessible)
+    - Users cannot view patient lists
+
+  Fix Required:
+    ```typescript
+    // BEFORE (WRONG):
+    const response = await fetch('http://localhost:3003/api/pacientes', {
+
+    // AFTER (CORRECT):
+    import { getRuntimeConfig } from '@/lib/runtime-config'
+    const config = await getRuntimeConfig()
+    const response = await fetch(`${config.VITE_API_BASE_URL}/api/v1/pacientes`, {
+
+    // OR use API client:
+    import { apiClient } from '@/lib/api-client'
+    const data = await apiClient.get('/api/v1/pacientes')
+    ```
+
+File: frontend-hormonia/src/pages/medico/ProntuarioView.tsx
+  Line 42: fetch(`http://localhost:3003/api/pacientes/${pacienteId}`, ...)
+  Line 56: fetch(`http://localhost:3003/api/consultas/paciente/${pacienteId}`, ...)
+
+  Impact: 🔴 CRITICAL
+    - Medical record view will not work in production
+    - Patient consultation history inaccessible
+    - Core functionality broken
+
+  Fix Required: Same as above - use runtime config or API client
+
+⚠️ OTHER HARDCODED URLs (Lower Priority):
+
+File: frontend-hormonia/src/lib/runtime-config.ts
+  Lines 61-63: Production fallback URLs outdated
+
+  Current:
+    VITE_API_URL: 'https://backend-production-e0bd.up.railway.app'
+
+  Should be:
+    VITE_API_URL: 'https://clinica-oncologica-v02-production.up.railway.app'
+
+  Impact: ⚠️ MEDIUM - Only affects fallback scenario, but confusing
+
+File: frontend-hormonia/src/hooks/useWebSocket.ts
+  Line 25: Fallback 'ws://localhost:8080/ws'
+
+  Impact: ⚠️ LOW - Wrong port for development (should be 8000)
+
+═══════════════════════════════════════════════════════════════
+7. ENVIRONMENT-SPECIFIC CONFIGURATION
+═══════════════════════════════════════════════════════════════
+
+Development Environment:
+  Backend:
+    ✓ Multiple localhost ports in CORS
+    ✓ Fallback URLs in config.py
+    ✓ Evolution API localhost fallback
+
+  Frontend:
+    ✓ Dev mode flags (VITE_USE_MOCK_*)
+    ✓ Debug mode disabled in production .env
+    ✓ Vite proxy for /api and /ws in dev mode
+
+Production Environment:
+  Backend:
+    ✓ ENVIRONMENT=production
+    ✓ DEBUG=false
+    ✓ All Railway URLs in CORS
+    ✓ Security headers enabled
+
+  Frontend:
+    ✓ VITE_ENVIRONMENT=production
+    ✓ VITE_DEBUG_MODE=false
+    ✓ Mock features disabled
+    ✓ Security features enabled
+
+Status: ✅ PROPERLY CONFIGURED for both environments
+
+═══════════════════════════════════════════════════════════════
+8. MISSING ENVIRONMENT VARIABLES
+═══════════════════════════════════════════════════════════════
+
+Backend Missing (Recommended):
+  ⚠️ WEBSOCKET_URL - Currently derived from HOST/PORT
+  ⚠️ FRONTEND_WS_URL - For clarity in multi-frontend setup
+
+Frontend Missing (Optional):
+  ℹ️ VITE_BACKEND_VERSION - For compatibility checking
+  ℹ️ VITE_MIN_BACKEND_VERSION - For version validation
+
+Impact: ⚠️ LOW - System works without these, but would improve clarity
+
+═══════════════════════════════════════════════════════════════
+9. SECURITY ANALYSIS
+═══════════════════════════════════════════════════════════════
+
+✅ PASSED SECURITY CHECKS:
+
+1. ✅ No PRIVATE keys in frontend environment
+   - Firebase Admin SDK key only in backend
+   - Supabase Service Role Key only in backend
+
+2. ✅ Proper CORS configuration
+   - All legitimate frontends whitelisted
+   - No wildcards in production
+
+3. ✅ Encrypted secrets in backend
+   - JWT secrets properly generated
+   - Encryption key for LGPD compliance
+   - Database passwords secure
+
+4. ✅ CSP and security headers enabled in production
+   - VITE_ENABLE_CSP: true
+   - VITE_FORCE_HTTPS: true
+   - SECURE_SSL_REDIRECT: true
+
+⚠️ SECURITY WARNINGS:
+
+1. ⚠️ API keys visible in frontend .env (expected for public Firebase config)
+   - Firebase API keys are meant to be public
+   - Protected by Firebase security rules
+   - No action required
+
+2. ⚠️ Hardcoded URLs could leak internal architecture
+   - localhost:3003 suggests microservices architecture
+   - Consider refactoring to environment variables
+
+═══════════════════════════════════════════════════════════════
+10. RECOMMENDATIONS MATRIX
+═══════════════════════════════════════════════════════════════
+
+| Priority | Issue                              | File(s)                          | Action                           |
+|----------|------------------------------------|---------------------------------|----------------------------------|
+| 🔴 P0    | Hardcoded localhost:3003          | PacientesList.tsx               | Replace with VITE_API_URL        |
+| 🔴 P0    | Hardcoded localhost:3003          | ProntuarioView.tsx              | Replace with VITE_API_URL        |
+| 🟠 P1    | WebSocket path mismatch           | Backend + Frontend .env         | Verify /ws vs /ws/connect        |
+| 🟠 P1    | Outdated fallback URL             | runtime-config.ts               | Update to current deployment     |
+| 🟡 P2    | Inconsistent WebSocket port       | useWebSocket.ts                 | Change 8080 → 8000               |
+| 🟡 P2    | Multiple frontend URLs            | Backend CORS config             | Consolidate/document             |
+| 🔵 P3    | Missing WebSocket env var         | Backend .env                    | Add WEBSOCKET_URL                |
+| 🔵 P3    | Missing version variables         | Frontend .env                   | Add version checking             |
+
+═══════════════════════════════════════════════════════════════
+11. DEPLOYMENT CHECKLIST
+═══════════════════════════════════════════════════════════════
+
+BEFORE DEPLOYING TO PRODUCTION:
+
+Backend:
+  [ ] Verify ALLOWED_ORIGINS includes actual frontend URL
+  [ ] Confirm WebSocket endpoint (/ws or /ws/connect)
+  [ ] Test Evolution API webhook URL is accessible
+  [ ] Verify Supabase connection with SERVICE_ROLE_KEY
+  [ ] Check Redis connection with SSL
+  [ ] Test Celery workers can connect to broker
+  [ ] Verify Firebase Admin SDK authentication
+
+Frontend:
+  [ ] 🔴 FIX hardcoded localhost:3003 URLs (CRITICAL)
+  [ ] Update runtime-config.ts fallback URLs
+  [ ] Verify VITE_API_URL matches backend deployment
+  [ ] Test WebSocket connection to backend
+  [ ] Verify Firebase client initialization
+  [ ] Test Supabase client authentication
+  [ ] Build and test production bundle
+  [ ] Verify all VITE_ variables are set in Railway
+
+Railway Configuration:
+  [ ] Set all environment variables in Railway dashboard
+  [ ] Verify frontend service URL matches backend CORS
+  [ ] Check backend service URL is accessible
+  [ ] Test WebSocket upgrade support
+  [ ] Verify SSL certificates are valid
+  [ ] Check resource limits and scaling settings
+
+═══════════════════════════════════════════════════════════════
+12. FINAL VERDICT
+═══════════════════════════════════════════════════════════════
+
+Overall Assessment: ⚠️ DEPLOYABLE WITH CRITICAL FIXES
+
+Core Infrastructure: ✅ SOLID
+  - Environment variables properly organized
+  - Security properly implemented
+  - Services correctly configured
+
+Critical Issues: ❌ 2 FILES MUST BE FIXED
+  - PacientesList.tsx - hardcoded URL
+  - ProntuarioView.tsx - hardcoded URLs
+
+  Impact if not fixed:
+    - Medico portal completely non-functional in production
+    - Patient management broken
+    - 404/CORS errors on all medico API calls
+
+Time to Fix: ⏱️ 15-30 minutes
+Complexity: 🟢 LOW - Simple find/replace with API client
+
+Recommended Action Plan:
+  1. IMMEDIATE: Fix hardcoded URLs in medico pages (P0)
+  2. BEFORE DEPLOY: Verify WebSocket endpoint (P1)
+  3. BEFORE DEPLOY: Update runtime-config.ts fallbacks (P1)
+  4. POST-DEPLOY: Fix useWebSocket port inconsistency (P2)
+  5. POST-DEPLOY: Add missing env vars for clarity (P3)
+
+Estimated Risk After Fixes: 🟢 LOW - Ready for production
+
+═══════════════════════════════════════════════════════════════
+END OF REPORT
+═══════════════════════════════════════════════════════════════

@@ -37,9 +37,10 @@ export default function ProntuarioView() {
   const fetchProntuario = async () => {
     try {
       setLoading(true)
+      const apiUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL
 
       // Fetch paciente data
-      const pacienteResponse = await fetch(`http://localhost:3003/api/pacientes/${pacienteId}`, {
+      const pacienteResponse = await fetch(`${apiUrl}/api/pacientes/${pacienteId}`, {
         headers: {
           'Authorization': `Bearer ${state.token}`,
         },
@@ -53,7 +54,7 @@ export default function ProntuarioView() {
       setPaciente(pacienteData)
 
       // Fetch consultas
-      const consultasResponse = await fetch(`http://localhost:3003/api/consultas/paciente/${pacienteId}`, {
+      const consultasResponse = await fetch(`${apiUrl}/api/consultas/paciente/${pacienteId}`, {
         headers: {
           'Authorization': `Bearer ${state.token}`,
         },

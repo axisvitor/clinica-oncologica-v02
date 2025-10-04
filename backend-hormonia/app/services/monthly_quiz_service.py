@@ -234,7 +234,7 @@ class MonthlyQuizService:
         session = sessions[0]
 
         # Check if already completed
-        if session.is_completed:
+        if session.status == 'completed':
             raise ValidationError("This quiz has already been completed")
 
         # Update access count and timestamp
@@ -300,7 +300,7 @@ class MonthlyQuizService:
             template_name=template.name,
             template_version=template.version,
             questions=template.questions,
-            current_question_index=session.current_question_index,
+            current_question_index=session.current_question,
             total_questions=len(template.questions),
             expires_at=datetime.fromisoformat(payload["expires_at"])
         )
@@ -406,7 +406,7 @@ class MonthlyQuizService:
         # Persist other_text when "Outra" option is selected
         if submit_data.other_text:
             response_metadata["other_text"] = submit_data.other_text
-        response_metadata["question_index"] = session.current_question_index
+        response_metadata["question_index"] = session.current_question
 
         response_create = QuizResponseCreate(
             patient_id=patient_id,
@@ -422,15 +422,15 @@ class MonthlyQuizService:
         response = await self.quiz_response_service.create_response(response_create)
 
         # Update session progress after successful response creation
-        session.current_question_index += 1
+        session.current_question += 1
 
         # Check if quiz is completed
         total_questions = len(template.questions)
-        if session.current_question_index >= total_questions:
-            session.is_completed = True
+        if session.current_question >= total_questions:
+            session.status = 'completed'
             session.completed_at = datetime.utcnow()
-            # Calculate total_score from all responses
-            session.total_score = await self._calculate_total_score(session.id)
+            # Calculate score from all responses
+            session.score = await self._calculate_total_score(session.id)
 
         self.db.commit()
         self.db.refresh(session)
@@ -464,9 +464,9 @@ class MonthlyQuizService:
             "response_id": str(response.id),
             "success": True,
             "message": "Response submitted successfully",
-            "is_completed": session.is_completed,
-            "total_score": session.total_score if session.is_completed else None,
-            "current_question_index": session.current_question_index,
+            "is_completed": session.status == 'completed',
+            "total_score": session.score if session.status == 'completed' else None,
+            "current_question_index": session.current_question,
             "new_token": new_token
         }
 
@@ -480,7 +480,7 @@ class MonthlyQuizService:
 
         # Determine status
         status = QuizLinkStatus(metadata.get("link_status", QuizLinkStatus.ACTIVE.value))
-        if session.is_completed:
+        if session.status == 'completed':
             status = QuizLinkStatus.USED
         elif datetime.utcnow() > datetime.fromisoformat(metadata.get("expires_at", datetime.utcnow().isoformat())):
             status = QuizLinkStatus.EXPIRED
@@ -516,13 +516,13 @@ class MonthlyQuizService:
 
         # Calculate stats
         total_links = len(sessions)
-        active_links = len([s for s in sessions if not s.is_completed and datetime.utcnow() <= datetime.fromisoformat(
+        active_links = len([s for s in sessions if s.status != 'completed' and datetime.utcnow() <= datetime.fromisoformat(
             (s.session_metadata or {}).get("expires_at", datetime.utcnow().isoformat())
         )])
-        expired_links = len([s for s in sessions if not s.is_completed and datetime.utcnow() > datetime.fromisoformat(
+        expired_links = len([s for s in sessions if s.status != 'completed' and datetime.utcnow() > datetime.fromisoformat(
             (s.session_metadata or {}).get("expires_at", datetime.utcnow().isoformat())
         )])
-        completed_quizzes = len([s for s in sessions if s.is_completed])
+        completed_quizzes = len([s for s in sessions if s.status == 'completed'])
 
         completion_rate = (completed_quizzes / total_links * 100) if total_links > 0 else 0
 
@@ -614,7 +614,7 @@ class MonthlyQuizService:
         if datetime.utcnow() > expires_at:
             raise ValidationError("Cannot resend expired quiz link")
 
-        if session.is_completed:
+        if session.status == 'completed':
             raise ValidationError("Cannot resend completed quiz link")
 
         # Audit log link resend
@@ -733,7 +733,7 @@ class MonthlyQuizService:
         if not session:
             raise NotFoundError(f"Quiz session {session_id} not found")
 
-        if session.is_completed:
+        if session.status == 'completed':
             raise ValidationError("Cannot regenerate link for completed session")
 
         metadata = session.session_metadata or {}
@@ -901,7 +901,7 @@ class MonthlyQuizService:
         # Get sessions that are not completed and potentially active
         sessions = self.db.query(QuizSession).filter(
             and_(
-                QuizSession.is_completed == False,
+                QuizSession.status != 'completed',
                 QuizSession.session_metadata.isnot(None),
                 or_(
                     QuizSession.session_metadata["link_status"].astext == "active",
@@ -923,7 +923,7 @@ class MonthlyQuizService:
                     # Only include if not expired and not cancelled
                     if (current_time <= expires_at and
                         metadata.get("link_status") != "cancelled" and
-                        not session.is_completed):
+                        session.status != 'completed'):
 
                         try:
                             link_response = await self.get_quiz_link_status(session.id)
@@ -967,7 +967,7 @@ class MonthlyQuizService:
         if not session:
             raise NotFoundError(f"Quiz session {session_id} not found")
 
-        if session.is_completed:
+        if session.status == 'completed':
             raise ValidationError("Cannot cancel a completed quiz session")
 
         # Update metadata to cancelled status
@@ -1000,7 +1000,7 @@ class MonthlyQuizService:
 
         sessions = self.db.query(QuizSession).join(Patient).join(QuizTemplate).filter(
             and_(
-                QuizSession.is_completed == False,
+                QuizSession.status != 'completed',
                 QuizSession.session_metadata.isnot(None)
             )
         ).all()
@@ -1032,7 +1032,7 @@ class MonthlyQuizService:
                         token=token_display,
                         link_url=f"{self.config.MONTHLY_QUIZ_BASE_URL}?token={token_display}",
                         delivery_method=DeliveryMethod(metadata.get("delivery_method", "whatsapp")),
-                        status=QuizLinkStatus.ACTIVE if not session.is_completed else QuizLinkStatus.USED,
+                        status=QuizLinkStatus.ACTIVE if session.status != 'completed' else QuizLinkStatus.USED,
                         expires_at=expires_at,
                         created_at=session.started_at,
                         accessed_at=datetime.fromisoformat(metadata["accessed_at"]) if metadata.get("accessed_at") else None,
@@ -1071,7 +1071,7 @@ class MonthlyQuizService:
             QuizTemplate,
             QuizSession.quiz_template_id == QuizTemplate.id
         ).filter(
-            QuizSession.is_completed == False,
+            QuizSession.status != 'completed',
             QuizSession.session_metadata.isnot(None)
         )
 
@@ -1113,7 +1113,7 @@ class MonthlyQuizService:
                         "sent_at": session.started_at.isoformat(),  # Alias for compatibility
                         "expires_at": expires_at.isoformat(),
                         "is_active": expires_at > current_time,
-                        "status": "completed" if session.is_completed else "active",
+                        "status": session.status,
                         "access_count": metadata.get("access_count", 0),
                         "delivery_method": metadata.get("delivery_method", "whatsapp")
                     })
@@ -1138,7 +1138,7 @@ class MonthlyQuizService:
             pass  # Add created_by filter if column exists
 
         total = query.count()
-        completed = query.filter(QuizSession.is_completed == True).count()
+        completed = query.filter(QuizSession.status == 'completed').count()
 
         # Calculate expired links and average score
         current_time = datetime.utcnow()
@@ -1150,12 +1150,12 @@ class MonthlyQuizService:
 
         for session in sessions:
             # Calculate average score from completed sessions with total_score
-            if session.is_completed and session.total_score is not None:
-                total_score_sum += session.total_score
+            if session.is_completed and session.score is not None:
+                total_score_sum += session.score
                 scored_sessions += 1
 
             # Skip completion check for expired/active calculation
-            if session.is_completed:
+            if session.status == 'completed':
                 continue
 
             metadata = session.session_metadata or {}

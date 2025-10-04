@@ -377,7 +377,7 @@ async def submit_quiz_response_with_rotation(
     # ========================================
     session.current_question_index += 1
     if session.current_question_index >= len(template.questions):
-        session.is_completed = True
+        session.status = 'completed'
         session.completed_at = datetime.utcnow()
 
     self.db.commit()
@@ -391,7 +391,7 @@ async def submit_quiz_response_with_rotation(
         "message": "Response submitted successfully",
         "new_token": new_token,  # ✅ Frontend will update token
         "next_question_index": session.current_question_index,
-        "is_completed": session.is_completed,
+        "is_completed": session.status == 'completed',
         "total_questions": len(template.questions)
     }
 

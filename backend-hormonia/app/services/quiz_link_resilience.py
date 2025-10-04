@@ -97,7 +97,7 @@ class QuizLinkResilienceService:
         now = datetime.utcnow()
         sessions = self.db.query(QuizSession).filter(
             and_(
-                QuizSession.is_completed == False,
+                QuizSession.status != 'completed',
                 QuizSession.session_metadata.isnot(None)
             )
         ).limit(limit).all()
@@ -491,7 +491,7 @@ class QuizLinkResilienceService:
             if expires_at_str:
                 try:
                     expires_at = datetime.fromisoformat(expires_at_str)
-                    if datetime.utcnow() > expires_at and not session.is_completed:
+                    if datetime.utcnow() > expires_at and session.status != 'completed':
                         expired_count += 1
                 except (ValueError, TypeError):
                     pass
@@ -511,11 +511,11 @@ class QuizLinkResilienceService:
                     reminder_failure += 1
 
             # Successful delivery (accessed and completed)
-            if metadata.get("accessed_at") and session.is_completed:
+            if metadata.get("accessed_at") and session.status == 'completed':
                 reminder_success += 1
 
             # Completion times
-            if session.is_completed and session.completed_at:
+            if session.status == 'completed' and session.completed_at:
                 duration = (session.completed_at - session.started_at).total_seconds() / 60
                 completion_times.append(duration)
 

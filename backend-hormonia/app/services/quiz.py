@@ -514,10 +514,11 @@ class QuizSessionService:
                     raise ValidationError("Cannot start session with inactive template")
 
                 # Use database-level uniqueness constraint with FOR UPDATE NOWAIT to prevent race conditions
+                # FIX: Use 'completed_at IS NULL' instead of non-existent 'is_completed' column
                 active_session_query = text(
                     """
                     SELECT id FROM quiz_sessions
-                    WHERE patient_id = :patient_id AND is_completed = false
+                    WHERE patient_id = :patient_id AND completed_at IS NULL
                     FOR UPDATE NOWAIT
                     """
                 )
@@ -535,11 +536,12 @@ class QuizSessionService:
                     raise
 
                 # Create new session with database constraints ensuring uniqueness
+                # FIX: Use correct field names matching database schema
                 session = QuizSession(
                     patient_id=session_data.patient_id,
                     quiz_template_id=session_data.quiz_template_id,
-                    current_question_index=0,
-                    is_completed=False,
+                    current_question=0,  # FIX: Renamed from current_question_index
+                    status='started',    # FIX: Use status instead of is_completed
                     started_at=datetime.utcnow()
                 )
 
@@ -586,7 +588,7 @@ class QuizSessionService:
             )
             .filter(
                 QuizSession.patient_id == patient_id,
-                QuizSession.is_completed == False
+                QuizSession.status != 'completed'
             )
             .order_by(QuizSession.started_at.desc())
             .first()
@@ -633,7 +635,7 @@ class QuizSessionService:
         if not session:
             raise NotFoundError(f"Quiz session with ID {session_id} not found")
 
-        if session.is_completed:
+        if session.status == 'completed':
             raise ValidationError("Cannot advance completed session")
 
         # Get template to check question count (already loaded via joinedload)
@@ -642,13 +644,13 @@ class QuizSessionService:
             raise NotFoundError("Quiz template not found")
 
         questions = template.questions
-        if session.current_question_index >= len(questions) - 1:
+        if session.current_question >= len(questions) - 1:
             # Complete the session
-            session.is_completed = True
+            session.status = 'completed'
             session.completed_at = datetime.utcnow()
         else:
             # Advance to next question
-            session.current_question_index += 1
+            session.current_question += 1
 
         try:
             updated_session = self.session_repository.update(session, {})
@@ -682,11 +684,11 @@ class QuizSessionService:
         if not session:
             raise NotFoundError(f"Quiz session with ID {session_id} not found")
 
-        if session.is_completed:
+        if session.status == 'completed':
             return self._enrich_session_response(session)
 
         # Mark as completed
-        session.is_completed = True
+        session.status = 'completed'
         session.completed_at = datetime.utcnow()
 
         try:
@@ -764,9 +766,9 @@ class QuizSessionService:
         # Apply status filter if provided
         if status:
             if status.lower() == 'completed':
-                query = query.filter(QuizSession.is_completed == True)
-            elif status.lower() in ('in_progress', 'active'):
-                query = query.filter(QuizSession.is_completed == False)
+                query = query.filter(QuizSession.status == 'completed')
+            elif status.lower() in ('in_progress', 'active', 'started'):
+                query = query.filter(QuizSession.status == 'started')
 
         query = query.order_by(QuizSession.started_at.desc())
 
@@ -787,18 +789,24 @@ class QuizAnalyticsService:
     
     def get_patient_analytics(self, patient_id: UUID, template_id: Optional[UUID] = None) -> PatientQuizAnalytics:
         """Get analytics for a patient's quiz responses."""
-        # Get patient responses
+        from app.models.quiz import QuizSession
+
+        # FIX N+1: Use SQL WHERE clause instead of Python filtering
         if template_id:
             responses = self.response_repository.get_patient_quiz_responses(patient_id, template_id)
-            sessions = [s for s in self.session_repository.get_patient_sessions(patient_id) 
-                       if s.quiz_template_id == template_id]
+            # Use database query instead of Python list comprehension
+            sessions = self.db.query(QuizSession).filter(
+                QuizSession.patient_id == patient_id,
+                QuizSession.quiz_template_id == template_id
+            ).all()
         else:
             responses = self.response_repository.get_by_patient(patient_id)
             sessions = self.session_repository.get_patient_sessions(patient_id)
-        
+
         # Calculate basic metrics
         total_responses = len(responses)
-        completed_sessions = len([s for s in sessions if s.is_completed])
+        # FIX: Use status field instead of is_completed
+        completed_sessions = len([s for s in sessions if s.status == 'completed'])
         total_sessions = len(sessions)
         completion_rate = (completed_sessions / total_sessions * 100) if total_sessions > 0 else 0
         
@@ -835,44 +843,59 @@ class QuizAnalyticsService:
         
         # Calculate metrics
         total_responses = len(responses)
-        completed_sessions = len([s for s in sessions if s.is_completed])
+        completed_sessions = len([s for s in sessions if s.status == 'completed'])
         total_sessions = len(sessions)
         completion_rate = (completed_sessions / total_sessions * 100) if total_sessions > 0 else 0
         
         # Calculate average completion time
         completed_session_times = []
         for session in sessions:
-            if session.is_completed and session.completed_at:
+            # FIX: Use status field instead of is_completed
+            if session.status == 'completed' and session.completed_at:
                 duration = (session.completed_at - session.started_at).total_seconds() / 60
                 completed_session_times.append(duration)
-        
+
         avg_completion_time = sum(completed_session_times) / len(completed_session_times) if completed_session_times else None
-        
-        # Analyze questions
+
+        # FIX N+1: Use SQL GROUP BY instead of Python nested loops
+        # Analyze questions with a single aggregated query
+        from sqlalchemy import func
+        from app.models.quiz import QuizResponse
+
+        # Get question stats in ONE query instead of N queries
+        question_stats_query = self.db.query(
+            QuizResponse.question_id,
+            QuizResponse.response_value,
+            func.count(QuizResponse.id).label('count')
+        ).filter(
+            QuizResponse.quiz_template_id == template_id
+        ).group_by(
+            QuizResponse.question_id,
+            QuizResponse.response_value
+        ).all()
+
+        # Build question analytics from aggregated results
         question_analytics = []
         questions = template.questions
-        
+
+        # Create a lookup dict for O(1) access instead of O(n) loops
+        stats_by_question = {}
+        for q_id, value, count in question_stats_query:
+            if q_id not in stats_by_question:
+                stats_by_question[q_id] = {"responses": 0, "distribution": {}}
+            stats_by_question[q_id]["responses"] += count
+            stats_by_question[q_id]["distribution"][value] = count
+
         for question in questions:
             question_id = question.get('id')
-            question_responses = [r for r in responses if r.question_id == question_id]
-            
-            # Basic question metrics
-            question_stats = {
+            stats = stats_by_question.get(question_id, {"responses": 0, "distribution": {}})
+
+            question_analytics.append({
                 "question_id": question_id,
                 "question_text": question.get('text'),
-                "total_responses": len(question_responses),
-                "response_distribution": {}
-            }
-            
-            # Analyze response distribution
-            for response in question_responses:
-                value = response.response_value
-                if value in question_stats["response_distribution"]:
-                    question_stats["response_distribution"][value] += 1
-                else:
-                    question_stats["response_distribution"][value] = 1
-            
-            question_analytics.append(question_stats)
+                "total_responses": stats["responses"],
+                "response_distribution": stats["distribution"]
+            })
         
         # Analyze trends (simplified - could be enhanced with time-based analysis)
         trends = {

@@ -20,6 +20,7 @@ from app.utils.user_cache import (
     get_cached_preferences, set_cached_preferences,
     check_password_change_rate_limit
 )
+from app.utils.rate_limiter import limiter
 
 logger = get_logger(__name__)
 
@@ -77,6 +78,7 @@ class NotificationListResponse(BaseModel):
     Local authentication is disabled. Use Firebase Auth on the client and send the Firebase ID token to this API.
     """,
 )
+@limiter.limit("5/minute")  # Rate limit: 5 attempts per minute per IP
 async def login(
     request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
@@ -92,6 +94,7 @@ async def login(
     summary="[DEPRECATED] Local Login Disabled",
     description="Local authentication is disabled. Use Firebase Auth on the client.",
 )
+@limiter.limit("5/minute")  # Rate limit: 5 attempts per minute per IP
 async def login_json(
     request: Request,
     login_data: LoginRequest,
@@ -107,6 +110,7 @@ async def login_json(
     summary="[DEPRECATED] Local Refresh Disabled",
     description="Token refresh is handled by Firebase automatically on the client.",
 )
+@limiter.limit("20/minute")  # Rate limit: 20 refreshes per minute per IP
 async def refresh_token(
     request: RefreshTokenRequest,
     auth_service: AuthService = Depends(get_auth_service)
@@ -557,7 +561,9 @@ class PasswordChangeRequest(BaseModel):
     summary="Update User Profile",
     description="Update profile information for the current authenticated user"
 )
+@limiter.limit("20/hour")  # Rate limit: 20 profile updates per hour per IP
 async def update_profile(
+    request: Request,
     profile_data: ProfileUpdateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -628,7 +634,9 @@ async def update_profile(
     summary="Upload User Avatar",
     description="Upload avatar image for the current authenticated user (multipart/form-data)"
 )
+@limiter.limit("10/hour")  # Rate limit: 10 uploads per hour per IP
 async def upload_avatar(
+    request: Request,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -731,7 +739,9 @@ async def upload_avatar(
     summary="Change User Password",
     description="Change password for the current authenticated user (with rate limiting)"
 )
+@limiter.limit("3/hour")  # Rate limit: 3 password changes per hour per IP
 async def change_password(
+    request: Request,
     password_data: PasswordChangeRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)

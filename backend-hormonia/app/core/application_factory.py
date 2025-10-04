@@ -25,6 +25,11 @@ from .router_registry import register_routers
 from .lifespan import lifespan
 from .monitoring_setup import setup_monitoring
 
+# Import rate limiter components
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from app.utils.rate_limiter import limiter, rate_limit_handler
+
 logger = get_logger(__name__)
 
 
@@ -90,6 +95,12 @@ def create_application(
     app.state.deployment_mode = deployment_mode
     app.state.debug_endpoints_enabled = enable_debug_endpoints
     app.state.error_tracking_enabled = enable_error_tracking
+
+    # Configure rate limiter
+    if settings.RATE_LIMIT_ENABLED:
+        app.state.limiter = limiter
+        app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
+        logger.info("✓ Rate limiter configured")
 
     # Configure application components in order
     logger.info("Setting up application components...")

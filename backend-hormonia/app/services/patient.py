@@ -431,8 +431,9 @@ class PatientIntegrityService:
         """Check for existing patient with same CPF"""
         try:
             from sqlalchemy import text
+            # FIX: Use direct 'cpf' column instead of non-existent 'metadata' column
             result = self.db.execute(
-                text("SELECT * FROM patients WHERE metadata->>'cpf' = :cpf"),
+                text("SELECT * FROM patients WHERE cpf = :cpf"),
                 {"cpf": cpf}
             ).first()
 

@@ -171,7 +171,7 @@ class QuizTriggerService:
                 flow_state.patient_id, monthly_cycle
             )
             
-            if existing_session and existing_session.is_completed:
+            if existing_session and existing_session.status == 'completed':
                 return False, {**quiz_info, "already_completed": True}
             
             return True, quiz_info

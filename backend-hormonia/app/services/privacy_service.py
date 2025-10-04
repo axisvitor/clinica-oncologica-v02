@@ -191,7 +191,7 @@ class PrivacyService:
                     "quiz_template_id": str(s.quiz_template_id),
                     "started_at": s.started_at.isoformat() if s.started_at else None,
                     "completed_at": s.completed_at.isoformat() if s.completed_at else None,
-                    "is_completed": s.is_completed
+                    "is_completed": s.status == 'completed'
                 }
                 for s in sessions
             ],

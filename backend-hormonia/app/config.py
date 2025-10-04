@@ -149,6 +149,13 @@ class Settings(BaseSettings):
     REDIS_CACHE_DB: int = Field(default=1, description="Redis database number for cache (0-15)")
     REDIS_BROKER_DB: int = Field(default=0, description="Redis database number for Celery broker (0-15)")
     REDIS_ENABLE_DB_ISOLATION: bool = Field(default=True, description="Enable separate DBs for cache vs broker")
+
+    # Rate Limiting Configuration
+    RATE_LIMIT_ENABLED: bool = Field(default=True, description="Enable rate limiting on authentication endpoints")
+    RATE_LIMIT_REDIS_URL: Optional[str] = Field(
+        default=None,
+        description="Redis URL for rate limiting storage (uses REDIS_URL if not set, in-memory if Redis unavailable)"
+    )
     
     # Evolution API (WhatsApp)
     ENABLE_EVOLUTION: bool = Field(default=True, description="Enable Evolution API WhatsApp integration")
@@ -204,9 +211,10 @@ class Settings(BaseSettings):
             "http://127.0.0.1:8000",  # Backend self-reference
             "http://127.0.0.1:8080",  # Evolution API
             # Production Railway URLs - explicit URLs only (no wildcards for security)
-            "https://interface-quiz-production.up.railway.app",  # Explicit Interface URL
+            "https://clinica-oncologica-v02-production.up.railway.app",  # Main production deployment
+            "https://interface-quiz-production.up.railway.app",  # Quiz interface production
+            "https://quiz-mensal-interface.railway.app",  # Quiz interface production (alt)
             "https://hormonia-frontend.railway.app",  # Frontend production
-            "https://quiz-mensal-interface.railway.app",  # Quiz interface production
             "https://frontend-v2.railway.app"  # Main frontend production
         ],
         description="Allowed CORS origins with Railway production support, localhost and 127.0.0.1 development URLs (includes port 5179)"
@@ -241,9 +249,10 @@ class Settings(BaseSettings):
             "http://127.0.0.1:3000", "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://127.0.0.1:5175", "http://127.0.0.1:5176", "http://127.0.0.1:5177", "http://127.0.0.1:5178", "http://127.0.0.1:5179",  # Main frontend 127.0.0.1 + all Vite ports
             "http://127.0.0.1:3001", "http://127.0.0.1:5174",  # Quiz interface 127.0.0.1
             "http://127.0.0.1:8000", "http://127.0.0.1:8080",  # Backend + Evolution 127.0.0.1
-            "https://interface-quiz-production.up.railway.app",  # Explicit Interface URL
-            "https://hormonia-frontend.railway.app",  # Railway wildcard
-            "https://quiz-mensal-interface.railway.app",  # Quiz production
+            "https://clinica-oncologica-v02-production.up.railway.app",  # Main production deployment
+            "https://interface-quiz-production.up.railway.app",  # Quiz interface production
+            "https://quiz-mensal-interface.railway.app",  # Quiz production (alt)
+            "https://hormonia-frontend.railway.app",  # Frontend production
             "https://frontend-v2.railway.app"  # Frontend production
         ]
     
@@ -352,6 +361,50 @@ class Settings(BaseSettings):
         case_sensitive=True,
         extra='ignore'
     )
+
+    def __init__(self, **kwargs):
+        """Initialize settings with validation."""
+        super().__init__(**kwargs)
+        self._validate_firebase_config()
+        self._validate_cors_config()
+
+    def _validate_firebase_config(self):
+        """Validate Firebase configuration at runtime."""
+        # Check if Firebase is being used (any Firebase field is set)
+        firebase_in_use = any([
+            self.FIREBASE_ADMIN_PROJECT_ID,
+            self.FIREBASE_ADMIN_PRIVATE_KEY,
+            self.FIREBASE_ADMIN_CLIENT_EMAIL
+        ])
+
+        if firebase_in_use:
+            # If any Firebase field is set, all must be set
+            missing_fields = []
+            if not self.FIREBASE_ADMIN_PROJECT_ID:
+                missing_fields.append("FIREBASE_ADMIN_PROJECT_ID")
+            if not self.FIREBASE_ADMIN_PRIVATE_KEY:
+                missing_fields.append("FIREBASE_ADMIN_PRIVATE_KEY")
+            if not self.FIREBASE_ADMIN_CLIENT_EMAIL:
+                missing_fields.append("FIREBASE_ADMIN_CLIENT_EMAIL")
+
+            if missing_fields:
+                raise ValueError(
+                    f"Firebase Admin SDK requires all credentials. Missing: {', '.join(missing_fields)}"
+                )
+
+    def _validate_cors_config(self):
+        """Validate CORS configuration to ensure frontend URL is included."""
+        if not self.ALLOWED_ORIGINS:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "⚠️  ALLOWED_ORIGINS is empty! CORS will block all cross-origin requests. "
+                "Add your frontend URL to ALLOWED_ORIGINS in .env"
+            )
+        else:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"✅ CORS configured with {len(self.ALLOWED_ORIGINS)} allowed origins")
 
 
 # Global settings instance

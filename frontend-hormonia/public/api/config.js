@@ -18,7 +18,7 @@ if (typeof window !== 'undefined') {
     VITE_SUPABASE_ANON_KEY: '',
     // VITE_API_URL is deprecated - use VITE_API_BASE_URL instead
     VITE_API_BASE_URL: 'https://backend-production-e0bd.up.railway.app',
-    VITE_WS_BASE_URL: 'wss://backend-production-e0bd.up.railway.app/ws',
+    VITE_WS_BASE_URL: 'wss://backend-production-e0bd.up.railway.app/ws/connect',
     VITE_WHATSAPP_INSTANCE_NAME: 'hormonia-instance',
     VITE_ENVIRONMENT: 'production',
     VITE_DEBUG_MODE: 'false',
@@ -43,7 +43,7 @@ if (typeof window !== 'undefined') {
     VITE_SUPABASE_ANON_KEY: process.env['VITE_SUPABASE_ANON_KEY'] || '',
     // VITE_API_URL is deprecated - use VITE_API_BASE_URL instead
     VITE_API_BASE_URL: process.env['VITE_API_BASE_URL'] || 'https://backend-production-e0bd.up.railway.app',
-    VITE_WS_BASE_URL: process.env['VITE_WS_BASE_URL'] || 'wss://backend-production-e0bd.up.railway.app/ws',
+    VITE_WS_BASE_URL: process.env['VITE_WS_BASE_URL'] || 'wss://backend-production-e0bd.up.railway.app/ws/connect',
     VITE_WHATSAPP_INSTANCE_NAME: process.env['VITE_WHATSAPP_INSTANCE_NAME'] || 'hormonia-instance',
     VITE_OPENAI_API_KEY: process.env['VITE_OPENAI_API_KEY'],
     VITE_LANGCHAIN_API_KEY: process.env['VITE_LANGCHAIN_API_KEY'],
