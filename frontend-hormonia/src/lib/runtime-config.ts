@@ -202,30 +202,14 @@ async function loadRuntimeConfiguration(): Promise<RuntimeConfig> {
 
 /**
  * Attempts to load config from runtime API endpoint
+ * DISABLED: /api/config endpoint not accessible from browser in Railway
+ * Frontend uses Railway internal domain which is server-to-server only
  */
 async function loadFromRuntimeAPI(): Promise<RuntimeConfig | null> {
-  try {
-    const response = await fetch('/api/config', {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Cache-Control': 'no-cache'
-      },
-      // Short timeout for runtime config
-      signal: AbortSignal.timeout(5000)
-    });
-
-    if (response.ok) {
-      const config = await response.json();
-      if (import.meta.env['DEV']) {
-        logger.log('Loaded from API endpoint');
-      }
-      return config;
-    }
-  } catch (error) {
-    if (import.meta.env['DEV']) {
-      logger.warn('API endpoint not available:', error);
-    }
+  // Skip API endpoint loading - not accessible from browser
+  // Railway internal URLs (.railway.internal) only work server-to-server
+  if (import.meta.env['DEV']) {
+    logger.log('Skipping /api/config endpoint (not accessible from browser)');
   }
   return null;
 }

@@ -46,43 +46,11 @@ export function ConfigProvider({
       setError(null);
 
       logger.info('Loading runtime configuration...');
-      logger.info('Timeout protection: 3 seconds');
 
-      // Create timeout promise that rejects after 3 seconds
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Configuration load timeout after 3 seconds')), 3000)
-      );
-
-      // Race between config loading and timeout
-      const configPromise = getRuntimeConfig();
-      let runtimeConfig: RuntimeConfig;
-
-      try {
-        runtimeConfig = await Promise.race([configPromise, timeoutPromise]) as RuntimeConfig;
-        logger.info('Configuration loaded successfully');
-      } catch (timeoutError) {
-        // If timeout occurs, use fallback configuration
-        logger.warn('Timeout occurred, using fallback configuration');
-        logger.error('Timeout error:', timeoutError);
-
-        // Create minimal fallback config for local development
-        runtimeConfig = {
-          VITE_SUPABASE_URL: '',
-          VITE_SUPABASE_ANON_KEY: '',
-          VITE_SUPABASE_REALTIME_ENABLED: 'false',
-          VITE_API_URL: 'http://127.0.0.1:8000',
-          VITE_WS_URL: 'ws://127.0.0.1:8000/ws',
-          VITE_WHATSAPP_INSTANCE_NAME: 'local-instance',
-          VITE_AI_CHAT_ENABLED: 'false',
-          VITE_AI_ANALYTICS_ENABLED: 'false',
-          VITE_AI_INSIGHTS_ENABLED: 'false',
-          VITE_AI_RECOMMENDATIONS_ENABLED: 'false',
-          VITE_ENVIRONMENT: 'development',
-          VITE_DEBUG_MODE: 'true'
-        } as RuntimeConfig;
-
-        logger.info('Fallback configuration applied');
-      }
+      // Load config directly without timeout race condition
+      // getRuntimeConfig already has internal timeout handling
+      const runtimeConfig = await getRuntimeConfig();
+      logger.info('Configuration loaded successfully');
 
       // Initialize API client with runtime config
       const apiUrl = runtimeConfig.VITE_API_URL || 'http://127.0.0.1:8000';
