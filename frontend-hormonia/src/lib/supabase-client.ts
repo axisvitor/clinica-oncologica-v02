@@ -20,17 +20,23 @@ let isInitialized = false
  * @param anonKey - Supabase anonymous key
  * @param realtimeEnabled - Enable real-time features (optional)
  */
-export function initializeSupabase(url: string, anonKey: string, realtimeEnabled?: boolean) {
-  if (!url || !anonKey) {
-    const error = new Error(
-      'Supabase configuration missing: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required. ' +
-      'Please check your environment variables or .env file.'
-    )
-    logger.error('Missing credentials for initialization', { error: error.message })
-    throw error
+export function initializeSupabase(url: string, anonKey: string, realtimeEnabled?: boolean): SupabaseClient | null {
+  // Clean values: remove quotes if present (Vite preserves quotes from .env)
+  if (url && typeof url === 'string') {
+    url = url.replace(/^["']|["']$/g, '').trim()
+  }
+  if (anonKey && typeof anonKey === 'string') {
+    anonKey = anonKey.replace(/^["']|["']$/g, '').trim()
   }
 
-  // Validate configuration
+  if (!url || !anonKey || url.trim() === '' || anonKey.trim() === '') {
+    logger.warn('Supabase credentials missing or empty - running without Supabase features')
+    logger.info('App will continue with mock auth. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to enable Supabase.')
+    isInitialized = false
+    return null
+  }
+
+  // Validate configuration (now with quotes already removed)
   const config: Partial<RuntimeConfig> = {
     VITE_SUPABASE_URL: url,
     VITE_SUPABASE_ANON_KEY: anonKey
@@ -38,10 +44,13 @@ export function initializeSupabase(url: string, anonKey: string, realtimeEnabled
 
   const isValidConfig = validateAndLogConfig(config)
   if (!isValidConfig) {
-    throw new Error('Supabase configuration validation failed. Check console for details.')
+    logger.error('Supabase configuration is invalid - running without Supabase features')
+    logger.warn('Check console for validation details. App will continue with mock auth.')
+    isInitialized = false
+    return null
   }
 
-  logger.info('Initializing client', { url })
+  logger.info('Initializing Supabase client', { url })
 
   if (realtimeEnabled !== undefined) {
     realtimeEnabledFlag = realtimeEnabled
@@ -69,31 +78,29 @@ export function initializeSupabase(url: string, anonKey: string, realtimeEnabled
     })
 
     isInitialized = true
-    logger.info('Client initialized successfully')
+    logger.info('✅ Supabase client initialized successfully')
     return supabaseInstance
   } catch (error) {
-    logger.error('Failed to initialize client', { error })
-    throw new Error(`Failed to initialize Supabase client: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    logger.error('Failed to initialize Supabase client - continuing without Supabase features', { error })
+    logger.warn('App will use mock auth instead')
+    isInitialized = false
+    return null
   }
 }
 
 /**
  * Get Supabase client instance (lazy initialization fallback)
  */
-function getSupabaseClient(): SupabaseClient {
+function getSupabaseClient(): SupabaseClient | null {
   if (!supabaseInstance) {
     // Try to get configuration from runtime config
-    const config = getRuntimeConfig()
     const url = import.meta.env['VITE_SUPABASE_URL']
     const anonKey = import.meta.env['VITE_SUPABASE_ANON_KEY']
 
     if (!url || !anonKey) {
-      const error = new Error(
-        'Supabase not initialized and configuration is missing. ' +
-        'Please ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your environment variables.'
-      )
-      logger.error('Configuration error', { error: error.message })
-      throw error
+      logger.warn('Supabase not initialized and configuration is missing')
+      logger.info('Returning null - app will use mock auth')
+      return null
     }
 
     logger.warn('Using lazy initialization from configuration')
@@ -113,12 +120,13 @@ export function isSupabaseInitialized(): boolean {
 /**
  * Initialize Supabase with runtime configuration
  */
-export async function initializeSupabaseFromConfig(): Promise<SupabaseClient> {
+export async function initializeSupabaseFromConfig(): Promise<SupabaseClient | null> {
   try {
     const config = await getRuntimeConfig()
 
     if (!config.VITE_SUPABASE_URL || !config.VITE_SUPABASE_ANON_KEY) {
-      throw new Error('Supabase configuration missing in runtime config')
+      logger.warn('Supabase configuration missing in runtime config - app will use mock auth')
+      return null
     }
 
     return initializeSupabase(
@@ -127,8 +135,8 @@ export async function initializeSupabaseFromConfig(): Promise<SupabaseClient> {
       config.VITE_SUPABASE_REALTIME_ENABLED === 'true'
     )
   } catch (error) {
-    logger.error('Failed to initialize from config', { error })
-    throw error
+    logger.error('Failed to initialize from config - app will use mock auth', { error })
+    return null
   }
 }
 
@@ -184,10 +192,14 @@ export interface QuizSession {
   created_at: string
 }
 
-// Export lazy Supabase client getter
+// Export lazy Supabase client getter with null safety
 export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
   get(target, prop) {
     const client = getSupabaseClient()
+    if (!client) {
+      logger.warn(`Supabase not configured - property '${String(prop)}' not available`)
+      return undefined
+    }
     const value = (client as any)[prop]
     return typeof value === 'function' ? value.bind(client) : value
   }
@@ -209,6 +221,9 @@ export const auth = {
   // Sign in with email and password
   signIn: async (email: string, password: string) => {
     const client = getSupabaseClient()
+    if (!client) {
+      throw new Error('Supabase not configured. Authentication is not available.')
+    }
 
     try {
       const { data, error } = await client.auth.signInWithPassword({
@@ -242,6 +257,10 @@ export const auth = {
   // Sign up new user
   signUp: async (email: string, password: string, metadata?: Record<string, any>) => {
     const client = getSupabaseClient()
+    if (!client) {
+      throw new Error('Supabase not configured. Authentication is not available.')
+    }
+
     const { data, error } = await client.auth.signUp({
       email,
       password,
@@ -260,6 +279,10 @@ export const auth = {
   // Sign out
   signOut: async () => {
     const client = getSupabaseClient()
+    if (!client) {
+      throw new Error('Supabase not configured. Authentication is not available.')
+    }
+
     const { error } = await client.auth.signOut()
     if (error) {
       throw new Error(`Sign out failed: ${error.message}`)
@@ -269,6 +292,11 @@ export const auth = {
   // Get current user
   getCurrentUser: async (): Promise<User | null> => {
     const client = getSupabaseClient()
+    if (!client) {
+      logger.warn('Supabase not configured - returning null user')
+      return null
+    }
+
     const { data: { user }, error } = await client.auth.getUser()
     if (error) {
       logger.error('Error getting current user', { error: error.message })
@@ -280,6 +308,11 @@ export const auth = {
   // Get current session
   getCurrentSession: async (): Promise<Session | null> => {
     const client = getSupabaseClient()
+    if (!client) {
+      logger.warn('Supabase not configured - returning null session')
+      return null
+    }
+
     const { data: { session }, error } = await client.auth.getSession()
     if (error) {
       logger.error('Error getting session', { error: error.message })
@@ -291,6 +324,10 @@ export const auth = {
   // Refresh session
   refreshSession: async (): Promise<Session | null> => {
     const client = getSupabaseClient()
+    if (!client) {
+      throw new Error('Supabase not configured. Session refresh is not available.')
+    }
+
     const { data: { session }, error } = await client.auth.refreshSession()
     if (error) {
       throw new Error(`Session refresh failed: ${error.message}`)
@@ -301,6 +338,10 @@ export const auth = {
   // Reset password
   resetPassword: async (email: string) => {
     const client = getSupabaseClient()
+    if (!client) {
+      throw new Error('Supabase not configured. Password reset is not available.')
+    }
+
     const { error } = await client.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`
     })
@@ -313,6 +354,10 @@ export const auth = {
   // Update password
   updatePassword: async (password: string) => {
     const client = getSupabaseClient()
+    if (!client) {
+      throw new Error('Supabase not configured. Password update is not available.')
+    }
+
     const { error } = await client.auth.updateUser({
       password
     })
@@ -325,6 +370,11 @@ export const auth = {
   // Listen to auth changes
   onAuthStateChange: (callback: (event: string, session: Session | null) => void) => {
     const client = getSupabaseClient()
+    if (!client) {
+      logger.warn('Supabase not configured - auth state changes not available')
+      return { data: { subscription: { unsubscribe: () => {} } } }
+    }
+
     return client.auth.onAuthStateChange(callback)
   }
 }
@@ -343,6 +393,10 @@ export const database = {
     }) => {
       return await errorHandler.withErrorHandling(async () => {
         const client = getSupabaseClient()
+        if (!client) {
+          throw new Error('Supabase not configured. Cannot list patients.')
+        }
+
         let query = client
           .from('patients')
           .select('*', { count: 'exact' })
@@ -383,6 +437,11 @@ export const database = {
       try {
         return await errorHandler.withErrorHandling(async () => {
           const client = getSupabaseClient()
+          if (!client) {
+            logger.warn('Supabase not configured - cannot get patient')
+            return null
+          }
+
           const { data, error } = await client
             .from('patients')
             .select('*')
@@ -411,6 +470,10 @@ export const database = {
     create: async (patient: Omit<Patient, 'id' | 'created_at' | 'updated_at'>): Promise<Patient> => {
       return await errorHandler.withErrorHandling(async () => {
         const client = getSupabaseClient()
+        if (!client) {
+          throw new Error('Supabase not configured. Cannot create patient.')
+        }
+
         const { data, error } = await client
           .from('patients')
           .insert([patient])
@@ -429,6 +492,10 @@ export const database = {
     update: async (id: string, updates: Partial<Omit<Patient, 'id' | 'created_at'>>) => {
       return await errorHandler.withErrorHandling(async () => {
         const client = getSupabaseClient()
+        if (!client) {
+          throw new Error('Supabase not configured. Cannot update patient.')
+        }
+
         const { data, error } = await client
           .from('patients')
           .update({
@@ -451,6 +518,10 @@ export const database = {
     delete: async (id: string) => {
       return await errorHandler.withErrorHandling(async () => {
         const client = getSupabaseClient()
+        if (!client) {
+          throw new Error('Supabase not configured. Cannot delete patient.')
+        }
+
         const { error } = await client
           .from('patients')
           .delete()
@@ -470,6 +541,10 @@ export const database = {
     // Get messages for a patient
     list: async (patientId: string, limit = 50) => {
       const client = getSupabaseClient()
+      if (!client) {
+        throw new Error('Supabase not configured. Cannot list messages.')
+      }
+
       const { data, error } = await client
         .from('messages')
         .select('*')
@@ -487,6 +562,10 @@ export const database = {
     // Create new message
     create: async (message: Omit<Message, 'id' | 'created_at'>): Promise<Message> => {
       const client = getSupabaseClient()
+      if (!client) {
+        throw new Error('Supabase not configured. Cannot create message.')
+      }
+
       const { data, error } = await client
         .from('messages')
         .insert([message])
@@ -503,6 +582,10 @@ export const database = {
     // Update message status
     updateStatus: async (id: string, status: Message['status']) => {
       const client = getSupabaseClient()
+      if (!client) {
+        throw new Error('Supabase not configured. Cannot update message status.')
+      }
+
       const { data, error } = await client
         .from('messages')
         .update({ status })
@@ -523,6 +606,10 @@ export const database = {
     // Get sessions for a patient
     list: async (patientId: string) => {
       const client = getSupabaseClient()
+      if (!client) {
+        throw new Error('Supabase not configured. Cannot list quiz sessions.')
+      }
+
       const { data, error } = await client
         .from('quiz_sessions')
         .select('*')
@@ -539,6 +626,11 @@ export const database = {
     // Get session by ID
     get: async (id: string): Promise<QuizSession | null> => {
       const client = getSupabaseClient()
+      if (!client) {
+        logger.warn('Supabase not configured - cannot get quiz session')
+        return null
+      }
+
       const { data, error } = await client
         .from('quiz_sessions')
         .select('*')
@@ -558,6 +650,10 @@ export const database = {
     // Create new session
     create: async (session: Omit<QuizSession, 'id' | 'created_at'>): Promise<QuizSession> => {
       const client = getSupabaseClient()
+      if (!client) {
+        throw new Error('Supabase not configured. Cannot create quiz session.')
+      }
+
       const { data, error } = await client
         .from('quiz_sessions')
         .insert([session])
@@ -574,6 +670,10 @@ export const database = {
     // Update session
     update: async (id: string, updates: Partial<Omit<QuizSession, 'id' | 'created_at'>>) => {
       const client = getSupabaseClient()
+      if (!client) {
+        throw new Error('Supabase not configured. Cannot update quiz session.')
+      }
+
       const { data, error } = await client
         .from('quiz_sessions')
         .update(updates)
@@ -608,6 +708,11 @@ export class RealtimeManager {
     if (!this.isEnabled) return null
 
     const client = getSupabaseClient()
+    if (!client) {
+      logger.warn('Supabase not configured - cannot subscribe to patients')
+      return null
+    }
+
     const channel = client
       .channel('patients-channel')
       .on(
@@ -634,6 +739,11 @@ export class RealtimeManager {
 
     const channelName = `messages-${patientId}`
     const client = getSupabaseClient()
+    if (!client) {
+      logger.warn('Supabase not configured - cannot subscribe to patient messages')
+      return null
+    }
+
     const channel = client
       .channel(channelName)
       .on(
@@ -657,6 +767,11 @@ export class RealtimeManager {
     if (!this.isEnabled) return null
 
     const client = getSupabaseClient()
+    if (!client) {
+      logger.warn('Supabase not configured - cannot subscribe to all messages')
+      return null
+    }
+
     const channel = client
       .channel('all-messages-channel')
       .on(
@@ -683,6 +798,11 @@ export class RealtimeManager {
 
     const channelName = `quiz-sessions-${patientId}`
     const client = getSupabaseClient()
+    if (!client) {
+      logger.warn('Supabase not configured - cannot subscribe to quiz sessions')
+      return null
+    }
+
     const channel = client
       .channel(channelName)
       .on(
@@ -706,6 +826,11 @@ export class RealtimeManager {
     const channel = this.channels.get(channelName)
     if (channel) {
       const client = getSupabaseClient()
+      if (!client) {
+        logger.warn('Supabase not configured - cannot unsubscribe from channel')
+        return
+      }
+
       client.removeChannel(channel)
       this.channels.delete(channelName)
     }
@@ -714,6 +839,12 @@ export class RealtimeManager {
   // Unsubscribe from all channels
   unsubscribeAll() {
     const client = getSupabaseClient()
+    if (!client) {
+      logger.warn('Supabase not configured - cannot unsubscribe from all channels')
+      this.channels.clear()
+      return
+    }
+
     for (const [channelName, channel] of this.channels) {
       client.removeChannel(channel)
     }
@@ -740,6 +871,9 @@ export const utils = {
   getConnectionStatus: () => {
     try {
       const client = getSupabaseClient()
+      if (!client) {
+        return false
+      }
       return client.realtime.isConnected()
     } catch {
       return false
@@ -750,6 +884,20 @@ export const utils = {
   healthCheck: async () => {
     try {
       const client = getSupabaseClient()
+      if (!client) {
+        return {
+          configured: false,
+          connected: false,
+          realtimeEnabled: realtimeEnabledFlag,
+          realtimeConnected: false,
+          error: 'Supabase not configured',
+          permissions: {
+            canRead: false,
+            hasRLSError: false
+          }
+        }
+      }
+
       const { data, error } = await client
         .from('patients')
         .select('count', { count: 'exact', head: true })

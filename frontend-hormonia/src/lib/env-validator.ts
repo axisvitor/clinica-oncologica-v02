@@ -60,9 +60,9 @@ export interface ValidationWarning {
 
 // Environment variable validation rules
 const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
-  // Supabase Configuration (Critical)
+  // Supabase Configuration (Optional - fallback to mock if missing)
   VITE_SUPABASE_URL: {
-    required: true,
+    required: false,  // Changed to optional - app can run without Supabase
     type: 'url',
     format: /^https:\/\/[a-zA-Z0-9-]+\.supabase\.co$/,
     description: 'Supabase project URL',
@@ -73,7 +73,7 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
   },
 
   VITE_SUPABASE_ANON_KEY: {
-    required: true,
+    required: false,  // Changed to optional - app can run without Supabase
     type: 'string',
     format: /^eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*$/,
     minLength: 100,
@@ -282,6 +282,16 @@ function validateField(key: string, value: any, rule: ValidationRule): {
 } {
   const errors: ValidationError[] = []
   const warnings: ValidationWarning[] = []
+
+  // Clean value: remove quotes and trim (Vite preserves quotes from .env)
+  if (value && typeof value === 'string') {
+    const originalValue = value
+    value = value.replace(/^["']|["']$/g, '').trim()
+
+    if (originalValue !== value && import.meta.env.DEV) {
+      logger.warn(`${key}: Removed quotes from value (found in .env file)`)
+    }
+  }
 
   // Check if required field is missing
   if (rule.required && (!value || value.trim() === '')) {
