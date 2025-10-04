@@ -71,12 +71,12 @@ class PatternCORSMiddleware(CORSMiddleware):
                     logger.warning(f"Failed to compile CORS pattern '{pattern}': {e}")
 
     def _wildcard_to_regex(self, pattern: str) -> str:
-        """
+        r"""
         Convert wildcard pattern to regex.
 
         Examples:
-        - "https://*.railway.app" -> "^https://[^./]+\.railway\.app$"
-        - "https://quiz-*.railway.app" -> "^https://quiz-[^./]+\.railway\.app$"
+        - "https://*.railway.app" -> r"^https://[^./]+\.railway\.app$"
+        - "https://quiz-*.railway.app" -> r"^https://quiz-[^./]+\.railway\.app$"
         """
         # Escape regex special characters except *
         escaped = re.escape(pattern)

@@ -59,15 +59,9 @@ def register_routers(app: FastAPI) -> None:
     # Include API routers - Core functionality
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 
-    # Import and include medico router for doctor-specific endpoints
-    try:
-        from app.routers.medico import router as medico_router
-        app.include_router(medico_router, tags=["Medico"])
-        logger.info("✓ Medico router registered")
-    except ImportError as e:
-        logger.warning(f"Medico router not available: {e}")
-    except Exception as e:
-        logger.error(f"Error loading medico router: {e}")
+    # Medico router removed - functionality integrated into main API routes
+    # Doctor-specific endpoints are available through /api/v1/users with role filtering
+    logger.info("✓ Doctor endpoints available through users API")
 
     # Admin endpoints - protected by admin permissions
     # Import admin module router which includes all admin sub-routers

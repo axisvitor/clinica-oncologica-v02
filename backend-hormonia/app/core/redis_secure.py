@@ -12,6 +12,7 @@ from functools import wraps
 
 import redis
 from redis import Redis, ConnectionPool, BlockingConnectionPool
+from redis.connection import SSLConnection
 from redis.exceptions import RedisError, ConnectionError, TimeoutError
 from cryptography.fernet import Fernet
 import redis.sentinel
@@ -113,7 +114,8 @@ class SecureRedisClient:
                     ssl_context.check_hostname = False
                     ssl_context.verify_mode = ssl.CERT_NONE
 
-                pool_kwargs["ssl"] = True
+                # Use SSLConnection class instead of deprecated ssl parameters
+                pool_kwargs["connection_class"] = SSLConnection
                 pool_kwargs["ssl_cert_reqs"] = self.config["ssl_cert_reqs"]
                 pool_kwargs["ssl_check_hostname"] = self.config.get("ssl_check_hostname", True)
 

@@ -115,16 +115,33 @@ class EnhancedWebSocketManager:
         self.redis = redis_client
         self.heartbeat_interval = 30  # seconds
         self.message_queue: Dict[str, List[WebSocketMessage]] = {}
+        self._background_tasks: List[asyncio.Task] = []
+        self._started = False
 
-        # Start background tasks - make them safe for startup
+    async def start(self):
+        """Start background tasks after event loop is available."""
+        if self._started:
+            return
+
+        self._started = True
         try:
-            asyncio.create_task(self._heartbeat_monitor())
-            asyncio.create_task(self._process_message_queue())
+            self._background_tasks.append(asyncio.create_task(self._heartbeat_monitor()))
+            self._background_tasks.append(asyncio.create_task(self._process_message_queue()))
 
             if self.redis:
-                asyncio.create_task(self._redis_subscriber())
+                self._background_tasks.append(asyncio.create_task(self._redis_subscriber()))
+
+            logger.info("WebSocket background tasks started successfully")
         except Exception as e:
-            logger.warning(f"Failed to start background tasks: {e}")
+            logger.error(f"Failed to start background tasks: {e}")
+
+    async def stop(self):
+        """Stop background tasks gracefully."""
+        for task in self._background_tasks:
+            task.cancel()
+        await asyncio.gather(*self._background_tasks, return_exceptions=True)
+        self._background_tasks.clear()
+        self._started = False
 
     async def connect(
         self,
