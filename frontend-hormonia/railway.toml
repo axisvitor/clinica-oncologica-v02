@@ -1,3 +1,5 @@
+# Railway Configuration for Hormonia Frontend
+# React + Vite + Nginx with runtime configuration
 
 [build]
 builder = "dockerfile"
@@ -7,9 +9,7 @@ dockerfilePath = "Dockerfile"
 healthcheckPath = "/health"
 healthcheckTimeout = 100
 restartPolicyType = "on_failure"
-
-[[services]]
-name = "frontend"
+restartPolicyMaxRetries = 10
 
 # NOTE: All environment variables must be set in Railway Dashboard
 # TOML does not support JavaScript expressions like process.env
@@ -17,8 +17,10 @@ name = "frontend"
 # Required variables to set in Railway Dashboard:
 # - VITE_SUPABASE_URL
 # - VITE_SUPABASE_ANON_KEY
-# - VITE_API_URL
-# - VITE_API_BASE_URL
-# - VITE_WS_BASE_URL
+# - VITE_API_URL (e.g., https://backend-service.up.railway.app/api/v1)
+# - VITE_API_BASE_URL (e.g., https://backend-service.up.railway.app)
+# - VITE_WS_BASE_URL (e.g., wss://backend-service.up.railway.app/ws)
+# - VITE_FIREBASE_API_KEY
+# - VITE_FIREBASE_PROJECT_ID
 # - NODE_ENV (set to "production")
 # - PORT (Railway sets this automatically)
