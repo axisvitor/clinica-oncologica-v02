@@ -9,15 +9,20 @@ id
 ls -la /etc/nginx/nginx.conf.template || echo "❌ Template not found"
 ls -la /etc/nginx/nginx.conf 2>/dev/null || echo "⚠️ nginx.conf doesn't exist yet (expected)"
 
-# Process nginx.conf template with environment variables
-# CRITICAL FIX: Write directly to /etc/nginx/nginx.conf without using /tmp/
-# Reason: nginx user doesn't have write permission to /tmp/ in Alpine Linux
-envsubst '${BACKEND_HOST} ${BACKEND_PORT}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+# CRITICAL FIX: Expand variables with defaults BEFORE envsubst
+# This allows nginx.conf.template to use simple ${VAR} syntax
+# while still providing default values when Railway env vars are missing
+export BACKEND_HOST="${BACKEND_HOST:-backend}"
+export BACKEND_PORT="${BACKEND_PORT:-8000}"
 
-# Debug: show final backend configuration
-echo "🔗 Backend configured:"
-echo "   BACKEND_HOST=${BACKEND_HOST:-backend}"
-echo "   BACKEND_PORT=${BACKEND_PORT:-8000}"
+# Debug: show backend configuration BEFORE substitution
+echo "🔗 Backend configuration (with defaults applied):"
+echo "   BACKEND_HOST=${BACKEND_HOST}"
+echo "   BACKEND_PORT=${BACKEND_PORT}"
+
+# Process nginx.conf template with environment variables
+# Write directly to /etc/nginx/nginx.conf (nginx user has write permission)
+envsubst '${BACKEND_HOST} ${BACKEND_PORT}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
 
 # Verify nginx config was created successfully
 if [ ! -f /etc/nginx/nginx.conf ]; then
