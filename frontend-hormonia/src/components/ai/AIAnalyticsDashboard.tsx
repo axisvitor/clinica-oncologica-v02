@@ -1,10 +1,10 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { 
-  Brain, 
-  TrendingUp, 
-  MessageSquare, 
-  Users, 
+import {
+  Brain,
+  TrendingUp,
+  MessageSquare,
+  Users,
   Target,
   AlertTriangle,
   CheckCircle,
@@ -21,6 +21,9 @@ import { AIAnalyticsDashboard as AIAnalyticsData, AIInsight, AIRecommendation, P
 import { InsightType } from '../../../types/api'
 import { Priority } from '../../../types/shared'
 import { FEATURES } from '../../config'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('AIAnalyticsDashboard')
 
 interface AIAnalyticsDashboardProps {
   patientId?: string
@@ -46,7 +49,7 @@ export function AIAnalyticsDashboard({
         const response = await apiClient.ai.insights(targetId, timeframe)
         return response
       } catch (error) {
-        console.error('Failed to fetch AI analytics:', error)
+        logger.error('Failed to fetch AI analytics:', error)
         throw error
       }
     },

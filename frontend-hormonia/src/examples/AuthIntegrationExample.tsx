@@ -39,6 +39,9 @@ import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Alert, AlertDescription } from '../components/ui/alert'
 import { Badge } from '../components/ui/badge'
+import { createLogger } from '../lib/logger'
+
+const logger = createLogger('AuthIntegrationExample')
 
 /**
  * Main component demonstrating authentication integration
@@ -60,10 +63,10 @@ export function AuthIntegrationExample() {
 
   const initializeApplication = async () => {
     try {
-      console.log('🚀 Starting application initialization...')
+      logger.info('Starting application initialization...')
 
       // Step 1: Validate environment configuration
-      console.log('📋 Validating environment configuration...')
+      logger.info('Validating environment configuration...')
       const config = await getRuntimeConfig()
       const validation = validateRuntimeConfig(config)
 
@@ -79,32 +82,32 @@ export function AuthIntegrationExample() {
       }
 
       // Step 2: Initialize Supabase
-      console.log('🗄️ Initializing Supabase client...')
+      logger.info('Initializing Supabase client...')
       await initializeSupabaseFromConfig()
 
       // Step 3: Setup global error handling
-      console.log('🛡️ Setting up global error handling...')
+      logger.info('Setting up global error handling...')
       setupGlobalErrorHandling({
         onAuthRequired: () => {
-          console.log('🔐 Authentication required - redirecting to login')
+          logger.info('Authentication required - redirecting to login')
           // Handle authentication required
           window.location.href = '/login'
         },
         onRLSViolation: (error) => {
-          console.log('🚫 RLS violation detected:', error)
+          logger.warn('RLS violation detected', error)
           setError(`Permission denied: ${error.message}`)
         },
         onNetworkError: (error) => {
-          console.log('🌐 Network error detected:', error)
+          logger.warn('Network error detected', error)
           setError(`Network error: ${error.message}`)
         }
       })
 
       setIsInitialized(true)
-      console.log('✅ Application initialization complete')
+      logger.info('Application initialization complete')
 
     } catch (error) {
-      console.error('❌ Application initialization failed:', error)
+      logger.error('Application initialization failed', error)
       setInitError(error instanceof Error ? error.message : 'Unknown error')
     }
   }
@@ -160,7 +163,7 @@ export function AuthIntegrationExample() {
         'creating test patient'
       )
 
-      console.log('✅ Patient created successfully')
+      logger.info('Patient created successfully')
       await loadPatients() // Reload the list
     } catch (error) {
       const userFriendlyError = handleAuthError(error, 'creating patient')

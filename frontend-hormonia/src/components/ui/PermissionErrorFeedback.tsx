@@ -18,6 +18,9 @@ import { Alert, AlertDescription, AlertTitle } from './alert'
 import { Button } from './button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './card'
 import { UserFriendlyError, AuthErrorType, createUserFriendlyError } from '../../lib/auth-error-handler'
+import { createLogger } from '../../lib/logger'
+
+const logger = createLogger('PermissionErrorFeedback')
 
 interface PermissionErrorProps {
   error: UserFriendlyError
@@ -83,7 +86,7 @@ export function PermissionError({
           window.open('/support', '_blank')
           break
         default:
-          console.log('Action not handled:', action)
+          logger.log('Action not handled:', action)
       }
     }
   }
@@ -370,7 +373,7 @@ export function PermissionGuard({
 export function useErrorHandler() {
   const showError = (error: any, context?: string) => {
     // This would integrate with your toast/notification system
-    console.error('Error occurred:', error, context)
+    logger.error('Error occurred:', error, context)
 
     // Example toast implementation (adjust based on your toast library)
     // toast({

@@ -11,6 +11,9 @@ import { AIChatMessage as ChatMessage, ChatRole, ChatSession } from '../../../ty
 import { ChatResponse } from '../../lib/types/ai'
 import { apiClient } from '../../lib/api-client'
 import { FEATURES } from '../../config'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('AIChatInterface')
 
 interface AIChatInterfaceProps {
   patientId?: string
@@ -88,7 +91,7 @@ export function AIChatInterface({
       setSession(mockSession)
       setMessages([])
     } catch (error) {
-      console.error('Failed to load session:', error)
+      logger.error('Failed to load session:', error)
       toast({
         title: 'Erro',
         description: 'Não foi possível carregar a sessão de chat',
@@ -126,10 +129,10 @@ export function AIChatInterface({
         updated_at: new Date().toISOString(),
         ...(patientId && { patient_id: patientId })
       }
-      
+
       setMessages([welcomeMessage])
     } catch (error) {
-      console.error('Failed to create session:', error)
+      logger.error('Failed to create session:', error)
     }
   }
 
@@ -208,8 +211,8 @@ export function AIChatInterface({
       }
 
     } catch (error) {
-      console.error('Failed to send message:', error)
-      
+      logger.error('Failed to send message:', error)
+
       const errorMessage: ChatMessage = {
         id: `msg-${Date.now() + 1}`,
         role: ChatRole.ASSISTANT,

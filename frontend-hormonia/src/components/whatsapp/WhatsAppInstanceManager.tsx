@@ -22,10 +22,13 @@ import {
   Activity
 } from 'lucide-react';
 import { whatsAppService, WhatsAppInstance } from '../../services/whatsapp/WhatsAppService';
+import { createLogger } from '@/lib/logger';
 
 interface WhatsAppInstanceManagerProps {
   onInstanceSelected?: (instance: WhatsAppInstance) => void;
 }
+
+const logger = createLogger('WhatsAppInstanceManager');
 
 export const WhatsAppInstanceManager: React.FC<WhatsAppInstanceManagerProps> = ({
   onInstanceSelected
@@ -115,7 +118,7 @@ export const WhatsAppInstanceManager: React.FC<WhatsAppInstanceManagerProps> = (
       }));
     } catch (err) {
       // QR code might not be available if already connected
-      console.log(`QR code not available for ${instanceName}:`, err);
+      logger.log(`QR code not available for ${instanceName}:`, err);
     }
   };
 

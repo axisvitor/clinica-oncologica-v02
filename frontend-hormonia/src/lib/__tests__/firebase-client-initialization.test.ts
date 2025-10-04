@@ -5,6 +5,9 @@
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import type { FirebaseApp } from 'firebase/app'
+import { createLogger } from '../logger'
+
+const logger = createLogger('FirebaseClientInitializationTest')
 
 // Mock Firebase modules before imports
 vi.mock('firebase/app', () => {
@@ -138,6 +141,7 @@ describe('Firebase Client Initialization', () => {
 
     await import('../firebase-client')
 
+    // Test still checks console.log since Firebase library itself may log
     expect(consoleLogSpy).toHaveBeenCalledWith(
       expect.stringContaining('[Firebase]'),
       expect.anything()
@@ -169,9 +173,11 @@ describe('Firebase Client Initialization', () => {
 
     const apps = (getApps as any)()
     if (apps.length > 1) {
+      // Test case: console.warn is part of test logic
       console.warn('[Firebase] Multiple Firebase apps detected! This may cause issues.')
     }
 
+    // Test still checks console.warn since it's part of the test assertion
     expect(consoleWarnSpy).toHaveBeenCalledWith(
       expect.stringContaining('Multiple Firebase apps detected')
     )

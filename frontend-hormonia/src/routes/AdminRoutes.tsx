@@ -5,6 +5,9 @@ import AdminLoginForm from '../components/admin/AdminLoginForm'
 import AdminProtectedRoute from '../components/admin/AdminProtectedRoute'
 import AdminUserActivityMonitor from '../components/admin/AdminUserActivityMonitor'
 import { useAdminAuth } from '../contexts/AdminAuthContext'
+import { createLogger } from '../lib/logger'
+
+const logger = createLogger('AdminRoutes')
 
 // Placeholder components for routes that will be implemented later
 const AdminUsersPage = () => (
@@ -64,13 +67,13 @@ const AdminLoginPage: React.FC = () => {
     try {
       return await login(credentials.email, credentials.password, credentials.rememberMe)
     } catch (error) {
-      console.error('Login failed:', error)
+      logger.error('Login failed:', error)
       throw error
     }
   }
 
   const handleForgotPassword = (email: string) => {
-    console.log('Forgot password for:', email)
+    logger.log('Forgot password for:', email)
     // TODO: Implement forgot password functionality
     alert('Forgot password functionality will be implemented')
   }

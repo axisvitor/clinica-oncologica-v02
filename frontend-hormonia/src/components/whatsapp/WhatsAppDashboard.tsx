@@ -22,6 +22,7 @@ import { WhatsAppInstanceManager } from './WhatsAppInstanceManager';
 import { WhatsAppMessageSender } from './WhatsAppMessageSender';
 import { whatsAppService } from '../../services/whatsapp/WhatsAppService';
 import { useConfig } from '@/lib/config-initializer';
+import { createLogger } from '@/lib/logger';
 
 export interface WhatsAppInstance {
   name: string;
@@ -49,6 +50,8 @@ interface StatCard {
     isPositive: boolean;
   };
 }
+
+const logger = createLogger('WhatsAppDashboard');
 
 export const WhatsAppDashboard: React.FC = () => {
   const { config } = useConfig()
@@ -109,7 +112,7 @@ export const WhatsAppDashboard: React.FC = () => {
       const response = await whatsAppService.getMessageStatistics(instanceName);
       setMessageStats(response.statistics);
     } catch (err) {
-      console.error('Failed to load message statistics:', err);
+      logger.error('Failed to load message statistics:', err);
     }
   };
 

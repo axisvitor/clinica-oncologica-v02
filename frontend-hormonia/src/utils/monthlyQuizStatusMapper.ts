@@ -5,6 +5,10 @@
  * Maps backend status values to consistent UI status values.
  */
 
+import { createLogger } from '../lib/logger'
+
+const logger = createLogger('MonthlyQuizStatusMapper')
+
 export type BackendStatus = 'active' | 'expired' | 'used' | 'cancelled' | string
 export type UIStatus = 'active' | 'expired' | 'completed' | 'pending' | 'not_sent' | 'sent' | 'accessed'
 
@@ -46,7 +50,7 @@ export function mapBackendStatus(status: string): string {
       return 'not_sent'
     default:
       // For unknown statuses, return as-is but log for debugging
-      console.warn(`Unknown status received: ${status}. Mapping to 'pending'.`)
+      logger.warn(`Unknown status received: ${status}. Mapping to 'pending'.`)
       return 'pending'
   }
 }
