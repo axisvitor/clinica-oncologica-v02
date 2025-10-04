@@ -1,7 +1,9 @@
 
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "./Dockerfile"
+# IMPORTANTE: Configure Root Directory no Railway Dashboard
+# Settings → Root Directory → frontend-hormonia
+# Railway detectará automaticamente o Dockerfile
 
 [deploy]
 startCommand = "/docker-entrypoint.sh"
