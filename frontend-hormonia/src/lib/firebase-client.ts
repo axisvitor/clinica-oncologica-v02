@@ -65,15 +65,19 @@ function validateFirebaseConfig(config: FirebaseOptions): void {
  * Returns true if all required fields have real values (not placeholders)
  */
 function isFirebaseConfigured(): boolean {
-  const hasApiKey = firebaseConfig.apiKey &&
-                    firebaseConfig.apiKey.length > 0 &&
-                    !firebaseConfig.apiKey.startsWith('${') && // Not a placeholder
-                    !firebaseConfig.apiKey.includes('undefined')
+  const hasApiKey = Boolean(
+    firebaseConfig.apiKey &&
+    firebaseConfig.apiKey.length > 0 &&
+    !firebaseConfig.apiKey.startsWith('${') && // Not a placeholder
+    !firebaseConfig.apiKey.includes('undefined')
+  )
 
-  const hasProjectId = firebaseConfig.projectId &&
-                       firebaseConfig.projectId.length > 0 &&
-                       !firebaseConfig.projectId.startsWith('${') &&
-                       !firebaseConfig.projectId.includes('undefined')
+  const hasProjectId = Boolean(
+    firebaseConfig.projectId &&
+    firebaseConfig.projectId.length > 0 &&
+    !firebaseConfig.projectId.startsWith('${') &&
+    !firebaseConfig.projectId.includes('undefined')
+  )
 
   return hasApiKey && hasProjectId
 }
