@@ -430,7 +430,7 @@ class MonthlyQuizService:
             session.status = 'completed'
             session.completed_at = datetime.utcnow()
             # Calculate score from all responses
-            session.score = await self._calculate_total_score(session.id)
+            session.score = await self._calculate_score(session.id)
 
         self.db.commit()
         self.db.refresh(session)
@@ -529,7 +529,7 @@ class MonthlyQuizService:
         # Calculate average completion time
         completion_times = []
         for session in sessions:
-            if session.is_completed and session.completed_at:
+            if session.status == 'completed' and session.completed_at:
                 duration = (session.completed_at - session.started_at).total_seconds() / 60
                 completion_times.append(duration)
 
@@ -1149,8 +1149,8 @@ class MonthlyQuizService:
         scored_sessions = 0
 
         for session in sessions:
-            # Calculate average score from completed sessions with total_score
-            if session.is_completed and session.score is not None:
+            # Calculate average score from completed sessions
+            if session.status == 'completed' and session.score is not None:
                 total_score_sum += session.score
                 scored_sessions += 1
 
@@ -1192,9 +1192,9 @@ class MonthlyQuizService:
             "expiration_rate": round((expired / total * 100), 2) if total > 0 else 0
         }
 
-    async def _calculate_total_score(self, session_id: UUID) -> float:
+    async def _calculate_score(self, session_id: UUID) -> float:
         """
-        Calculate total score for a completed quiz session.
+        Calculate score for a completed quiz session.
 
         Aggregates scores from all responses in the session where scores are available.
         Returns average score or 0 if no scored questions exist.

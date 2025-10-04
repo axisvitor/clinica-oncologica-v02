@@ -363,22 +363,7 @@ COMMIT;
 -- =====================================================
 -- POST-MIGRATION TESTING
 -- =====================================================
--- Test cascade behavior with transaction rollback:
---
--- BEGIN;
--- -- Create test patient
--- INSERT INTO patients (id, nome, cpf, email)
--- VALUES (gen_random_uuid(), 'Test Patient', '00000000000', 'test@test.com');
---
--- -- Create related records
--- INSERT INTO messages (patient_id, ...) VALUES (...);
--- INSERT INTO quiz_sessions (patient_id, ...) VALUES (...);
---
--- -- Test deletion (should cascade)
--- DELETE FROM patients WHERE cpf = '00000000000';
---
--- -- Check orphaned records (should be 0)
--- SELECT COUNT(*) FROM messages WHERE patient_id NOT IN (SELECT id FROM patients);
---
--- ROLLBACK;
+-- IMPORTANT: Test cascade behavior in separate test environment
+-- DO NOT include destructive operations in migration files
+-- Refer to test suite: backend-hormonia/tests/test_cascade_behavior.py
 -- =====================================================

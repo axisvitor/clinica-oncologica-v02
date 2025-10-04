@@ -56,13 +56,29 @@ def _get_storage_uri() -> str:
     Get storage URI for rate limiter.
 
     Uses Redis if configured, falls back to in-memory storage.
+    Raises RuntimeError if in production without Redis.
 
     Returns:
         Storage URI string for slowapi
+
+    Raises:
+        RuntimeError: If in production environment without Redis configured
     """
-    if settings.REDIS_URL and settings.REDIS_URL != "rediss://localhost:6379":
+    # Check if Redis is properly configured
+    has_redis = settings.REDIS_URL and settings.REDIS_URL != "rediss://localhost:6379"
+
+    if has_redis:
         logger.info("Using Redis for rate limiting")
         return settings.REDIS_URL
+
+    # Production safety check
+    is_production = getattr(settings, 'ENVIRONMENT', '').lower() in ('production', 'prod')
+    if is_production:
+        raise RuntimeError(
+            "Redis is required for rate limiting in production environment. "
+            "In-memory storage is not suitable for multi-worker deployments. "
+            "Please configure REDIS_URL environment variable."
+        )
 
     logger.warning("Redis not configured, using in-memory rate limiting (not suitable for production)")
     return "memory://"
