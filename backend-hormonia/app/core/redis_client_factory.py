@@ -190,19 +190,29 @@ class RedisClientFactory:
         if url_params.get('username'):
             connection_kwargs['username'] = url_params['username']
 
-        # Add SSL configuration if enabled
+        # FIXED: redis-py 6.0+ handles SSL via rediss:// URL scheme automatically
+        # Do NOT pass 'ssl' or 'ssl_context' kwargs - use ssl_cert_reqs instead
         if settings.REDIS_SSL:
-            # Create SSL context with proper CA certificates
-            ssl_context = self._create_ssl_context(url_params['host'])
-            if ssl_context:
-                connection_kwargs['ssl'] = True
-                connection_kwargs['ssl_context'] = ssl_context
+            import ssl
+            ssl_cert_reqs = getattr(settings, 'REDIS_SSL_CERT_REQS', 'required').lower()
 
-                # For rediss:// scheme, ensure we're using SSL
-                if url_params['scheme'] == 'rediss':
-                    logger.info(f"Using rediss:// scheme with SSL context for {url_params['host']}")
-                else:
-                    logger.info(f"Enabling SSL for redis:// URL to {url_params['host']}")
+            # Set certificate validation level (redis-py 6.0+ supported params)
+            if ssl_cert_reqs == 'none':
+                connection_kwargs['ssl_cert_reqs'] = ssl.CERT_NONE
+                connection_kwargs['ssl_check_hostname'] = False
+                logger.info(f"SSL enabled for {url_params['host']} with CERT_NONE")
+            elif ssl_cert_reqs == 'optional':
+                connection_kwargs['ssl_cert_reqs'] = ssl.CERT_OPTIONAL
+                logger.info(f"SSL enabled for {url_params['host']} with CERT_OPTIONAL")
+            else:  # 'required'
+                connection_kwargs['ssl_cert_reqs'] = ssl.CERT_REQUIRED
+                logger.info(f"SSL enabled for {url_params['host']} with CERT_REQUIRED")
+
+            # Log scheme usage
+            if url_params['scheme'] == 'rediss':
+                logger.info(f"Using rediss:// scheme for {url_params['host']}")
+            else:
+                logger.warning(f"REDIS_SSL=true but scheme is {url_params['scheme']} (should be rediss://)")
 
         # Add retry configuration for error handling
         connection_kwargs['retry_on_error'] = [ConnectionError, TimeoutError]

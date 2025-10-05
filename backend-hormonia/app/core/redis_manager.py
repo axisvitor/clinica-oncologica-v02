@@ -108,43 +108,37 @@ class RedisManager:
                 'health_check_interval': self.health_check_interval
             }
 
-            # Configure SSL if enabled
+            # FIXED: redis-py 6.0+ handles rediss:// URLs automatically
+            # We only pass ssl_cert_reqs, ssl_check_hostname (NOT ssl_context or ssl=True)
+            # Since .env already defines REDIS_URL with rediss://, no URL rewriting needed
             redis_url = self.redis_url
-            if settings.REDIS_SSL:
-                # Change redis:// to rediss:// for SSL
-                if redis_url.startswith('redis://'):
-                    redis_url = 'rediss://' + redis_url[8:]
-                logger.info("Redis async SSL: Enabled with rediss:// scheme")
 
-                # Create SSL context based on REDIS_SSL_CERT_REQS setting
-                # CRITICAL FIX: redis-py 6.0+ async clients require explicit SSL context
-                # when REDIS_SSL_CERT_REQS='none' (disables certificate validation)
+            if settings.REDIS_SSL:
                 import ssl
                 ssl_cert_reqs = getattr(settings, 'REDIS_SSL_CERT_REQS', 'required').lower()
 
+                # Configure SSL certificate validation level
                 if ssl_cert_reqs == 'none':
-                    ssl_context = ssl.create_default_context()
-                    ssl_context.check_hostname = False
-                    ssl_context.verify_mode = ssl.CERT_NONE
+                    connection_kwargs['ssl_cert_reqs'] = ssl.CERT_NONE
+                    connection_kwargs['ssl_check_hostname'] = False
                     logger.info("Redis async SSL: Certificate verification DISABLED (CERT_NONE)")
                 elif ssl_cert_reqs == 'optional':
-                    ssl_context = ssl.create_default_context()
-                    ssl_context.verify_mode = ssl.CERT_OPTIONAL
+                    connection_kwargs['ssl_cert_reqs'] = ssl.CERT_OPTIONAL
                     logger.info("Redis async SSL: Certificate verification OPTIONAL")
                 else:  # 'required'
-                    ssl_context = ssl.create_default_context()
-                    ssl_context.verify_mode = ssl.CERT_REQUIRED
+                    connection_kwargs['ssl_cert_reqs'] = ssl.CERT_REQUIRED
                     logger.info("Redis async SSL: Certificate verification REQUIRED")
 
-                # Add SSL context to connection kwargs
-                connection_kwargs['ssl_context'] = ssl_context
+                # Validate URL scheme matches SSL config
+                if not redis_url.startswith('rediss://'):
+                    logger.error(f"REDIS_SSL=true but URL uses {redis_url.split('://')[0]}:// scheme. Fix .env to use rediss://")
             else:
-                # Ensure using non-SSL scheme
+                # Warn if SSL URL used without REDIS_SSL=true
                 if redis_url.startswith('rediss://'):
-                    redis_url = 'redis://' + redis_url[9:]
+                    logger.warning("URL uses rediss:// but REDIS_SSL=false. Connection may fail.")
                 logger.info("Redis async: Using non-SSL connection")
 
-            # Create async connection pool with SSL context (if SSL enabled)
+            # Create async connection pool - from_url() handles SSL via rediss:// + ssl_cert_reqs
             self._async_pool = redis_async.ConnectionPool.from_url(
                 redis_url,
                 **connection_kwargs
