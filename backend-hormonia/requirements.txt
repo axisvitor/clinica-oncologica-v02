@@ -28,23 +28,22 @@ redis==6.0.0  # Python 3.13 compatible with improved SSL/TLS support
 certifi>=2023.7.22,<2025.0.0  # CA certificates for Redis SSL/TLS validation
 apscheduler>=3.10.4,<4.0.0  # Scheduled jobs (audit cleanup, etc.)
 
-# AI (Gemini) and LangChain - Python 3.13 + NumPy 2.x + Protobuf 6.x compatible
+# AI (Gemini) and LangChain - Python 3.13 + NumPy 2.x compatible
 # NOTE: Removed langchain meta-package (requires numpy<2.0.0, incompatible with Python 3.13 stack)
-# Using specific langchain-* packages that support NumPy 2.x and Protobuf 6.x
-langchain-core>=0.3.75,<0.4.0  # Core abstractions (NumPy 2.x + Protobuf 6.x compatible)
-langchain-google-genai>=3.0.0,<4.0.0  # Google Gemini integration (Protobuf 6.x compatible)
+# Using specific langchain-* packages that support NumPy 2.x
+langchain-core>=0.3.75,<0.4.0  # Core abstractions (NumPy 2.x compatible)
+langchain-google-genai>=2.1.12,<3.0.0  # Google Gemini integration (stable release, 3.x is alpha-only)
 
-# Google Gemini AI - Python 3.13 + Protobuf 6.x compatible
-# Updated to 0.7.2+ for Protobuf 6.x compatibility (required by grpcio-status 1.75.x)
+# Google Gemini AI - Python 3.13 compatible
+# Using Protobuf <5.0.0 for compatibility with google-generativeai and langchain-google-genai 2.x
 google-generativeai>=0.7.2,<0.8.0
 
 # Google API dependencies - Python 3.13 compatible (fixes pkg_resources deprecation)
 # Updated to latest versions that don't use deprecated pkg_resources API
+# NOTE: Removed gRPC dependencies to avoid Protobuf 6.x requirement (using HTTP-only OTLP)
 googleapis-common-protos>=1.70.0,<2.0.0  # Fixes pkg_resources deprecation warning
 google-api-core>=2.25.0,<3.0.0  # Updated for Python 3.13 compatibility
 google-auth>=2.40.0,<3.0.0  # Modern authentication library
-grpcio>=1.75.0,<2.0.0  # Latest stable gRPC with Python 3.13 support
-grpcio-status>=1.75.0,<2.0.0  # Match grpcio version
 proto-plus>=1.26.0,<2.0.0  # Protocol buffer utilities
 
 # WhatsApp integration (Evolution API client) - Python 3.11 compatible
@@ -106,21 +105,20 @@ asyncio-mqtt>=0.16.1,<1.0.0  # For async operations in resilience patterns
 # OpenTelemetry for distributed tracing
 # Updated to latest versions for Python 3.13 compatibility and googleapis-common-protos>=1.70.0
 # NOTE: Removed opentelemetry-exporter-jaeger (no Python 3.13 support) - using OTLP instead
-# Jaeger natively supports OTLP via ports 4317 (gRPC) and 4318 (HTTP)
+# NOTE: Using HTTP-only OTLP to avoid Protobuf 6.x requirement from gRPC stack
+# Jaeger natively supports OTLP via port 4318 (HTTP) - no gRPC dependency needed
 opentelemetry-api>=1.28.0,<2.0.0
 opentelemetry-sdk>=1.28.0,<2.0.0
 opentelemetry-instrumentation-fastapi>=0.49b0,<1.0.0
 opentelemetry-instrumentation-sqlalchemy>=0.49b0,<1.0.0
 opentelemetry-instrumentation-redis>=0.49b0,<1.0.0
 opentelemetry-instrumentation-httpx>=0.49b0,<1.0.0
-# OTLP is the recommended exporter for Jaeger (replaces deprecated Jaeger exporter)
+# OTLP HTTP-only exporter (avoids gRPC/Protobuf 6.x dependency)
 opentelemetry-exporter-otlp>=1.28.0,<2.0.0
-opentelemetry-exporter-otlp-proto-grpc>=1.28.0,<2.0.0
 opentelemetry-exporter-otlp-proto-http>=1.28.0,<2.0.0
-# Protobuf 6.x required by grpcio-status 1.75.x and compatible with google-generativeai 0.7.2+
-# Updated from <5.0.0 to resolve dependency conflict with gRPC stack
+# Protobuf <5.0.0 for compatibility with Google Gemini AI SDK and langchain-google-genai 2.x
 opentelemetry-proto>=1.28.0,<2.0.0
-protobuf>=6.31.1,<7.0.0
+protobuf>=4.25.3,<5.0.0
 
 # WhatsApp integration dependencies
 aiohttp>=3.10.0,<4.0.0
