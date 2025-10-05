@@ -34,6 +34,15 @@ const logger = createLogger('FirebaseClient')
 function buildFirebaseConfig(): FirebaseOptions {
   const runtimeConfig = getRuntimeConfigSync()
 
+  console.log('[Firebase Config] Environment check:', {
+    hasRuntime: !!runtimeConfig,
+    importMetaEnv: {
+      VITE_FIREBASE_API_KEY: !!import.meta.env['VITE_FIREBASE_API_KEY'],
+      VITE_FIREBASE_AUTH_DOMAIN: !!import.meta.env['VITE_FIREBASE_AUTH_DOMAIN'],
+      VITE_FIREBASE_PROJECT_ID: !!import.meta.env['VITE_FIREBASE_PROJECT_ID']
+    }
+  })
+
   const config: FirebaseOptions = {
     apiKey: (runtimeConfig?.VITE_FIREBASE_API_KEY || import.meta.env['VITE_FIREBASE_API_KEY'] || ''),
     authDomain: (runtimeConfig?.VITE_FIREBASE_AUTH_DOMAIN || import.meta.env['VITE_FIREBASE_AUTH_DOMAIN'] || ''),
@@ -46,10 +55,12 @@ function buildFirebaseConfig(): FirebaseOptions {
 
   console.log('[Firebase Config] Building configuration:', {
     hasApiKey: !!config.apiKey,
-    authDomain: config.authDomain,
-    projectId: config.projectId,
-    storageBucket: config.storageBucket,
+    apiKeyPreview: config.apiKey ? config.apiKey.substring(0, 10) + '...' : 'MISSING',
+    authDomain: config.authDomain || 'MISSING',
+    projectId: config.projectId || 'MISSING',
+    storageBucket: config.storageBucket || 'MISSING',
     hasAppId: !!config.appId,
+    appIdPreview: config.appId ? config.appId.substring(0, 15) + '...' : 'MISSING',
     source: runtimeConfig ? 'runtime' : 'import.meta.env'
   })
 
@@ -165,9 +176,14 @@ function mapFirebaseErrorToMessage(errorCode: string): string {
 
 // Initialize Firebase on module load
 try {
+  console.log('[Firebase] Starting module initialization...')
   initializeFirebase()
+  console.log('[Firebase] Module initialization complete')
 } catch (error) {
+  console.error('[Firebase] CRITICAL: Module initialization failed:', error)
   logger.error('Failed to initialize Firebase on module load:', error)
+  // Re-throw to make the error visible
+  throw error
 }
 
 /**
