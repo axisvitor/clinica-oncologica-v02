@@ -22,11 +22,11 @@ FROM nginx:alpine
 # Copiar build do stage anterior
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copiar configuração do server block (apenas bloco server, sem diretivas globais)
-COPY nginx.server.conf /etc/nginx/conf.d/default.conf
+# Copiar configuração do server block (template com $PORT)
+COPY nginx.server.conf /etc/nginx/templates/default.conf.template
 
-# Expor porta
-EXPOSE 80
+# Expor porta dinâmica (Railway usa $PORT)
+EXPOSE $PORT
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
