@@ -25,11 +25,28 @@
       "~backend/*": ["../Backend/*"],
       "~backend/client": ["./client.ts"]
     },
-    "typeRoots": [
-      "./types",
-      "./node_modules/@types"
-    ]
+    "types": [],
+    "skipDefaultLibCheck": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "exclude": ["node_modules", "vite.config.ts", "client.ts", "tests/**/*", "scripts/**/*", "hooks/**/*", "**/__tests__/**/*", "**/*.test.*", "**/*.spec.*", "types/index.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "client.ts",
+    "tests/**/*",
+    "scripts/**/*",
+    "hooks/**/*",
+    "**/__tests__/**/*",
+    "**/*.test.*",
+    "**/*.spec.*",
+    "types/index.ts",
+    "**/@types/jest/**",
+    "**/@types/react/**"
+  ]
 }

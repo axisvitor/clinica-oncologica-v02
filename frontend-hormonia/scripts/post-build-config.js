@@ -59,12 +59,17 @@ function createRuntimeConfigFiles() {
 // Check if we're in a server environment (Railway)
 if (typeof process !== 'undefined' && process.env) {
   // Server-side: provide actual environment variables
+  const apiBaseUrl = process.env['VITE_API_BASE_URL'] || process.env['API_BASE_URL'] || 'http://localhost:8000';
+  const apiUrl = process.env['VITE_API_URL'] || process.env['API_URL'] || apiBaseUrl + '/api/v1';
+  const wsBaseUrl = process.env['VITE_WS_BASE_URL'] || process.env['WS_BASE_URL'] || process.env['VITE_WS_URL'] || 'ws://localhost:8000/ws';
+
   const config = {
     VITE_SUPABASE_URL: process.env['VITE_SUPABASE_URL'] || process.env['SUPABASE_URL'] || '',
     VITE_SUPABASE_ANON_KEY: process.env['VITE_SUPABASE_ANON_KEY'] || process.env['SUPABASE_ANON_KEY'] || '',
-    VITE_API_URL: process.env['VITE_API_URL'] || process.env['API_URL'] || 'http://localhost:8000/api/v1',
-    VITE_API_BASE_URL: process.env['VITE_API_BASE_URL'] || process.env['API_BASE_URL'] || 'http://localhost:8000',
-    VITE_WS_BASE_URL: process.env['VITE_WS_BASE_URL'] || process.env['WS_BASE_URL'] || 'ws://localhost:8000/ws',
+    VITE_API_URL: apiUrl,
+    VITE_API_BASE_URL: apiBaseUrl,
+    VITE_WS_URL: wsBaseUrl, // Emit both WS variables for compatibility
+    VITE_WS_BASE_URL: wsBaseUrl,
     VITE_WHATSAPP_INSTANCE_NAME: process.env['VITE_WHATSAPP_INSTANCE_NAME'] || process.env['WHATSAPP_INSTANCE_NAME'] || 'hormonia-instance',
     VITE_OPENAI_API_KEY: process.env['VITE_OPENAI_API_KEY'] || process.env['OPENAI_API_KEY'],
     VITE_LANGCHAIN_API_KEY: process.env['VITE_LANGCHAIN_API_KEY'] || process.env['LANGCHAIN_API_KEY'],
@@ -96,6 +101,7 @@ if (typeof process !== 'undefined' && process.env) {
     VITE_SUPABASE_ANON_KEY: '',
     VITE_API_URL: 'http://localhost:8000/api/v1',
     VITE_API_BASE_URL: 'http://localhost:8000',
+    VITE_WS_URL: 'ws://localhost:8000/ws', // Emit both WS variables
     VITE_WS_BASE_URL: 'ws://localhost:8000/ws',
     VITE_WHATSAPP_INSTANCE_NAME: 'hormonia-instance',
     VITE_ENVIRONMENT: 'production',
@@ -118,12 +124,17 @@ if (typeof process !== 'undefined' && process.env) {
 
     // Create config.json for static serving (build-time values)
     // This file will be replaced by Railway's entrypoint script at runtime
+    const staticApiBase = process.env['VITE_API_BASE_URL'] || 'http://localhost:8000';
+    const staticApiUrl = process.env['VITE_API_URL'] || staticApiBase + '/api/v1';
+    const staticWsBase = process.env['VITE_WS_BASE_URL'] || process.env['VITE_WS_URL'] || 'ws://localhost:8000/ws';
+
     const staticConfig = {
       VITE_SUPABASE_URL: process.env['VITE_SUPABASE_URL'] || '',
       VITE_SUPABASE_ANON_KEY: process.env['VITE_SUPABASE_ANON_KEY'] || '',
-      VITE_API_URL: process.env['VITE_API_URL'] || 'http://localhost:8000/api/v1',
-      VITE_API_BASE_URL: process.env['VITE_API_BASE_URL'] || 'http://localhost:8000',
-      VITE_WS_BASE_URL: process.env['VITE_WS_BASE_URL'] || 'ws://localhost:8000/ws',
+      VITE_API_URL: staticApiUrl,
+      VITE_API_BASE_URL: staticApiBase,
+      VITE_WS_URL: staticWsBase, // Emit both WS variables
+      VITE_WS_BASE_URL: staticWsBase,
       VITE_WHATSAPP_INSTANCE_NAME: process.env['VITE_WHATSAPP_INSTANCE_NAME'] || 'hormonia-instance',
       VITE_ENVIRONMENT: process.env['VITE_ENVIRONMENT'] || 'production',
       VITE_DEBUG_MODE: process.env['VITE_DEBUG_MODE'] || 'false',

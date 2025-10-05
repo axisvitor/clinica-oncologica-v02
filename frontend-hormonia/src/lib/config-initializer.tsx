@@ -53,9 +53,13 @@ export function ConfigProvider({
       logger.info('Configuration loaded successfully');
 
       // Initialize API client with runtime config
-      const apiUrl = runtimeConfig.VITE_API_URL || 'http://127.0.0.1:8000';
-      logger.info('Initializing API client with base URL:', apiUrl);
-      apiClient.setBaseURL(apiUrl);
+      // Use VITE_API_BASE_URL (without /api/v1) to avoid path duplication
+      // If only VITE_API_URL is available, sanitize it by removing /api/v1 suffix
+      const apiBaseUrl = runtimeConfig.VITE_API_BASE_URL ||
+                         runtimeConfig.VITE_API_URL?.replace(/\/api\/v1$/, '') ||
+                         'http://127.0.0.1:8000';
+      logger.info('Initializing API client with base URL:', apiBaseUrl);
+      apiClient.setBaseURL(apiBaseUrl);
 
       // Initialize Supabase client with runtime config
       const supabaseUrl = runtimeConfig.VITE_SUPABASE_URL;
@@ -238,8 +242,8 @@ export function useConfigValidation() {
   return {
     isValid: !!config && !error,
     hasSupabase: !!(config?.VITE_SUPABASE_URL && config?.VITE_SUPABASE_ANON_KEY),
-    hasAPI: !!config?.VITE_API_URL,
-    hasWebSocket: !!config?.VITE_WS_URL,
+    hasAPI: !!(config?.VITE_API_BASE_URL || config?.VITE_API_URL),
+    hasWebSocket: !!(config?.VITE_WS_BASE_URL || config?.VITE_WS_URL),
     config,
     error
   };

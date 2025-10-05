@@ -147,6 +147,16 @@ class Settings(BaseSettings):
         default=50,  # SECURITY FIX: Increased from 25
         description="Maximum overflow connections for RLS pool"
     )
+
+    # File Upload Settings
+    UPLOAD_DIR: str = Field(
+        default="uploads",
+        description="Directory for uploaded files (relative or absolute path)"
+    )
+    MAX_UPLOAD_SIZE: int = Field(
+        default=10 * 1024 * 1024,  # 10MB
+        description="Maximum file upload size in bytes"
+    )
     
     # Database (Supabase PostgreSQL)
     DATABASE_URL: str = Field(..., description="Supabase PostgreSQL connection string")

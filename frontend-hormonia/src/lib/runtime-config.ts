@@ -25,7 +25,9 @@ export interface RuntimeConfig {
   VITE_SUPABASE_ANON_KEY: string;
   VITE_SUPABASE_REALTIME_ENABLED?: string;
   VITE_API_URL: string;
+  VITE_API_BASE_URL?: string; // Base URL without /api/v1 suffix
   VITE_WS_URL: string;
+  VITE_WS_BASE_URL?: string; // WebSocket base URL (standardized variable)
   VITE_WHATSAPP_INSTANCE_NAME?: string;
 
   // AI Service Configuration
@@ -59,12 +61,15 @@ export interface RuntimeConfig {
 
 // Production fallback configuration
 // SECURITY: Supabase credentials MUST be provided via environment variables
+// WARNING: Hardcoded URLs removed - configuration MUST be provided via environment
 const PRODUCTION_FALLBACK_CONFIG: RuntimeConfig = {
   VITE_SUPABASE_URL: '',
   VITE_SUPABASE_ANON_KEY: '',
   VITE_SUPABASE_REALTIME_ENABLED: 'true',
-  VITE_API_URL: 'https://backend-production-e0bd.up.railway.app',
-  VITE_WS_URL: 'wss://backend-production-e0bd.up.railway.app/ws',
+  VITE_API_URL: '', // MUST be set via environment variable
+  VITE_API_BASE_URL: '', // MUST be set via environment variable
+  VITE_WS_URL: '', // MUST be set via environment variable
+  VITE_WS_BASE_URL: '', // MUST be set via environment variable
   VITE_WHATSAPP_INSTANCE_NAME: 'hormonia-instance',
 
   // AI Services - Empty in fallback, should be set via environment
@@ -126,18 +131,24 @@ async function loadRuntimeConfiguration(): Promise<RuntimeConfig> {
 
   // In development, use Vite's import.meta.env directly
   if (!isProduction) {
+    const apiBaseUrl = import.meta.env['VITE_API_BASE_URL'] || 'http://127.0.0.1:8000';
+    const apiUrl = import.meta.env['VITE_API_URL'] || `${apiBaseUrl}/api/v1`;
+    const wsBaseUrl = import.meta.env['VITE_WS_BASE_URL'] || import.meta.env['VITE_WS_URL'] || 'ws://127.0.0.1:8000/ws';
+
     const devConfig: RuntimeConfig = {
       VITE_SUPABASE_URL: import.meta.env['VITE_SUPABASE_URL'] || '',
       VITE_SUPABASE_ANON_KEY: import.meta.env['VITE_SUPABASE_ANON_KEY'] || '',
-      VITE_SUPABASE_REALTIME_ENABLED: import.meta.env['VITE_SUPABASE_REALTIME_ENABLED'],
-      VITE_API_URL: import.meta.env['VITE_API_URL'] || 'http://127.0.0.1:8000',
-      VITE_WS_URL: import.meta.env['VITE_WS_URL'] || 'ws://127.0.0.1:8000/ws',
-      VITE_WHATSAPP_INSTANCE_NAME: import.meta.env['VITE_WHATSAPP_INSTANCE_NAME'],
+      ...(import.meta.env['VITE_SUPABASE_REALTIME_ENABLED'] && { VITE_SUPABASE_REALTIME_ENABLED: import.meta.env['VITE_SUPABASE_REALTIME_ENABLED'] }),
+      VITE_API_URL: apiUrl,
+      ...(apiBaseUrl && { VITE_API_BASE_URL: apiBaseUrl }),
+      VITE_WS_URL: wsBaseUrl,
+      ...(wsBaseUrl && { VITE_WS_BASE_URL: wsBaseUrl }),
+      ...(import.meta.env['VITE_WHATSAPP_INSTANCE_NAME'] && { VITE_WHATSAPP_INSTANCE_NAME: import.meta.env['VITE_WHATSAPP_INSTANCE_NAME'] }),
 
       // AI Services - Development defaults
-      VITE_OPENAI_API_KEY: import.meta.env['VITE_OPENAI_API_KEY'],
-      VITE_LANGCHAIN_API_KEY: import.meta.env['VITE_LANGCHAIN_API_KEY'],
-      VITE_GEMINI_API_KEY: import.meta.env['VITE_GEMINI_API_KEY'],
+      ...(import.meta.env['VITE_OPENAI_API_KEY'] && { VITE_OPENAI_API_KEY: import.meta.env['VITE_OPENAI_API_KEY'] }),
+      ...(import.meta.env['VITE_LANGCHAIN_API_KEY'] && { VITE_LANGCHAIN_API_KEY: import.meta.env['VITE_LANGCHAIN_API_KEY'] }),
+      ...(import.meta.env['VITE_GEMINI_API_KEY'] && { VITE_GEMINI_API_KEY: import.meta.env['VITE_GEMINI_API_KEY'] }),
 
       // AI Feature Flags - Development defaults (enabled if API keys present)
       VITE_AI_CHAT_ENABLED: import.meta.env['VITE_AI_CHAT_ENABLED'] || 'true',
@@ -146,21 +157,21 @@ async function loadRuntimeConfiguration(): Promise<RuntimeConfig> {
       VITE_AI_RECOMMENDATIONS_ENABLED: import.meta.env['VITE_AI_RECOMMENDATIONS_ENABLED'] || 'true',
 
       // Monitoring & Analytics
-      VITE_SENTRY_DSN: import.meta.env['VITE_SENTRY_DSN'],
-      VITE_ANALYTICS_TRACKING_ID: import.meta.env['VITE_ANALYTICS_TRACKING_ID'],
+      ...(import.meta.env['VITE_SENTRY_DSN'] && { VITE_SENTRY_DSN: import.meta.env['VITE_SENTRY_DSN'] }),
+      ...(import.meta.env['VITE_ANALYTICS_TRACKING_ID'] && { VITE_ANALYTICS_TRACKING_ID: import.meta.env['VITE_ANALYTICS_TRACKING_ID'] }),
 
       // Environment Settings
-      VITE_ENVIRONMENT: import.meta.env['VITE_ENVIRONMENT'],
-      VITE_DEBUG_MODE: import.meta.env['VITE_DEBUG_MODE'],
-      VITE_SESSION_TIMEOUT: import.meta.env['VITE_SESSION_TIMEOUT'],
-      VITE_TOKEN_REFRESH_THRESHOLD: import.meta.env['VITE_TOKEN_REFRESH_THRESHOLD'],
-      VITE_MAX_FILE_SIZE: import.meta.env['VITE_MAX_FILE_SIZE'],
-      VITE_SUPPORTED_FILE_TYPES: import.meta.env['VITE_SUPPORTED_FILE_TYPES'],
+      ...(import.meta.env['VITE_ENVIRONMENT'] && { VITE_ENVIRONMENT: import.meta.env['VITE_ENVIRONMENT'] }),
+      ...(import.meta.env['VITE_DEBUG_MODE'] && { VITE_DEBUG_MODE: import.meta.env['VITE_DEBUG_MODE'] }),
+      ...(import.meta.env['VITE_SESSION_TIMEOUT'] && { VITE_SESSION_TIMEOUT: import.meta.env['VITE_SESSION_TIMEOUT'] }),
+      ...(import.meta.env['VITE_TOKEN_REFRESH_THRESHOLD'] && { VITE_TOKEN_REFRESH_THRESHOLD: import.meta.env['VITE_TOKEN_REFRESH_THRESHOLD'] }),
+      ...(import.meta.env['VITE_MAX_FILE_SIZE'] && { VITE_MAX_FILE_SIZE: import.meta.env['VITE_MAX_FILE_SIZE'] }),
+      ...(import.meta.env['VITE_SUPPORTED_FILE_TYPES'] && { VITE_SUPPORTED_FILE_TYPES: import.meta.env['VITE_SUPPORTED_FILE_TYPES'] }),
 
       // Evolution and Demo Configuration
-      VITE_ENABLE_EVOLUTION: import.meta.env['VITE_ENABLE_EVOLUTION'],
-      VITE_EVOLUTION_API_URL: import.meta.env['VITE_EVOLUTION_API_URL'],
-      VITE_SHOW_DEMO_CREDENTIALS: import.meta.env['VITE_SHOW_DEMO_CREDENTIALS']
+      ...(import.meta.env['VITE_ENABLE_EVOLUTION'] && { VITE_ENABLE_EVOLUTION: import.meta.env['VITE_ENABLE_EVOLUTION'] }),
+      ...(import.meta.env['VITE_EVOLUTION_API_URL'] && { VITE_EVOLUTION_API_URL: import.meta.env['VITE_EVOLUTION_API_URL'] }),
+      ...(import.meta.env['VITE_SHOW_DEMO_CREDENTIALS'] && { VITE_SHOW_DEMO_CREDENTIALS: import.meta.env['VITE_SHOW_DEMO_CREDENTIALS'] })
     };
 
     runtimeConfig = devConfig;
@@ -220,17 +231,21 @@ async function loadFromRuntimeAPI(): Promise<RuntimeConfig | null> {
 async function loadFromWindowConfig(): Promise<RuntimeConfig | null> {
   // Check if config was injected by server-side rendering or runtime script
   if (typeof window !== 'undefined' && (window as any).__ENV_CONFIG__) {
+    const rawConfig = (window as any).__ENV_CONFIG__;
+    // Ensure WS variable aliases are set
+    const config = normalizeConfig(rawConfig);
     if (import.meta.env['DEV']) {
       logger.log('Loaded from window.__ENV_CONFIG__');
     }
-    return (window as any).__ENV_CONFIG__;
+    return config;
   }
 
   // Check if runtime config loader is available
   if (typeof window !== 'undefined' && (window as any).__RUNTIME_CONFIG__) {
     try {
-      const config = await (window as any).__RUNTIME_CONFIG__.loadConfig();
-      if (config) {
+      const rawConfig = await (window as any).__RUNTIME_CONFIG__.loadConfig();
+      if (rawConfig) {
+        const config = normalizeConfig(rawConfig);
         if (import.meta.env['DEV']) {
           logger.log('Loaded from window.__RUNTIME_CONFIG__');
         }
@@ -244,6 +259,23 @@ async function loadFromWindowConfig(): Promise<RuntimeConfig | null> {
   }
 
   return null;
+}
+
+/**
+ * Normalizes configuration to ensure both WS and API variable aliases are present
+ */
+function normalizeConfig(config: any): RuntimeConfig {
+  // Ensure WS_BASE_URL and WS_URL are both set (use whichever is available)
+  const wsUrl = config.VITE_WS_BASE_URL || config.VITE_WS_URL || '';
+  // Ensure API_BASE_URL is set (prefer explicit base, else derive from API_URL)
+  const apiBaseUrl = config.VITE_API_BASE_URL || config.VITE_API_URL?.replace(/\/api\/v1$/, '') || '';
+
+  return {
+    ...config,
+    VITE_WS_URL: wsUrl,
+    VITE_WS_BASE_URL: wsUrl,
+    VITE_API_BASE_URL: apiBaseUrl
+  };
 }
 
 /**

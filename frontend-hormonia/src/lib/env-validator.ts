@@ -105,11 +105,25 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
     }
   },
 
+  VITE_API_BASE_URL: {
+    required: false,
+    type: 'url',
+    format: /^https?:\/\/.+/,
+    description: 'Backend API base URL (without /api/v1 suffix)'
+  },
+
   VITE_WS_URL: {
     required: false,
     type: 'string',
     format: /^wss?:\/\//,
     description: 'WebSocket server URL'
+  },
+
+  VITE_WS_BASE_URL: {
+    required: false,
+    type: 'string',
+    format: /^wss?:\/\//,
+    description: 'WebSocket server base URL (alias for VITE_WS_URL)'
   },
 
   // Application Configuration

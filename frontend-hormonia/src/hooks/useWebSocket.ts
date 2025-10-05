@@ -25,7 +25,9 @@ interface WebSocketHookOptions {
 export function useWebSocket(options: WebSocketHookOptions = {}) {
   const { config } = useConfig()
   const {
-    url = config?.VITE_WS_URL || 'ws://localhost:8080/ws',
+    // Use VITE_WS_BASE_URL (standardized) with fallback to VITE_WS_URL
+    // Default port changed to 8000 (backend port) instead of 8080
+    url = config?.VITE_WS_BASE_URL || config?.VITE_WS_URL || 'ws://localhost:8000/ws',
     reconnectAttempts = 5,
     reconnectInterval = 3000,
     onMessage,

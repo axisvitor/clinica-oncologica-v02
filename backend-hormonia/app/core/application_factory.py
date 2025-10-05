@@ -10,8 +10,10 @@ Creates and configures the FastAPI application using modular components:
 - Production-ready security and performance features
 """
 from typing import Optional, Literal
+from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.utils import get_openapi
 from datetime import datetime
 import time
@@ -135,8 +137,33 @@ def create_application(
         _setup_enhanced_openapi(app)
         logger.info("✓ Enhanced OpenAPI configured")
 
+    # 7. Setup static file serving for uploads
+    _setup_static_files(app)
+    logger.info("✓ Static file serving configured")
+
     logger.info(f"FastAPI application created successfully (mode: {deployment_mode})")
     return app
+
+
+def _setup_static_files(app: FastAPI) -> None:
+    """
+    Setup static file serving for uploaded media files.
+
+    Args:
+        app: FastAPI application instance
+    """
+    try:
+        # Create upload directory if it doesn't exist
+        upload_dir = Path(settings.UPLOAD_DIR)
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        # Mount static files directory
+        app.mount("/uploads", StaticFiles(directory=str(upload_dir)), name="uploads")
+        logger.info(f"✓ Static files mounted at /uploads -> {upload_dir}")
+    except Exception as e:
+        logger.warning(f"Failed to setup static file serving: {e}")
+        # Don't fail application startup if static files can't be mounted
+        # Files can still be uploaded, just won't be served
 
 
 def _get_api_description(deployment_mode: str = "production") -> str:

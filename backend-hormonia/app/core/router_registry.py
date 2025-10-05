@@ -36,7 +36,7 @@ def register_routers(app: FastAPI) -> None:
             auth, patients, messages, flows, quiz, reports, alerts, webhooks,
             tasks, localization, analytics, dashboard, docs, health, performance,
             platform_sync, template_management, template_versioning, monthly_quiz, monthly_quiz_public, ai, metrics, debug, config, admin_users, admin_roles,
-            health_rls  # RLS endpoints (patients_rls temporarily disabled due to dependency issues)
+            health_rls, upload  # RLS endpoints and upload (patients_rls temporarily disabled due to dependency issues)
         )
         logger.info("✓ All router imports successful")
     except Exception as e:
@@ -73,6 +73,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(patients.router, prefix="/api/v1/patients", tags=["Patients"])
     app.include_router(messages.router, prefix="/api/v1/messages", tags=["Messages"])
     app.include_router(flows.router, prefix="/api/v1/flows", tags=["Flows"])
+    app.include_router(upload.router, prefix="/api/v1/upload", tags=["Upload"])
     app.include_router(template_management.router, prefix="/api/v1/template-management", tags=["Template Management"])
     app.include_router(template_versioning.router, prefix="/api/v1/flows/templates", tags=["Template Versioning"])
     app.include_router(quiz.router, prefix="/api/v1/quiz", tags=["Quiz"])
