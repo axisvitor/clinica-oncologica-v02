@@ -291,6 +291,31 @@ class LangChainOrchestrator:
             raise OpenAIClientError(f"Failed to analyze sentiment: {str(e)}")
     
     @with_timeout(timeout_seconds=30)
+    async def generate_text(self, prompt: str) -> str:
+        """
+        Generate text from a simple prompt (compatibility method for DataExtractionService).
+
+        This method provides a simple text generation interface compatible with
+        the DataExtractionService which expects a generate_text(prompt) method.
+
+        Args:
+            prompt: The text prompt to generate from
+
+        Returns:
+            Generated text response
+
+        Raises:
+            OpenAIClientError: If generation fails
+        """
+        try:
+            messages = [HumanMessage(content=prompt)]
+            response = await self.chat_model.agenerate([messages])
+            return response.generations[0][0].text.strip()
+        except Exception as e:
+            logger.error(f"Text generation failed: {e}")
+            raise OpenAIClientError(f"Failed to generate text: {str(e)}")
+
+    @with_timeout(timeout_seconds=30)
     async def generate_contextual_response(
         self,
         patient_message: str,
@@ -299,12 +324,12 @@ class LangChainOrchestrator:
     ) -> str:
         """
         Generate contextual response to patient message.
-        
+
         Args:
             patient_message: Patient's message
             patient_context: Patient context data
             conversation_history: Recent conversation history
-            
+
         Returns:
             Generated response message
         """
@@ -313,7 +338,7 @@ class LangChainOrchestrator:
                 SystemMessage(content="""
                 You are a healthcare assistant responding to a hormone therapy patient.
                 Provide helpful, empathetic responses while maintaining professional boundaries.
-                
+
                 Guidelines:
                 - Be supportive and understanding
                 - Provide general guidance but avoid specific medical advice
@@ -324,20 +349,20 @@ class LangChainOrchestrator:
                 Patient Message: {patient_message}
                 Patient Context: {patient_context}
                 Recent Conversation: {conversation_history}
-                
+
                 Provide an appropriate response.
                 """)
             ])
-            
+
             messages = context_prompt.format_messages(
                 patient_message=patient_message,
                 patient_context=str(patient_context),
                 conversation_history=", ".join(conversation_history[-5:])
             )
-            
+
             response = await self.chat_model.agenerate([messages])
             return response.generations[0][0].text.strip()
-            
+
         except Exception as e:
             logger.error(f"Contextual response generation failed: {e}")
             raise OpenAIClientError(f"Failed to generate response: {str(e)}")
