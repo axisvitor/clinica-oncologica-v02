@@ -137,7 +137,7 @@ class RedisManager:
                     logger.info("Redis async SSL: Certificate verification REQUIRED")
 
                 # Add SSL context to connection kwargs
-                connection_kwargs['ssl'] = ssl_context
+                connection_kwargs['ssl_context'] = ssl_context
             else:
                 # Ensure using non-SSL scheme
                 if redis_url.startswith('rediss://'):
