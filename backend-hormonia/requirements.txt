@@ -28,15 +28,15 @@ redis==6.0.0  # Python 3.13 compatible with improved SSL/TLS support
 certifi>=2023.7.22,<2025.0.0  # CA certificates for Redis SSL/TLS validation
 apscheduler>=3.10.4,<4.0.0  # Scheduled jobs (audit cleanup, etc.)
 
-# AI (Gemini) and LangChain - Python 3.13 + NumPy 2.x compatible
+# AI (Gemini) and LangChain - Python 3.13 + NumPy 2.x + Protobuf 6.x compatible
 # NOTE: Removed langchain meta-package (requires numpy<2.0.0, incompatible with Python 3.13 stack)
-# Using specific langchain-* packages that support NumPy 2.x
-langchain-core>=0.3.0,<0.4.0  # Core abstractions (NumPy 2.x compatible)
-langchain-google-genai>=2.0.0,<3.0.0  # Google Gemini integration (NumPy 2.x compatible)
+# Using specific langchain-* packages that support NumPy 2.x and Protobuf 6.x
+langchain-core>=0.3.75,<0.4.0  # Core abstractions (NumPy 2.x + Protobuf 6.x compatible)
+langchain-google-genai>=3.0.0,<4.0.0  # Google Gemini integration (Protobuf 6.x compatible)
 
-# Google Gemini AI - Python 3.13 compatible (compatible with langchain-google-genai>=1.0.7)
-# Updated to >=0.7.0 to satisfy langchain-google-genai>=1.0.7 dependency requirements
-google-generativeai>=0.7.0,<0.8.0
+# Google Gemini AI - Python 3.13 + Protobuf 6.x compatible
+# Updated to 0.7.2+ for Protobuf 6.x compatibility (required by grpcio-status 1.75.x)
+google-generativeai>=0.7.2,<0.8.0
 
 # Google API dependencies - Python 3.13 compatible (fixes pkg_resources deprecation)
 # Updated to latest versions that don't use deprecated pkg_resources API
@@ -117,9 +117,10 @@ opentelemetry-instrumentation-httpx>=0.49b0,<1.0.0
 opentelemetry-exporter-otlp>=1.28.0,<2.0.0
 opentelemetry-exporter-otlp-proto-grpc>=1.28.0,<2.0.0
 opentelemetry-exporter-otlp-proto-http>=1.28.0,<2.0.0
-# Ensure OTel proto/exporters use protobuf <5 to avoid conflicts with google-generativeai 0.7.x
+# Protobuf 6.x required by grpcio-status 1.75.x and compatible with google-generativeai 0.7.2+
+# Updated from <5.0.0 to resolve dependency conflict with gRPC stack
 opentelemetry-proto>=1.28.0,<2.0.0
-protobuf>=3.19.5,<5.0.0
+protobuf>=6.31.1,<7.0.0
 
 # WhatsApp integration dependencies
 aiohttp>=3.10.0,<4.0.0

@@ -14,6 +14,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copiar arquivo de dependências
 COPY requirements.txt ./
 
+# Atualizar pip, setuptools e wheel para versões mais recentes
+# Isso resolve problemas de resolução de dependências e acelera o build
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
 # Instalar dependências Python
 RUN pip install --no-cache-dir -r requirements.txt
 
