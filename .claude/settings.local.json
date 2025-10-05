@@ -29,7 +29,10 @@
       "Bash(py:*)",
       "Bash(docker buildx:*)",
       "Bash(docker:*)",
-      "Bash(npm run build:runtime:*)"
+      "Bash(npm run build:runtime:*)",
+      "Bash(railway status:*)",
+      "Bash(where python)",
+      "Bash(awk:*)"
     ],
     "deny": []
   }
