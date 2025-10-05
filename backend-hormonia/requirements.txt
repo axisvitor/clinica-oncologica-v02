@@ -102,20 +102,23 @@ asyncio-mqtt>=0.16.1,<1.0.0  # For async operations in resilience patterns
 # OpenTelemetry for distributed tracing
 # Updated to latest versions for Python 3.13 compatibility and googleapis-common-protos>=1.70.0
 # NOTE: Removed opentelemetry-exporter-jaeger (no Python 3.13 support) - using OTLP instead
-# NOTE: Using HTTP-only OTLP to avoid Protobuf 6.x requirement from gRPC stack
-# Jaeger natively supports OTLP via port 4318 (HTTP) - no gRPC dependency needed
+# NOTE: Using HTTP-only OTLP exporter (Jaeger supports OTLP via port 4318)
 opentelemetry-api>=1.28.0,<2.0.0
 opentelemetry-sdk>=1.28.0,<2.0.0
 opentelemetry-instrumentation-fastapi>=0.49b0,<1.0.0
 opentelemetry-instrumentation-sqlalchemy>=0.49b0,<1.0.0
 opentelemetry-instrumentation-redis>=0.49b0,<1.0.0
 opentelemetry-instrumentation-httpx>=0.49b0,<1.0.0
-# OTLP HTTP-only exporter (avoids gRPC/Protobuf 6.x dependency)
+# OTLP HTTP-only exporter
 opentelemetry-exporter-otlp>=1.28.0,<2.0.0
 opentelemetry-exporter-otlp-proto-http>=1.28.0,<2.0.0
-# Protobuf <5.0.0 for compatibility with Google Gemini AI SDK and langchain-google-genai 2.x
 opentelemetry-proto>=1.28.0,<2.0.0
-protobuf>=4.25.3,<5.0.0
+# Protobuf 5.x-6.x compatible with ALL packages:
+# - opentelemetry-proto>=1.28.0 requires protobuf>=5.0
+# - google-ai-generativelanguage 0.7.0 accepts protobuf>=3.20.2,<7.0.0
+# - googleapis-common-protos 1.70.0 accepts protobuf>=3.20.2,<7.0.0
+# - google-api-core 2.25.0 accepts protobuf>=3.19.5,<7.0.0
+protobuf>=5.0,<7.0.0
 
 # WhatsApp integration dependencies
 aiohttp>=3.10.0,<4.0.0
