@@ -6,10 +6,12 @@ FROM node:20-alpine@sha256:2d07db07a2df6830718ae2a47db6fedce6745f5bcd174c398f2ac
 # System dependencies (curl for healthcheck)
 RUN apk add --no-cache curl
 
-# Enable pnpm via corepack
+# Install pnpm globally (more reliable than corepack)
 ENV NODE_ENV=production \
-    NEXT_TELEMETRY_DISABLED=1
-RUN corepack enable && corepack prepare pnpm@9 --activate
+    NEXT_TELEMETRY_DISABLED=1 \
+    PNPM_HOME="/pnpm" \
+    PATH="$PNPM_HOME:$PATH"
+RUN npm install -g pnpm@9.15.2
 
 # Set workdir
 WORKDIR /app
