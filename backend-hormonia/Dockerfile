@@ -1,70 +1,34 @@
-# Backend Dockerfile - Python 3.13 (Node.js removed)
+# Backend Dockerfile - Python com Supabase
 FROM python:3.13-slim
 
-# Set working directory
+# Definir diretório de trabalho
 WORKDIR /app
 
-# Install system dependencies (Node.js removed - not needed)
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    libpq-dev \
+# Instalar dependências do sistema
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     curl \
-    bash \
-    ca-certificates \
-    gnupg \
-    # Node.js installation commented out - not needed for Python backend
-    # && mkdir -p /etc/apt/keyrings \
-    # && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
-    # && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" > /etc/apt/sources.list.d/nodesource.list \
-    # && apt-get update \
-    # && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    && rm -rf /var/lib/apt/lists/*
 
-# Create app user for security
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# Copiar arquivos de dependências
+COPY package.json ./
 
-# Copy and install dependencies (Python only)
-COPY requirements.txt ./
-RUN pip install --no-cache-dir --upgrade pip==24.3.* && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip cache purge
-    # npm install removed - not needed
+# Instalar dependências Node.js se necessário
+RUN if [ -f package.json ]; then \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    npm install --production; \
+    fi
 
-# Copy application code
+# Copiar código da aplicação
 COPY . .
 
-# Set proper ownership
-RUN chown -R appuser:appuser /app
+# Expor porta
+EXPOSE 8000
 
-# Add graceful shutdown support
-STOPSIGNAL SIGTERM
-
-# Set environment variables for Railway
+# Variáveis de ambiente padrão
 ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONPATH=/app
-ENV PORT=8000
-# Force passlib to use builtin bcrypt to avoid bug
-ENV PASSLIB_BUILTIN_BCRYPT=enabled
+ENV NODE_ENV=production
 
-# Health check for Railway
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
-
-# Expose port (Railway will set PORT env var)
-EXPOSE ${PORT:-8000}
-
-# Switch to non-root user
-USER appuser
-
-# Start server with gunicorn + uvicorn workers for production
-CMD gunicorn app.main:app \
-    --workers 4 \
-    --worker-class uvicorn.workers.UvicornWorker \
-    --bind 0.0.0.0:${PORT:-8000} \
-    --timeout 120 \
-    --access-logfile - \
-    --error-logfile - \
-    --log-level info
+# Comando de inicialização
+CMD ["node", "index.js"]
