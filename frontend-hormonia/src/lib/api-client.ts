@@ -113,6 +113,11 @@ class ApiClient {
   }
 
   setAuthToken(token: string | null) {
+    console.log('🔐 [ApiClient] Setting auth token:', {
+      hasToken: !!token,
+      tokenLength: token?.length,
+      tokenPreview: token ? token.substring(0, 20) + '...' : null
+    })
     this.authToken = token
   }
 
@@ -201,6 +206,16 @@ class ApiClient {
 
         if (this.authToken) {
           headers['Authorization'] = `Bearer ${this.authToken}`
+          console.log('🔑 [ApiClient] Adding Authorization header to request:', {
+            endpoint,
+            method: fetchOptions.method || 'GET',
+            hasToken: !!this.authToken
+          })
+        } else {
+          console.log('⚠️ [ApiClient] No auth token available for request:', {
+            endpoint,
+            method: fetchOptions.method || 'GET'
+          })
         }
 
         const controller = new AbortController()
@@ -221,8 +236,20 @@ class ApiClient {
           } catch {
             errorData = { message: `HTTP ${response.status}: ${response.statusText}` }
           }
+          console.error('❌ [ApiClient] Request failed:', {
+            endpoint,
+            status: response.status,
+            statusText: response.statusText,
+            error: errorData
+          })
           throw new ApiError(response.status, errorData, errorData.message)
         }
+
+        console.log('✅ [ApiClient] Request successful:', {
+          endpoint,
+          status: response.status,
+          contentType: response.headers.get('content-type')
+        })
 
         const contentType = response.headers.get('content-type')
         const contentLength = response.headers.get('content-length')
@@ -317,6 +344,11 @@ class ApiClient {
     },
 
     me: async () => {
+      console.log('📡 [ApiClient] Calling /api/v1/auth/me with token:', {
+        hasToken: !!this.authToken,
+        baseURL: this.baseURL
+      })
+
       // FastAPI returns UserResponse directly (not wrapped)
       const user = await this.request<{
         id: string;
@@ -335,6 +367,13 @@ class ApiClient {
         conselho_regional?: string;
         pacientes_atribuidos?: any[];
       }>('/api/v1/auth/me');
+
+      console.log('✅ [ApiClient] Received user from /api/v1/auth/me:', {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        is_active: user.is_active
+      })
 
       // Return in snake_case format to match User type
       return {
