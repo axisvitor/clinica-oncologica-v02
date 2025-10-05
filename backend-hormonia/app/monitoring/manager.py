@@ -8,9 +8,9 @@ import asyncio
 import logging
 from typing import Optional, Dict, Any
 from datetime import datetime
-import redis.asyncio as redis
 from sqlalchemy.engine import Engine
 
+from app.core.redis_unified import get_async_redis
 from .config import MonitoringConfig, get_monitoring_config
 from .apm import APMCollector
 from .database_monitor import DatabasePerformanceMonitor
@@ -30,7 +30,7 @@ class MonitoringManager:
 
     def __init__(self, config: Optional[MonitoringConfig] = None):
         self.config = config or get_monitoring_config()
-        self.redis_client: Optional[redis.Redis] = None
+        self.redis_client = None
 
         # Monitoring components
         self.apm_collector: Optional[APMCollector] = None
@@ -78,48 +78,17 @@ class MonitoringManager:
     async def _initialize_redis(self) -> None:
         """Initialize Redis connection with proper fallback handling."""
         try:
-            from app.utils.security import mask_sensitive_url
-            redis_url = self.config.get_redis_url()
-            masked_url = mask_sensitive_url(redis_url)
-            logger.info(f"Attempting to connect to Redis for monitoring at: {masked_url}")
+            logger.info("Attempting to connect to Redis for monitoring via unified client")
 
-            self.redis_client = redis.from_url(
-                redis_url,
-                decode_responses=True,
-                socket_connect_timeout=self.config.redis.socket_timeout,
-                socket_timeout=self.config.redis.socket_timeout,
-                retry_on_timeout=True,
-                max_connections=50,
-                health_check_interval=30
-            )
+            # Use unified Redis client
+            self.redis_client = await get_async_redis()
 
             # Test connection
             await self.redis_client.ping()
             logger.info("Redis connection established for monitoring")
 
-        except redis.ConnectionError as e:
-            logger.error(f"Redis connection failed for monitoring: {e}")
-            self.redis_client = None
-            logger.warning("Continuing without Redis - some monitoring features will be limited")
-            if self.config.debug:
-                raise
-
-        except redis.TimeoutError as e:
-            logger.error(f"Redis connection timeout for monitoring: {e}")
-            self.redis_client = None
-            logger.warning("Redis connection timeout - continuing without Redis monitoring")
-            if self.config.debug:
-                raise
-
-        except redis.AuthenticationError as e:
-            logger.error(f"Redis authentication failed for monitoring: {e}")
-            self.redis_client = None
-            logger.warning("Redis authentication failed - continuing without Redis monitoring")
-            if self.config.debug:
-                raise
-
         except Exception as e:
-            logger.error(f"Unexpected error initializing Redis for monitoring: {e}")
+            logger.error(f"Redis connection failed for monitoring: {e}")
             self.redis_client = None
             logger.warning("Continuing without Redis - some monitoring features will be limited")
             if self.config.debug:

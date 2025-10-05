@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import json
 import redis.asyncio as redis
 
-from app.config import settings
+from app.core.redis_unified import get_async_redis
 
 logger = logging.getLogger(__name__)
 
@@ -54,28 +54,14 @@ class AIRedisCacheService:
 
     def __init__(self):
         self.metrics = AICacheMetrics()
-        self._client: Optional[redis.Redis] = None
 
     async def get_client(self) -> Optional[redis.Redis]:
-        """Get or create Redis client with connection pooling."""
-        if self._client is None:
-            try:
-                self._client = redis.from_url(
-                    settings.REDIS_URL,
-                    decode_responses=True,
-                    socket_connect_timeout=5,
-                    socket_timeout=5,
-                    socket_keepalive=True,
-                    health_check_interval=30,
-                    max_connections=20,
-                    retry_on_timeout=True
-                )
-                await self._client.ping()
-                logger.info("AI Redis cache client initialized successfully")
-            except Exception as e:
-                logger.error(f"Failed to initialize AI Redis cache: {e}")
-                self._client = None
-        return self._client
+        """Get Redis client from unified RedisManager."""
+        try:
+            return await get_async_redis()
+        except Exception as e:
+            logger.error(f"Failed to get Redis client: {e}")
+            return None
 
     async def get_cached(self, cache_key: str) -> Optional[Dict[str, Any]]:
         """Get cached data with metrics tracking."""
@@ -282,13 +268,6 @@ class AIRedisCacheService:
                 health_data["error"] = str(e)
 
         return health_data
-
-    async def close(self):
-        """Close Redis connection."""
-        if self._client:
-            await self._client.close()
-            self._client = None
-            logger.info("AI Redis cache client closed")
 
 
 # Global cache service instance

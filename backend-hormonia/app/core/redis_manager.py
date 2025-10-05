@@ -87,8 +87,8 @@ class RedisManager:
         """
         Create async Redis client with connection pool.
 
-        SSL is configured manually for redis:// URLs when REDIS_SSL=true.
-        This approach works better with Python 3.13's strict SSL validation.
+        SSL is configured using SSLContext for Python 3.13 compatibility.
+        This is the correct approach for redis-py 5.x with Python 3.13.
         """
         try:
             import ssl
@@ -104,28 +104,31 @@ class RedisManager:
                 'health_check_interval': 30
             }
 
-            # Add SSL configuration if enabled
-            if os.getenv('REDIS_SSL') == 'true':
-                ssl_cert_reqs = os.getenv('REDIS_SSL_CERT_REQS', 'required').lower()
+            # Configure SSL if enabled - modify URL scheme to rediss://
+            redis_url = self.redis_url
+            if settings.REDIS_SSL:
+                # Change redis:// to rediss:// for SSL
+                if redis_url.startswith('redis://'):
+                    redis_url = 'rediss://' + redis_url[8:]
 
-                # Create SSL context with proper certificate validation settings
+                ssl_cert_reqs = settings.REDIS_SSL_CERT_REQS.lower()
+
+                # Add SSL parameters to connection kwargs based on policy
                 if ssl_cert_reqs == 'none':
-                    # Redis Cloud: Disable certificate verification
-                    connection_kwargs['ssl_cert_reqs'] = ssl.CERT_NONE
+                    connection_kwargs['ssl_cert_reqs'] = 'none'
                     connection_kwargs['ssl_check_hostname'] = False
-                    logger.info("Redis SSL: Certificate verification disabled (ssl_cert_reqs=none)")
+                    logger.info("Redis async SSL: Certificate verification disabled (ssl_cert_reqs=none)")
                 elif ssl_cert_reqs == 'optional':
-                    connection_kwargs['ssl_cert_reqs'] = ssl.CERT_OPTIONAL
-                    logger.info("Redis SSL: Certificate verification optional")
+                    connection_kwargs['ssl_cert_reqs'] = 'optional'
+                    logger.info("Redis async SSL: Certificate verification optional")
                 else:
-                    # Default: require valid certificates
-                    connection_kwargs['ssl_cert_reqs'] = ssl.CERT_REQUIRED
+                    connection_kwargs['ssl_cert_reqs'] = 'required'
                     connection_kwargs['ssl_check_hostname'] = True
-                    logger.info("Redis SSL: Certificate verification required")
+                    logger.info("Redis async SSL: Certificate verification required")
 
             # Create async connection pool
             self._async_pool = redis_async.ConnectionPool.from_url(
-                self.redis_url,
+                redis_url,
                 **connection_kwargs
             )
 
@@ -144,8 +147,8 @@ class RedisManager:
         """
         Create sync Redis client with connection pool.
 
-        SSL is configured manually for redis:// URLs when REDIS_SSL=true.
-        This approach works better with Python 3.13's strict SSL validation.
+        SSL is configured using SSLContext for Python 3.13 compatibility.
+        This is the correct approach for redis-py 5.x with Python 3.13.
         """
         try:
             import ssl
@@ -161,28 +164,31 @@ class RedisManager:
                 'health_check_interval': 30
             }
 
-            # Add SSL configuration if enabled
-            if os.getenv('REDIS_SSL') == 'true':
-                ssl_cert_reqs = os.getenv('REDIS_SSL_CERT_REQS', 'required').lower()
+            # Configure SSL if enabled - modify URL scheme to rediss://
+            redis_url = self.redis_url
+            if settings.REDIS_SSL:
+                # Change redis:// to rediss:// for SSL
+                if redis_url.startswith('redis://'):
+                    redis_url = 'rediss://' + redis_url[8:]
 
-                # Create SSL context with proper certificate validation settings
+                ssl_cert_reqs = settings.REDIS_SSL_CERT_REQS.lower()
+
+                # Add SSL parameters to connection kwargs based on policy
                 if ssl_cert_reqs == 'none':
-                    # Redis Cloud: Disable certificate verification
-                    connection_kwargs['ssl_cert_reqs'] = ssl.CERT_NONE
+                    connection_kwargs['ssl_cert_reqs'] = 'none'
                     connection_kwargs['ssl_check_hostname'] = False
-                    logger.info("Redis SSL: Certificate verification disabled (ssl_cert_reqs=none)")
+                    logger.info("Redis sync SSL: Certificate verification disabled (ssl_cert_reqs=none)")
                 elif ssl_cert_reqs == 'optional':
-                    connection_kwargs['ssl_cert_reqs'] = ssl.CERT_OPTIONAL
-                    logger.info("Redis SSL: Certificate verification optional")
+                    connection_kwargs['ssl_cert_reqs'] = 'optional'
+                    logger.info("Redis sync SSL: Certificate verification optional")
                 else:
-                    # Default: require valid certificates
-                    connection_kwargs['ssl_cert_reqs'] = ssl.CERT_REQUIRED
+                    connection_kwargs['ssl_cert_reqs'] = 'required'
                     connection_kwargs['ssl_check_hostname'] = True
-                    logger.info("Redis SSL: Certificate verification required")
+                    logger.info("Redis sync SSL: Certificate verification required")
 
             # Create sync connection pool
             self._sync_pool = redis_sync.ConnectionPool.from_url(
-                self.redis_url,
+                redis_url,
                 **connection_kwargs
             )
 

@@ -228,10 +228,10 @@ async def _check_service_provider_initialization() -> Dict[str, Any]:
 
 
 async def _check_redis_connection() -> Dict[str, Any]:
-    """Check Redis connectivity (non-blocking)."""
+    """Check Redis connectivity (non-blocking) using unified RedisManager."""
     try:
-        import redis
-        import ssl
+        from app.core.redis_manager import get_redis_manager
+        from app.utils.security import mask_sensitive_url
 
         redis_url = os.getenv("REDIS_URL")
         if not redis_url:
@@ -242,40 +242,29 @@ async def _check_redis_connection() -> Dict[str, Any]:
                 "details": {"redis_url_configured": False}
             }
 
-        # Create Redis client based on URL scheme
-        if redis_url.startswith('rediss://'):
-            # SSL Redis for Railway
-            client = redis.from_url(
-                redis_url,
-                decode_responses=True,
-                socket_timeout=5,
-                socket_connect_timeout=5,
-                ssl_cert_reqs='none'
-            )
-        else:
-            # Regular Redis
-            client = redis.from_url(
-                redis_url,
-                decode_responses=True,
-                socket_timeout=5,
-                socket_connect_timeout=5
-            )
+        # Use unified RedisManager for consistent SSL/TLS handling
+        redis_manager = get_redis_manager()
 
-        # Test connection with timeout
+        # Test connection with timeout using async client
         response = await asyncio.wait_for(
-            asyncio.get_event_loop().run_in_executor(None, client.ping),
+            redis_manager.get_async_client(),
             timeout=5.0
         )
 
-        client.close()
+        # Test ping
+        ping_result = await asyncio.wait_for(
+            response.ping(),
+            timeout=5.0
+        )
 
-        if response:
+        if ping_result:
             return {
                 "healthy": True,
                 "message": "Redis connected successfully",
                 "details": {
                     "redis_url_configured": True,
-                    "ssl_enabled": redis_url.startswith('rediss://')
+                    "ssl_enabled": redis_url.startswith('rediss://'),
+                    "url": mask_sensitive_url(redis_url)
                 }
             }
         else:
@@ -300,7 +289,7 @@ async def _check_redis_connection() -> Dict[str, Any]:
             "error": str(e),
             "warning": "Application will continue without Redis features",
             "details": {
-                "redis_url_configured": bool(redis_url),
+                "redis_url_configured": bool(os.getenv("REDIS_URL")),
                 "error_type": type(e).__name__
             }
         }

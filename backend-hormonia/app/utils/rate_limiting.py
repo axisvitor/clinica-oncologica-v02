@@ -4,6 +4,9 @@ Rate limiting utilities for API endpoints.
 This module provides Redis-based distributed rate limiting with automatic fallback
 to in-memory storage when Redis is unavailable.
 
+Uses the unified RedisManager (app.core.redis_unified) for all Redis connections,
+ensuring consistent SSL/TLS configuration and connection pooling.
+
 ⚠️ IMPORTANT: When Redis is not available, rate limiting falls back to in-memory storage
    with the same limitations as documented in Backend/docs/RATE_LIMITING.md:
    - Counters lost on server restart
@@ -25,7 +28,7 @@ import redis.asyncio as redis
 from fastapi import HTTPException, Request, status
 from fastapi.security import HTTPBearer
 
-from app.config import settings
+from app.core.redis_unified import get_async_redis
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -67,12 +70,13 @@ class RateLimiter:
         self._cache_lock = asyncio.Lock()
     
     async def _get_redis_client(self) -> Optional[redis.Redis]:
-        """Get Redis client if available."""
+        """Get Redis client if available via unified RedisManager."""
         if self.redis_client:
             return self.redis_client
-        
+
         try:
-            client = redis.from_url(settings.REDIS_URL)
+            # Use unified RedisManager - handles SSL/TLS configuration automatically
+            client = await get_async_redis()
             await client.ping()
             return client
         except Exception as e:

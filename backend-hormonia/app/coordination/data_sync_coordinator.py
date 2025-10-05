@@ -9,13 +9,13 @@ from typing import Dict, List, Optional, Any, Callable, Set
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from enum import Enum
-import redis.asyncio as redis
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete
 from contextlib import asynccontextmanager
 
 from app.config import settings
 from app.database import get_async_db
+from app.core.redis_unified import get_async_redis
 from app.coordination.websocket_coordinator import websocket_coordinator, WebSocketEvent, EventType
 from app.utils.logging import get_logger
 
@@ -106,8 +106,8 @@ class DataSyncCoordinator:
     """
 
     def __init__(self, redis_url: str = None):
-        self.redis_url = redis_url or settings.REDIS_URL
-        self.redis_client: Optional[redis.Redis] = None
+        # redis_url parameter kept for backward compatibility but not used
+        self.redis_client = None
         self.sync_handlers: Dict[str, Callable] = {}
         self.cache_policies: Dict[str, Dict[str, Any]] = {}
         self.sync_queue = asyncio.Queue()
@@ -119,13 +119,8 @@ class DataSyncCoordinator:
     async def initialize(self):
         """Initialize the data sync coordinator"""
         try:
-            # Initialize Redis connection
-            self.redis_client = redis.from_url(
-                self.redis_url,
-                decode_responses=True,
-                socket_connect_timeout=5,
-                socket_timeout=5
-            )
+            # Get unified Redis client
+            self.redis_client = await get_async_redis()
             await self.redis_client.ping()
 
             # Set up default cache policies

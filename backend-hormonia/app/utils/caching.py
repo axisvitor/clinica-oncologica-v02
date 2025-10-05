@@ -14,6 +14,7 @@ from fastapi import Request
 
 from app.config import settings
 from app.utils.logging import get_logger
+from app.core.redis_unified import get_async_redis
 
 logger = get_logger(__name__)
 
@@ -54,12 +55,13 @@ class CacheManager:
         }
     
     async def _get_redis_client(self) -> Optional[redis.Redis]:
-        """Get Redis client if available."""
+        """Get Redis client if available using unified RedisManager."""
         if self.redis_client:
             return self.redis_client
-        
+
         try:
-            client = redis.from_url(settings.REDIS_URL)
+            # Use unified RedisManager - SSL/TLS configured automatically
+            client = await get_async_redis()
             await client.ping()
             return client
         except Exception as e:

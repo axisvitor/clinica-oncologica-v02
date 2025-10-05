@@ -103,21 +103,20 @@ class SecureRedisClient:
             # Add SSL configuration if enabled
             if self.config.get("ssl"):
                 import ssl
+                ssl_cert_reqs = self.config.get("ssl_cert_reqs", "required").lower()
                 ssl_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
 
-                if self.config["ssl_cert_reqs"] == "required":
-                    ssl_context.check_hostname = self.config.get("ssl_check_hostname", True)
-                    ssl_context.verify_mode = ssl.CERT_REQUIRED
-                elif self.config["ssl_cert_reqs"] == "optional":
-                    ssl_context.verify_mode = ssl.CERT_OPTIONAL
-                else:
+                if ssl_cert_reqs == "none":
                     ssl_context.check_hostname = False
                     ssl_context.verify_mode = ssl.CERT_NONE
+                elif ssl_cert_reqs == "optional":
+                    ssl_context.verify_mode = ssl.CERT_OPTIONAL
+                else:  # required (default)
+                    ssl_context.check_hostname = True
+                    ssl_context.verify_mode = ssl.CERT_REQUIRED
 
-                # Use SSLConnection class instead of deprecated ssl parameters
-                pool_kwargs["connection_class"] = SSLConnection
-                pool_kwargs["ssl_cert_reqs"] = self.config["ssl_cert_reqs"]
-                pool_kwargs["ssl_check_hostname"] = self.config.get("ssl_check_hostname", True)
+                # Pass SSLContext object - redis-py 5.x requires ssl_context parameter name
+                pool_kwargs["ssl_context"] = ssl_context
 
             self.pool = pool_class(**pool_kwargs)
             self.client = Redis(connection_pool=self.pool)

@@ -4,7 +4,6 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Any
 
-import redis.asyncio as redis
 from fastapi import FastAPI
 
 from app.config import settings
@@ -12,6 +11,7 @@ from app.utils.logging import setup_logging, get_logger
 from app.database import get_db, test_connection
 from app.services import ServiceProvider
 from app.core.session_manager import initialize_session_manager
+from app.core.redis_unified import get_async_redis
 
 logger = get_logger(__name__)
 
@@ -64,27 +64,18 @@ class ApplicationLifecycleManager:
     async def _initialize_redis(self, app: FastAPI):
         """Initialize Redis connection with error handling"""
         try:
-            redis_url = settings.REDIS_URL
-            
-            self.redis_client = redis.from_url(
-                redis_url,
-                decode_responses=True,
-                socket_connect_timeout=3,
-                socket_timeout=3,
-                retry_on_timeout=True,
-                max_connections=50,
-                health_check_interval=30
-            )
-            
+            # Use unified Redis client - SSL/TLS and pooling handled automatically
+            self.redis_client = await get_async_redis()
+
             # Test connection
             await self.redis_client.ping()
-            
+
             # Initialize websocket events service
             self._initialize_websocket_events()
-            
+
             app.state.redis_client = self.redis_client
-            logger.info("Redis connection established successfully")
-            
+            logger.info("Redis connection established successfully via unified client")
+
         except Exception as e:
             logger.error(f"Redis initialization failed: {e}")
             logger.warning("Continuing without Redis - real-time features will be unavailable")

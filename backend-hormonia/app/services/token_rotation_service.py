@@ -219,17 +219,20 @@ class TokenRotationService:
             Number of tokens revoked
         """
         try:
+            # Get sync Redis client from manager
+            redis_client = self.redis_manager.get_sync_client()
+
             # Get all user tokens
             pattern = f"token:active:{user_id}:*"
-            tokens = self.redis_manager.client.keys(pattern)
+            tokens = redis_client.keys(pattern)
 
             revoked_count = 0
             for token_key in tokens:
-                token_data = self.redis_manager.client.get(token_key)
+                token_data = redis_client.get(token_key)
                 if token_data:
                     token_info = json.loads(token_data)
                     self._blacklist_token(token_info["jti"], token_info["exp"])
-                    self.redis_manager.client.delete(token_key)
+                    redis_client.delete(token_key)
                     revoked_count += 1
 
             logger.info(f"Revoked {revoked_count} tokens for user {user_id}")
@@ -250,12 +253,15 @@ class TokenRotationService:
             List of active sessions
         """
         try:
+            # Get sync Redis client from manager
+            redis_client = self.redis_manager.get_sync_client()
+
             pattern = f"token:active:{user_id}:*"
-            tokens = self.redis_manager.client.keys(pattern)
+            tokens = redis_client.keys(pattern)
 
             sessions = []
             for token_key in tokens:
-                token_data = self.redis_manager.client.get(token_key)
+                token_data = redis_client.get(token_key)
                 if token_data:
                     sessions.append(json.loads(token_data))
 
@@ -287,12 +293,15 @@ class TokenRotationService:
         sessions_to_revoke = len(sessions) - self.max_concurrent_sessions
         revoked_count = 0
 
+        # Get sync Redis client from manager
+        redis_client = self.redis_manager.get_sync_client()
+
         for session in sessions[:sessions_to_revoke]:
             if self._blacklist_token(session["jti"], session["exp"]):
                 revoked_count += 1
                 # Remove from active tokens
                 key = f"token:active:{user_id}:{session['jti']}"
-                self.redis_manager.client.delete(key)
+                redis_client.delete(key)
 
         if revoked_count > 0:
             logger.info(f"Enforced session limit for user {user_id}, revoked {revoked_count} sessions")
@@ -302,6 +311,9 @@ class TokenRotationService:
     def _track_token(self, user_id: str, token_id: str, token_type: str, expire: datetime):
         """Track an active token in Redis."""
         try:
+            # Get sync Redis client from manager
+            redis_client = self.redis_manager.get_sync_client()
+
             key = f"token:active:{user_id}:{token_id}"
             value = {
                 "jti": token_id,
@@ -315,7 +327,7 @@ class TokenRotationService:
             ttl = int((expire - datetime.utcnow()).total_seconds())
 
             # Store in Redis with TTL
-            self.redis_manager.client.setex(
+            redis_client.setex(
                 key,
                 ttl,
                 json.dumps(value)
@@ -330,6 +342,9 @@ class TokenRotationService:
             return False
 
         try:
+            # Get sync Redis client from manager
+            redis_client = self.redis_manager.get_sync_client()
+
             key = f"token:blacklist:{token_id}"
 
             # Calculate TTL (keep blacklisted until original expiration)
@@ -341,7 +356,7 @@ class TokenRotationService:
             ttl = int((expire_dt - datetime.utcnow()).total_seconds())
 
             if ttl > 0:
-                self.redis_manager.client.setex(key, ttl, "1")
+                redis_client.setex(key, ttl, "1")
                 return True
 
             return False
@@ -356,8 +371,11 @@ class TokenRotationService:
             return False
 
         try:
+            # Get sync Redis client from manager
+            redis_client = self.redis_manager.get_sync_client()
+
             key = f"token:blacklist:{token_id}"
-            return self.redis_manager.client.exists(key) > 0
+            return redis_client.exists(key) > 0
 
         except Exception as e:
             logger.error(f"Failed to check blacklist: {e}")
@@ -404,15 +422,18 @@ class TokenRotationService:
             Number of entries cleaned
         """
         try:
+            # Get sync Redis client from manager
+            redis_client = self.redis_manager.get_sync_client()
+
             pattern = "token:blacklist:*"
-            keys = self.redis_manager.client.keys(pattern)
+            keys = redis_client.keys(pattern)
 
             cleaned = 0
             for key in keys:
                 # Check if key has no TTL (shouldn't happen)
-                ttl = self.redis_manager.client.ttl(key)
+                ttl = redis_client.ttl(key)
                 if ttl == -1:  # No TTL set
-                    self.redis_manager.client.delete(key)
+                    redis_client.delete(key)
                     cleaned += 1
 
             if cleaned > 0:

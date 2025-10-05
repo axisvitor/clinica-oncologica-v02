@@ -8,10 +8,10 @@ import logging
 from typing import Dict, List, Optional, Any, Set
 from datetime import datetime, timedelta
 from uuid import UUID
-import redis
 from redis import Redis
 
 from app.config import settings
+from app.core.redis_unified import get_sync_redis
 
 logger = logging.getLogger(__name__)
 
@@ -203,36 +203,27 @@ class ConversationMemory:
     Stores conversation patterns and provides anti-repetition functionality.
     """
     
-    def __init__(self, redis_client: Optional[Redis] = None):
+    def __init__(self):
         """
-        Initialize conversation memory with Redis client.
-        
-        Args:
-            redis_client: Redis client instance (optional)
+        Initialize conversation memory with unified Redis client.
+
+        Uses the unified RedisManager from app.core.redis_unified.
         """
-        self.redis = redis_client or self._create_redis_client()
+        self.redis = self._create_redis_client()
         self.pattern_extractor = PatternExtractor()
         self.max_patterns_per_patient = 20  # Store last 20 message patterns
         self.pattern_expiry_days = 30  # Patterns expire after 30 days
-        
-        logger.info("ConversationMemory initialized with Redis backend")
+
+        logger.info("ConversationMemory initialized with unified Redis backend")
     
     def _create_redis_client(self) -> Redis:
-        """Create Redis client from settings."""
+        """Create Redis client using unified RedisManager."""
         try:
-            client = redis.from_url(
-                settings.REDIS_URL,
-                decode_responses=True,
-                socket_connect_timeout=5,
-                socket_timeout=5,
-                retry_on_timeout=True
-            )
-            # Test connection
-            client.ping()
-            logger.info("Redis connection established successfully")
+            client = get_sync_redis()
+            logger.info("Redis connection established via unified RedisManager")
             return client
         except Exception as e:
-            logger.error(f"Failed to connect to Redis: {e}")
+            logger.error(f"Failed to connect to Redis via unified manager: {e}")
             raise
     
     async def store_message_pattern(self, patient_id: UUID, message: str) -> None:

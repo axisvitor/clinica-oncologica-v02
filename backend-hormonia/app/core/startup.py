@@ -39,13 +39,14 @@ async def initialize_primary_systems():
         # Try to initialize with Redis if available
         redis_client = None
         try:
-            import redis.asyncio as redis
+            from app.core.redis_unified import get_async_redis
             if hasattr(settings, 'REDIS_URL') and settings.REDIS_URL:
-                redis_client = redis.from_url(settings.REDIS_URL)
+                # Use unified Redis client - SSL/TLS handled automatically
+                redis_client = await get_async_redis()
                 await redis_client.ping()  # Test connection
-                logger.info("Async Redis client initialized for session manager")
+                logger.info("Unified async Redis client initialized for session manager")
         except Exception as redis_error:
-            logger.warning(f"Async Redis initialization failed: {redis_error}")
+            logger.warning(f"Unified Redis initialization failed: {redis_error}")
             redis_client = None
 
         # Initialize session manager

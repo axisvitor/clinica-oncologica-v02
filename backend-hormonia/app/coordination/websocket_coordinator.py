@@ -10,11 +10,11 @@ from typing import Dict, List, Optional, Set, Any, Callable
 from datetime import datetime, timedelta
 from dataclasses import dataclass, asdict
 from enum import Enum
-import redis.asyncio as redis
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from app.config import settings
+from app.core.redis_unified import get_async_redis
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -127,8 +127,8 @@ class WebSocketCoordinator:
     """
 
     def __init__(self, redis_url: str = None):
-        self.redis_url = redis_url or settings.REDIS_URL
-        self.redis_client: Optional[redis.Redis] = None
+        # redis_url parameter kept for backward compatibility but not used
+        self.redis_client = None
         self.connections: Dict[str, ConnectionInfo] = {}
         self.user_connections: Dict[str, Set[str]] = {}  # user_id -> connection_ids
         self.event_handlers: Dict[EventType, List[Callable]] = {}
@@ -140,13 +140,8 @@ class WebSocketCoordinator:
     async def initialize(self):
         """Initialize the WebSocket coordinator"""
         try:
-            # Initialize Redis connection
-            self.redis_client = redis.from_url(
-                self.redis_url,
-                decode_responses=True,
-                socket_connect_timeout=5,
-                socket_timeout=5
-            )
+            # Get unified Redis client
+            self.redis_client = await get_async_redis()
             await self.redis_client.ping()
 
             # Start background tasks

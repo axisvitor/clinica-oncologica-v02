@@ -13,7 +13,8 @@ import logging
 import aiohttp
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from redis import asyncio as aioredis
+
+from app.core.redis_unified import get_async_redis
 
 logger = logging.getLogger(__name__)
 
@@ -195,22 +196,17 @@ class CacheHealthChecker:
 
     async def check_redis(
         self,
-        redis_url: str,
         timeout_seconds: int = 5
     ) -> HealthCheckResult:
-        """Check Redis health"""
+        """Check Redis health using unified client"""
         start_time = time.time()
         status = HealthStatus.UNKNOWN
         error = None
         details = {}
-        redis_client = None
 
         try:
-            redis_client = await aioredis.from_url(
-                redis_url,
-                encoding="utf-8",
-                decode_responses=True
-            )
+            # Use unified Redis client
+            redis_client = await get_async_redis()
 
             # Ping Redis
             await redis_client.ping()
@@ -237,10 +233,6 @@ class CacheHealthChecker:
             response_time = (time.time() - start_time) * 1000
             status = HealthStatus.DOWN
             error = str(e)
-
-        finally:
-            if redis_client:
-                await redis_client.close()
 
         return HealthCheckResult(
             service_name="Redis",
@@ -276,7 +268,7 @@ class ServiceHealthMonitor:
         self,
         api_endpoints: List[str],
         db_session: Optional[AsyncSession] = None,
-        redis_url: Optional[str] = None
+        check_redis: bool = True
     ) -> Dict[str, HealthCheckResult]:
         """Check health of all configured services"""
         results = {}
@@ -293,9 +285,9 @@ class ServiceHealthMonitor:
             results['database'] = result
             self._update_history('database', result)
 
-        # Check Redis
-        if redis_url:
-            result = await self.cache_checker.check_redis(redis_url)
+        # Check Redis using unified client
+        if check_redis:
+            result = await self.cache_checker.check_redis()
             results['redis'] = result
             self._update_history('redis', result)
 
@@ -406,7 +398,7 @@ class ServiceHealthMonitor:
         api_endpoints: List[str],
         check_interval_seconds: int = 60,
         db_session: Optional[AsyncSession] = None,
-        redis_url: Optional[str] = None
+        check_redis: bool = True
     ):
         """Start continuous service health monitoring"""
         logger.info(f"Starting service health monitoring (interval: {check_interval_seconds}s)")
@@ -416,7 +408,7 @@ class ServiceHealthMonitor:
                 results = await self.check_all_services(
                     api_endpoints,
                     db_session,
-                    redis_url
+                    check_redis
                 )
 
                 # Log results
