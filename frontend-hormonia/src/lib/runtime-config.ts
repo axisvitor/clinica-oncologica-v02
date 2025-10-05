@@ -324,9 +324,18 @@ function isValidConfig(config: any): config is RuntimeConfig {
   const isDev = !isProductionMode();
   const useMockAuth = import.meta.env['VITE_USE_MOCK_AUTH'] === 'true' || isDev;
 
-  // Required fields depend on environment
-  const requiredFields = useMockAuth
-    ? ['VITE_API_URL'] // Mock auth only needs API URL
+  // Check if Firebase is configured (Firebase-only auth in production)
+  const hasFirebase = Boolean(
+    import.meta.env['VITE_FIREBASE_API_KEY'] &&
+    import.meta.env['VITE_FIREBASE_PROJECT_ID']
+  );
+
+  // Required fields depend on environment and auth method
+  // Firebase-only production: only needs API URL (Supabase optional)
+  // Mock auth: only needs API URL
+  // Supabase auth: needs Supabase credentials + API URL
+  const requiredFields = useMockAuth || hasFirebase
+    ? ['VITE_API_URL'] // Mock auth or Firebase auth only needs API URL
     : ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', 'VITE_API_URL'];
 
   const missingFields = requiredFields.filter(field => {
@@ -337,12 +346,17 @@ function isValidConfig(config: any): config is RuntimeConfig {
     return !hasField;
   });
 
+  // Warn if Supabase is missing but allow Firebase-only configuration
+  if (!useMockAuth && !config?.VITE_SUPABASE_URL && hasFirebase) {
+    logger.warn('Supabase not configured - using Firebase-only authentication');
+  }
+
   if (missingFields.length > 0) {
     if (import.meta.env['DEV']) {
       logger.warn(`Configuration validation: missing ${missingFields.join(', ')}`);
-      // In dev mode with mock auth, allow partial config
-      if (useMockAuth) {
-        logger.log('Using mock auth, allowing partial configuration');
+      // In dev mode with mock auth or Firebase, allow partial config
+      if (useMockAuth || hasFirebase) {
+        logger.log('Using mock auth or Firebase, allowing configuration without Supabase');
         return true;
       }
     }

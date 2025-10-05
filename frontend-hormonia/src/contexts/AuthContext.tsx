@@ -114,6 +114,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       } else {
         logger.log('Using Firebase authentication')
 
+        // Check if Firebase is configured before setting up listeners
+        if (!firebaseAuth.isConfigured()) {
+          logger.warn('Firebase not configured - falling back to unauthenticated state')
+          logger.info('Set VITE_USE_MOCK_AUTH=true or configure Firebase credentials')
+          setIsLoading(false)
+          return undefined
+        }
+
         // Set up Firebase auth state listener
         const unsubscribe = firebaseAuth.onAuthStateChange(async (firebaseUser) => {
           if (firebaseUser) {
