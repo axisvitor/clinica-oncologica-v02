@@ -127,6 +127,18 @@ class RedisManager:
                     logger.info("Redis async SSL: Certificate verification OPTIONAL")
                 else:  # 'required'
                     connection_kwargs['ssl_cert_reqs'] = ssl.CERT_REQUIRED
+
+                    # Use CA certificate for validation if provided
+                    ssl_ca_certs = getattr(settings, 'REDIS_SSL_CA_CERTS', None)
+                    if ssl_ca_certs:
+                        import os
+                        ca_path = os.path.join(settings.BASE_DIR, ssl_ca_certs)
+                        if os.path.exists(ca_path):
+                            connection_kwargs['ssl_ca_certs'] = ca_path
+                            logger.info(f"Redis async SSL: Using CA certificate from {ssl_ca_certs}")
+                        else:
+                            logger.error(f"Redis CA certificate not found at {ca_path}. Falling back to system certs.")
+
                     logger.info("Redis async SSL: Certificate verification REQUIRED")
 
                 # FIX: Add explicit TLS version support for Redis Cloud compatibility

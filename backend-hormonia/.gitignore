@@ -23,6 +23,9 @@ node_modules/
 secrets/
 credentials/
 
+# Exception: Redis Cloud public CA certificate (safe to commit)
+!certs/redis_ca.pem
+
 # Logs
 logs/
 *.log
