@@ -3,9 +3,10 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useMedicoAuth } from '../../contexts/MedicoAuthContext'
+import { apiClient } from '../../lib/api-client'
 
 interface Paciente {
-  id: number
+  id: string
   nome: string
   cpf: string
   data_nascimento: string
@@ -14,11 +15,11 @@ interface Paciente {
 }
 
 interface Consulta {
-  id: number
+  id: string
   data_consulta: string
-  diagnostico: string
-  observacoes: string
-  medico_nome: string
+  diagnostico?: string
+  observacoes?: string
+  medico_nome?: string
 }
 
 export default function ProntuarioView() {
@@ -39,32 +40,32 @@ export default function ProntuarioView() {
   const fetchProntuario = async () => {
     try {
       setLoading(true)
-      const apiUrl = import.meta.env['VITE_API_URL']
 
-      // Fetch paciente data
-      const pacienteResponse = await fetch(`${apiUrl}/api/pacientes/${pacienteId}`, {
-        headers: {
-          'Authorization': `Bearer ${state.token}`,
-        },
-      })
-
-      if (!pacienteResponse.ok) {
-        throw new Error('Erro ao buscar dados do paciente')
+      // Fetch paciente data from backend
+      const p = await apiClient.patients.get(pacienteId as string)
+      const mappedPaciente: Paciente = {
+        id: p.id,
+        nome: p.name,
+        cpf: p.cpf || '',
+        data_nascimento: p.birth_date || '',
+        telefone: p.phone || '',
+        email: p.email || ''
       }
+      setPaciente(mappedPaciente)
 
-      const pacienteData = await pacienteResponse.json()
-      setPaciente(pacienteData)
-
-      // Fetch consultas
-      const consultasResponse = await fetch(`${apiUrl}/api/consultas/paciente/${pacienteId}`, {
-        headers: {
-          'Authorization': `Bearer ${state.token}`,
-        },
-      })
-
-      if (consultasResponse.ok) {
-        const consultasData = await consultasResponse.json()
-        setConsultas(consultasData)
+      // Fetch timeline as a proxy for consultations/history
+      try {
+        const timeline = await apiClient.patients.timeline(pacienteId as string)
+        const mappedConsultas: Consulta[] = (timeline.events || []).map((e: any) => ({
+          id: e.id || `${Date.now()}-${Math.random()}`,
+          data_consulta: e.created_at || new Date().toISOString(),
+          diagnostico: e.title || e.event_type,
+          observacoes: e.description,
+          medico_nome: ''
+        }))
+        setConsultas(mappedConsultas)
+      } catch {
+        setConsultas([])
       }
 
     } catch (err) {
@@ -78,9 +79,9 @@ export default function ProntuarioView() {
     return new Date(dateString).toLocaleDateString('pt-BR')
   }
 
-  const calculateAge = (birthDate: string) => {
+  const calculateAge = (birthDate?: string) => {
     const today = new Date()
-    const birth = new Date(birthDate)
+    const birth = birthDate ? new Date(birthDate) : new Date()
     let age = today.getFullYear() - birth.getFullYear()
     const monthDiff = today.getMonth() - birth.getMonth()
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
@@ -148,21 +149,21 @@ export default function ProntuarioView() {
             </div>
             <div>
               <p className="text-sm text-gray-600">CPF</p>
-              <p className="text-lg font-medium text-gray-900">{paciente.cpf}</p>
+              <p className="text-lg font-medium text-gray-900">{paciente.cpf || '-'}</p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Data de Nascimento</p>
               <p className="text-lg font-medium text-gray-900">
-                {formatDate(paciente.data_nascimento)} ({calculateAge(paciente.data_nascimento)} anos)
+                {paciente.data_nascimento ? formatDate(paciente.data_nascimento) : '-'} ({calculateAge(paciente.data_nascimento)} anos)
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Telefone</p>
-              <p className="text-lg font-medium text-gray-900">{paciente.telefone}</p>
+              <p className="text-lg font-medium text-gray-900">{paciente.telefone || '-'}</p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Email</p>
-              <p className="text-lg font-medium text-gray-900">{paciente.email}</p>
+              <p className="text-lg font-medium text-gray-900">{paciente.email || '-'}</p>
             </div>
           </div>
         </div>

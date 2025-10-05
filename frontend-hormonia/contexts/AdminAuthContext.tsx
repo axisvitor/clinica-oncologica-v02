@@ -2,6 +2,7 @@ import React, { createContext, useContext, useReducer, useEffect, useCallback } 
 import { apiClient } from '../src/lib/api-client'
 import { isMockAuthEnabled } from '../src/config/mock.config'
 import mockAuthService from '../src/lib/mock-auth-service'
+import { firebaseAuth } from '../src/lib/firebase-client'
 import type {
   AdminAuthState,
   AdminUser,
@@ -157,7 +158,53 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
             refreshToken: ''
           }
         } else {
-          throw new Error('Firebase authentication not implemented yet')
+          // Firebase authentication implementation for Admin
+          console.log('[AdminAuth] Using Firebase authentication')
+
+          const result = await firebaseAuth.signInWithPassword({
+            email: email,
+            password
+          })
+
+          if (result.error || !result.user || !result.session) {
+            throw result.error || new Error('Authentication failed')
+          }
+
+          // Set Firebase ID token
+          const token = result.session.access_token
+          apiClient.setAuthToken(token)
+
+          // Fetch user from backend and validate admin role
+          const me = await apiClient.auth.me()
+          const role = (me.data.role || '').toLowerCase()
+          if (!['admin', 'super_admin'].includes(role)) {
+            await firebaseAuth.signOut()
+            const msg = 'Access denied: user is not an admin'
+            dispatch({ type: 'AUTH_ERROR', payload: msg })
+            return { success: false, error: msg }
+          }
+
+          const adminUser: AdminUser = {
+            id: me.data.id,
+            email: me.data.email,
+            full_name: me.data.full_name,
+            role: me.data.role as AdminUser['role'],
+            is_active: me.data.is_active,
+            permissions: [],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            last_login: new Date().toISOString(),
+            login_count: 0,
+            two_factor_enabled: false,
+            failed_login_attempts: 0,
+            locked_until: null
+          }
+
+          const sessionExpiry = calculateSessionExpiry()
+          dispatch({ type: 'AUTH_SUCCESS', payload: { user: adminUser, sessionExpiry } })
+
+          console.log('[AdminAuth] Admin user authenticated via Firebase:', adminUser.email)
+          return { success: true, user: adminUser, token }
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Authentication failed'
@@ -179,6 +226,8 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
 
       if (isMockAuthEnabled()) {
         await mockAuthService.signOut()
+      } else {
+        await firebaseAuth.signOut()
       }
 
       apiClient.setAuthToken(null)
@@ -231,7 +280,43 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
 
         console.log('[AdminAuth] Token refresh successful')
       } else {
-        throw new Error('Firebase authentication not implemented yet')
+        // Firebase token refresh
+        console.log('[AdminAuth] Refreshing Firebase token')
+
+        const session = await firebaseAuth.refreshSession()
+        if (!session) {
+          throw new Error('No session to refresh')
+        }
+
+        const token = session.access_token
+        apiClient.setAuthToken(token)
+
+        const me = await apiClient.auth.me()
+        const role = (me.data.role || '').toLowerCase()
+        if (!['admin', 'super_admin'].includes(role)) {
+          throw new Error('User is not an admin')
+        }
+
+        const adminUser: AdminUser = {
+          id: me.data.id,
+          email: me.data.email,
+          full_name: me.data.full_name,
+          role: me.data.role as AdminUser['role'],
+          is_active: me.data.is_active,
+          permissions: [],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          last_login: new Date().toISOString(),
+          login_count: state.user?.login_count || 0,
+          two_factor_enabled: state.user?.two_factor_enabled || false,
+          failed_login_attempts: 0,
+          locked_until: null
+        }
+
+        const sessionExpiry = calculateSessionExpiry()
+        dispatch({ type: 'AUTH_SUCCESS', payload: { user: adminUser, sessionExpiry } })
+
+        console.log('[AdminAuth] Firebase token refresh successful')
       }
     } catch (error) {
       console.error('[AdminAuth] Token refresh error:', error)
@@ -316,8 +401,51 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
             dispatch({ type: 'AUTH_LOGOUT' })
           }
         } else {
-          console.log('[AdminAuth] Firebase auth will be implemented later')
-          dispatch({ type: 'AUTH_LOGOUT' })
+          // Firebase authentication initialization
+          console.log('[AdminAuth] Initializing Firebase authentication')
+
+          const firebaseUser = await firebaseAuth.getCurrentUser()
+
+          if (firebaseUser) {
+            console.log('[AdminAuth] Found existing Firebase session:', firebaseUser.email)
+            const token = await firebaseUser.getIdToken()
+            apiClient.setAuthToken(token)
+
+            try {
+              const me = await apiClient.auth.me()
+              const role = (me.data.role || '').toLowerCase()
+              if (!['admin', 'super_admin'].includes(role)) {
+                console.log('[AdminAuth] User is not admin, signing out')
+                await firebaseAuth.signOut()
+                dispatch({ type: 'AUTH_LOGOUT' })
+              } else {
+                const adminUser: AdminUser = {
+                  id: me.data.id,
+                  email: me.data.email,
+                  full_name: me.data.full_name,
+                  role: me.data.role as AdminUser['role'],
+                  is_active: me.data.is_active,
+                  permissions: [],
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                  last_login: new Date().toISOString(),
+                  login_count: 0,
+                  two_factor_enabled: false,
+                  failed_login_attempts: 0,
+                  locked_until: null
+                }
+
+                const sessionExpiry = calculateSessionExpiry()
+                dispatch({ type: 'AUTH_SUCCESS', payload: { user: adminUser, sessionExpiry } })
+              }
+            } catch (error) {
+              console.error('[AdminAuth] Failed to fetch user from backend:', error)
+              dispatch({ type: 'AUTH_LOGOUT' })
+            }
+          } else {
+            console.log('[AdminAuth] No existing Firebase session')
+            dispatch({ type: 'AUTH_LOGOUT' })
+          }
         }
       } catch (error) {
         console.error('[AdminAuth] Failed to initialize auth:', error)

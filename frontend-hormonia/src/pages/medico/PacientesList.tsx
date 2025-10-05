@@ -3,10 +3,11 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMedicoAuth } from '../../contexts/MedicoAuthContext'
+import { apiClient } from '../../lib/api-client'
 import { ChevronDown, Phone, Mail, Calendar, User, FileText } from 'lucide-react'
 
 interface Paciente {
-  id: number
+  id: string
   nome: string
   cpf: string
   data_nascimento: string
@@ -21,7 +22,7 @@ export default function PacientesList() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set())
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetchPacientes()
@@ -30,19 +31,18 @@ export default function PacientesList() {
   const fetchPacientes = async () => {
     try {
       setLoading(true)
-      const apiUrl = import.meta.env['VITE_API_URL']
-      const response = await fetch(`${apiUrl}/api/pacientes`, {
-        headers: {
-          'Authorization': `Bearer ${state.token}`,
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error('Erro ao buscar pacientes')
-      }
-
-      const data = await response.json()
-      setPacientes(data)
+      const params: { size?: number; search?: string } = { size: 50 }
+      if (searchTerm) params.search = searchTerm
+      const resp = await apiClient.patients.list(params as any)
+      const mapped: Paciente[] = (resp.items || []).map((p: any) => ({
+        id: p.id,
+        nome: p.name,
+        cpf: p.cpf || '',
+        data_nascimento: p.birth_date || '',
+        telefone: p.phone || '',
+        email: p.email || ''
+      }))
+      setPacientes(mapped)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido')
     } finally {
@@ -80,7 +80,7 @@ export default function PacientesList() {
     return name.substring(0, 2).toUpperCase()
   }
 
-  const getAvatarColor = (id: number) => {
+  const getAvatarColor = (id: string) => {
     const colors = [
       'bg-blue-500',
       'bg-green-500',
@@ -91,10 +91,12 @@ export default function PacientesList() {
       'bg-teal-500',
       'bg-orange-500'
     ]
-    return colors[id % colors.length]
+    let sum = 0
+    for (let i = 0; i < id.length; i++) sum = (sum + id.charCodeAt(i)) % colors.length
+    return colors[sum]
   }
 
-  const toggleCard = (id: number) => {
+  const toggleCard = (id: string) => {
     setExpandedCards(prev => {
       const newSet = new Set(prev)
       if (newSet.has(id)) {

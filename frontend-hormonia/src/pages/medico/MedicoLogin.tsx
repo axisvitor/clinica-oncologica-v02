@@ -37,18 +37,16 @@ export default function MedicoLogin() {
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
     if (!validateForm()) {
       return
     }
 
     try {
-      // Construct email from CRM (format: crm@medico.local)
-      const email = `${formData.crm}@medico.local`
+      // Use CRM directly; MedicoAuthContext will map to proper email domain in Firebase
+      const crmOrEmail = formData.crm
 
       // Use Firebase signIn from context
-      const result = await signIn(email, formData.senha, false)
+      const result = await signIn(crmOrEmail, formData.senha, false)
 
       if (result.success) {
         // Navigate to dashboard on success
