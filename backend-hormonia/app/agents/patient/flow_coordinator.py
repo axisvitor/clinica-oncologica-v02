@@ -99,8 +99,7 @@ class FlowCoordinatorAgent(BaseAgent):
         
         # Template support
         self.template_loader = template_loader or EnhancedTemplateLoader(
-            template_path="app/templates/flows",
-            db=db_session
+            db=db_session  # FIX: Remove template_path parameter - EnhancedTemplateLoader doesn't accept it
         )
         self.flow_templates: Dict[str, FlowTemplateData] = {}
         
@@ -129,7 +128,7 @@ class FlowCoordinatorAgent(BaseAgent):
         try:
             # Initialize dependencies
             self.flow_engine = await get_enhanced_flow_engine()
-            self.gemini_client = await get_gemini_client()
+            self.gemini_client = get_gemini_client()  # FIX: Remove await - get_gemini_client() is synchronous
             
             # Initialize knowledge graph with lazy loading
             KnowledgeGraph = _get_knowledge_graph()

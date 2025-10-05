@@ -71,8 +71,7 @@ class MessageComposerAgent(BaseAgent):
         
         # Template support
         self.template_loader = template_loader or EnhancedTemplateLoader(
-            template_path="app/templates/flows",
-            db=db_session
+            db=db_session  # FIX: Remove template_path parameter - EnhancedTemplateLoader doesn't accept it
         )
         self.loaded_templates: Dict[str, FlowTemplateData] = {}
         

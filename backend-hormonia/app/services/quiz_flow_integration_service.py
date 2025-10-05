@@ -100,7 +100,7 @@ class QuizFlowIntegrationService:
             result = await self.conversational_service.process_quiz_response(
                 patient_id=patient_id,
                 response_text=message_content,
-                message_id=message_id
+                message_metadata={'message_id': str(message_id)} if message_id else None  # FIX: Change message_id= to message_metadata=
             )
             
             return result
@@ -164,7 +164,7 @@ class QuizFlowIntegrationService:
                     "total": total_questions,
                     "percentage": round(progress_percentage, 2)
                 },
-                "current_question_index": active_session.current_question_index,
+                "current_question": active_session.current_question,  # FIX: Use current_question field
                 "status": active_session.status
             }
             

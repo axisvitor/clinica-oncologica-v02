@@ -776,7 +776,7 @@ class ConversationalQuizService:
                 question=question,
                 session_id=str(session.id),
                 question_index=question_index,
-                total_questions=len(questions),
+                total_questions=len(questions),  # FIX: Added missing total_questions argument
                 patient_name=patient.name
             )
             

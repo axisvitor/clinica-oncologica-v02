@@ -96,8 +96,7 @@ class QuizConductorAgent(BaseAgent):
         
         # Template support
         self.template_loader = template_loader or EnhancedTemplateLoader(
-            template_path="app/templates/quiz",
-            db=db_session
+            db=db_session  # FIX: Remove template_path parameter - EnhancedTemplateLoader doesn't accept it
         )
         self.quiz_templates: Dict[str, Dict[str, Any]] = {}
         
@@ -131,7 +130,7 @@ class QuizConductorAgent(BaseAgent):
         """Initialize agent-specific resources."""
         try:
             # Initialize AI client
-            self.gemini_client = await get_gemini_client()
+            self.gemini_client = get_gemini_client()  # FIX: Remove await - get_gemini_client() is synchronous
             
             # Initialize knowledge graph
             self.knowledge_graph = KnowledgeGraph(self.db_session)

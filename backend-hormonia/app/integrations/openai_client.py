@@ -105,7 +105,7 @@ class LangChainOrchestrator:
         try:
             # Initialize Google Gemini chat model
             self.chat_model = ChatGoogleGenerativeAI(
-                model=model_name,
+                model=self.model_name,  # FIX: Use self.model_name instead of model_name parameter
                 google_api_key=self.api_key,
                 temperature=temperature,
                 max_output_tokens=max_tokens

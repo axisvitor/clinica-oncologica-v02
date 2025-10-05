@@ -173,7 +173,7 @@ class QuizSessionRepository(BaseRepository[QuizSession]):
         return (
             self.db.query(QuizSession)
             .filter(QuizSession.patient_id == patient_id)
-            .filter(QuizSession.is_completed == False)
+            .filter(QuizSession.status == 'in_progress')  # FIX: Use status field instead of is_completed
             .order_by(QuizSession.started_at.desc())
             .first()
         )
@@ -214,8 +214,8 @@ class QuizSessionRepository(BaseRepository[QuizSession]):
     def complete_session(self, session_id: UUID) -> Optional[QuizSession]:
         """Mark a session as completed"""
         session = self.get(session_id)
-        if session and not session.is_completed:
-            session.is_completed = True
+        if session and session.status != 'completed':  # FIX: Check status instead of is_completed
+            session.status = 'completed'  # FIX: Set status to completed
             session.completed_at = datetime.utcnow()
             self.db.commit()
         return session
@@ -224,7 +224,7 @@ class QuizSessionRepository(BaseRepository[QuizSession]):
         """Get incomplete sessions older than cutoff time"""
         return (
             self.db.query(QuizSession)
-            .filter(QuizSession.is_completed == False)
+            .filter(QuizSession.status == 'in_progress')  # FIX: Use status field
             .filter(QuizSession.started_at < cutoff_time)
             .all()
         )

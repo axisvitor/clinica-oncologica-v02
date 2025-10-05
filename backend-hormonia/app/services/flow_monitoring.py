@@ -14,6 +14,7 @@ import statistics
 from collections import defaultdict, deque
 
 from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_  # FIX: Add missing imports
 from redis import Redis
 
 
@@ -141,8 +142,8 @@ class FlowMonitoringService:
         """Collect current performance metrics."""
         try:
             # Database metrics
-            total_active_flows = self.db.query(FlowState).filter(
-                FlowState.is_paused == False
+            total_active_flows = self.db.query(PatientFlowState).filter(  # FIX: Use PatientFlowState instead of FlowState
+                PatientFlowState.is_paused == False
             ).count()
 
             # Message metrics
@@ -308,11 +309,11 @@ class FlowMonitoringService:
     async def get_active_alerts(self) -> List[SystemAlert]:
         """Get all active (unresolved) alerts."""
         try:
-            alert_keys = await self.redis.keys("alert:*")
+            alert_keys = self.redis.keys("alert:*")  # FIX: Remove await
             alerts = []
 
             for key in alert_keys:
-                alert_data = await self.redis.get(key)
+                alert_data = self.redis.get(key)  # FIX: Remove await
                 if alert_data:
                     alert_dict = json.loads(alert_data)
                     if not alert_dict.get('resolved_at'):
@@ -340,7 +341,7 @@ class FlowMonitoringService:
         """Resolve an active alert."""
         try:
             alert_key = f"alert:{alert_id}"
-            alert_data = await self.redis.get(alert_key)
+            alert_data = self.redis.get(alert_key)  # FIX: Remove await
 
             if not alert_data:
                 return False
@@ -350,7 +351,7 @@ class FlowMonitoringService:
             if resolution_note:
                 alert_dict['resolution_note'] = resolution_note
 
-            await self.redis.setex(alert_key, 86400 * 7, json.dumps(alert_dict))  # Keep for 7 days
+            self.redis.setex(alert_key, 86400 * 7, json.dumps(alert_dict))  # FIX: Remove await
 
             logger.info(f"Resolved alert {alert_id}: {resolution_note}")
             return True
@@ -416,7 +417,7 @@ class FlowMonitoringService:
         try:
             # Check cooldown
             cooldown_key = f"alert_cooldown:{component}:{title}"
-            if await self.redis.exists(cooldown_key):
+            if self.redis.exists(cooldown_key):  # FIX: Remove await
                 return None  # Still in cooldown
 
             # Create alert
@@ -449,11 +450,11 @@ class FlowMonitoringService:
                 'metadata': alert.metadata
             }
 
-            await self.redis.setex(alert_key, 86400 * 7, json.dumps(alert_data))
+            self.redis.setex(alert_key, 86400 * 7, json.dumps(alert_data))  # FIX: Remove await
 
             # Set cooldown
             cooldown_seconds = self.alert_cooldowns[severity]
-            await self.redis.setex(cooldown_key, cooldown_seconds, "1")
+            self.redis.setex(cooldown_key, cooldown_seconds, "1")  # FIX: Remove await
 
             # Log alert
             logger.warning(f"Created {severity.value} alert: {title} - {message}")
@@ -471,7 +472,7 @@ class FlowMonitoringService:
     async def _get_average_response_time(self) -> float:
         """Get average response time from Redis metrics."""
         try:
-            response_times = await self.redis.lrange("response_times", 0, 99)  # Last 100 measurements
+            response_times = self.redis.lrange("response_times", 0, 99)  # FIX: Remove await - Redis is synchronous
             if response_times:
                 times = [float(t) for t in response_times]
                 return sum(times) / len(times)
@@ -486,10 +487,10 @@ class FlowMonitoringService:
             one_hour_ago = datetime.utcnow() - timedelta(hours=1)
             error_key = f"flow_errors:{one_hour_ago.strftime('%Y-%m-%d')}"
 
-            error_count = await self.redis.llen(error_key)
+            error_count = self.redis.llen(error_key)  # FIX: Remove await
 
             # Get total operations from last hour
-            total_operations = await self.redis.get("operations_count_last_hour")
+            total_operations = self.redis.get("operations_count_last_hour")  # FIX: Remove await
             total_operations = int(total_operations) if total_operations else 1
 
             return error_count / max(total_operations, 1)
@@ -509,7 +510,7 @@ class FlowMonitoringService:
     async def _get_redis_memory_usage(self) -> float:
         """Get Redis memory usage percentage."""
         try:
-            info = await self.redis.info('memory')
+            info = self.redis.info('memory')  # FIX: Remove await - Redis is synchronous
             used_memory = info.get('used_memory', 0)
             max_memory = info.get('maxmemory', 0)
 
@@ -533,12 +534,12 @@ class FlowMonitoringService:
         try:
             twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
 
-            stale_count = self.db.query(FlowState).filter(
+            stale_count = self.db.query(PatientFlowState).filter(  # FIX: Use PatientFlowState
                 and_(
-                    FlowState.is_paused == False,
+                    PatientFlowState.is_paused == False,
                     or_(
-                        FlowState.last_message_sent < twenty_four_hours_ago,
-                        FlowState.last_message_sent.is_(None)
+                        PatientFlowState.last_message_sent < twenty_four_hours_ago,
+                        PatientFlowState.last_message_sent.is_(None)
                     )
                 )
             ).count()
@@ -553,7 +554,7 @@ class FlowMonitoringService:
         """Calculate data corruption rate."""
         try:
             # Sample a subset of flows for corruption checking
-            total_flows = self.db.query(FlowState).count()
+            total_flows = self.db.query(PatientFlowState).count()  # FIX: Use PatientFlowState
             if total_flows == 0:
                 return 0.0
 
@@ -616,7 +617,7 @@ class FlowMonitoringService:
         """Check Redis connectivity and performance."""
         try:
             start_time = datetime.utcnow()
-            await self.redis.ping()
+            self.redis.ping()  # FIX: Remove await - Redis is synchronous
             response_time = (datetime.utcnow() - start_time).total_seconds()
 
             return {
@@ -714,7 +715,7 @@ class FlowMonitoringService:
                 'requires_immediate_attention': True
             }
 
-            await self.redis.setex(critical_key, 86400, json.dumps(notification_data))
+            self.redis.setex(critical_key, 86400, json.dumps(notification_data))  # FIX: Remove await
 
             # Log critical alert
             logger.critical(f"CRITICAL ALERT: {alert.title} - {alert.message}")
