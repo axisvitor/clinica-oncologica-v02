@@ -32,12 +32,11 @@ apscheduler>=3.10.4,<4.0.0  # Scheduled jobs (audit cleanup, etc.)
 # NOTE: Removed langchain meta-package (requires numpy<2.0.0, incompatible with Python 3.13 stack)
 # Using specific langchain-* packages that support NumPy 2.x
 langchain-core>=0.3.75,<0.4.0  # Core abstractions (NumPy 2.x compatible)
-# Using 2.1.0 for compatibility with google-generativeai 0.7.2 (both need google-ai-generativelanguage 0.6.6)
-langchain-google-genai>=2.1.0,<2.1.12  # Google Gemini integration
+langchain-google-genai>=2.1.0,<3.0.0  # Google Gemini integration (stable 2.x series)
 
 # Google Gemini AI - Python 3.13 compatible
-# Fixed at 0.7.2 for compatibility with langchain-google-genai (both use google-ai-generativelanguage 0.6.6)
-google-generativeai==0.7.2
+# Let pip resolve compatible version with langchain-google-genai (requires google-ai-generativelanguage>=0.6.16)
+google-generativeai>=0.7.2,<0.9.0
 
 # Google API dependencies - Python 3.13 compatible (fixes pkg_resources deprecation)
 # Updated to latest versions that don't use deprecated pkg_resources API
