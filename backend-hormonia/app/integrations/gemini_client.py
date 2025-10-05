@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 
 # LangChain Google Gemini integration (replaces google.generativeai)
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage
 
 from app.config import settings
 
