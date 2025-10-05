@@ -174,6 +174,20 @@ class Settings(BaseSettings):
         default="required",
         description="Redis SSL certificate requirements: none, optional, required (SECURITY: Use 'required' for production)"
     )
+    REDIS_SSL_MIN_VERSION: Optional[str] = Field(
+        default=None,
+        description="Minimum TLS version: 'TLSV1_2' or 'TLSV1_3'. Leave empty for auto-negotiation."
+    )
+    REDIS_SSL_CA_CERTS: Optional[str] = Field(
+        default=None,
+        description="Path to CA certificate bundle (absolute or relative to BASE_DIR). If not specified with CERT_REQUIRED, will use certifi."
+    )
+
+    # Base directory for relative paths
+    BASE_DIR: str = Field(
+        default_factory=lambda: os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        description="Base directory of the application (backend-hormonia/app parent)"
+    )
 
     # Connection Pool Settings
     REDIS_MAX_CONNECTIONS: int = Field(default=50, description="Redis maximum connections in pool")

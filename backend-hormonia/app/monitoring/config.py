@@ -237,12 +237,27 @@ class MonitoringConfig(BaseModel):
 
     def get_redis_url(self) -> str:
         """Get Redis connection URL with proper environment variable handling."""
-        # First priority: Use REDIS_URL environment variable if available (from settings)
+        from urllib.parse import urlparse, urlunparse
         from app.config import settings
+
+        # First priority: Use REDIS_URL environment variable if available (from settings)
         redis_url = settings.REDIS_URL
         if redis_url and not redis_url.startswith('redis://localhost'):
-            # Use DB 1 for monitoring (main app uses DB 0)
-            return redis_url.replace('/0', f'/{self.redis.db}')
+            # Parse URL to safely replace database number
+            parsed = urlparse(redis_url)
+
+            # Extract path and replace/add database number
+            path = parsed.path or ''
+            # Remove existing /N suffix if present
+            if '/' in path and path.split('/')[-1].isdigit():
+                path = '/'.join(path.split('/')[:-1])
+
+            # Add monitoring DB (1)
+            new_path = f"{path}/{self.redis.db}" if path else f"/{self.redis.db}"
+
+            # Reconstruct URL with new path
+            new_parsed = parsed._replace(path=new_path)
+            return urlunparse(new_parsed)
 
         # Fallback: Construct URL from individual components for local development
         auth = f":{self.redis.password}@" if self.redis.password else ""

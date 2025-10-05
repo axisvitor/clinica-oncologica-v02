@@ -127,17 +127,33 @@ class RedisManager:
                     logger.info("Redis async SSL: Certificate verification OPTIONAL")
                 else:  # 'required'
                     connection_kwargs['ssl_cert_reqs'] = ssl.CERT_REQUIRED
+                    connection_kwargs['ssl_check_hostname'] = True  # SEC-002: Explicit hostname verification
 
                     # Use CA certificate for validation if provided
                     ssl_ca_certs = getattr(settings, 'REDIS_SSL_CA_CERTS', None)
                     if ssl_ca_certs:
                         import os
-                        ca_path = os.path.join(settings.BASE_DIR, ssl_ca_certs)
+                        # Support both absolute and relative paths
+                        if os.path.isabs(ssl_ca_certs):
+                            ca_path = ssl_ca_certs
+                        else:
+                            ca_path = os.path.join(settings.BASE_DIR, ssl_ca_certs)
+
                         if os.path.exists(ca_path):
                             connection_kwargs['ssl_ca_certs'] = ca_path
                             logger.info(f"Redis async SSL: Using CA certificate from {ssl_ca_certs}")
                         else:
-                            logger.error(f"Redis CA certificate not found at {ca_path}. Falling back to system certs.")
+                            logger.error(f"Redis CA certificate not found at {ca_path}. Falling back to certifi.")
+                            ssl_ca_certs = None  # Trigger fallback below
+
+                    # Fallback to certifi if no custom CA specified
+                    if not ssl_ca_certs:
+                        try:
+                            import certifi
+                            connection_kwargs['ssl_ca_certs'] = certifi.where()
+                            logger.info(f"Redis async SSL: Using certifi CA bundle: {certifi.where()}")
+                        except ImportError:
+                            logger.warning("Redis async SSL: certifi not available, using system CA store")
 
                     logger.info("Redis async SSL: Certificate verification REQUIRED")
 
@@ -585,6 +601,16 @@ async def redis_health_check() -> dict:
     Returns:
         Health check results
     """
+    import re
+
+    # SEC-001 FIX: Sanitize Redis URL to hide credentials
+    def sanitize_redis_url(url: str) -> str:
+        """Remove password from Redis URL for safe logging"""
+        if not url:
+            return 'not_configured'
+        # Replace password in redis://user:password@host:port format
+        return re.sub(r'://([^:]*):([^@]*)@', r'://\1:***@', url)
+
     try:
         manager = get_redis_manager()
 
@@ -600,7 +626,7 @@ async def redis_health_check() -> dict:
             "status": "healthy",
             "async_ping": bool(async_ping),
             "sync_ping": bool(sync_ping),
-            "redis_url": settings.REDIS_URL,
+            "redis_url": sanitize_redis_url(settings.REDIS_URL),  # SEC-001: Sanitized URL
             "max_connections": manager.max_connections
         }
 
@@ -608,5 +634,5 @@ async def redis_health_check() -> dict:
         return {
             "status": "unhealthy",
             "error": str(e),
-            "redis_url": getattr(settings, 'REDIS_URL', 'not_configured')
+            "redis_url": sanitize_redis_url(getattr(settings, 'REDIS_URL', 'not_configured'))  # SEC-001: Sanitized URL
         }
