@@ -95,22 +95,32 @@ def drop_tables():
 
 
 # Supabase client for real-time features and additional functionality
+# NOTE: Initialization moved to app.core.database to prevent duplication
+# This module imports from app.core.database for backward compatibility
 supabase_client = None
 
 def init_supabase_client():
-    """Initialize Supabase client safely."""
+    """
+    Initialize Supabase client safely (DEPRECATED).
+
+    This function is deprecated. Use app.core.database.init_supabase_client() instead.
+    Kept for backward compatibility only.
+    """
     global supabase_client
+
+    # Import from core.database to use the same instance
     try:
-        from supabase import create_client, Client
-        
-        supabase_client = create_client(
-            settings.SUPABASE_URL,
-            settings.SUPABASE_SERVICE_ROLE_KEY
-        )
-        
-        logger.info("Supabase client initialized successfully")
-        return True
-        
+        from app.core.database import supabase_client as core_client, init_supabase_client as core_init
+
+        if core_client is None:
+            # Initialize via core module
+            core_init()
+            from app.core.database import supabase_client as core_client
+
+        # Share the same instance
+        supabase_client = core_client
+        return supabase_client is not None
+
     except ImportError:
         logger.warning("Supabase client not available. Install supabase-py for full functionality.")
         return False
@@ -118,8 +128,8 @@ def init_supabase_client():
         logger.error(f"Error initializing Supabase client: {e}")
         return False
 
-# Try to initialize on import
-init_supabase_client()
+# Do NOT initialize on import - let app.core.database handle it
+# This prevents duplicate "Supabase client initialized successfully" logs
 
 
 def get_supabase():

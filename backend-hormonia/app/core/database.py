@@ -425,11 +425,18 @@ class RLSContextError(RLSError):
 
 
 # Supabase client initialization (backward compatibility)
+# Module-level sentinel to prevent duplicate initialization
+_SUPABASE_CLIENT_INITIALIZED = False
 supabase_client = None
 
 def init_supabase_client():
-    """Initialize Supabase client safely."""
-    global supabase_client
+    """Initialize Supabase client safely (idempotent)."""
+    global supabase_client, _SUPABASE_CLIENT_INITIALIZED
+
+    # Return early if already initialized
+    if _SUPABASE_CLIENT_INITIALIZED:
+        return supabase_client is not None
+
     try:
         from supabase import create_client, Client
 
@@ -439,17 +446,20 @@ def init_supabase_client():
             settings.SUPABASE_SERVICE_ROLE_KEY
         )
 
+        _SUPABASE_CLIENT_INITIALIZED = True
         logger.info("Supabase client initialized successfully")
         return True
 
     except ImportError:
+        _SUPABASE_CLIENT_INITIALIZED = True
         logger.warning("Supabase client not available. Install supabase-py for full functionality.")
         return False
     except Exception as e:
+        _SUPABASE_CLIENT_INITIALIZED = True
         logger.error(f"Error initializing Supabase client: {e}")
         return False
 
-# Try to initialize on import
+# Try to initialize on import (idempotent - will only log once)
 init_supabase_client()
 
 

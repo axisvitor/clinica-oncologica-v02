@@ -115,15 +115,36 @@ class RedisManager:
                 if redis_url.startswith('redis://'):
                     redis_url = 'rediss://' + redis_url[8:]
                 logger.info("Redis async SSL: Enabled with rediss:// scheme")
+
+                # Create SSL context based on REDIS_SSL_CERT_REQS setting
+                # CRITICAL FIX: redis-py 6.0+ async clients require explicit SSL context
+                # when REDIS_SSL_CERT_REQS='none' (disables certificate validation)
+                import ssl
+                ssl_cert_reqs = getattr(settings, 'REDIS_SSL_CERT_REQS', 'required').lower()
+
+                if ssl_cert_reqs == 'none':
+                    ssl_context = ssl.create_default_context()
+                    ssl_context.check_hostname = False
+                    ssl_context.verify_mode = ssl.CERT_NONE
+                    logger.info("Redis async SSL: Certificate verification DISABLED (CERT_NONE)")
+                elif ssl_cert_reqs == 'optional':
+                    ssl_context = ssl.create_default_context()
+                    ssl_context.verify_mode = ssl.CERT_OPTIONAL
+                    logger.info("Redis async SSL: Certificate verification OPTIONAL")
+                else:  # 'required'
+                    ssl_context = ssl.create_default_context()
+                    ssl_context.verify_mode = ssl.CERT_REQUIRED
+                    logger.info("Redis async SSL: Certificate verification REQUIRED")
+
+                # Add SSL context to connection kwargs
+                connection_kwargs['ssl'] = ssl_context
             else:
                 # Ensure using non-SSL scheme
                 if redis_url.startswith('rediss://'):
                     redis_url = 'redis://' + redis_url[9:]
                 logger.info("Redis async: Using non-SSL connection")
 
-            # Create async connection pool
-            # NOTE: Do NOT pass ssl_cert_reqs/ssl_check_hostname as kwargs
-            # redis-py 6.0+ handles SSL via URL scheme (rediss://) automatically
+            # Create async connection pool with SSL context (if SSL enabled)
             self._async_pool = redis_async.ConnectionPool.from_url(
                 redis_url,
                 **connection_kwargs

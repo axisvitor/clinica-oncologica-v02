@@ -170,7 +170,10 @@ class Settings(BaseSettings):
 
     # SSL/TLS Configuration
     REDIS_SSL: bool = Field(default=False, description="Enable SSL/TLS for Redis connection (use rediss:// URL or set to True)")
-    REDIS_SSL_CERT_REQS: str = Field(default="none", description="Redis SSL certificate requirements: none, optional, required")
+    REDIS_SSL_CERT_REQS: str = Field(
+        default="required",
+        description="Redis SSL certificate requirements: none, optional, required (SECURITY: Use 'required' for production)"
+    )
 
     # Connection Pool Settings
     REDIS_MAX_CONNECTIONS: int = Field(default=50, description="Redis maximum connections in pool")

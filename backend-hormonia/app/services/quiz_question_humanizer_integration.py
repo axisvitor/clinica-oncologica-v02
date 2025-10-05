@@ -215,11 +215,20 @@ class QuizQuestionHumanizerIntegration:
         return False
 
 
+# Module-level sentinel to prevent duplicate patching
+_QUIZ_HUMANIZER_PATCHED = False
+
 def integrate_humanization_into_quiz_service():
     """
-    Patch to integrate humanization into existing quiz service.
+    Patch to integrate humanization into existing quiz service (idempotent).
     Should be called during system initialization.
     """
+    global _QUIZ_HUMANIZER_PATCHED
+
+    # Return early if already patched
+    if _QUIZ_HUMANIZER_PATCHED:
+        return True
+
     from app.services.quiz import QuizSessionService
 
     # Save original method
@@ -260,11 +269,12 @@ def integrate_humanization_into_quiz_service():
     # Apply patch
     QuizSessionService._enrich_session_response = enhanced_enrich_session_response
 
+    _QUIZ_HUMANIZER_PATCHED = True
     logger.info("Quiz humanization integration successfully patched")
     return True
 
 
-# Auto-integrate on import
+# Auto-integrate on import (idempotent - will only patch and log once)
 if __name__ != "__main__":
     try:
         integrate_humanization_into_quiz_service()
