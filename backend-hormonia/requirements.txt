@@ -80,7 +80,7 @@ psutil>=5.9.6,<6.0.0
 # Utilities - Python 3.11 compatible
 python-dotenv>=1.0.0,<2.0.0
 pytz>=2024.1
-numpy>=1.26.0,<2.0.0  # Pinned to <2.0 for langchain 0.2.0 compatibility
+numpy>=2.1.0,<3.0.0  # Python 3.13 requires NumPy 2.x for optimal compatibility (pre-built wheels)
 typing-extensions>=4.12.0,<5.0.0
 
 # Test data generation - Python 3.11 compatible
@@ -103,19 +103,21 @@ pandas>=2.2.0,<3.0.0  # For enhanced analytics data processing (NumPy 2 compatib
 asyncio-mqtt>=0.16.1,<1.0.0  # For async operations in resilience patterns
 
 # OpenTelemetry for distributed tracing
-# Updated to latest versions for compatibility with googleapis-common-protos>=1.70.0
+# Updated to latest versions for Python 3.13 compatibility and googleapis-common-protos>=1.70.0
+# NOTE: Removed opentelemetry-exporter-jaeger (no Python 3.13 support) - using OTLP instead
+# Jaeger natively supports OTLP via ports 4317 (gRPC) and 4318 (HTTP)
 opentelemetry-api>=1.28.0,<2.0.0
 opentelemetry-sdk>=1.28.0,<2.0.0
 opentelemetry-instrumentation-fastapi>=0.49b0,<1.0.0
 opentelemetry-instrumentation-sqlalchemy>=0.49b0,<1.0.0
 opentelemetry-instrumentation-redis>=0.49b0,<1.0.0
 opentelemetry-instrumentation-httpx>=0.49b0,<1.0.0
-opentelemetry-exporter-jaeger>=1.28.0,<2.0.0
+# OTLP is the recommended exporter for Jaeger (replaces deprecated Jaeger exporter)
 opentelemetry-exporter-otlp>=1.28.0,<2.0.0
-# Ensure OTel proto/exporters use protobuf <5 to avoid conflicts with google-generativeai 0.7.x
-opentelemetry-proto>=1.28.0,<2.0.0
 opentelemetry-exporter-otlp-proto-grpc>=1.28.0,<2.0.0
 opentelemetry-exporter-otlp-proto-http>=1.28.0,<2.0.0
+# Ensure OTel proto/exporters use protobuf <5 to avoid conflicts with google-generativeai 0.7.x
+opentelemetry-proto>=1.28.0,<2.0.0
 protobuf>=3.19.5,<5.0.0
 
 # WhatsApp integration dependencies
