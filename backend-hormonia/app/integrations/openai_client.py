@@ -8,8 +8,9 @@ from enum import Enum
 
 # Removed OpenAI import - using Google Gemini instead
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.prompts import PromptTemplate, ChatPromptTemplate
-from langchain.schema import HumanMessage, SystemMessage
+# Updated imports for langchain-core (NumPy 2.x compatible)
+from langchain_core.prompts import PromptTemplate, ChatPromptTemplate
+from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
 from app.config import settings

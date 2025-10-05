@@ -28,10 +28,11 @@ redis==6.0.0  # Python 3.13 compatible with improved SSL/TLS support
 certifi>=2023.7.22,<2025.0.0  # CA certificates for Redis SSL/TLS validation
 apscheduler>=3.10.4,<4.0.0  # Scheduled jobs (audit cleanup, etc.)
 
-# AI (Gemini) and LangChain - Python 3.11 compatible
-langchain>=0.2.0,<0.3.0
-# Pin to 1.0.7+ which supports google-generativeai>=0.7.0
-langchain-google-genai>=1.0.7,<2.0.0
+# AI (Gemini) and LangChain - Python 3.13 + NumPy 2.x compatible
+# NOTE: Removed langchain meta-package (requires numpy<2.0.0, incompatible with Python 3.13 stack)
+# Using specific langchain-* packages that support NumPy 2.x
+langchain-core>=0.3.0,<0.4.0  # Core abstractions (NumPy 2.x compatible)
+langchain-google-genai>=2.0.0,<3.0.0  # Google Gemini integration (NumPy 2.x compatible)
 
 # Google Gemini AI - Python 3.13 compatible (compatible with langchain-google-genai>=1.0.7)
 # Updated to >=0.7.0 to satisfy langchain-google-genai>=1.0.7 dependency requirements
