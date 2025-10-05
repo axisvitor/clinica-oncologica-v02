@@ -152,19 +152,29 @@ class Settings(BaseSettings):
     DATABASE_URL: str = Field(..., description="Supabase PostgreSQL connection string")
     
     # Redis (for caching and Celery)
-    REDIS_URL: str = Field(default="rediss://localhost:6379", description="Redis connection URL")
+    # Redis Connection Settings (redis-py 6.0.0 compatible)
+    REDIS_URL: str = Field(default="redis://localhost:6379", description="Redis connection URL (use redis:// or rediss:// for SSL)")
     REDIS_PASSWORD: Optional[str] = Field(default=None, description="Redis password")
     REDIS_HOST: str = Field(default="localhost", description="Redis host")
     REDIS_PORT: int = Field(default=6379, description="Redis port")
-    REDIS_SSL: bool = Field(default=True, description="SECURITY FIX: Redis SSL enabled")
-    REDIS_SSL_CERT_REQS: str = Field(default="required", description="Redis SSL certificate requirements")
-    REDIS_MAX_CONNECTIONS: int = Field(default=10, description="Redis maximum connections")
-    REDIS_SOCKET_TIMEOUT: float = Field(default=30.0, description="Redis socket timeout in seconds")
+
+    # SSL/TLS Configuration
+    REDIS_SSL: bool = Field(default=False, description="Enable SSL/TLS for Redis connection (use rediss:// URL or set to True)")
+    REDIS_SSL_CERT_REQS: str = Field(default="none", description="Redis SSL certificate requirements: none, optional, required")
+
+    # Connection Pool Settings
+    REDIS_MAX_CONNECTIONS: int = Field(default=50, description="Redis maximum connections in pool")
+    REDIS_SOCKET_TIMEOUT: float = Field(default=10.0, description="Redis socket timeout in seconds")
+    REDIS_SOCKET_CONNECT_TIMEOUT: float = Field(default=5.0, description="Redis connection timeout in seconds")
+    REDIS_RETRY_ON_TIMEOUT: bool = Field(default=True, description="Retry Redis operations on timeout")
+    REDIS_HEALTH_CHECK_INTERVAL: int = Field(default=30, description="Redis connection health check interval in seconds")
     REDIS_DECODE_RESPONSES: bool = Field(default=True, description="Redis decode responses to strings")
 
     # Redis Database Isolation (optional, for production)
     REDIS_CACHE_DB: int = Field(default=1, description="Redis database number for cache (0-15)")
     REDIS_BROKER_DB: int = Field(default=0, description="Redis database number for Celery broker (0-15)")
+    REDIS_SESSION_DB: int = Field(default=2, description="Redis database number for sessions (0-15)")
+    REDIS_RATE_LIMIT_DB: int = Field(default=3, description="Redis database number for rate limiting (0-15)")
     REDIS_ENABLE_DB_ISOLATION: bool = Field(default=True, description="Enable separate DBs for cache vs broker")
 
     # Rate Limiting Configuration
@@ -433,9 +443,13 @@ class Settings(BaseSettings):
             if self.DEBUG:
                 errors.append("DEBUG must be False in production environment")
 
-            # Redis SSL must be enabled in production
-            if not self.REDIS_SSL:
-                errors.append("REDIS_SSL must be True in production environment")
+            # Redis SSL validation (optional - some Redis Cloud instances don't use SSL)
+            # Note: Redis Cloud port 14149 does NOT use SSL/TLS
+            # Validate URL scheme matches SSL setting
+            if self.REDIS_SSL and not self.REDIS_URL.startswith('rediss://'):
+                logger.warning("REDIS_SSL=True but URL doesn't use rediss:// scheme - SSL may not work correctly")
+            elif not self.REDIS_SSL and self.REDIS_URL.startswith('rediss://'):
+                errors.append("REDIS_SSL=False but URL uses rediss:// scheme - configuration mismatch")
 
             # Session cookies must be secure in production
             if not self.SESSION_COOKIE_SECURE:

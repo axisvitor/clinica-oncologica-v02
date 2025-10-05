@@ -55,8 +55,12 @@ class RedisManager:
             self.redis_url = f"{base_url}/{db_number}"
             logger.info(f"Redis DB isolation enabled: using DB {db_number}")
 
+        # Connection settings from config
         self.decode_responses = getattr(settings, 'REDIS_DECODE_RESPONSES', True)
-        self.socket_timeout = getattr(settings, 'REDIS_SOCKET_TIMEOUT', 30.0)
+        self.socket_timeout = getattr(settings, 'REDIS_SOCKET_TIMEOUT', 10.0)
+        self.socket_connect_timeout = getattr(settings, 'REDIS_SOCKET_CONNECT_TIMEOUT', 5.0)
+        self.retry_on_timeout = getattr(settings, 'REDIS_RETRY_ON_TIMEOUT', True)
+        self.health_check_interval = getattr(settings, 'REDIS_HEALTH_CHECK_INTERVAL', 30)
         self.max_connections = getattr(settings, 'REDIS_MAX_CONNECTIONS', 50)
 
     async def get_async_client(self) -> redis_async.Redis:
@@ -97,11 +101,11 @@ class RedisManager:
             connection_kwargs = {
                 'decode_responses': self.decode_responses,
                 'socket_timeout': self.socket_timeout,
-                'socket_connect_timeout': self.socket_timeout,
-                'retry_on_timeout': True,
+                'socket_connect_timeout': self.socket_connect_timeout,
+                'retry_on_timeout': self.retry_on_timeout,
                 'retry_on_error': [ConnectionError, TimeoutError],
                 'max_connections': self.max_connections,
-                'health_check_interval': 30
+                'health_check_interval': self.health_check_interval
             }
 
             # Configure SSL if enabled - modify URL scheme to rediss://
@@ -157,11 +161,11 @@ class RedisManager:
             connection_kwargs = {
                 'decode_responses': self.decode_responses,
                 'socket_timeout': self.socket_timeout,
-                'socket_connect_timeout': self.socket_timeout,
-                'retry_on_timeout': True,
+                'socket_connect_timeout': self.socket_connect_timeout,
+                'retry_on_timeout': self.retry_on_timeout,
                 'retry_on_error': [ConnectionError, TimeoutError],
                 'max_connections': self.max_connections,
-                'health_check_interval': 30
+                'health_check_interval': self.health_check_interval
             }
 
             # Configure SSL if enabled - modify URL scheme to rediss://
