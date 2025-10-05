@@ -135,6 +135,60 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
     description: 'WhatsApp integration instance name'
   },
 
+  // Firebase Client Configuration (Optional)
+  VITE_FIREBASE_API_KEY: {
+    required: false,
+    type: 'string',
+    minLength: 30,
+    description: 'Firebase API key',
+    security: {
+      sensitive: true,
+      shouldNotBeHardcoded: true
+    }
+  },
+
+  VITE_FIREBASE_AUTH_DOMAIN: {
+    required: false,
+    type: 'string',
+    format: /^[a-zA-Z0-9-]+\.firebaseapp\.com$/,
+    description: 'Firebase auth domain'
+  },
+
+  VITE_FIREBASE_PROJECT_ID: {
+    required: false,
+    type: 'string',
+    minLength: 3,
+    description: 'Firebase project ID'
+  },
+
+  VITE_FIREBASE_STORAGE_BUCKET: {
+    required: false,
+    type: 'string',
+    format: /^[a-zA-Z0-9-]+\.appspot\.com$/,
+    description: 'Firebase storage bucket'
+  },
+
+  VITE_FIREBASE_MESSAGING_SENDER_ID: {
+    required: false,
+    type: 'string',
+    format: /^\d+$/,
+    description: 'Firebase messaging sender ID'
+  },
+
+  VITE_FIREBASE_APP_ID: {
+    required: false,
+    type: 'string',
+    minLength: 20,
+    description: 'Firebase app ID'
+  },
+
+  VITE_FIREBASE_MEASUREMENT_ID: {
+    required: false,
+    type: 'string',
+    format: /^G-[A-Z0-9]+$/,
+    description: 'Firebase measurement ID (Google Analytics)'
+  },
+
   // AI Service Configuration (Sensitive)
   VITE_OPENAI_API_KEY: {
     required: false,

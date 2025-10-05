@@ -30,6 +30,15 @@ export interface RuntimeConfig {
   VITE_WS_BASE_URL?: string; // WebSocket base URL (standardized variable)
   VITE_WHATSAPP_INSTANCE_NAME?: string;
 
+  // Firebase Client Configuration
+  VITE_FIREBASE_API_KEY?: string;
+  VITE_FIREBASE_AUTH_DOMAIN?: string;
+  VITE_FIREBASE_PROJECT_ID?: string;
+  VITE_FIREBASE_STORAGE_BUCKET?: string;
+  VITE_FIREBASE_MESSAGING_SENDER_ID?: string;
+  VITE_FIREBASE_APP_ID?: string;
+  VITE_FIREBASE_MEASUREMENT_ID?: string;
+
   // AI Service Configuration
   VITE_OPENAI_API_KEY?: string;
   VITE_LANGCHAIN_API_KEY?: string;
@@ -71,6 +80,15 @@ const PRODUCTION_FALLBACK_CONFIG: RuntimeConfig = {
   VITE_WS_URL: '', // MUST be set via environment variable
   VITE_WS_BASE_URL: '', // MUST be set via environment variable
   VITE_WHATSAPP_INSTANCE_NAME: 'hormonia-instance',
+
+  // Firebase Client Configuration (must be provided via environment)
+  VITE_FIREBASE_API_KEY: '',
+  VITE_FIREBASE_AUTH_DOMAIN: '',
+  VITE_FIREBASE_PROJECT_ID: '',
+  VITE_FIREBASE_STORAGE_BUCKET: '',
+  VITE_FIREBASE_MESSAGING_SENDER_ID: '',
+  VITE_FIREBASE_APP_ID: '',
+  VITE_FIREBASE_MEASUREMENT_ID: '',
 
   // AI Services - Empty in fallback, should be set via environment
   VITE_OPENAI_API_KEY: '',
@@ -144,6 +162,15 @@ async function loadRuntimeConfiguration(): Promise<RuntimeConfig> {
       VITE_WS_URL: wsBaseUrl,
       ...(wsBaseUrl && { VITE_WS_BASE_URL: wsBaseUrl }),
       ...(import.meta.env['VITE_WHATSAPP_INSTANCE_NAME'] && { VITE_WHATSAPP_INSTANCE_NAME: import.meta.env['VITE_WHATSAPP_INSTANCE_NAME'] }),
+
+      // Firebase Client Configuration
+      ...(import.meta.env['VITE_FIREBASE_API_KEY'] && { VITE_FIREBASE_API_KEY: import.meta.env['VITE_FIREBASE_API_KEY'] }),
+      ...(import.meta.env['VITE_FIREBASE_AUTH_DOMAIN'] && { VITE_FIREBASE_AUTH_DOMAIN: import.meta.env['VITE_FIREBASE_AUTH_DOMAIN'] }),
+      ...(import.meta.env['VITE_FIREBASE_PROJECT_ID'] && { VITE_FIREBASE_PROJECT_ID: import.meta.env['VITE_FIREBASE_PROJECT_ID'] }),
+      ...(import.meta.env['VITE_FIREBASE_STORAGE_BUCKET'] && { VITE_FIREBASE_STORAGE_BUCKET: import.meta.env['VITE_FIREBASE_STORAGE_BUCKET'] }),
+      ...(import.meta.env['VITE_FIREBASE_MESSAGING_SENDER_ID'] && { VITE_FIREBASE_MESSAGING_SENDER_ID: import.meta.env['VITE_FIREBASE_MESSAGING_SENDER_ID'] }),
+      ...(import.meta.env['VITE_FIREBASE_APP_ID'] && { VITE_FIREBASE_APP_ID: import.meta.env['VITE_FIREBASE_APP_ID'] }),
+      ...(import.meta.env['VITE_FIREBASE_MEASUREMENT_ID'] && { VITE_FIREBASE_MEASUREMENT_ID: import.meta.env['VITE_FIREBASE_MEASUREMENT_ID'] }),
 
       // AI Services - Development defaults
       ...(import.meta.env['VITE_OPENAI_API_KEY'] && { VITE_OPENAI_API_KEY: import.meta.env['VITE_OPENAI_API_KEY'] }),

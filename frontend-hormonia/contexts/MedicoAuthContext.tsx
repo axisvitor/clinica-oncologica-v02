@@ -1,10 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react'
 import { apiClient } from '../src/lib/api-client'
-import { isMockAuthEnabled } from '../src/config/mock.config'
-import mockAuthService from '../src/lib/mock-auth-service'
-import { getMockPatientsByMedico } from '../src/mocks/patients.mock'
 import { firebaseAuth } from '../src/lib/firebase-client'
-import type { User as FirebaseUser } from 'firebase/auth'
 import type {
   MedicoAuthState,
   MedicoUser,
@@ -124,12 +120,9 @@ export const MedicoAuthProvider: React.FC<MedicoAuthProviderProps> = ({ children
     return new Date(Date.now() + 3600000)
   }, [])
 
-  const fetchPacientesAtribuidos = useCallback(async (medicoId: string): Promise<string[]> => {
+  const fetchPacientesAtribuidos = useCallback(async (_medicoId: string): Promise<string[]> => {
     try {
-      if (isMockAuthEnabled()) {
-        const patients = getMockPatientsByMedico(medicoId)
-        return patients.map(p => p.id)
-      }
+      // TODO: Implement backend API call to fetch assigned patients
       return []
     } catch (error) {
       console.error('[MedicoAuth] Failed to fetch pacientes:', error)
@@ -144,67 +137,11 @@ export const MedicoAuthProvider: React.FC<MedicoAuthProviderProps> = ({ children
       try {
         console.log('[MedicoAuth] Attempting sign in for:', email)
 
-        if (isMockAuthEnabled()) {
-          const result = await mockAuthService.signIn(email, password)
-
-          if (!result.success || !result.user) {
-            throw new Error(result.error || 'Authentication failed')
-          }
-
-          if (result.user.role !== 'medico') {
-            throw new Error('Acesso negado: usuário não é médico')
-          }
-
-          const medicoUser: MedicoUser = {
-            id: result.user.id,
-            email: result.user.email,
-            full_name: result.user.full_name,
-            role: 'doctor',
-            is_active: result.user.is_active,
-            permissions: result.user.permissions,
-            created_at: result.user.created_at,
-            updated_at: result.user.updated_at || new Date().toISOString(),
-            last_login: result.user.last_login || new Date().toISOString(),
-            login_count: 0,
-            two_factor_enabled: false,
-            failed_login_attempts: 0,
-            locked_until: null,
-            crm: result.user.crm || '',
-            especialidade: result.user.especialidade || 'Oncologia',
-            conselho_regional: result.user.conselho_regional || 'CRM-SC',
-            pacientes_atribuidos: result.user.pacientes_atribuidos || []
-          }
-
-          const sessionExpiry = calculateSessionExpiry()
-          const pacientes = await fetchPacientesAtribuidos(medicoUser.id)
-
-          if (result.session) {
-            apiClient.setAuthToken(result.session.access_token)
-          }
-
-          dispatch({
-            type: 'AUTH_SUCCESS',
-            payload: {
-              user: medicoUser,
-              sessionExpiry,
-              pacientes
-            }
-          })
-
-          console.log('[MedicoAuth] Medico user authenticated:', medicoUser.email)
-
-          return {
-            success: true,
-            user: medicoUser,
-            token: result.session?.access_token || '',
-            refreshToken: result.session?.refresh_token || '',
-            redirectTo: '/medico/dashboard'
-          }
-        } else {
-          // Firebase authentication implementation
+        {
+          // Firebase authentication implementation for Medico
           console.log('[MedicoAuth] Using Firebase authentication')
 
-          // Convert CRM to email format if needed (CRM format: medico@example.com)
+          // Convert CRM to email format if needed (e.g., "12345" -> "12345@medico.neoplasiaslitoral.com.br")
           const loginEmail = email.includes('@') ? email : `${email}@medico.neoplasiaslitoral.com.br`
 
           const result = await firebaseAuth.signInWithPassword({
@@ -218,65 +155,42 @@ export const MedicoAuthProvider: React.FC<MedicoAuthProviderProps> = ({ children
 
           console.log('[MedicoAuth] Firebase login successful:', result.user.email)
 
-          // Get Firebase ID token
+          // Set Firebase ID token
           const token = result.session.access_token
-
-          // Set token in API client
           apiClient.setAuthToken(token)
 
-          // Fetch user from backend to validate role
-          let userResponse
-          try {
-            userResponse = await apiClient.auth.me()
-          } catch (backendError) {
-            console.warn('[MedicoAuth] Could not fetch user from backend, using Firebase data:', backendError)
-
-            // Fallback: Create user from Firebase data
-            const firebaseUser = result.user as FirebaseUser
-            userResponse = {
-              data: {
-                id: firebaseUser.uid,
-                email: firebaseUser.email || '',
-                full_name: firebaseUser.displayName || '',
-                role: 'medico', // Assume medico role for medical login
-                is_active: true,
-                permissions: [],
-                created_at: firebaseUser.metadata.creationTime || new Date().toISOString()
-              }
-            }
-          }
-
-          // Verify user is a doctor
-          if (userResponse.data.role !== 'medico' && userResponse.data.role !== 'doctor') {
+          // Fetch user from backend and validate doctor role
+          const me = await apiClient.auth.me()
+          const role = (me.data.role || '').toLowerCase()
+          if (!['medico', 'doctor'].includes(role)) {
             await firebaseAuth.signOut()
-            const errorMsg = 'Acesso negado: usuário não é médico'
-            dispatch({ type: 'AUTH_ERROR', payload: errorMsg })
-            throw new Error(errorMsg)
+            const msg = 'Acesso negado: usuário não é médico'
+            dispatch({ type: 'AUTH_ERROR', payload: msg })
+            return { success: false, error: msg }
           }
 
           // Extract CRM from email if available
-          const crmMatch = userResponse.data.email.match(/^([^@]+)@/)
-          const crm = userResponse.data['crm'] || crmMatch?.[1] || ''
+          const crmMatch = me.data.email.match(/^([^@]+)@/)
+          const crm = me.data['crm'] || crmMatch?.[1] || ''
 
-          // Build MedicoUser object
           const medicoUser: MedicoUser = {
-            id: userResponse.data.id,
-            email: userResponse.data.email,
-            full_name: userResponse.data.full_name || userResponse.data['nome'] || '',
+            id: me.data.id,
+            email: me.data.email,
+            full_name: me.data.full_name || me.data['nome'] || '',
             role: 'doctor',
-            is_active: userResponse.data.is_active,
-            permissions: userResponse.data.permissions || [],
-            created_at: userResponse.data.created_at,
-            updated_at: userResponse.data['updated_at'] || new Date().toISOString(),
-            last_login: userResponse.data['last_login'] || new Date().toISOString(),
-            login_count: userResponse.data['login_count'] || 0,
-            two_factor_enabled: userResponse.data['two_factor_enabled'] || false,
+            is_active: me.data.is_active,
+            permissions: me.data.permissions || [],
+            created_at: me.data.created_at,
+            updated_at: me.data['updated_at'] || new Date().toISOString(),
+            last_login: new Date().toISOString(),
+            login_count: me.data['login_count'] || 0,
+            two_factor_enabled: me.data['two_factor_enabled'] || false,
             failed_login_attempts: 0,
             locked_until: null,
             crm: crm,
-            especialidade: userResponse.data['especialidade'] || 'Oncologia',
-            conselho_regional: userResponse.data['conselho_regional'] || 'CRM-SC',
-            pacientes_atribuidos: userResponse.data['pacientes_atribuidos'] || []
+            especialidade: me.data['especialidade'] || 'Oncologia',
+            conselho_regional: me.data['conselho_regional'] || 'CRM-SC',
+            pacientes_atribuidos: me.data['pacientes_atribuidos'] || []
           }
 
           const sessionExpiry = calculateSessionExpiry()
@@ -319,12 +233,7 @@ export const MedicoAuthProvider: React.FC<MedicoAuthProviderProps> = ({ children
     try {
       console.log('[MedicoAuth] Signing out')
 
-      if (isMockAuthEnabled()) {
-        await mockAuthService.signOut()
-      } else {
-        // Firebase sign out
-        await firebaseAuth.signOut()
-      }
+      await firebaseAuth.signOut()
 
       apiClient.setAuthToken(null)
       dispatch({ type: 'AUTH_LOGOUT' })
@@ -341,106 +250,60 @@ export const MedicoAuthProvider: React.FC<MedicoAuthProviderProps> = ({ children
     try {
       console.log('[MedicoAuth] Refreshing token')
 
-      if (isMockAuthEnabled()) {
-        const result = await mockAuthService.refreshSession()
+      // Firebase token refresh
+      console.log('[MedicoAuth] Refreshing Firebase token')
 
-        if (!result.success || !result.user) {
-          throw new Error('No session to refresh')
-        }
-
-        const medicoUser: MedicoUser = {
-          id: result.user.id,
-          email: result.user.email,
-          full_name: result.user.full_name,
-          role: 'doctor',
-          is_active: result.user.is_active,
-          permissions: result.user.permissions,
-          created_at: result.user.created_at,
-          updated_at: result.user.updated_at || new Date().toISOString(),
-          last_login: result.user.last_login || new Date().toISOString(),
-          login_count: state.user?.login_count || 0,
-          two_factor_enabled: state.user?.two_factor_enabled || false,
-          failed_login_attempts: 0,
-          locked_until: null,
-          crm: result.user.crm || state.user?.crm || '',
-          especialidade: result.user.especialidade || state.user?.especialidade || 'Oncologia',
-          conselho_regional: result.user.conselho_regional || state.user?.conselho_regional || 'CRM-SC',
-          pacientes_atribuidos: result.user.pacientes_atribuidos || state.user?.pacientes_atribuidos || []
-        }
-
-        const sessionExpiry = calculateSessionExpiry()
-        const pacientes = await fetchPacientesAtribuidos(medicoUser.id)
-
-        dispatch({
-          type: 'AUTH_SUCCESS',
-          payload: {
-            user: medicoUser,
-            sessionExpiry,
-            pacientes
-          }
-        })
-
-        console.log('[MedicoAuth] Token refresh successful')
-      } else {
-        // Firebase token refresh
-        console.log('[MedicoAuth] Refreshing Firebase token')
-
-        const session = await firebaseAuth.refreshSession()
-
-        if (!session) {
-          throw new Error('No session to refresh')
-        }
-
-        const token = session.access_token
-
-        // Update API client token
-        apiClient.setAuthToken(token)
-
-        // Fetch updated user from backend
-        const userResponse = await apiClient.auth.me()
-
-        if (userResponse.data.role !== 'medico' && userResponse.data.role !== 'doctor') {
-          throw new Error('User is not a medico')
-        }
-
-        // Extract CRM from email if available
-        const crmMatch = userResponse.data.email.match(/^([^@]+)@/)
-        const crm = userResponse.data['crm'] || crmMatch?.[1] || state.user?.crm || ''
-
-        const medicoUser: MedicoUser = {
-          id: userResponse.data.id,
-          email: userResponse.data.email,
-          full_name: userResponse.data.full_name || userResponse.data['nome'] || state.user?.full_name || '',
-          role: 'doctor',
-          is_active: userResponse.data.is_active,
-          permissions: userResponse.data.permissions || [],
-          created_at: userResponse.data.created_at,
-          updated_at: userResponse.data['updated_at'] || new Date().toISOString(),
-          last_login: userResponse.data['last_login'] || new Date().toISOString(),
-          login_count: userResponse.data['login_count'] || state.user?.login_count || 0,
-          two_factor_enabled: userResponse.data['two_factor_enabled'] || state.user?.two_factor_enabled || false,
-          failed_login_attempts: 0,
-          locked_until: null,
-          crm: crm,
-          especialidade: userResponse.data['especialidade'] || state.user?.especialidade || 'Oncologia',
-          conselho_regional: userResponse.data['conselho_regional'] || state.user?.conselho_regional || 'CRM-SC',
-          pacientes_atribuidos: userResponse.data['pacientes_atribuidos'] || state.user?.pacientes_atribuidos || []
-        }
-
-        const sessionExpiry = calculateSessionExpiry()
-        const pacientes = await fetchPacientesAtribuidos(medicoUser.id)
-
-        dispatch({
-          type: 'AUTH_SUCCESS',
-          payload: {
-            user: medicoUser,
-            sessionExpiry,
-            pacientes
-          }
-        })
-
-        console.log('[MedicoAuth] Firebase token refresh successful')
+      const session = await firebaseAuth.refreshSession()
+      if (!session) {
+        throw new Error('No session to refresh')
       }
+
+      const token = session.access_token
+      apiClient.setAuthToken(token)
+
+      const me = await apiClient.auth.me()
+      const role = (me.data.role || '').toLowerCase()
+      if (!['medico', 'doctor'].includes(role)) {
+        throw new Error('User is not a medico')
+      }
+
+      // Extract CRM from email if available
+      const crmMatch = me.data.email.match(/^([^@]+)@/)
+      const crm = me.data['crm'] || crmMatch?.[1] || ''
+
+      const medicoUser: MedicoUser = {
+        id: me.data.id,
+        email: me.data.email,
+        full_name: me.data.full_name || me.data['nome'] || '',
+        role: 'doctor',
+        is_active: me.data.is_active,
+        permissions: me.data.permissions || [],
+        created_at: me.data.created_at,
+        updated_at: me.data['updated_at'] || new Date().toISOString(),
+        last_login: new Date().toISOString(),
+        login_count: me.data['login_count'] || state.user?.login_count || 0,
+        two_factor_enabled: me.data['two_factor_enabled'] || state.user?.two_factor_enabled || false,
+        failed_login_attempts: 0,
+        locked_until: null,
+        crm: crm,
+        especialidade: me.data['especialidade'] || 'Oncologia',
+        conselho_regional: me.data['conselho_regional'] || 'CRM-SC',
+        pacientes_atribuidos: me.data['pacientes_atribuidos'] || []
+      }
+
+      const sessionExpiry = calculateSessionExpiry()
+      const pacientes = await fetchPacientesAtribuidos(medicoUser.id)
+
+      dispatch({
+        type: 'AUTH_SUCCESS',
+        payload: {
+          user: medicoUser,
+          sessionExpiry,
+          pacientes
+        }
+      })
+
+      console.log('[MedicoAuth] Firebase token refresh successful')
     } catch (error) {
       console.error('[MedicoAuth] Token refresh error:', error)
       dispatch({ type: 'AUTH_LOGOUT' })
@@ -498,116 +361,67 @@ export const MedicoAuthProvider: React.FC<MedicoAuthProviderProps> = ({ children
       try {
         console.log('[MedicoAuth] Initializing auth...')
 
-        if (isMockAuthEnabled()) {
-          const user = mockAuthService.getCurrentUser()
-          const session = mockAuthService.getSession()
+        // Firebase authentication initialization
+        console.log('[MedicoAuth] Initializing Firebase authentication')
 
-          if (!mounted) return
+        const firebaseUser = await firebaseAuth.getCurrentUser()
 
-          if (user && user.role === 'medico' && session) {
-            console.log('[MedicoAuth] Found existing medico session:', user.email)
+        if (firebaseUser) {
+          console.log('[MedicoAuth] Found existing Firebase session:', firebaseUser.email)
+          const token = await firebaseUser.getIdToken()
+          apiClient.setAuthToken(token)
 
-            const medicoUser: MedicoUser = {
-              id: user.id,
-              email: user.email,
-              full_name: user.full_name,
-              role: 'doctor',
-              is_active: user.is_active,
-              permissions: user.permissions,
-              created_at: user.created_at,
-              updated_at: user.updated_at || new Date().toISOString(),
-              last_login: user.last_login || new Date().toISOString(),
-              login_count: 0,
-              two_factor_enabled: false,
-              failed_login_attempts: 0,
-              locked_until: null,
-              crm: user.crm || '',
-              especialidade: user.especialidade || 'Oncologia',
-              conselho_regional: user.conselho_regional || 'CRM-SC',
-              pacientes_atribuidos: user.pacientes_atribuidos || []
-            }
+          try {
+            const me = await apiClient.auth.me()
+            const role = (me.data.role || '').toLowerCase()
+            if (!['medico', 'doctor'].includes(role)) {
+              console.log('[MedicoAuth] User is not medico, signing out')
+              await firebaseAuth.signOut()
+              dispatch({ type: 'AUTH_LOGOUT' })
+            } else {
+              // Extract CRM from email if available
+              const crmMatch = me.data.email.match(/^([^@]+)@/)
+              const crm = me.data['crm'] || crmMatch?.[1] || ''
 
-            const sessionExpiry = new Date(session.expires_at)
-            const pacientes = await fetchPacientesAtribuidos(medicoUser.id)
-
-            apiClient.setAuthToken(session.access_token)
-
-            dispatch({
-              type: 'AUTH_SUCCESS',
-              payload: {
-                user: medicoUser,
-                sessionExpiry,
-                pacientes
+              const medicoUser: MedicoUser = {
+                id: me.data.id,
+                email: me.data.email,
+                full_name: me.data.full_name || me.data['nome'] || '',
+                role: 'doctor',
+                is_active: me.data.is_active,
+                permissions: me.data.permissions || [],
+                created_at: me.data.created_at,
+                updated_at: me.data['updated_at'] || new Date().toISOString(),
+                last_login: new Date().toISOString(),
+                login_count: me.data['login_count'] || 0,
+                two_factor_enabled: me.data['two_factor_enabled'] || false,
+                failed_login_attempts: 0,
+                locked_until: null,
+                crm: crm,
+                especialidade: me.data['especialidade'] || 'Oncologia',
+                conselho_regional: me.data['conselho_regional'] || 'CRM-SC',
+                pacientes_atribuidos: me.data['pacientes_atribuidos'] || []
               }
-            })
-          } else {
-            console.log('[MedicoAuth] No existing medico session')
+
+              const sessionExpiry = calculateSessionExpiry()
+              const pacientes = await fetchPacientesAtribuidos(medicoUser.id)
+
+              dispatch({
+                type: 'AUTH_SUCCESS',
+                payload: {
+                  user: medicoUser,
+                  sessionExpiry,
+                  pacientes
+                }
+              })
+            }
+          } catch (error) {
+            console.error('[MedicoAuth] Failed to fetch user from backend:', error)
             dispatch({ type: 'AUTH_LOGOUT' })
           }
         } else {
-          // Firebase authentication initialization
-          console.log('[MedicoAuth] Initializing Firebase authentication')
-
-          const firebaseUser = await firebaseAuth.getCurrentUser()
-
-          if (firebaseUser) {
-            console.log('[MedicoAuth] Found existing Firebase session:', firebaseUser.email)
-
-            const token = await firebaseUser.getIdToken()
-            apiClient.setAuthToken(token)
-
-            try {
-              const userResponse = await apiClient.auth.me()
-
-              if (userResponse.data.role === 'medico' || userResponse.data.role === 'doctor') {
-                // Extract CRM from email if available
-                const crmMatch = userResponse.data.email.match(/^([^@]+)@/)
-                const crm = userResponse.data['crm'] || crmMatch?.[1] || ''
-
-                const medicoUser: MedicoUser = {
-                  id: userResponse.data.id,
-                  email: userResponse.data.email,
-                  full_name: userResponse.data.full_name || userResponse.data['nome'] || '',
-                  role: 'doctor',
-                  is_active: userResponse.data.is_active,
-                  permissions: userResponse.data.permissions || [],
-                  created_at: userResponse.data.created_at,
-                  updated_at: userResponse.data['updated_at'] || new Date().toISOString(),
-                  last_login: userResponse.data['last_login'] || new Date().toISOString(),
-                  login_count: userResponse.data['login_count'] || 0,
-                  two_factor_enabled: userResponse.data['two_factor_enabled'] || false,
-                  failed_login_attempts: 0,
-                  locked_until: null,
-                  crm: crm,
-                  especialidade: userResponse.data['especialidade'] || 'Oncologia',
-                  conselho_regional: userResponse.data['conselho_regional'] || 'CRM-SC',
-                  pacientes_atribuidos: userResponse.data['pacientes_atribuidos'] || []
-                }
-
-                const sessionExpiry = calculateSessionExpiry()
-                const pacientes = await fetchPacientesAtribuidos(medicoUser.id)
-
-                dispatch({
-                  type: 'AUTH_SUCCESS',
-                  payload: {
-                    user: medicoUser,
-                    sessionExpiry,
-                    pacientes
-                  }
-                })
-              } else {
-                console.log('[MedicoAuth] User is not a medico, logging out')
-                await firebaseAuth.signOut()
-                dispatch({ type: 'AUTH_LOGOUT' })
-              }
-            } catch (error) {
-              console.error('[MedicoAuth] Failed to fetch user from backend:', error)
-              dispatch({ type: 'AUTH_LOGOUT' })
-            }
-          } else {
-            console.log('[MedicoAuth] No existing Firebase session')
-            dispatch({ type: 'AUTH_LOGOUT' })
-          }
+          console.log('[MedicoAuth] No existing Firebase session')
+          dispatch({ type: 'AUTH_LOGOUT' })
         }
       } catch (error) {
         console.error('[MedicoAuth] Failed to initialize auth:', error)
@@ -622,7 +436,7 @@ export const MedicoAuthProvider: React.FC<MedicoAuthProviderProps> = ({ children
     return () => {
       mounted = false
     }
-  }, [fetchPacientesAtribuidos])
+  }, [calculateSessionExpiry, fetchPacientesAtribuidos])
 
   const value: MedicoAuthContextValue = {
     state,

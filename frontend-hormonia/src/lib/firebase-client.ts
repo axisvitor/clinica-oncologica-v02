@@ -2,7 +2,7 @@
 
 /**
  * Firebase Authentication Client
- * Replaces Supabase Auth with Firebase Auth
+ * Production-ready Firebase-only authentication implementation
  */
 
 import { initializeApp, getApps, FirebaseApp, FirebaseOptions } from 'firebase/app'
@@ -11,8 +11,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
-  onAuthStateChanged,
-  onIdTokenChanged,
+  onAuthStateChanged as firebaseOnAuthStateChanged,
+  onIdTokenChanged as firebaseOnIdTokenChanged,
   User as FirebaseUser,
   Auth,
   updateProfile,
@@ -24,160 +24,99 @@ import {
   UserCredential
 } from 'firebase/auth'
 import { createLogger } from './logger'
+import { getRuntimeConfigSync } from './runtime-config'
 
 const logger = createLogger('FirebaseClient')
 
-// Firebase configuration from environment variables
-const firebaseConfig: FirebaseOptions = {
-  apiKey: import.meta.env['VITE_FIREBASE_API_KEY'] || '',
-  authDomain: import.meta.env['VITE_FIREBASE_AUTH_DOMAIN'] || '',
-  projectId: import.meta.env['VITE_FIREBASE_PROJECT_ID'] || '',
-  storageBucket: import.meta.env['VITE_FIREBASE_STORAGE_BUCKET'] || '',
-  messagingSenderId: import.meta.env['VITE_FIREBASE_MESSAGING_SENDER_ID'] || '',
-  appId: import.meta.env['VITE_FIREBASE_APP_ID'] || '',
-  measurementId: import.meta.env['VITE_FIREBASE_MEASUREMENT_ID']
+/**
+ * Build Firebase configuration from runtime config with fallback to import.meta.env
+ */
+function buildFirebaseConfig(): FirebaseOptions {
+  const runtimeConfig = getRuntimeConfigSync()
+
+  const config: FirebaseOptions = {
+    apiKey: (runtimeConfig?.VITE_FIREBASE_API_KEY || import.meta.env['VITE_FIREBASE_API_KEY'] || ''),
+    authDomain: (runtimeConfig?.VITE_FIREBASE_AUTH_DOMAIN || import.meta.env['VITE_FIREBASE_AUTH_DOMAIN'] || ''),
+    projectId: (runtimeConfig?.VITE_FIREBASE_PROJECT_ID || import.meta.env['VITE_FIREBASE_PROJECT_ID'] || ''),
+    storageBucket: (runtimeConfig?.VITE_FIREBASE_STORAGE_BUCKET || import.meta.env['VITE_FIREBASE_STORAGE_BUCKET'] || ''),
+    messagingSenderId: (runtimeConfig?.VITE_FIREBASE_MESSAGING_SENDER_ID || import.meta.env['VITE_FIREBASE_MESSAGING_SENDER_ID'] || ''),
+    appId: (runtimeConfig?.VITE_FIREBASE_APP_ID || import.meta.env['VITE_FIREBASE_APP_ID'] || ''),
+    measurementId: (runtimeConfig?.VITE_FIREBASE_MEASUREMENT_ID || import.meta.env['VITE_FIREBASE_MEASUREMENT_ID'])
+  }
+
+  return config
 }
+
+const firebaseConfig: FirebaseOptions = buildFirebaseConfig()
 
 /**
  * Validate Firebase configuration
- * Checks for missing critical fields and logs warnings
+ * Checks for required fields and throws error if missing
  */
 function validateFirebaseConfig(config: FirebaseOptions): void {
-  const requiredFields = ['apiKey', 'projectId', 'authDomain'] as const
-  const missingFields: string[] = []
-
-  for (const field of requiredFields) {
-    if (!config[field]) {
-      missingFields.push(`VITE_FIREBASE_${field.toUpperCase().replace(/([A-Z])/g, '_$1')}`)
-      logger.error(`${field} is not configured`)
-    }
-  }
+  const requiredFields: (keyof FirebaseOptions)[] = ['apiKey', 'authDomain', 'projectId']
+  const missingFields = requiredFields.filter(field => !config[field])
 
   if (missingFields.length > 0) {
-    logger.error(
-      `Missing required environment variables: ${missingFields.join(', ')}`
-    )
+    const errorMsg = `Firebase configuration is incomplete. Missing required fields: ${missingFields.join(', ')}. Please check your environment variables (VITE_FIREBASE_*)`
+    logger.error(errorMsg)
+    throw new Error(errorMsg)
   }
 }
 
 /**
- * Check if Firebase configuration is complete and valid
- * Returns true if all required fields have real values (not placeholders)
+ * Check if Firebase is properly configured
  */
 function isFirebaseConfigured(): boolean {
-  const hasApiKey = Boolean(
+  return Boolean(
     firebaseConfig.apiKey &&
-    firebaseConfig.apiKey.length > 0 &&
-    !firebaseConfig.apiKey.startsWith('${') && // Not a placeholder
-    !firebaseConfig.apiKey.includes('undefined')
+    firebaseConfig.authDomain &&
+    firebaseConfig.projectId
   )
-
-  const hasProjectId = Boolean(
-    firebaseConfig.projectId &&
-    firebaseConfig.projectId.length > 0 &&
-    !firebaseConfig.projectId.startsWith('${') &&
-    !firebaseConfig.projectId.includes('undefined')
-  )
-
-  return hasApiKey && hasProjectId
 }
 
+// Initialize Firebase App
+let app: FirebaseApp | null = null
+let auth: Auth | null = null
+
 /**
- * Initialize Firebase app safely
- * Prevents "Firebase app already exists" errors by checking for existing instances
- * Handles HMR (Hot Module Replacement) and module re-imports gracefully
- *
- * @returns Firebase app instance (existing or newly created), or null if not configured
- * @throws Error only if initialization fails (not if config missing)
+ * Initialize Firebase application
+ * @throws Error if Firebase is not configured
  */
-function initializeFirebaseApp(): FirebaseApp | null {
-  // Check if any Firebase apps are already initialized
+export function initializeFirebase(): FirebaseApp {
   const existingApps = getApps()
 
-  if (existingApps.length > 0 && existingApps[0]) {
+  if (existingApps.length > 0) {
     logger.info('Using existing Firebase app instance')
-    return existingApps[0]
+    const existingApp = existingApps[0]!  // Non-null assertion since length > 0
+    app = existingApp
+    auth = getAuth(existingApp)
+    return existingApp
   }
-
-  // Check if Firebase is configured
-  if (!isFirebaseConfigured()) {
-    logger.warn('Firebase not configured - environment variables missing or invalid')
-    logger.info('App will run with mock authentication. Set VITE_USE_MOCK_AUTH=true or configure Firebase credentials.')
-    return null
-  }
-
-  logger.info('Initializing new Firebase app...')
 
   // Validate configuration before initialization
+  if (!isFirebaseConfigured()) {
+    const errorMsg = 'Firebase is not configured. Please set the required environment variables: VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID'
+    logger.error(errorMsg)
+    throw new Error(errorMsg)
+  }
+
   validateFirebaseConfig(firebaseConfig)
 
+  logger.info('Initializing Firebase app with project:', firebaseConfig.projectId)
+
   try {
-    const app = initializeApp(firebaseConfig)
-    logger.info('Firebase initialized successfully with project:', firebaseConfig.projectId)
+    app = initializeApp(firebaseConfig)
+    auth = getAuth(app)
+    logger.info('Firebase initialized successfully')
     return app
-  } catch (error: any) {
+  } catch (error) {
     logger.error('Failed to initialize Firebase:', error)
-    logger.warn('Continuing without Firebase authentication')
-    return null
+    throw new Error(`Firebase initialization failed: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
-
-// Initialize Firebase app safely (may be null if not configured)
-const app: FirebaseApp | null = initializeFirebaseApp()
-const auth: Auth | null = app ? getAuth(app) : null
-
-// Development environment checks
-if (import.meta.env.DEV) {
-  // Verify single app instance
-  const apps = getApps()
-  logger.info('Total apps initialized:', apps.length)
-
-  if (apps.length > 1) {
-    logger.warn('Multiple Firebase apps detected! This may cause issues.')
-  }
-}
-
 /**
- * Maps Firebase error codes to user-friendly Portuguese messages
- * Prevents information leakage about user existence
- */
-function mapFirebaseErrorToMessage(errorCode: string): string {
-  const errorMessages: Record<string, string> = {
-    // Authentication errors - use same message for user-not-found and wrong-password
-    'auth/user-not-found': 'Credenciais inválidas',
-    'auth/wrong-password': 'Credenciais inválidas',
-    'auth/invalid-email': 'Email inválido',
-    'auth/user-disabled': 'Conta desativada. Entre em contato com o suporte.',
-    'auth/invalid-credential': 'Credenciais inválidas',
-
-    // Rate limiting
-    'auth/too-many-requests': 'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.',
-
-    // Network errors
-    'auth/network-request-failed': 'Erro de conexão. Verifique sua internet e tente novamente.',
-    'auth/timeout': 'A solicitação expirou. Tente novamente.',
-
-    // Token errors
-    'auth/invalid-id-token': 'Sessão expirada. Faça login novamente.',
-    'auth/id-token-expired': 'Sessão expirada. Faça login novamente.',
-    'auth/id-token-revoked': 'Sessão revogada. Faça login novamente.',
-
-    // Email verification
-    'auth/email-already-in-use': 'Este email já está em uso',
-    'auth/requires-recent-login': 'Por segurança, faça login novamente para continuar',
-
-    // Password errors
-    'auth/weak-password': 'Senha muito fraca. Use pelo menos 6 caracteres.',
-
-    // Default
-    'auth/internal-error': 'Erro interno. Tente novamente mais tarde.',
-  }
-
-  return errorMessages[errorCode] || 'Erro de autenticação. Tente novamente.'
-}
-
-/**
- * Extracts error code from Firebase error object
+ * Extract Firebase error code from error object
  */
 function getFirebaseErrorCode(error: unknown): string {
   if (error && typeof error === 'object' && 'code' in error) {
@@ -186,28 +125,61 @@ function getFirebaseErrorCode(error: unknown): string {
   return 'unknown'
 }
 
-// Firebase Auth wrapper with Supabase-compatible API
-export const firebaseAuth = {
+/**
+ * Map Firebase error codes to user-friendly messages
+ */
+function mapFirebaseErrorToMessage(errorCode: string): string {
+  const errorMessages: Record<string, string> = {
+    'auth/invalid-email': 'Email inválido.',
+    'auth/user-disabled': 'Esta conta foi desabilitada.',
+    'auth/user-not-found': 'Email ou senha incorretos.',
+    'auth/wrong-password': 'Email ou senha incorretos.',
+    'auth/invalid-credential': 'Email ou senha incorretos.',
+    'auth/email-already-in-use': 'Este email já está em uso.',
+    'auth/operation-not-allowed': 'Operação não permitida.',
+    'auth/weak-password': 'A senha deve ter pelo menos 6 caracteres.',
+    'auth/too-many-requests': 'Muitas tentativas. Tente novamente mais tarde.',
+    'auth/network-request-failed': 'Erro de conexão. Verifique sua internet.',
+    'auth/requires-recent-login': 'Esta operação requer login recente. Faça login novamente.'
+  }
+
+  return errorMessages[errorCode] || 'Erro ao processar sua solicitação. Tente novamente.'
+}
+
+// Initialize Firebase on module load
+try {
+  initializeFirebase()
+} catch (error) {
+  logger.error('Failed to initialize Firebase on module load:', error)
+}
+
+/**
+ * Firebase Authentication API
+ */
+const firebaseAuth = {
   /**
    * Sign in with email and password
    */
-  async signInWithPassword(credentials: { email: string; password: string }): Promise<{
+  async signInWithPassword(credentials: {
+    email: string
+    password: string
+  }): Promise<{
     user: FirebaseUser | null
     session: { access_token: string } | null
     error: Error | null
   }> {
     if (!auth) {
-      logger.error('Firebase not initialized - cannot sign in')
+      const errorMsg = 'Firebase authentication is not initialized. Please check your Firebase configuration.'
+      logger.error(errorMsg)
       return {
         user: null,
         session: null,
-        error: new Error('Autenticação não disponível. Use credenciais mock ou configure Firebase.')
+        error: new Error(errorMsg)
       }
     }
 
     try {
-      logger.info('Attempting sign in...')
-
+      logger.info('Attempting sign in with email:', credentials.email)
       const userCredential: UserCredential = await signInWithEmailAndPassword(
         auth,
         credentials.email,
@@ -215,7 +187,7 @@ export const firebaseAuth = {
       )
 
       const token = await userCredential.user.getIdToken()
-      logger.info('Sign in successful')
+      logger.info('Sign in successful for user:', userCredential.user.uid)
 
       return {
         user: userCredential.user,
@@ -226,7 +198,6 @@ export const firebaseAuth = {
       const errorCode = getFirebaseErrorCode(error)
       const userMessage = mapFirebaseErrorToMessage(errorCode)
 
-      // Log actual error for debugging (but don't expose to user)
       logger.error('Sign in error:', errorCode, error)
 
       return {
@@ -250,16 +221,17 @@ export const firebaseAuth = {
     error: Error | null
   }> {
     if (!auth) {
-      logger.error('Firebase not initialized - cannot sign up')
+      const errorMsg = 'Firebase authentication is not initialized. Please check your Firebase configuration.'
+      logger.error(errorMsg)
       return {
         user: null,
         session: null,
-        error: new Error('Autenticação não disponível. Use credenciais mock ou configure Firebase.')
+        error: new Error(errorMsg)
       }
     }
 
     try {
-      logger.info('Creating user...')
+      logger.info('Creating new user account for email:', credentials.email)
       const userCredential: UserCredential = await createUserWithEmailAndPassword(
         auth,
         credentials.email,
@@ -271,14 +243,21 @@ export const firebaseAuth = {
         await updateProfile(userCredential.user, {
           displayName: credentials.options.data.full_name
         })
+        logger.info('User profile updated with display name')
       }
 
       // Send email verification
-      await sendEmailVerification(userCredential.user)
+      try {
+        await sendEmailVerification(userCredential.user)
+        logger.info('Email verification sent')
+      } catch (verificationError) {
+        logger.warn('Failed to send verification email:', verificationError)
+        // Don't fail signup if email verification fails
+      }
 
       const token = await userCredential.user.getIdToken()
 
-      logger.info('User created successfully')
+      logger.info('User account created successfully:', userCredential.user.uid)
       return {
         user: userCredential.user,
         session: { access_token: token },
@@ -288,7 +267,6 @@ export const firebaseAuth = {
       const errorCode = getFirebaseErrorCode(error)
       const userMessage = mapFirebaseErrorToMessage(errorCode)
 
-      // Log actual error for debugging (but don't expose to user)
       logger.error('Sign up error:', errorCode, error)
 
       return {
@@ -300,7 +278,7 @@ export const firebaseAuth = {
   },
 
   /**
-   * Sign out
+   * Sign out current user
    */
   async signOut(): Promise<{ error: Error | null }> {
     if (!auth) {
@@ -309,7 +287,10 @@ export const firebaseAuth = {
     }
 
     try {
-      logger.info('Signing out user')
+      const currentUser = auth.currentUser
+      if (currentUser) {
+        logger.info('Signing out user:', currentUser.uid)
+      }
       await firebaseSignOut(auth)
       logger.info('Sign out successful')
       return { error: null }
@@ -317,7 +298,6 @@ export const firebaseAuth = {
       const errorCode = getFirebaseErrorCode(error)
       const userMessage = mapFirebaseErrorToMessage(errorCode)
 
-      // Log actual error for debugging
       logger.error('Sign out error:', errorCode, error)
 
       return { error: new Error(userMessage) }
@@ -325,10 +305,13 @@ export const firebaseAuth = {
   },
 
   /**
-   * Get current session
+   * Get current session with access token
    */
   async getCurrentSession(): Promise<{ access_token: string } | null> {
-    if (!auth) return null
+    if (!auth) {
+      logger.warn('Firebase not initialized - cannot get session')
+      return null
+    }
 
     try {
       const user = auth.currentUser
@@ -345,22 +328,31 @@ export const firebaseAuth = {
   },
 
   /**
-   * Get current user
+   * Get current authenticated user
    */
   async getCurrentUser(): Promise<FirebaseUser | null> {
-    return auth ? auth.currentUser : null
+    if (!auth) {
+      logger.warn('Firebase not initialized - cannot get current user')
+      return null
+    }
+    return auth.currentUser
   },
 
   /**
-   * Refresh session (get new token)
+   * Refresh session token (force refresh)
    */
   async refreshSession(): Promise<{ access_token: string } | null> {
-    if (!auth) return null
+    if (!auth) {
+      logger.warn('Firebase not initialized - cannot refresh session')
+      return null
+    }
 
     try {
       const user = auth.currentUser
       if (user) {
+        logger.info('Refreshing session token for user:', user.uid)
         const token = await user.getIdToken(true) // Force refresh
+        logger.info('Session token refreshed successfully')
         return { access_token: token }
       }
       return null
@@ -376,19 +368,20 @@ export const firebaseAuth = {
    */
   async resetPasswordForEmail(email: string): Promise<{ error: Error | null }> {
     if (!auth) {
-      return { error: new Error('Autenticação não disponível.') }
+      const errorMsg = 'Firebase authentication is not initialized. Please check your Firebase configuration.'
+      logger.error(errorMsg)
+      return { error: new Error(errorMsg) }
     }
 
     try {
-      logger.info('Sending password reset email...')
+      logger.info('Sending password reset email to:', email)
       await sendPasswordResetEmail(auth, email)
-      logger.info('Password reset email sent')
+      logger.info('Password reset email sent successfully')
       return { error: null }
     } catch (error: unknown) {
       const errorCode = getFirebaseErrorCode(error)
       const userMessage = mapFirebaseErrorToMessage(errorCode)
 
-      // Log actual error for debugging
       logger.error('Password reset error:', errorCode, error)
 
       return { error: new Error(userMessage) }
@@ -396,34 +389,51 @@ export const firebaseAuth = {
   },
 
   /**
-   * Set auth persistence
+   * Set authentication persistence (local or session)
    */
   async setPersistence(rememberMe: boolean): Promise<void> {
-    if (!auth) return
-    const persistence = rememberMe ? browserLocalPersistence : browserSessionPersistence
-    await setPersistence(auth, persistence)
+    if (!auth) {
+      logger.warn('Firebase not initialized - cannot set persistence')
+      return
+    }
+
+    try {
+      const persistence = rememberMe ? browserLocalPersistence : browserSessionPersistence
+      await setPersistence(auth, persistence)
+      logger.info('Auth persistence set to:', rememberMe ? 'local' : 'session')
+    } catch (error) {
+      logger.error('Failed to set persistence:', error)
+      throw error
+    }
   },
 
   /**
-   * Listen to auth state changes
+   * Listen to authentication state changes
    */
-  onAuthStateChange(callback: (user: FirebaseUser | null) => void): () => void {
+  onAuthStateChanged(callback: (user: FirebaseUser | null) => void): () => void {
     if (!auth) {
-      // Return no-op unsubscribe function
+      logger.warn('Firebase not initialized - auth state listener not active')
       return () => {}
     }
-    return onAuthStateChanged(auth, callback)
+    return firebaseOnAuthStateChanged(auth, callback)
   },
 
   /**
-   * Listen to ID token changes (for token refresh)
+   * Listen to authentication state changes (alias for backward compatibility)
+   */
+  onAuthStateChange(callback: (user: FirebaseUser | null) => void): () => void {
+    return this.onAuthStateChanged(callback)
+  },
+
+  /**
+   * Listen to ID token changes (for token refresh detection)
    */
   onIdTokenChanged(callback: (user: FirebaseUser | null) => void): () => void {
     if (!auth) {
-      // Return no-op unsubscribe function
+      logger.warn('Firebase not initialized - ID token listener not active')
       return () => {}
     }
-    return onIdTokenChanged(auth, callback)
+    return firebaseOnIdTokenChanged(auth, callback)
   },
 
   /**
@@ -434,6 +444,6 @@ export const firebaseAuth = {
   }
 }
 
-// Export Firebase instances for advanced use cases
-export { app as firebaseApp, auth as firebaseAuthInstance, auth }
+// Export Firebase instances and auth object
+export { app as firebaseApp, auth as firebaseAuthInstance, auth, firebaseAuth }
 export default firebaseAuth
