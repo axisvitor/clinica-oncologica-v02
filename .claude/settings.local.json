@@ -32,7 +32,9 @@
       "Bash(npm run build:runtime:*)",
       "Bash(railway status:*)",
       "Bash(where python)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(unzip:*)",
+      "Bash(openssl:*)"
     ],
     "deny": []
   }

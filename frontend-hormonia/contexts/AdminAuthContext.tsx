@@ -121,33 +121,33 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
 
           // Set Firebase ID token
           const token = result.session.access_token
-          console.log('🔑 [AdminAuth → Backend] Setting Firebase token:', {
+          console.log('[AdminAuth → Backend] Setting Firebase token:', {
             tokenLength: token.length,
             tokenPreview: token.substring(0, 20) + '...'
           })
           apiClient.setAuthToken(token)
 
           // Fetch user from backend and validate admin role
-          console.log('📡 [AdminAuth → Backend] Calling /api/v1/auth/me...')
+          console.log('[AdminAuth → Backend] Calling /api/v1/auth/me...')
           const me = await apiClient.auth.me()
-          console.log('✅ [AdminAuth ← Backend] Received user data:', {
+          console.log('[AdminAuth ← Backend] Received user data:', {
             userId: me.data.id,
             email: me.data.email,
             role: me.data.role
           })
           const role = (me.data.role || '').toLowerCase()
-          console.log('🔐 [AdminAuth] Validating role:', {
+          console.log('[AdminAuth] Validating role:', {
             role,
             isAdmin: ['admin', 'super_admin'].includes(role)
           })
           if (!['admin', 'super_admin'].includes(role)) {
-            console.error('❌ [AdminAuth] Role validation failed - not an admin')
+            console.error('[AdminAuth] Role validation failed - not an admin')
             await firebaseAuth.signOut()
             const msg = 'Access denied: user is not an admin'
             dispatch({ type: 'AUTH_ERROR', payload: msg })
             return { success: false, error: msg }
           }
-          console.log('✅ [AdminAuth] Role validation successful')
+          console.log('[AdminAuth] Role validation successful')
 
           const adminUser: AdminUser = {
             id: me.data.id,
@@ -293,13 +293,13 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
         if (firebaseUser) {
           console.log('[AdminAuth] Found existing Firebase session:', firebaseUser.email)
           const token = await firebaseUser.getIdToken()
-          console.log('🔑 [AdminAuth → Backend] Setting Firebase token on session restore')
+          console.log('[AdminAuth → Backend] Setting Firebase token on session restore')
           apiClient.setAuthToken(token)
 
           try {
-            console.log('📡 [AdminAuth → Backend] Restoring session - calling /api/v1/auth/me...')
+            console.log('[AdminAuth → Backend] Restoring session - calling /api/v1/auth/me...')
             const me = await apiClient.auth.me()
-            console.log('✅ [AdminAuth ← Backend] Session restored successfully:', {
+            console.log('[AdminAuth ← Backend] Session restored successfully:', {
               userId: me.data.id,
               role: me.data.role
             })

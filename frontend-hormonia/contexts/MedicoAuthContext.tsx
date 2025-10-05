@@ -157,33 +157,33 @@ export const MedicoAuthProvider: React.FC<MedicoAuthProviderProps> = ({ children
 
           // Set Firebase ID token
           const token = result.session.access_token
-          console.log('🔑 [MedicoAuth → Backend] Setting Firebase token:', {
+          console.log('[MedicoAuth → Backend] Setting Firebase token:', {
             tokenLength: token.length,
             tokenPreview: token.substring(0, 20) + '...'
           })
           apiClient.setAuthToken(token)
 
           // Fetch user from backend and validate doctor role
-          console.log('📡 [MedicoAuth → Backend] Calling /api/v1/auth/me...')
+          console.log('[MedicoAuth → Backend] Calling /api/v1/auth/me...')
           const me = await apiClient.auth.me()
-          console.log('✅ [MedicoAuth ← Backend] Received user data:', {
+          console.log('[MedicoAuth ← Backend] Received user data:', {
             userId: me.data.id,
             email: me.data.email,
             role: me.data.role
           })
           const role = (me.data.role || '').toLowerCase()
-          console.log('🔐 [MedicoAuth] Validating role:', {
+          console.log('[MedicoAuth] Validating role:', {
             role,
             isDoctor: ['medico', 'doctor'].includes(role)
           })
           if (!['medico', 'doctor'].includes(role)) {
-            console.error('❌ [MedicoAuth] Role validation failed - not a doctor')
+            console.error('[MedicoAuth] Role validation failed - not a doctor')
             await firebaseAuth.signOut()
             const msg = 'Acesso negado: usuário não é médico'
             dispatch({ type: 'AUTH_ERROR', payload: msg })
             return { success: false, error: msg }
           }
-          console.log('✅ [MedicoAuth] Role validation successful')
+          console.log('[MedicoAuth] Role validation successful')
 
           // Extract CRM from email if available
           const crmMatch = me.data.email.match(/^([^@]+)@/)
@@ -385,13 +385,13 @@ export const MedicoAuthProvider: React.FC<MedicoAuthProviderProps> = ({ children
         if (firebaseUser) {
           console.log('[MedicoAuth] Found existing Firebase session:', firebaseUser.email)
           const token = await firebaseUser.getIdToken()
-          console.log('🔑 [MedicoAuth → Backend] Setting Firebase token on session restore')
+          console.log('[MedicoAuth → Backend] Setting Firebase token on session restore')
           apiClient.setAuthToken(token)
 
           try {
-            console.log('📡 [MedicoAuth → Backend] Restoring session - calling /api/v1/auth/me...')
+            console.log('[MedicoAuth → Backend] Restoring session - calling /api/v1/auth/me...')
             const me = await apiClient.auth.me()
-            console.log('✅ [MedicoAuth ← Backend] Session restored successfully:', {
+            console.log('[MedicoAuth ← Backend] Session restored successfully:', {
               userId: me.data.id,
               role: me.data.role
             })
