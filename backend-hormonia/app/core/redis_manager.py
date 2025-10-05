@@ -43,11 +43,9 @@ class RedisManager:
         # Connection settings (use Redis Cloud URL from settings)
         self.redis_url = settings.REDIS_URL
 
-        # Auto-convert redis:// to rediss:// when SSL is enabled
-        # This is the ONLY SSL configuration needed - redis-py handles the rest!
-        if os.getenv('REDIS_SSL') == 'true' and self.redis_url.startswith('redis://'):
-            self.redis_url = self.redis_url.replace('redis://', 'rediss://', 1)
-            logger.info("Redis SSL enabled: converted redis:// to rediss://")
+        # SSL is now configured manually via connection_kwargs (see _create_*_client methods)
+        # This approach works better with Python 3.13's strict SSL validation
+        # No need to convert redis:// to rediss:// - we configure SSL parameters directly
 
         # DB isolation support
         self.db_number = db_number
@@ -89,11 +87,13 @@ class RedisManager:
         """
         Create async Redis client with connection pool.
 
-        SSL is handled automatically by redis-py when using rediss:// URL scheme.
-        No manual SSL configuration needed!
+        SSL is configured manually for redis:// URLs when REDIS_SSL=true.
+        This approach works better with Python 3.13's strict SSL validation.
         """
         try:
-            # Simple configuration - redis-py handles SSL automatically for rediss:// URLs
+            import ssl
+
+            # Base connection configuration
             connection_kwargs = {
                 'decode_responses': self.decode_responses,
                 'socket_timeout': self.socket_timeout,
@@ -104,8 +104,26 @@ class RedisManager:
                 'health_check_interval': 30
             }
 
+            # Add SSL configuration if enabled
+            if os.getenv('REDIS_SSL') == 'true':
+                ssl_cert_reqs = os.getenv('REDIS_SSL_CERT_REQS', 'required').lower()
+
+                # Create SSL context with proper certificate validation settings
+                if ssl_cert_reqs == 'none':
+                    # Redis Cloud: Disable certificate verification
+                    connection_kwargs['ssl_cert_reqs'] = ssl.CERT_NONE
+                    connection_kwargs['ssl_check_hostname'] = False
+                    logger.info("Redis SSL: Certificate verification disabled (ssl_cert_reqs=none)")
+                elif ssl_cert_reqs == 'optional':
+                    connection_kwargs['ssl_cert_reqs'] = ssl.CERT_OPTIONAL
+                    logger.info("Redis SSL: Certificate verification optional")
+                else:
+                    # Default: require valid certificates
+                    connection_kwargs['ssl_cert_reqs'] = ssl.CERT_REQUIRED
+                    connection_kwargs['ssl_check_hostname'] = True
+                    logger.info("Redis SSL: Certificate verification required")
+
             # Create async connection pool
-            # Redis-py automatically handles SSL for rediss:// URLs
             self._async_pool = redis_async.ConnectionPool.from_url(
                 self.redis_url,
                 **connection_kwargs
@@ -126,11 +144,13 @@ class RedisManager:
         """
         Create sync Redis client with connection pool.
 
-        SSL is handled automatically by redis-py when using rediss:// URL scheme.
-        No manual SSL configuration needed!
+        SSL is configured manually for redis:// URLs when REDIS_SSL=true.
+        This approach works better with Python 3.13's strict SSL validation.
         """
         try:
-            # Simple configuration - redis-py handles SSL automatically for rediss:// URLs
+            import ssl
+
+            # Base connection configuration
             connection_kwargs = {
                 'decode_responses': self.decode_responses,
                 'socket_timeout': self.socket_timeout,
@@ -141,8 +161,26 @@ class RedisManager:
                 'health_check_interval': 30
             }
 
+            # Add SSL configuration if enabled
+            if os.getenv('REDIS_SSL') == 'true':
+                ssl_cert_reqs = os.getenv('REDIS_SSL_CERT_REQS', 'required').lower()
+
+                # Create SSL context with proper certificate validation settings
+                if ssl_cert_reqs == 'none':
+                    # Redis Cloud: Disable certificate verification
+                    connection_kwargs['ssl_cert_reqs'] = ssl.CERT_NONE
+                    connection_kwargs['ssl_check_hostname'] = False
+                    logger.info("Redis SSL: Certificate verification disabled (ssl_cert_reqs=none)")
+                elif ssl_cert_reqs == 'optional':
+                    connection_kwargs['ssl_cert_reqs'] = ssl.CERT_OPTIONAL
+                    logger.info("Redis SSL: Certificate verification optional")
+                else:
+                    # Default: require valid certificates
+                    connection_kwargs['ssl_cert_reqs'] = ssl.CERT_REQUIRED
+                    connection_kwargs['ssl_check_hostname'] = True
+                    logger.info("Redis SSL: Certificate verification required")
+
             # Create sync connection pool
-            # Redis-py automatically handles SSL for rediss:// URLs
             self._sync_pool = redis_sync.ConnectionPool.from_url(
                 self.redis_url,
                 **connection_kwargs
