@@ -129,6 +129,23 @@ class RedisManager:
                     connection_kwargs['ssl_cert_reqs'] = ssl.CERT_REQUIRED
                     logger.info("Redis async SSL: Certificate verification REQUIRED")
 
+                # FIX: Add explicit TLS version support for Redis Cloud compatibility
+                # Python 3.13 + OpenSSL 3.x defaults to TLS 1.3, but some Redis Cloud
+                # instances require TLS 1.2. Allow configuration via environment variable.
+                ssl_min_version = getattr(settings, 'REDIS_SSL_MIN_VERSION', None)
+                if ssl_min_version:
+                    ssl_min_version = ssl_min_version.upper()
+                    if ssl_min_version == 'TLSV1_2':
+                        connection_kwargs['ssl_min_version'] = ssl.TLSVersion.TLSv1_2
+                        logger.info("Redis async SSL: Enforcing minimum TLS version 1.2")
+                    elif ssl_min_version == 'TLSV1_3':
+                        connection_kwargs['ssl_min_version'] = ssl.TLSVersion.TLSv1_3
+                        logger.info("Redis async SSL: Enforcing minimum TLS version 1.3")
+                    else:
+                        logger.warning(f"Invalid REDIS_SSL_MIN_VERSION: {ssl_min_version}. Ignoring.")
+                else:
+                    logger.info("Redis async SSL: Using Python default TLS version negotiation")
+
                 # Validate URL scheme matches SSL config
                 if not redis_url.startswith('rediss://'):
                     logger.error(f"REDIS_SSL=true but URL uses {redis_url.split('://')[0]}:// scheme. Fix .env to use rediss://")
