@@ -108,29 +108,22 @@ class RedisManager:
                 'health_check_interval': self.health_check_interval
             }
 
-            # Configure SSL if enabled - modify URL scheme to rediss://
+            # Configure SSL if enabled
             redis_url = self.redis_url
             if settings.REDIS_SSL:
                 # Change redis:// to rediss:// for SSL
                 if redis_url.startswith('redis://'):
                     redis_url = 'rediss://' + redis_url[8:]
-
-                ssl_cert_reqs = settings.REDIS_SSL_CERT_REQS.lower()
-
-                # Add SSL parameters to connection kwargs based on policy
-                if ssl_cert_reqs == 'none':
-                    connection_kwargs['ssl_cert_reqs'] = 'none'
-                    connection_kwargs['ssl_check_hostname'] = False
-                    logger.info("Redis async SSL: Certificate verification disabled (ssl_cert_reqs=none)")
-                elif ssl_cert_reqs == 'optional':
-                    connection_kwargs['ssl_cert_reqs'] = 'optional'
-                    logger.info("Redis async SSL: Certificate verification optional")
-                else:
-                    connection_kwargs['ssl_cert_reqs'] = 'required'
-                    connection_kwargs['ssl_check_hostname'] = True
-                    logger.info("Redis async SSL: Certificate verification required")
+                logger.info("Redis async SSL: Enabled with rediss:// scheme")
+            else:
+                # Ensure using non-SSL scheme
+                if redis_url.startswith('rediss://'):
+                    redis_url = 'redis://' + redis_url[9:]
+                logger.info("Redis async: Using non-SSL connection")
 
             # Create async connection pool
+            # NOTE: Do NOT pass ssl_cert_reqs/ssl_check_hostname as kwargs
+            # redis-py 6.0+ handles SSL via URL scheme (rediss://) automatically
             self._async_pool = redis_async.ConnectionPool.from_url(
                 redis_url,
                 **connection_kwargs
@@ -168,29 +161,22 @@ class RedisManager:
                 'health_check_interval': self.health_check_interval
             }
 
-            # Configure SSL if enabled - modify URL scheme to rediss://
+            # Configure SSL if enabled
             redis_url = self.redis_url
             if settings.REDIS_SSL:
                 # Change redis:// to rediss:// for SSL
                 if redis_url.startswith('redis://'):
                     redis_url = 'rediss://' + redis_url[8:]
-
-                ssl_cert_reqs = settings.REDIS_SSL_CERT_REQS.lower()
-
-                # Add SSL parameters to connection kwargs based on policy
-                if ssl_cert_reqs == 'none':
-                    connection_kwargs['ssl_cert_reqs'] = 'none'
-                    connection_kwargs['ssl_check_hostname'] = False
-                    logger.info("Redis sync SSL: Certificate verification disabled (ssl_cert_reqs=none)")
-                elif ssl_cert_reqs == 'optional':
-                    connection_kwargs['ssl_cert_reqs'] = 'optional'
-                    logger.info("Redis sync SSL: Certificate verification optional")
-                else:
-                    connection_kwargs['ssl_cert_reqs'] = 'required'
-                    connection_kwargs['ssl_check_hostname'] = True
-                    logger.info("Redis sync SSL: Certificate verification required")
+                logger.info("Redis sync SSL: Enabled with rediss:// scheme")
+            else:
+                # Ensure using non-SSL scheme
+                if redis_url.startswith('rediss://'):
+                    redis_url = 'redis://' + redis_url[9:]
+                logger.info("Redis sync: Using non-SSL connection")
 
             # Create sync connection pool
+            # NOTE: Do NOT pass ssl_cert_reqs/ssl_check_hostname as kwargs
+            # redis-py 6.0+ handles SSL via URL scheme (rediss://) automatically
             self._sync_pool = redis_sync.ConnectionPool.from_url(
                 redis_url,
                 **connection_kwargs
