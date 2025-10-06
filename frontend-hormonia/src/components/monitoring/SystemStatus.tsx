@@ -14,14 +14,41 @@ interface HealthCheckResponse {
 }
 
 export function SystemStatus() {
-  const { data: status, isLoading } = useQuery<HealthCheckResponse>({
+  const { data: status, isLoading, error } = useQuery<HealthCheckResponse>({
     queryKey: ['system-status'],
     queryFn: async () => {
       const response: any = await apiClient.get('/api/v1/health')
       return response.data as HealthCheckResponse
     },
-    refetchInterval: 30000
+    refetchInterval: 30000,
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    onError: (err) => {
+      console.error('Failed to fetch system status:', err)
+    }
   })
+
+  // Handle error state (HTTP 503, timeout, etc.)
+  if (error) {
+    return (
+      <Card className="border-red-200 bg-red-50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-red-800">
+            <AlertCircle className="h-5 w-5" />
+            Sistema Indisponível
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-red-700">
+            Não foi possível verificar o status do sistema. O backend pode estar em manutenção ou fora do ar.
+          </p>
+          <p className="text-xs text-red-600 mt-2">
+            Tentando reconectar automaticamente...
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
 
   if (isLoading) {
     return (

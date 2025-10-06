@@ -100,12 +100,8 @@ export function LoginPage() {
   }
 
   const handleForgotPassword = () => {
-    // Simple forgot password implementation - can be expanded
+    // Set forgot password state to show inline message instead of alert
     setShowForgotPassword(true)
-    setTimeout(() => {
-      alert('Para redefinir sua senha, entre em contato com o administrador do sistema ou envie um email para suporte@neoplasiaslitoral.com')
-      setShowForgotPassword(false)
-    }, 100)
   }
 
   if (isLoading) {
@@ -286,6 +282,27 @@ export function LoginPage() {
             </form>
           </CardContent>
         </Card>
+
+        {/* Forgot Password Alert */}
+        {showForgotPassword && (
+          <Alert className="bg-blue-50 border-blue-200">
+            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <AlertTitle className="text-blue-800">Redefinição de Senha</AlertTitle>
+            <AlertDescription className="text-blue-700">
+              Para redefinir sua senha, entre em contato com o administrador do sistema ou envie um email para{' '}
+              <a href="mailto:suporte@neoplasiaslitoral.com" className="font-medium underline hover:text-blue-900">
+                suporte@neoplasiaslitoral.com
+              </a>
+            </AlertDescription>
+            <button
+              onClick={() => setShowForgotPassword(false)}
+              className="mt-2 text-sm text-blue-600 hover:text-blue-800 underline"
+              aria-label="Fechar mensagem"
+            >
+              Fechar
+            </button>
+          </Alert>
+        )}
 
         {/* Footer */}
         <div className="text-center text-sm text-gray-600">

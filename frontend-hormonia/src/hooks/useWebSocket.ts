@@ -63,7 +63,20 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
 
     try {
       setConnectionState('connecting')
-      const wsUrl = new URL(url)
+
+      // Build WebSocket URL - handle both absolute URLs and relative paths
+      let wsUrl: URL
+      if (url.startsWith('ws://') || url.startsWith('wss://')) {
+        // Absolute WebSocket URL
+        wsUrl = new URL(url)
+      } else {
+        // Relative path - construct from config base URL
+        const baseWsUrl = config?.VITE_WS_BASE_URL || config?.VITE_WS_URL || 'ws://localhost:8000/ws'
+        const cleanBase = baseWsUrl.replace(/\/ws$/, '') // Remove trailing /ws if present
+        const cleanPath = url.startsWith('/') ? url : `/${url}`
+        wsUrl = new URL(`${cleanBase}${cleanPath}`)
+      }
+
       wsUrl.searchParams.set('token', authToken)
 
       wsRef.current = new WebSocket(wsUrl.toString())

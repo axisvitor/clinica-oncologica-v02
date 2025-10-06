@@ -46,7 +46,8 @@
       "Bash(mkdir:*)",
       "Bash(npm audit:*)",
       "Bash(set PYTHONIOENCODING=utf-8)",
-      "Bash(pytest:*)"
+      "Bash(pytest:*)",
+      "Bash([ -f \"contexts/AdminAuthContext.tsx\" ])"
     ],
     "deny": []
   }

@@ -66,7 +66,8 @@ export default function PhysicianDashboard() {
   const { user, hasRole } = useAuth()
 
   // Permission check
-  const canAccessDashboard = hasRole('doctor') || hasRole('admin') || hasRole('superadmin')
+  // Case-insensitive role check - supports doctor, physician, DOCTOR, PHYSICIAN, admin, ADMIN, etc.
+  const canAccessDashboard = hasRole('doctor') || hasRole('physician') || hasRole('medico') || hasRole('admin') || hasRole('superadmin')
 
   // State management
   const [filters, setFilters] = useState({

@@ -61,7 +61,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (!user || !user['role']) {
       return false
     }
-    return user['role'] === role
+    // Case-insensitive role comparison to handle ADMIN, admin, Admin, etc.
+    const userRole = String(user['role']).toLowerCase()
+    const checkRole = String(role).toLowerCase()
+    return userRole === checkRole
   }, [user])
 
   // Helper to transform Firebase user to app User

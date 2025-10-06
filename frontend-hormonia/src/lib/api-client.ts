@@ -113,10 +113,9 @@ class ApiClient {
   }
 
   setAuthToken(token: string | null) {
-    console.log('[ApiClient] Setting auth token:', {
+    logger.debug('[ApiClient] Setting auth token:', {
       hasToken: !!token,
-      tokenLength: token?.length,
-      tokenPreview: token ? token.substring(0, 20) + '...' : null
+      tokenLength: token?.length
     })
     this.authToken = token
   }
@@ -206,13 +205,7 @@ class ApiClient {
 
         if (this.authToken) {
           headers['Authorization'] = `Bearer ${this.authToken}`
-          console.log('[ApiClient] Adding Authorization header to request:', {
-            endpoint,
-            method: fetchOptions.method || 'GET',
-            hasToken: !!this.authToken
-          })
-        } else {
-          console.log('[ApiClient] No auth token available for request:', {
+          logger.debug('[ApiClient] Request with auth', {
             endpoint,
             method: fetchOptions.method || 'GET'
           })

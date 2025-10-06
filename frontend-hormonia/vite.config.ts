@@ -13,7 +13,7 @@ export default defineConfig(({ mode }) => ({
     alias: {
       '@': resolve(__dirname, './src'),
       '~backend/client': resolve(__dirname, './client'),
-      '~backend': resolve(__dirname, '../Backend'),
+      '~backend': resolve(__dirname, '../backend-hormonia'), // Fixed: was '../Backend', now matches actual directory name
     },
   },
   plugins: [

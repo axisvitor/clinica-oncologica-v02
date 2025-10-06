@@ -69,8 +69,11 @@ export default function AdminPage() {
     refetchInterval: 30000 // Refresh every 30s
   })
 
-  // Check admin access
-  if (!user || user['role'] !== 'admin') {
+  // Check admin access - case-insensitive to handle ADMIN, admin, super_admin, etc.
+  const userRole = user?.['role'] ? String(user['role']).toLowerCase() : ''
+  const isAdmin = userRole === 'admin' || userRole === 'superadmin' || userRole === 'super_admin'
+
+  if (!user || !isAdmin) {
     return (
       <div className="container mx-auto p-6">
         <Alert className="bg-red-50">
