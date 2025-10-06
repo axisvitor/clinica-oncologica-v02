@@ -155,19 +155,19 @@ class TestCORSConfiguration:
 
 
 class TestCORSWithCredentials:
-    """Testes de CORS com credenciais (cookies/authorization)"""
+    """Testes de CORS - Essential mode (no credentials)"""
 
     @pytest.fixture
     def base_url(self) -> str:
         return os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 
-    def test_credentials_with_specific_origin(self, base_url: str):
+    def test_credentials_disabled(self, base_url: str):
         """
-        Teste 5: Credenciais com origem específica (VÁLIDO)
+        Teste 5: Credenciais desabilitadas (Essential CORS mode)
 
         Valida que:
-        - Access-Control-Allow-Credentials: true funciona
-        - Access-Control-Allow-Origin é uma origem específica (não *)
+        - Access-Control-Allow-Credentials não está presente ou é "false"
+        - Configuração essencial sem cookies (usa Bearer tokens)
         """
         origin = "http://localhost:5173"
         response = requests.options(
@@ -179,30 +179,31 @@ class TestCORSWithCredentials:
             }
         )
 
-        assert response.headers.get("Access-Control-Allow-Credentials") == "true"
+        allow_credentials = response.headers.get("Access-Control-Allow-Credentials", "").lower()
+
+        # Essential mode: credentials should be false or absent
+        assert allow_credentials != "true", \
+            "Essential CORS mode should have credentials disabled (allow_credentials=False)"
 
         allow_origin = response.headers.get("Access-Control-Allow-Origin")
-        assert allow_origin != "*", \
-            "ERRO CRÍTICO: Access-Control-Allow-Origin: * com Credentials: true é INVÁLIDO!"
-
         assert allow_origin == origin, \
             f"Origin deve ser específica ({origin}), não wildcard"
 
 
 class TestCORSExposedHeaders:
-    """Testes de headers expostos via CORS"""
+    """Testes de headers expostos via CORS - Essential mode"""
 
     @pytest.fixture
     def base_url(self) -> str:
         return os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 
-    def test_expose_headers_present(self, base_url: str):
+    def test_expose_headers_minimal(self, base_url: str):
         """
-        Teste 6: Headers expostos estão presentes
+        Teste 6: Headers expostos mínimos (Essential CORS mode)
 
         Valida que:
-        - Access-Control-Expose-Headers está presente
-        - Inclui headers customizados (X-Request-ID, etc)
+        - Essential mode não expõe headers customizados (simplificado)
+        - Reduz complexidade e preflights
         """
         origin = "http://localhost:5173"
         response = requests.get(
@@ -210,14 +211,14 @@ class TestCORSExposedHeaders:
             headers={"Origin": origin}
         )
 
-        expose_headers = response.headers.get("Access-Control-Expose-Headers")
+        # Essential mode: no expose_headers configured
+        # This is OK - browser will only access simple response headers
+        # Custom headers (X-Request-ID, etc) won't be accessible to JS, but that's acceptable
+        # for essential CORS mode focused on stability
 
-        if expose_headers:
-            assert "X-Request-ID" in expose_headers, \
-                "X-Request-ID deve estar em Access-Control-Expose-Headers"
-
-            assert "X-Process-Time" in expose_headers or "X-Request-Duration" in expose_headers, \
-                "Headers de performance devem estar expostos"
+        # Just verify CORS headers are present
+        assert "Access-Control-Allow-Origin" in response.headers, \
+            "CORS response deve incluir Access-Control-Allow-Origin"
 
 
 class TestCORSMethods:
@@ -259,14 +260,12 @@ class TestCORSHeaders:
     @pytest.mark.parametrize("header", [
         "Authorization",
         "Content-Type",
-        "X-Request-ID",
-        "X-Quiz-Token",
     ])
-    def test_allowed_headers(self, base_url: str, header: str):
+    def test_allowed_headers_essential(self, base_url: str, header: str):
         """
-        Teste 8: Headers customizados permitidos
+        Teste 8: Headers essenciais permitidos (Essential CORS mode)
 
-        Valida que headers essenciais são permitidos via CORS
+        Valida que apenas Authorization e Content-Type são permitidos
         """
         origin = "http://localhost:5173"
         response = requests.options(
@@ -281,7 +280,7 @@ class TestCORSHeaders:
         allowed_headers = response.headers.get("Access-Control-Allow-Headers", "")
 
         assert header.lower() in allowed_headers.lower() or "*" in allowed_headers, \
-            f"Header {header} não permitido via CORS"
+            f"Essential header {header} deve ser permitido via CORS"
 
 
 class TestCORSVaryHeader:

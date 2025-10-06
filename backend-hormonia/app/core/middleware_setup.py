@@ -93,50 +93,23 @@ def setup_middleware(app: FastAPI) -> None:
     )
     logger.info("Enhanced compression middleware added")
     
-    # CORS middleware - using standard FastAPI CORSMiddleware for production reliability
-    # PatternCORSMiddleware temporarily disabled due to CORS header issues
+    # CORS middleware - Essential configuration without credentials
+    # Using Authorization Bearer tokens (no cookies), so credentials not needed
     from fastapi.middleware.cors import CORSMiddleware
 
     # Log CORS configuration for debugging
     logger.info(f"Configuring CORS with {len(settings.ALLOWED_ORIGINS)} allowed origins")
     logger.info(f"Allowed origins: {settings.ALLOWED_ORIGINS}")
+    logger.info("CORS Mode: Essential (no credentials, minimal headers)")
 
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.ALLOWED_ORIGINS,
-        allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],  # Explicit methods for security
-        allow_headers=[
-            "Authorization",
-            "Content-Type",
-            "Accept",
-            "X-Request-ID",
-            "X-Correlation-ID",
-            "X-Quiz-Token",
-            "X-Patient-ID",
-            "X-Monthly-Quiz-Token",
-            "X-Session-ID",
-            "X-Requested-With",
-            "Accept-Language",
-            "Content-Language",
-            "Cache-Control",
-            "Pragma"
-        ],  # Explicit headers for security
-        expose_headers=[
-            "X-Request-ID",
-            "X-Correlation-ID",
-            "X-Process-Time",
-            "X-Quiz-Session-ID",
-            "X-Quiz-Progress",
-            "X-RateLimit-Limit",
-            "X-RateLimit-Remaining",
-            "X-RateLimit-Reset",
-            "X-Query-Count",
-            "X-DB-Time-Ms",
-            "X-Request-Duration"
-        ],
-        max_age=86400
+        allow_credentials=False,  # Frontend uses Bearer tokens, not cookies
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"],  # Minimal essential headers
+        max_age=86400  # Cache preflight for 24 hours
     )
-    logger.info("Standard CORS middleware configured successfully")
+    logger.info("Essential CORS middleware configured successfully")
     
     logger.info("All middleware configured successfully")
