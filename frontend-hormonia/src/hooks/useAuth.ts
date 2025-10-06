@@ -47,8 +47,12 @@ export function useAuth({
     loading: false,
     error: null,
     isAuthenticated: false,
-    login: async (_email: string, _password: string) => ({ success: false, error: 'API auth is deprecated' }),
-    refreshAuth: async () => {},
+    login: async (_credentials: { email: string; password: string }) => {
+      throw new Error('API auth is deprecated - use Firebase authentication')
+    },
+    refreshAuth: async (): Promise<any> => {
+      throw new Error('API refresh is deprecated - Firebase handles session refresh')
+    },
     logout: () => {},
     restoreSession: async () => false
   }
