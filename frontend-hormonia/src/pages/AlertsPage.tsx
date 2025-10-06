@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, Clock, ListFilter as Filter, Search, X, Download, RefreshCw, CheckCheck } from 'lucide-react'
 import { apiClient } from '../lib/api-client'
@@ -27,6 +27,23 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
+// Custom hook for debounced value
+function useDebounce<T>(value: T, delay: number = 300): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value)
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value)
+    }, delay)
+
+    return () => {
+      clearTimeout(handler)
+    }
+  }, [value, delay])
+
+  return debouncedValue
+}
+
 export function AlertsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [filters, setFilters] = useState({
@@ -42,8 +59,11 @@ export function AlertsPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
+  // Debounce search query to avoid excessive API calls
+  const debouncedSearchQuery = useDebounce(searchQuery, 300)
+
   const { data: alertsData, isLoading } = useQuery({
-    queryKey: ['alerts', { page: currentPage, size: 20, ...filters }],
+    queryKey: ['alerts', currentPage, filters, debouncedSearchQuery],
     queryFn: () => apiClient.alerts.list({
       page: currentPage,
       size: 20,
@@ -135,8 +155,14 @@ export function AlertsPage() {
   const filteredAlerts = useMemo(() => {
     let alerts = alertsData?.items || []
 
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
+    // Apply type filter (client-side since backend doesn't support it)
+    if (filters.type) {
+      alerts = alerts.filter((alert: any) => alert.type === filters.type)
+    }
+
+    // Apply search filter (client-side)
+    if (debouncedSearchQuery) {
+      const query = debouncedSearchQuery.toLowerCase()
       alerts = alerts.filter((alert: any) =>
         alert.title?.toLowerCase().includes(query) ||
         alert.message?.toLowerCase().includes(query) ||
@@ -145,7 +171,7 @@ export function AlertsPage() {
     }
 
     return alerts
-  }, [alertsData?.items, searchQuery])
+  }, [alertsData?.items, filters.type, debouncedSearchQuery])
 
   const stats = useMemo(() => {
     const alerts = alertsData?.items || []

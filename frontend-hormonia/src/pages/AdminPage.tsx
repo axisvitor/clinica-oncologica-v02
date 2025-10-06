@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -9,7 +10,43 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { SystemStatus } from '@/components/monitoring/SystemStatus'
 import { useAuth } from '@/contexts/AuthContext'
 import { useConfig } from '@/lib/config-initializer'
-import { Settings, Users, Database, Shield, Activity, FileText, Download, Upload, RefreshCw, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, Search, ListFilter as ListFilter } from 'lucide-react'
+import { apiClient } from '@/lib/api-client'
+import { Loader2, Settings, Users, Database, Shield, Activity, FileText, Download, Upload, RefreshCw, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, Search, ListFilter as ListFilter } from 'lucide-react'
+
+interface BackupResponse {
+  success: boolean
+  message?: string
+}
+
+interface ClearCacheResponse {
+  success: boolean
+  message?: string
+}
+
+interface SaveSettingsResponse {
+  success: boolean
+  message?: string
+}
+
+interface SettingsPayload {
+  ai_enabled: boolean
+  auto_reply: boolean
+  maintenance_mode: boolean
+  debug_mode: boolean
+}
+
+interface SystemStats {
+  totalUsers: number
+  activeUsers: number
+  totalPatients: number
+  activePatients?: number
+  messagesProcessed?: number
+  apiCalls?: number
+  averageResponseTime: number
+  uptime: number
+  diskUsage?: number
+  memoryUsage?: number
+}
 
 export default function AdminPage() {
   const { user } = useAuth()
@@ -24,18 +61,16 @@ export default function AdminPage() {
   const [maintenanceMode, setMaintenanceMode] = useState(false)
   const [debugMode, setDebugMode] = useState(false)
 
-  const systemStats = {
-    totalUsers: 145,
-    activeUsers: 132,
-    totalPatients: 1234,
-    activePatients: 987,
-    messagesProcessed: 45678,
-    apiCalls: 123456,
-    averageResponseTime: 145,
-    uptime: 99.9,
-    diskUsage: 45,
-    memoryUsage: 67
-  }
+  // Fetch system stats with React Query
+  const { data: systemStats, isLoading: statsLoading, error: statsError } = useQuery({
+    queryKey: ['admin', 'system-stats'],
+    queryFn: async () => {
+      const response = await apiClient.request<SystemStats>('/admin/system-stats')
+      return response as SystemStats
+    },
+    refetchInterval: 30000, // Refresh every 30s
+    staleTime: 20000 // Consider data stale after 20s
+  })
 
   // Check admin access
   if (!user || user['role'] !== 'admin') {
@@ -55,26 +90,32 @@ export default function AdminPage() {
   const handleBackup = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch('/api/v1/admin/backup', {
+      // Use apiClient's baseURL and authToken for blob downloads
+      const baseURL = apiClient.getBaseURL()
+      const url = `${baseURL}/admin/backup`
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
-          ['Authorization']: `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${(apiClient as any).authToken || ''}`
         }
       })
 
-      if (response.ok) {
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `backup-${new Date().toISOString()}.zip`
-        a.click()
-        setMessage({ type: 'success', text: 'Backup realizado com sucesso!' })
-      } else {
-        throw new Error('Falha ao realizar backup')
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
+
+      const blob = await response.blob()
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = downloadUrl
+      a.download = `backup-${new Date().toISOString()}.zip`
+      a.click()
+      window.URL.revokeObjectURL(downloadUrl)
+      setMessage({ type: 'success', text: 'Backup realizado com sucesso!' })
     } catch (error) {
-      setMessage({ type: 'error', text: 'Erro ao realizar backup' })
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao realizar backup'
+      setMessage({ type: 'error', text: errorMessage })
     } finally {
       setIsLoading(false)
     }
@@ -83,20 +124,14 @@ export default function AdminPage() {
   const handleClearCache = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch('/api/v1/admin/cache/clear', {
-        method: 'POST',
-        headers: {
-          ['Authorization']: `Bearer ${localStorage.getItem('token')}`
-        }
+      await apiClient.request<ClearCacheResponse>('/admin/cache/clear', {
+        method: 'POST'
       })
 
-      if (response.ok) {
-        setMessage({ type: 'success', text: 'Cache limpo com sucesso!' })
-      } else {
-        throw new Error('Falha ao limpar cache')
-      }
+      setMessage({ type: 'success', text: 'Cache limpo com sucesso!' })
     } catch (error) {
-      setMessage({ type: 'error', text: 'Erro ao limpar cache' })
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao limpar cache'
+      setMessage({ type: 'error', text: errorMessage })
     } finally {
       setIsLoading(false)
     }
@@ -105,27 +140,22 @@ export default function AdminPage() {
   const handleSaveSettings = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch('/api/v1/admin/settings', {
+      const payload: SettingsPayload = {
+        ai_enabled: aiEnabled,
+        auto_reply: autoReply,
+        maintenance_mode: maintenanceMode,
+        debug_mode: debugMode
+      }
+
+      await apiClient.request<SaveSettingsResponse>('/admin/settings', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ['Authorization']: `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          ai_enabled: aiEnabled,
-          auto_reply: autoReply,
-          maintenance_mode: maintenanceMode,
-          debug_mode: debugMode
-        })
+        body: JSON.stringify(payload)
       })
 
-      if (response.ok) {
-        setMessage({ type: 'success', text: 'Configurações salvas com sucesso!' })
-      } else {
-        throw new Error('Falha ao salvar configurações')
-      }
+      setMessage({ type: 'success', text: 'Configurações salvas com sucesso!' })
     } catch (error) {
-      setMessage({ type: 'error', text: 'Erro ao salvar configurações' })
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao salvar configurações'
+      setMessage({ type: 'error', text: errorMessage })
     } finally {
       setIsLoading(false)
     }
@@ -189,14 +219,30 @@ export default function AdminPage() {
 
         <TabsContent value="monitoring" className="space-y-6">
           {/* System Stats Overview */}
+          {statsError && (
+            <Alert className="bg-red-50 mb-6">
+              <AlertTriangle className="h-4 w-4 text-red-600" />
+              <AlertTitle>Erro ao carregar estatísticas</AlertTitle>
+              <AlertDescription>
+                Não foi possível carregar as estatísticas do sistema. Tente novamente mais tarde.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="hover:shadow-lg transition-shadow">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Usuários Ativos</p>
-                    <p className="text-3xl font-bold mt-2">{systemStats.activeUsers}</p>
-                    <p className="text-xs text-gray-500 mt-1">de {systemStats.totalUsers} total</p>
+                    {statsLoading ? (
+                      <Loader2 className="h-8 w-8 animate-spin text-gray-400 mt-2" />
+                    ) : (
+                      <>
+                        <p className="text-3xl font-bold mt-2">{systemStats?.activeUsers ?? 0}</p>
+                        <p className="text-xs text-gray-500 mt-1">de {systemStats?.totalUsers ?? 0} total</p>
+                      </>
+                    )}
                   </div>
                   <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
                     <Users className="h-6 w-6 text-green-600" />
@@ -210,8 +256,14 @@ export default function AdminPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Pacientes Ativos</p>
-                    <p className="text-3xl font-bold mt-2">{systemStats.activePatients}</p>
-                    <p className="text-xs text-gray-500 mt-1">de {systemStats.totalPatients} total</p>
+                    {statsLoading ? (
+                      <Loader2 className="h-8 w-8 animate-spin text-gray-400 mt-2" />
+                    ) : (
+                      <>
+                        <p className="text-3xl font-bold mt-2">{systemStats?.activePatients ?? 0}</p>
+                        <p className="text-xs text-gray-500 mt-1">de {systemStats?.totalPatients ?? 0} total</p>
+                      </>
+                    )}
                   </div>
                   <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
                     <Activity className="h-6 w-6 text-blue-600" />
@@ -225,8 +277,14 @@ export default function AdminPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Mensagens Hoje</p>
-                    <p className="text-3xl font-bold mt-2">{systemStats.messagesProcessed.toLocaleString()}</p>
-                    <p className="text-xs text-gray-500 mt-1">{systemStats.apiCalls.toLocaleString()} API calls</p>
+                    {statsLoading ? (
+                      <Loader2 className="h-8 w-8 animate-spin text-gray-400 mt-2" />
+                    ) : (
+                      <>
+                        <p className="text-3xl font-bold mt-2">{(systemStats?.messagesProcessed ?? 0).toLocaleString()}</p>
+                        <p className="text-xs text-gray-500 mt-1">{(systemStats?.apiCalls ?? 0).toLocaleString()} API calls</p>
+                      </>
+                    )}
                   </div>
                   <div className="h-12 w-12 rounded-full bg-orange-100 flex items-center justify-center">
                     <Activity className="h-6 w-6 text-orange-600" />
@@ -240,8 +298,14 @@ export default function AdminPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Tempo Resposta</p>
-                    <p className="text-3xl font-bold mt-2">{systemStats.averageResponseTime}ms</p>
-                    <p className="text-xs text-green-600 mt-1">Uptime: {systemStats.uptime}%</p>
+                    {statsLoading ? (
+                      <Loader2 className="h-8 w-8 animate-spin text-gray-400 mt-2" />
+                    ) : (
+                      <>
+                        <p className="text-3xl font-bold mt-2">{systemStats?.averageResponseTime ?? 0}ms</p>
+                        <p className="text-xs text-green-600 mt-1">Uptime: {systemStats?.uptime ?? 0}%</p>
+                      </>
+                    )}
                   </div>
                   <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
                     <Activity className="h-6 w-6 text-purple-600" />
@@ -261,42 +325,50 @@ export default function AdminPage() {
                 <CardDescription>Monitoramento de CPU, memória e disco</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">CPU</span>
-                    <span className="text-sm text-gray-600">{systemStats.memoryUsage}%</span>
+                {statsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${systemStats.memoryUsage}%` }} />
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">CPU</span>
+                        <span className="text-sm text-gray-600">{systemStats?.memoryUsage ?? 0}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${systemStats?.memoryUsage ?? 0}%` }} />
+                      </div>
+                    </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">Memória</span>
-                    <span className="text-sm text-gray-600">{systemStats.memoryUsage}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-green-600 h-2 rounded-full" style={{ width: `${systemStats.memoryUsage}%` }} />
-                  </div>
-                </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">Memória</span>
+                        <span className="text-sm text-gray-600">{systemStats?.memoryUsage ?? 0}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="bg-green-600 h-2 rounded-full" style={{ width: `${systemStats?.memoryUsage ?? 0}%` }} />
+                      </div>
+                    </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">Disco</span>
-                    <span className="text-sm text-gray-600">{systemStats.diskUsage}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-orange-600 h-2 rounded-full" style={{ width: `${systemStats.diskUsage}%` }} />
-                  </div>
-                </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">Disco</span>
+                        <span className="text-sm text-gray-600">{systemStats?.diskUsage ?? 0}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="bg-orange-600 h-2 rounded-full" style={{ width: `${systemStats?.diskUsage ?? 0}%` }} />
+                      </div>
+                    </div>
 
-                <div className="pt-4 border-t">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Última atualização</span>
-                    <span className="font-medium">Há 30 segundos</span>
-                  </div>
-                </div>
+                    <div className="pt-4 border-t">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Última atualização</span>
+                        <span className="font-medium">Há 30 segundos</span>
+                      </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -430,7 +502,11 @@ export default function AdminPage() {
                   <div>
                     <CardTitle>Gestão de Usuários</CardTitle>
                     <CardDescription>
-                      {systemStats.totalUsers} usuários cadastrados, {systemStats.activeUsers} ativos
+                      {statsLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin inline" />
+                      ) : (
+                        `${systemStats?.totalUsers ?? 0} usuários cadastrados, ${systemStats?.activeUsers ?? 0} ativos`
+                      )}
                     </CardDescription>
                   </div>
                 </div>

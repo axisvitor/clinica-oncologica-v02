@@ -49,10 +49,27 @@ export function ReportsPage() {
 
   const { data: reportsData, isLoading, refetch } = useQuery({
     queryKey: ['reports', { page: currentPage, size: 20, search: searchQuery, status: statusFilter, type: typeFilter }],
-    queryFn: () => apiClient.reports.list({
-      page: currentPage,
-      size: 20
-    })
+    queryFn: async () => {
+      // Build query parameters from filters
+      const params: Record<string, string | number> = {
+        page: currentPage,
+        size: 20
+      }
+
+      if (searchQuery.trim()) {
+        params['search'] = searchQuery.trim()
+      }
+
+      if (statusFilter) {
+        params['status'] = statusFilter
+      }
+
+      if (typeFilter) {
+        params['type'] = typeFilter
+      }
+
+      return apiClient.reports.list(params)
+    }
   })
 
   const handleViewReport = (reportId: string) => {

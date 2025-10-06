@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { Search, Send, Phone, Clock, MessageSquare, CheckCheck, User as User2 } from 'lucide-react'
@@ -13,14 +13,30 @@ import { LoadingSpinner } from '../components/ui/loading-spinner'
 import { MessagesList } from '../components/messages/MessagesList'
 import { MessageComposer } from '../components/messages/MessageComposer'
 
+// Debounce hook to prevent excessive API calls
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay)
+    return () => clearTimeout(timer)
+  }, [value, delay])
+
+  return debouncedValue
+}
+
 export function MessagesPage() {
   const [searchParams] = useSearchParams()
   const [selectedPatient, setSelectedPatient] = useState<any>(null)
   const [searchTerm, setSearchTerm] = useState('')
 
+  // Debounce search term to reduce API calls
+  const debouncedSearch = useDebounce(searchTerm, 300)
+
   const { data: patientsData, isLoading: patientsLoading } = useQuery({
-    queryKey: ['patients', { search: searchTerm, size: 50 }],
-    queryFn: () => apiClient.patients.list({ search: searchTerm, size: 50 })
+    queryKey: ['patients', { search: debouncedSearch, size: 50 }],
+    queryFn: () => apiClient.patients.list({ search: debouncedSearch, size: 50 }),
+    enabled: debouncedSearch.length === 0 || debouncedSearch.length >= 2
   })
 
   const { data: messagesData, isLoading: messagesLoading } = useQuery({
@@ -91,10 +107,10 @@ export function MessagesPage() {
   const filteredPatients = useMemo(() => {
     if (!patientsData?.items) return []
     return patientsData.items.filter((patient: any) =>
-      patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.phone?.includes(searchTerm)
+      (patient.name || '').toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      patient.phone?.includes(debouncedSearch)
     )
-  }, [patientsData, searchTerm])
+  }, [patientsData, debouncedSearch])
 
   return (
     <div className="space-y-4 md:space-y-6">

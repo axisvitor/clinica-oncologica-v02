@@ -31,6 +31,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
+interface TreatmentDistribution {
+  name: string
+  value: number
+  percentage?: number
+  color?: string
+}
+
 export function AnalyticsPage() {
   const [dateRange, setDateRange] = useState('7d')
   const [compareMode, setCompareMode] = useState(false)
@@ -43,7 +50,7 @@ export function AnalyticsPage() {
 
   const { data: engagementData } = useQuery({
     queryKey: ['analytics-engagement', dateRange],
-    queryFn: () => apiClient.analytics.engagement({ 
+    queryFn: () => apiClient.analytics.engagement({
       start_date: getStartDate(dateRange),
       end_date: new Date().toISOString()
     })
@@ -55,6 +62,16 @@ export function AnalyticsPage() {
       start_date: getStartDate(dateRange),
       end_date: new Date().toISOString()
     })
+  })
+
+  const { data: treatmentDistribution, isLoading: treatmentLoading } = useQuery({
+    queryKey: ['analytics', 'treatment-distribution', dateRange],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      params.append('period', dateRange)
+      const response = await apiClient.request<TreatmentDistribution[]>(`/analytics/treatment-distribution?${params}`)
+      return response
+    }
   })
 
   function getStartDate(range: string): string {
@@ -70,13 +87,6 @@ export function AnalyticsPage() {
         return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
     }
   }
-
-  const treatmentTypeData = [
-    { name: 'Terapia Hormonal Feminina', value: 45, color: '#3b82f6' },
-    { name: 'Terapia Hormonal Masculina', value: 30, color: '#10b981' },
-    { name: 'Reposição Hormonal', value: 20, color: '#f59e0b' },
-    { name: 'Tratamento Personalizado', value: 5, color: '#ef4444' }
-  ]
 
   const engagementTrendData = dashboardData?.engagement_chart?.map((item: any) => ({
     ...item,
@@ -352,49 +362,57 @@ export function AnalyticsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={treatmentTypeData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                    outerRadius={90}
-                    innerRadius={50}
-                    fill="#8884d8"
-                    dataKey="value"
-                    paddingAngle={2}
-                  >
-                    {treatmentTypeData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    content={({ active, payload }: any) => {
-                      if (active && payload && payload.length && payload[0]) {
-                        return (
-                          <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-                            <p className="font-medium text-sm">{payload[0].name}</p>
-                            <p className="text-sm text-gray-600">{payload[0].value} pacientes</p>
-                          </div>
-                        )
-                      }
-                      return null
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              {treatmentTypeData.map((item, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span className="text-xs text-gray-600">{item.name}</span>
+            {treatmentLoading ? (
+              <div className="h-[300px] flex items-center justify-center">
+                <LoadingSpinner size="lg" />
+              </div>
+            ) : (
+              <>
+                <div className="h-[300px] flex items-center justify-center">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={treatmentDistribution || []}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                        outerRadius={90}
+                        innerRadius={50}
+                        fill="#8884d8"
+                        dataKey="value"
+                        paddingAngle={2}
+                      >
+                        {(treatmentDistribution || []).map((entry: TreatmentDistribution, index: number) => (
+                          <Cell key={`cell-${index}`} fill={entry.color || '#8884d8'} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        content={({ active, payload }: any) => {
+                          if (active && payload && payload.length && payload[0]) {
+                            return (
+                              <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+                                <p className="font-medium text-sm">{payload[0].name}</p>
+                                <p className="text-sm text-gray-600">{payload[0].value} pacientes</p>
+                              </div>
+                            )
+                          }
+                          return null
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  {(treatmentDistribution || []).map((item: TreatmentDistribution, idx: number) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color || '#8884d8' }} />
+                      <span className="text-xs text-gray-600">{item.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

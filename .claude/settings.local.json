@@ -44,7 +44,9 @@
       "Bash(Select-Object -Last 50)",
       "Bash(railway up:*)",
       "Bash(mkdir:*)",
-      "Bash(npm audit:*)"
+      "Bash(npm audit:*)",
+      "Bash(set PYTHONIOENCODING=utf-8)",
+      "Bash(pytest:*)"
     ],
     "deny": []
   }
