@@ -14,6 +14,9 @@ let supabaseInstance: SupabaseClient | null = null
 let realtimeEnabledFlag = import.meta.env['VITE_SUPABASE_REALTIME_ENABLED'] === 'true'
 let isInitialized = false
 
+// PERFORMANCE: Check if Supabase auth is disabled globally
+const SUPABASE_AUTH_DISABLED = import.meta.env['VITE_SUPABASE_AUTH_ENABLED'] === 'false'
+
 /**
  * Initialize Supabase client with runtime configuration
  * @param url - Supabase project URL
@@ -21,6 +24,13 @@ let isInitialized = false
  * @param realtimeEnabled - Enable real-time features (optional)
  */
 export function initializeSupabase(url: string, anonKey: string, realtimeEnabled?: boolean): SupabaseClient | null {
+  // PERFORMANCE: Skip Supabase initialization entirely if auth is disabled
+  if (SUPABASE_AUTH_DISABLED) {
+    logger.info('Supabase auth disabled (VITE_SUPABASE_AUTH_ENABLED=false) - skipping SDK initialization')
+    isInitialized = false
+    return null
+  }
+
   // Clean values: remove quotes if present (Vite preserves quotes from .env)
   if (url && typeof url === 'string') {
     url = url.replace(/^["']|["']$/g, '').trim()
@@ -31,7 +41,7 @@ export function initializeSupabase(url: string, anonKey: string, realtimeEnabled
 
   if (!url || !anonKey || url.trim() === '' || anonKey.trim() === '') {
     logger.warn('Supabase credentials missing or empty - running without Supabase features')
-    logger.info('App will continue with mock auth. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to enable Supabase.')
+    logger.info('App will continue with Firebase auth. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to enable Supabase.')
     isInitialized = false
     return null
   }

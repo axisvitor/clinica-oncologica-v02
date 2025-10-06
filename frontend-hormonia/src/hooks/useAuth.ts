@@ -38,11 +38,15 @@ export function useAuth({
   // Initialize Supabase auth
   const supabaseAuth = useSupabaseAuth()
 
-  // Initialize API auth
-  const apiAuth = useApiAuth({
-    autoConnectWebSocket,
-    persistTokens
-  })
+  // DEPRECATED: useApiAuth removed to eliminate dead code in Firebase-only builds
+  // apiAuth hook is no longer used since Firebase handles all authentication
+  const apiAuth = {
+    user: null,
+    token: null,
+    refreshToken: null,
+    refreshAuth: async () => {},
+    logout: () => {}
+  }
 
   // Determine which user to use based on preference and availability
   const user: User | null = useMemo(() => {

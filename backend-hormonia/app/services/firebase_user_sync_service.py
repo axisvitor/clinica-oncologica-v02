@@ -107,9 +107,26 @@ class FirebaseUserSyncService:
                 )
                 raise ValueError(f"Unauthorized email domain: {email_lower}")
 
-            # SECURITY VALIDATION STEP 2: Validate custom claims (for new users)
-            # Extract claims with fallback: custom_claims dict -> top-level claims -> fetch from Firebase
-            custom_claims = await self._extract_claims(firebase_uid, firebase_data)
+            # 1. Try to find by Firebase UID FIRST (before expensive claims extraction)
+            user = self.db.query(User).filter(User.firebase_uid == firebase_uid).first()
+
+            # SECURITY VALIDATION STEP 2: Validate custom claims
+            # PERFORMANCE OPTIMIZATION: If user exists with cached claims, skip expensive Admin SDK call
+            if user and user.firebase_custom_claims:
+                # User exists with cached claims - skip Admin SDK call (8s saved!)
+                logger.debug(f"Using cached claims from database for {firebase_uid}")
+                custom_claims = user.firebase_custom_claims
+                skip_admin_sdk = True
+            else:
+                # No cached claims - need to extract (may call Admin SDK for new users)
+                custom_claims = await self._extract_claims(
+                    firebase_uid,
+                    firebase_data,
+                    skip_admin_sdk=False  # Allow Admin SDK for new users only
+                )
+                skip_admin_sdk = False
+
+            # Validate claims for new user creation
             if auto_create and not self._validate_custom_claims(custom_claims):
                 self._log_security_event(
                     'rejected',
@@ -120,10 +137,8 @@ class FirebaseUserSyncService:
                 )
                 raise ValueError(f"Invalid role in custom claims: {custom_claims}")
 
-            # 1. Try to find by Firebase UID
-            user = self.db.query(User).filter(User.firebase_uid == firebase_uid).first()
             if user:
-                # PERFORMANCE: Reuse claims already extracted above to avoid duplicate Firebase API call
+                # PERFORMANCE: Reuse claims already extracted/cached above to avoid duplicate Firebase API call
                 await self._update_user_from_firebase(user, firebase_data, custom_claims)
                 self._log_sync(firebase_uid, user.id, 'update', 'firebase_to_pg', {}, True)
                 return user, False
@@ -234,23 +249,25 @@ class FirebaseUserSyncService:
     async def _extract_claims(
         self,
         firebase_uid: str,
-        firebase_data: Dict[str, Any]
+        firebase_data: Dict[str, Any],
+        skip_admin_sdk: bool = False
     ) -> Dict[str, Any]:
         """
-        Extract custom claims with fallback logic.
+        Extract custom claims with fallback logic and caching.
 
         Fallback order:
         1. Check firebase_data['custom_claims'] (from cached token)
         2. Check top-level claims (role, roles) in firebase_data (from decoded ID token)
-        3. Fetch fresh claims via Firebase Admin SDK auth.get_user()
+        3. Fetch fresh claims via Firebase Admin SDK auth.get_user() (ONLY if skip_admin_sdk=False)
 
-        This handles both:
-        - Decoded ID tokens where roles are top-level (role: "admin", roles: ["admin"])
-        - Cached tokens where roles are in custom_claims dict
+        PERFORMANCE NOTE: ID tokens don't carry custom_claims, so we MUST avoid calling
+        the Admin SDK on every request. The skip_admin_sdk flag prevents the expensive
+        fallback when we already have cached claims in the database.
 
         Args:
             firebase_uid: Firebase user ID
             firebase_data: User data from Firebase token
+            skip_admin_sdk: If True, skip expensive Admin SDK call (use cached DB claims)
 
         Returns:
             Dictionary containing custom claims with role information
@@ -284,23 +301,28 @@ class FirebaseUserSyncService:
         if claims:
             return claims
 
-        # Priority 3: Fetch fresh claims via Firebase Admin SDK
-        try:
-            logger.info(f"Fetching fresh claims for UID {firebase_uid} via Firebase Admin SDK")
-            from firebase_admin import auth
+        # Priority 3: Fetch fresh claims via Firebase Admin SDK (EXPENSIVE - 8s!)
+        # ONLY call Admin SDK if explicitly allowed (not skipped)
+        if not skip_admin_sdk:
+            try:
+                logger.warning(f"PERFORMANCE: Fetching fresh claims for UID {firebase_uid} via Firebase Admin SDK (8s delay expected)")
+                from firebase_admin import auth
 
-            user_record = auth.get_user(firebase_uid)
-            if user_record.custom_claims:
-                claims = user_record.custom_claims.copy()
-                logger.info(f"Fresh claims fetched from Firebase Admin: {claims}")
-                return claims
-            else:
-                logger.warning(f"No custom claims found for user {firebase_uid} in Firebase Admin")
-        except Exception as e:
-            logger.error(f"Failed to fetch claims from Firebase Admin for {firebase_uid}: {str(e)}")
+                user_record = auth.get_user(firebase_uid)
+                if user_record.custom_claims:
+                    claims = user_record.custom_claims.copy()
+                    logger.info(f"Fresh claims fetched from Firebase Admin: {claims}")
+                    return claims
+                else:
+                    logger.warning(f"No custom claims found for user {firebase_uid} in Firebase Admin")
+            except Exception as e:
+                logger.error(f"Failed to fetch claims from Firebase Admin for {firebase_uid}: {str(e)}")
+        else:
+            logger.debug(f"Skipping Admin SDK call for {firebase_uid} (using cached claims from database)")
 
         # Return empty dict if no claims found anywhere
-        logger.warning(f"No claims found for user {firebase_uid} in any source")
+        if not claims:
+            logger.warning(f"No claims found for user {firebase_uid} in any source")
         return claims
 
     def _extract_role_from_claims(self, claims: Dict[str, Any]) -> str:
@@ -481,8 +503,13 @@ class FirebaseUserSyncService:
         user.last_firebase_sync = datetime.now()
 
         if changed:
-            self.db.commit()
-            logger.info(f"Updated Firebase user: {user.email}")
+            try:
+                self.db.commit()
+                logger.info(f"Updated Firebase user: {user.email}")
+            except Exception as commit_error:
+                logger.error(f"Failed to commit user update for {user.email}: {commit_error}")
+                self.db.rollback()
+                raise
 
         return changed
 

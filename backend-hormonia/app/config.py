@@ -424,16 +424,25 @@ class Settings(BaseSettings):
 
     def _validate_cors_config(self):
         """Validate CORS configuration to ensure frontend URL is included."""
+        import logging
+        logger = logging.getLogger(__name__)
+
         if not self.ALLOWED_ORIGINS:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning(
-                "⚠️  ALLOWED_ORIGINS is empty! CORS will block all cross-origin requests. "
-                "Add your frontend URL to ALLOWED_ORIGINS in .env"
-            )
+            # Check if fallback URLs are configured
+            has_fallback = bool(self.FRONTEND_URL or self.QUIZ_URL)
+            if has_fallback and self.ENVIRONMENT.lower() != 'production':
+                # Dev mode: empty ALLOWED_ORIGINS is OK (regex is used)
+                logger.info("✅ CORS using regex pattern (dev mode) - ALLOWED_ORIGINS empty by design")
+            elif has_fallback:
+                # Production with fallback: build from FRONTEND_URL/QUIZ_URL
+                logger.info(f"✅ CORS will use fallback: {self.FRONTEND_URL}, {self.QUIZ_URL}")
+            else:
+                # No origins and no fallback: actual problem
+                logger.warning(
+                    "⚠️  ALLOWED_ORIGINS is empty! CORS will block all cross-origin requests. "
+                    "Add your frontend URL to ALLOWED_ORIGINS in .env"
+                )
         else:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.info(f"✅ CORS configured with {len(self.ALLOWED_ORIGINS)} allowed origins")
 
     def _validate_production_config(self):

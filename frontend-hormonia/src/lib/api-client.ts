@@ -344,10 +344,8 @@ class ApiClient {
     },
 
     me: async () => {
-      console.log('[ApiClient] Calling /api/v1/auth/me with token:', {
-        hasToken: !!this.authToken,
-        baseURL: this.baseURL
-      })
+      // SECURITY: Never log auth tokens or bearer credentials
+      // Removed: console.log with token information
 
       // FastAPI returns UserResponse directly (not wrapped)
       const user = await this.request<{
@@ -356,6 +354,8 @@ class ApiClient {
         full_name: string;
         role: string;
         is_active: boolean;
+        created_at?: string;
+        permissions?: string[];
         // Optional medico-specific fields
         crm?: string;
         nome?: string;
@@ -368,14 +368,10 @@ class ApiClient {
         pacientes_atribuidos?: any[];
       }>('/api/v1/auth/me');
 
-      console.log('[ApiClient] Received user from /api/v1/auth/me:', {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        is_active: user.is_active
-      })
+      // SECURITY: Never log full user profiles in production
+      // Removed: console.log with user details
 
-      // Return in snake_case format to match User type
+      // Return backend payload VERBATIM - don't override server data
       return {
         data: {
           id: user['id'],
@@ -383,8 +379,9 @@ class ApiClient {
           full_name: user['full_name'],
           role: user['role'],
           is_active: user.is_active,
-          permissions: [],
-          created_at: new Date().toISOString(),
+          // Use server-provided values instead of client-side defaults
+          permissions: user['permissions'] || [],
+          created_at: user['created_at'] || new Date().toISOString(),
           // Include optional medico-specific fields if present
           crm: user['crm'],
           nome: user['nome'],
