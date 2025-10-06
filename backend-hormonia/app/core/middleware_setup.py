@@ -93,37 +93,20 @@ def setup_middleware(app: FastAPI) -> None:
     )
     logger.info("Enhanced compression middleware added")
     
-    # Enhanced CORS middleware should be last (first to execute)
-    # Supports wildcard patterns for Railway deployments and WebSocket connections
-    from app.middleware.custom_cors import PatternCORSMiddleware
+    # CORS middleware - using standard FastAPI CORSMiddleware for production reliability
+    # PatternCORSMiddleware temporarily disabled due to CORS header issues
+    from fastapi.middleware.cors import CORSMiddleware
+
+    # Log CORS configuration for debugging
+    logger.info(f"Configuring CORS with {len(settings.ALLOWED_ORIGINS)} allowed origins")
+    logger.info(f"Allowed origins: {settings.ALLOWED_ORIGINS}")
 
     app.add_middleware(
-        PatternCORSMiddleware,
+        CORSMiddleware,
         allow_origins=settings.ALLOWED_ORIGINS,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=[
-            "Accept",
-            "Accept-Language",
-            "Content-Language",
-            "Content-Type",
-            "Authorization",
-            "X-Requested-With",
-            "X-Request-ID",
-            "X-Correlation-ID",
-            # Quiz-specific headers
-            "X-Quiz-Token",
-            "X-Patient-ID",
-            "X-Monthly-Quiz-Token",
-            "X-Session-ID",
-            # WebSocket specific headers
-            "Sec-WebSocket-Protocol",
-            "Sec-WebSocket-Extensions",
-            "Sec-WebSocket-Key",
-            "Sec-WebSocket-Version",
-            "Upgrade",
-            "Connection"
-        ],
+        allow_methods=["*"],  # Allow all methods including OPTIONS
+        allow_headers=["*"],  # Allow all headers for maximum compatibility
         expose_headers=[
             "X-Request-ID",
             "X-Correlation-ID",
@@ -133,13 +116,12 @@ def setup_middleware(app: FastAPI) -> None:
             "X-RateLimit-Limit",
             "X-RateLimit-Remaining",
             "X-RateLimit-Reset",
-            # Query performance headers
             "X-Query-Count",
             "X-DB-Time-Ms",
             "X-Request-Duration"
         ],
         max_age=86400
     )
-    logger.info("Enhanced CORS middleware added with pattern support")
+    logger.info("Standard CORS middleware configured successfully")
     
     logger.info("All middleware configured successfully")

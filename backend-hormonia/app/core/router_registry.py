@@ -93,6 +93,11 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(docs.router, prefix="/api/v1/docs", tags=["Documentation"])
     app.include_router(health.router, prefix="/api/v1", tags=["Health"])
 
+    # Enhanced health endpoints with CORS diagnostics
+    from app.api.v1 import enhanced_health
+    app.include_router(enhanced_health.router, prefix="/api/v1", tags=["Health"])
+    logger.info("✓ Enhanced health endpoints registered")
+
     # Configuration endpoint at /api/v1/config (primary)
     app.include_router(config.router, prefix="/api/v1", tags=["Configuration"])
 
