@@ -1,48 +1,57 @@
 #!/bin/sh
-# Railway Runtime Configuration Generator
 set -e
 
 echo "[Runtime Config] Generating runtime configuration from environment variables..."
 
-sanitize_env_urls() {
-  SANITIZED_EXPORTS=$(python3 - <<'PY'
+sanitize_url_py() {
+python3 - "$@" <<'PY'
 import os
 from urllib.parse import urlsplit, urlunsplit
 
-def normalize(url: str, scheme: str, default: str) -> str:
+api_base = os.environ.get('VITE_API_BASE_URL', '').strip()
+api_url = os.environ.get('VITE_API_URL', '').strip()
+ws_url = os.environ.get('VITE_WS_BASE_URL', os.environ.get('VITE_WS_URL', '')).strip()
+api_base_path = os.environ.get('VITE_API_BASE_PATH', 'api/v1').strip('/') or 'api/v1'
+
+# helper functions (same as entrypoint)
+def ensure_scheme(url: str, scheme: str) -> str:
     if not url:
-        return default
+        return ''
     url = url.strip()
-    lower_scheme = scheme.lower()
-    if url.startswith(f"{scheme}://") or url.startswith(f"{lower_scheme}://"):
+    if url.startswith('http://') or url.startswith('https://') or url.startswith('ws://') or url.startswith('wss://'):
         return url
-    if url.startswith(f"{scheme}:") or url.startswith(f"{lower_scheme}:"):
-        return f"{scheme}://" + url[len(scheme)+1:].lstrip('/')
     if url.startswith('//'):
         return f"{scheme}:{url}"
-    if '://' not in url:
-        return f"{scheme}://{url}"
-    return url
+    if ':' in url and not url.startswith(f"{scheme}://"):
+        prefix, rest = url.split(':', 1)
+        rest = rest.lstrip('/')
+        return f"{scheme}://{rest}"
+    return f"{scheme}://{url}"
 
-def ensure_path(url: str, required_path: str) -> str:
+def ensure_path(url: str, required: str) -> str:
     if not url:
-        return url
-    required_path = '/' + required_path.strip('/')
+        return ''
+    required = '/' + required.strip('/')
     parts = urlsplit(url)
     path = parts.path or ''
     if not path or path == '/':
-        path = required_path
-    elif required_path.strip('/') not in path.strip('/'):
+        path = required
+    elif required.strip('/') not in path.strip('/'):
         if path.endswith('/'):
             path = path.rstrip('/')
-        path = path + required_path
+        path = path + required
     return urlunsplit((parts.scheme, parts.netloc, path, parts.query, parts.fragment))
 
-def normalize_ws(url: str, default: str) -> str:
-    normalized = normalize(url, 'wss', default)
-    if not normalized:
-        return normalized
-    parts = urlsplit(normalized)
+def normalize_api(url: str) -> tuple[str,str]:
+    parts = urlsplit(url)
+    base = urlunsplit((parts.scheme, parts.netloc, '', '', ''))
+    return base, url
+
+def normalize_ws(url: str, api_base_url: str) -> str:
+    if not url and api_base_url:
+        url = api_base_url.replace('https://', 'wss://').replace('http://', 'ws://')
+    url = ensure_scheme(url, 'wss')
+    parts = urlsplit(url)
     path = parts.path or ''
     if not path or path == '/':
         path = '/ws/connect'
@@ -69,42 +78,30 @@ def normalize_mimes(value: str) -> str:
         items.append(itm)
     return ','.join(items)
 
-api_base = normalize(os.environ.get('VITE_API_BASE_URL'), 'https', 'http://localhost:8000')
-api_url = normalize(os.environ.get('VITE_API_URL'), 'https', 'http://localhost:8000/api/v1')
+api_base = ensure_scheme(api_base, 'https') if api_base else ''
+api_url = ensure_scheme(api_url, 'https') if api_url else ''
 if not api_url and api_base:
     api_url = api_base
-api_url = ensure_path(api_url, os.environ.get('VITE_API_BASE_PATH') or 'api/v1')
-parts = urlsplit(api_url)
+api_url = ensure_path(api_url, api_base_path)
+base_from_url, full_api = normalize_api(api_url)
 if not api_base:
-    api_base = urlunsplit((parts.scheme, parts.netloc, '', '', ''))
-ws_base = normalize_ws(os.environ.get('VITE_WS_BASE_URL') or os.environ.get('VITE_WS_URL') or '', '')
-if not ws_base:
-    ws_base = normalize_ws(api_base.replace('https://', 'wss://').replace('http://', 'ws://'), 'wss://localhost/ws/connect')
-api_base_path = os.environ.get('VITE_API_BASE_PATH') or '/api/v1'
-if not api_base_path.startswith('/'):
-    api_base_path = '/' + api_base_path
+    api_base = base_from_url
+ws_full = normalize_ws(ws_url, api_base)
+api_path = '/' + api_base_path.strip('/')
+
+print(f"export VITE_API_BASE_URL='{api_base}'")
+print(f"export VITE_API_URL='{full_api}'")
+print(f"export VITE_WS_BASE_URL='{ws_full}'")
+print(f"export VITE_WS_URL='{ws_full}'")
+print(f"export VITE_API_BASE_PATH='{api_path}'")
+
 mime_list = normalize_mimes(os.environ.get('VITE_SUPPORTED_FILE_TYPES'))
-exports = {
-    'VITE_API_BASE_URL': api_base,
-    'VITE_API_URL': api_url,
-    'VITE_WS_BASE_URL': ws_base,
-    'VITE_WS_URL': ws_base,
-    'VITE_API_BASE_PATH': api_base_path,
-}
 if mime_list:
-    exports['VITE_SUPPORTED_FILE_TYPES'] = mime_list
-for key, value in exports.items():
-    if value:
-        safe = value.replace("'", "'\\''")
-        print(f"export {key}='{safe}'")
+    print(f"export VITE_SUPPORTED_FILE_TYPES='{mime_list}'")
 PY
-)
-  if [ -n "${SANITIZED_EXPORTS}" ]; then
-    eval "${SANITIZED_EXPORTS}"
-  fi
 }
 
-sanitize_env_urls
+sanitize_url_py
 
 CONFIG_FILE="/usr/share/nginx/html/api/config"
 CONFIG_JS_FILE="/usr/share/nginx/html/api/config.js"
