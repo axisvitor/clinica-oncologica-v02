@@ -13,8 +13,9 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.services.hive_mind_integration import get_hive_mind_integration, IntegrationMode
-from app.coordination.health_monitor import get_system_health_monitor
-from app.coordination.swarm_manager import get_swarm_manager
+# TODO: Restore when app.coordination module is implemented
+# from app.coordination.health_monitor import get_system_health_monitor
+# from app.coordination.swarm_manager import get_swarm_manager
 from app.utils.logging import get_logger
 
 router = APIRouter(prefix="/hive-mind", tags=["hive-mind"])

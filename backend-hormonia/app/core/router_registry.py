@@ -52,7 +52,8 @@ def register_routers(app: FastAPI) -> None:
         enhanced_analytics, enhanced_messages, enhanced_quiz,
         enhanced_reports, enhanced_monitoring, monitoring
     )
-    from app.api.endpoints import hive_mind
+    # TODO: Restore when app.coordination module is implemented
+    # from app.api.endpoints import hive_mind
     from app.api import websockets, enhanced_websockets
     from app.api.v1.production_health import router as prod_health_router
 
@@ -251,7 +252,8 @@ def register_routers(app: FastAPI) -> None:
     # Continue with other routers
     app.include_router(performance.router, prefix="/api/v1", tags=["Performance"])
     app.include_router(platform_sync.router, prefix="/api/v1", tags=["Platform Sync"])
-    app.include_router(hive_mind.router, prefix="/api/v1", tags=["Hive-Mind"])
+    # TODO: Restore when app.coordination module is implemented
+    # app.include_router(hive_mind.router, prefix="/api/v1", tags=["Hive-Mind"])
     app.include_router(websockets.router, prefix="/ws")
 
     # Include Enhanced API routers - Advanced functionality
