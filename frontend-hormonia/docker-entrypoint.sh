@@ -92,7 +92,8 @@ print(f"export VITE_API_BASE_PATH='{api_path}'")
 PY
 }
 
-sanitize_url_py
+# Execute sanitizer and apply exports to current shell
+eval "$(sanitize_url_py)"
 
 echo "[Debug] Sanitized frontend env:"
 echo "   VITE_API_BASE_URL=${VITE_API_BASE_URL}"

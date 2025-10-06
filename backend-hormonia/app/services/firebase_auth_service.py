@@ -94,6 +94,18 @@ class FirebaseAuthService:
             # Verify the Firebase ID token
             decoded_token = auth.verify_id_token(token, check_revoked=True)
 
+            # Extract custom claims from token (role, roles, permissions, etc.)
+            # Firebase puts custom claims directly in the token, not in a nested field
+            reserved_claims = {
+                'iss', 'aud', 'auth_time', 'user_id', 'sub', 'iat', 'exp',
+                'firebase', 'uid', 'email', 'email_verified', 'phone_number',
+                'name', 'picture', 'identities'
+            }
+            custom_claims = {
+                k: v for k, v in decoded_token.items()
+                if k not in reserved_claims
+            }
+
             # Extract user information
             user_info = {
                 "uid": decoded_token.get("uid"),
@@ -101,12 +113,12 @@ class FirebaseAuthService:
                 "email_verified": decoded_token.get("email_verified", False),
                 "name": decoded_token.get("name"),
                 "picture": decoded_token.get("picture"),
-                "custom_claims": decoded_token.get("custom_claims", {}),
+                "custom_claims": custom_claims,  # Now includes role, roles, permissions
                 "auth_time": decoded_token.get("auth_time"),
                 "exp": decoded_token.get("exp"),
             }
 
-            logger.debug(f"Successfully verified token for user: {user_info['email']}")
+            logger.debug(f"Successfully verified token for user: {user_info['email']} with custom claims: {list(custom_claims.keys())}")
             return user_info
 
         except auth.ExpiredIdTokenError:
