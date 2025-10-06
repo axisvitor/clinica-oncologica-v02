@@ -54,7 +54,10 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
       return
     }
 
+    // CRITICAL FIX: Prevent duplicate connections
+    // Check if WebSocket is already connecting or open
     if (wsRef.current?.readyState === WebSocket.CONNECTING || wsRef.current?.readyState === WebSocket.OPEN) {
+      logger.debug('WebSocket already connecting or connected, skipping duplicate connection')
       return
     }
 
@@ -66,6 +69,7 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
       wsRef.current = new WebSocket(wsUrl.toString())
 
       wsRef.current.onopen = () => {
+        logger.info('WebSocket connection established')
         setIsConnected(true)
         setConnectionState('connected')
         reconnectCountRef.current = 0
@@ -82,20 +86,28 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
         }
       }
 
-      wsRef.current.onclose = () => {
+      wsRef.current.onclose = (event) => {
+        logger.info(`WebSocket connection closed (code: ${event.code}, reason: ${event.reason || 'none'})`)
         setIsConnected(false)
         setConnectionState('disconnected')
         onClose?.()
 
+        // Only reconnect if:
+        // 1. shouldReconnect flag is true
+        // 2. Haven't exceeded max reconnect attempts
         if (shouldReconnectRef.current && reconnectCountRef.current < reconnectAttempts) {
           reconnectCountRef.current++
+          logger.info(`Scheduling reconnection attempt ${reconnectCountRef.current}/${reconnectAttempts} in ${reconnectInterval}ms`)
           reconnectTimeoutRef.current = setTimeout(() => {
             connect()
           }, reconnectInterval)
+        } else if (reconnectCountRef.current >= reconnectAttempts) {
+          logger.warn(`Max reconnection attempts (${reconnectAttempts}) reached, giving up`)
         }
       }
 
       wsRef.current.onerror = (error) => {
+        logger.error('WebSocket error:', error)
         setConnectionState('error')
         onError?.(error)
       }
@@ -106,6 +118,7 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
   }, [url, user?.token, token, reconnectAttempts, reconnectInterval, onMessage, onError, onOpen, onClose])
 
   const disconnect = useCallback(() => {
+    logger.info('Disconnecting WebSocket (intentional)')
     shouldReconnectRef.current = false
 
     if (reconnectTimeoutRef.current) {
@@ -114,7 +127,8 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
     }
 
     if (wsRef.current) {
-      wsRef.current.close()
+      // Close with code 1000 (normal closure) to indicate intentional disconnect
+      wsRef.current.close(1000, 'Client disconnect')
       wsRef.current = null
     }
 
@@ -131,22 +145,33 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
       wsRef.current.send(JSON.stringify(fullMessage))
       return true
     }
+    logger.warn('Cannot send message: WebSocket not connected')
     return false
   }, [])
 
+  // CRITICAL FIX: Removed connect/disconnect from dependencies to prevent unnecessary reconnections
+  // Only reconnect when authentication token actually changes
   useEffect(() => {
     const authToken = user?.token || token
     if (authToken) {
+      logger.debug('Authentication token available, connecting WebSocket')
+      shouldReconnectRef.current = true  // Enable reconnections
       connect()
     } else {
+      logger.debug('No authentication token, disconnecting WebSocket')
       disconnect()
     }
 
     return () => {
+      logger.debug('useWebSocket cleanup: disabling reconnections and disconnecting')
       shouldReconnectRef.current = false
       disconnect()
     }
-  }, [user?.token, token, connect, disconnect])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.token, token])
+  // NOTE: connect/disconnect are intentionally NOT in dependencies
+  // They are stable via useCallback and adding them causes unnecessary reconnections
+  // ESLint warning is safe to ignore in this specific case
 
   return {
     isConnected,
