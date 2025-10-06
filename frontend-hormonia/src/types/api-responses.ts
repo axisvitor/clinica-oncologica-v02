@@ -50,6 +50,10 @@ export interface AuthMeResponse {
   full_name: string
   role: string
   is_active: boolean
+  permissions?: string[]
+  created_at?: string
+  updated_at?: string
+  last_login?: string
 }
 
 export interface LogoutResponse {

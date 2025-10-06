@@ -121,10 +121,7 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
 
           // Set Firebase ID token
           const token = result.session.access_token
-          console.log('[AdminAuth → Backend] Setting Firebase token:', {
-            tokenLength: token.length,
-            tokenPreview: token.substring(0, 20) + '...'
-          })
+          console.log('[AdminAuth] Firebase token set successfully')
           apiClient.setAuthToken(token)
 
           // Fetch user from backend and validate admin role
@@ -155,10 +152,10 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
             full_name: me.data.full_name,
             role: me.data.role as AdminUser['role'],
             is_active: me.data.is_active,
-            permissions: [],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            last_login: new Date().toISOString(),
+            permissions: me.data.permissions || [],
+            created_at: me.data.created_at || new Date().toISOString(),
+            updated_at: me.data.updated_at || new Date().toISOString(),
+            last_login: me.data.last_login || new Date().toISOString(),
             login_count: 0,
             two_factor_enabled: false,
             failed_login_attempts: 0,
@@ -229,10 +226,10 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
         full_name: me.data.full_name,
         role: me.data.role as AdminUser['role'],
         is_active: me.data.is_active,
-        permissions: [],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        last_login: new Date().toISOString(),
+        permissions: me.data.permissions || [],
+        created_at: me.data.created_at || new Date().toISOString(),
+        updated_at: me.data.updated_at || new Date().toISOString(),
+        last_login: me.data.last_login || new Date().toISOString(),
         login_count: state.user?.login_count || 0,
         two_factor_enabled: state.user?.two_factor_enabled || false,
         failed_login_attempts: 0,
@@ -293,7 +290,7 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
         if (firebaseUser) {
           console.log('[AdminAuth] Found existing Firebase session:', firebaseUser.email)
           const token = await firebaseUser.getIdToken()
-          console.log('[AdminAuth → Backend] Setting Firebase token on session restore')
+          console.log('[AdminAuth] Firebase token set successfully on session restore')
           apiClient.setAuthToken(token)
 
           try {
@@ -315,10 +312,10 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
                 full_name: me.data.full_name,
                 role: me.data.role as AdminUser['role'],
                 is_active: me.data.is_active,
-                permissions: [],
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-                last_login: new Date().toISOString(),
+                permissions: me.data.permissions || [],
+                created_at: me.data.created_at || new Date().toISOString(),
+                updated_at: me.data.updated_at || new Date().toISOString(),
+                last_login: me.data.last_login || new Date().toISOString(),
                 login_count: 0,
                 two_factor_enabled: false,
                 failed_login_attempts: 0,
