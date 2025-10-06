@@ -44,8 +44,13 @@ export function useAuth({
     user: null,
     token: null,
     refreshToken: null,
+    loading: false,
+    error: null,
+    isAuthenticated: false,
+    login: async (_email: string, _password: string) => ({ success: false, error: 'API auth is deprecated' }),
     refreshAuth: async () => {},
-    logout: () => {}
+    logout: () => {},
+    restoreSession: async () => false
   }
 
   // Determine which user to use based on preference and availability
