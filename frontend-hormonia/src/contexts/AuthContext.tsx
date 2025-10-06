@@ -64,26 +64,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [user])
 
   // Helper to transform Firebase user to app User
-  const transformFirebaseUser = useCallback(async (firebaseUser: FirebaseUser): Promise<User> => {
+  const transformFirebaseUser = useCallback(async (firebaseUser: FirebaseUser): Promise<User | null> => {
     const token = await firebaseUser.getIdToken()
 
-    // Try to fetch full user data from backend
+    // CRITICAL: Backend validation is REQUIRED for proper authorization
+    // Do NOT create fallback users - if backend fails, sign out
     try {
       apiClient.setAuthToken(token)
       const response = await apiClient.auth.me()
       return response.data
     } catch (error) {
-      logger.warn('Could not fetch user from backend, using Firebase data:', error)
-      // Fallback to Firebase user data (snake_case to match User type)
-      return {
-        id: firebaseUser.uid,
-        email: firebaseUser.email || '',
-        full_name: firebaseUser.displayName || '',
-        role: 'user',
-        is_active: true,
-        permissions: [],
-        created_at: firebaseUser.metadata.creationTime || new Date().toISOString()
-      }
+      logger.error('Backend authentication failed - signing out:', error)
+      // SECURITY: Sign out on backend failure to prevent unauthorized access
+      await firebaseAuth.signOut()
+      return null
     }
   }, [])
 
@@ -130,13 +124,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
               const token = await firebaseUser.getIdToken()
               const appUser = await transformFirebaseUser(firebaseUser)
 
-              setUser(appUser)
-              setSession({ access_token: token })
-              apiClient.setAuthToken(token)
+              // CRITICAL: If backend validation failed, appUser will be null
+              if (appUser) {
+                setUser(appUser)
+                setSession({ access_token: token })
+                apiClient.setAuthToken(token)
 
-              // Connect WebSocket with Firebase token
-              logger.log('Connecting WebSocket...')
-              wsManager.connect(token)
+                // Connect WebSocket with Firebase token
+                logger.log('Connecting WebSocket...')
+                wsManager.connect(token)
+              } else {
+                // Backend rejected user - already signed out by transformFirebaseUser
+                logger.warn('Backend rejected Firebase user - session cleared')
+                setUser(null)
+                setSession(null)
+                apiClient.setAuthToken(null)
+                wsManager.disconnect()
+              }
             } catch (error) {
               logger.error('Error transforming Firebase user:', error)
               setUser(null)
