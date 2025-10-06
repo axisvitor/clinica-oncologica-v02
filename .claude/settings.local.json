@@ -34,7 +34,10 @@
       "Bash(where python)",
       "Bash(awk:*)",
       "Bash(unzip:*)",
-      "Bash(openssl:*)"
+      "Bash(openssl:*)",
+      "Bash(where railway)",
+      "Bash(where railway.exe)",
+      "Bash(railway variables:*)"
     ],
     "deny": []
   }
