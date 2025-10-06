@@ -1,4 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('AdminPage')
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -68,6 +71,24 @@ export default function AdminPage() {
   const { data: stats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useSystemStats({
     refetchInterval: 30000 // Refresh every 30s
   })
+
+  // Load settings on mount - TODO: Add GET /admin/settings endpoint
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        // TODO: Replace with real API call when GET /admin/settings is implemented
+        // const response = await apiClient.get('/admin/settings')
+        // setAiEnabled(response.data.ai_enabled)
+        // setAutoReply(response.data.auto_reply)
+        // setMaintenanceMode(response.data.maintenance_mode)
+        // setDebugMode(response.data.debug_mode)
+        logger.debug('[AdminPage] Settings fetch not implemented - using local defaults')
+      } catch (error) {
+        logger.error('[AdminPage] Failed to load settings:', error)
+      }
+    }
+    loadSettings()
+  }, [])
 
   // Check admin access - case-insensitive to handle ADMIN, admin, super_admin, etc.
   const userRole = user?.['role'] ? String(user['role']).toLowerCase() : ''

@@ -157,7 +157,7 @@ const ClinicalMonitoringDashboard: React.FC = () => {
     setRefreshing(false);
   };
 
-  // Dados para gráficos
+  // Dados para gráficos (PLACEHOLDER - aguardando integração com API real)
   const sentimentDistribution = [
     { name: 'Positivo', value: 45, color: '#10b981' },
     { name: 'Neutro', value: 35, color: '#6b7280' },
@@ -482,6 +482,7 @@ const ClinicalMonitoringDashboard: React.FC = () => {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={400}>
+                {/* PLACEHOLDER - Aguardando integração com useAdherenceData */}
                 <RadarChart data={[
                   { metric: 'Mensagens', value: 75 },
                   { metric: 'Quiz', value: 65 },

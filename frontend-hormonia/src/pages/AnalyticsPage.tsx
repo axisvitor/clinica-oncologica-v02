@@ -499,6 +499,9 @@ export function AnalyticsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Status dos Pacientes</CardTitle>
+            <CardDescription className="text-xs text-amber-600">
+              ⚠️ Pausados/Concluídos hardcoded - Aguardando API
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -530,6 +533,9 @@ export function AnalyticsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Alertas por Severidade</CardTitle>
+            <CardDescription className="text-xs text-amber-600">
+              ⚠️ Dados fictícios - Aguardando integração com API de analytics
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">

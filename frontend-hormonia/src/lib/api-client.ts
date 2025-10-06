@@ -229,7 +229,7 @@ class ApiClient {
           } catch {
             errorData = { message: `HTTP ${response.status}: ${response.statusText}` }
           }
-          console.error('[ApiClient] Request failed:', {
+          logger.error('[ApiClient] Request failed:', {
             endpoint,
             status: response.status,
             statusText: response.statusText,
@@ -238,7 +238,7 @@ class ApiClient {
           throw new ApiError(response.status, errorData, errorData.message)
         }
 
-        console.log('[ApiClient] Request successful:', {
+        logger.debug('[ApiClient] Request successful:', {
           endpoint,
           status: response.status,
           contentType: response.headers.get('content-type')
