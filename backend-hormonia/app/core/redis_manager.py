@@ -55,10 +55,10 @@ class RedisManager:
             self.redis_url = f"{base_url}/{db_number}"
             logger.info(f"Redis DB isolation enabled: using DB {db_number}")
 
-        # Connection settings from config
+        # Connection settings from config - Aumentados para evitar timeouts
         self.decode_responses = getattr(settings, 'REDIS_DECODE_RESPONSES', True)
-        self.socket_timeout = getattr(settings, 'REDIS_SOCKET_TIMEOUT', 10.0)
-        self.socket_connect_timeout = getattr(settings, 'REDIS_SOCKET_CONNECT_TIMEOUT', 5.0)
+        self.socket_timeout = getattr(settings, 'REDIS_SOCKET_TIMEOUT', 30.0)  # Aumentado de 10 para 30
+        self.socket_connect_timeout = getattr(settings, 'REDIS_SOCKET_CONNECT_TIMEOUT', 30.0)  # Aumentado de 5 para 30
         self.retry_on_timeout = getattr(settings, 'REDIS_RETRY_ON_TIMEOUT', True)
         self.health_check_interval = getattr(settings, 'REDIS_HEALTH_CHECK_INTERVAL', 30)
         self.max_connections = getattr(settings, 'REDIS_MAX_CONNECTIONS', 50)
@@ -347,6 +347,9 @@ class AsyncToSyncWrapper:
                 logger.error(f"Failed to run coroutine with asyncio.run: {e}")
                 # Fallback to manual loop management
                 return self._run_in_new_loop(coro)
+        except concurrent.futures.TimeoutError:
+            logger.error("Redis operation timed out after 30 seconds")
+            raise TimeoutError("Redis operation timed out")
 
     def _run_in_new_loop(self, coro):
         """Run coroutine in new event loop."""

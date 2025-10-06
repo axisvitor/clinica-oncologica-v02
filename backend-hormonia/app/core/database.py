@@ -9,6 +9,7 @@ from sqlalchemy import create_engine, event, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool
+from sqlalchemy.exc import OperationalError
 from typing import Generator, Optional, Dict, Any
 import logging
 import time
@@ -55,13 +56,16 @@ class RLSConnectionManager:
             pool_reset_on_return='commit',
             pool_logging_name='hormonia_service_role',
             connect_args={
-                'connect_timeout': 10,
+                'connect_timeout': 30,  # Aumentado de 10 para 30 para conexões lentas
                 'statement_timeout': 30000,  # SECURITY FIX: 30s query timeout prevents DoS
                 'sslmode': 'require',        # SECURITY FIX: Enforce SSL to prevent MITM
+                'prepare_threshold': 0,      # Evita problemas com prepared statements em SSL
+                'tcp_user_timeout': 30000,   # Previne timeouts silenciosos (30s)
                 'application_name': 'hormonia_service_role',
-                'keepalives_idle': 600,
-                'keepalives_interval': 30,
-                'keepalives_count': 3,
+                'keepalives': 1,             # Habilita TCP keepalive
+                'keepalives_idle': 30,       # Reduzido de 600 para detectar falhas mais rápido
+                'keepalives_interval': 10,   # Reduzido de 30 para detectar falhas mais rápido
+                'keepalives_count': 5,       # Aumentado de 3 para tolerar mais pacotes perdidos
             },
             echo=settings.DEBUG,
             echo_pool=settings.DEBUG if hasattr(settings, 'DEBUG') else False
@@ -79,16 +83,41 @@ class RLSConnectionManager:
             pool_reset_on_return='commit',
             pool_logging_name='hormonia_rls',
             connect_args={
-                'connect_timeout': 10,
+                'connect_timeout': 30,       # Aumentado de 10 para 30 para conexões lentas
+                'statement_timeout': 30000,  # SECURITY FIX: 30s query timeout prevents DoS
+                'sslmode': 'require',        # SECURITY FIX: Enforce SSL to prevent MITM
+                'prepare_threshold': 0,      # Evita problemas com prepared statements em SSL
+                'tcp_user_timeout': 30000,   # Previne timeouts silenciosos (30s)
                 'application_name': 'hormonia_rls',
-                'keepalives_idle': 600,
-                'keepalives_interval': 30,
-                'keepalives_count': 3,
-                'options': '-c statement_timeout=30000 -c sslmode=require'  # SECURITY FIX
+                'keepalives': 1,             # Habilita TCP keepalive
+                'keepalives_idle': 30,       # Reduzido de 600 para detectar falhas mais rápido
+                'keepalives_interval': 10,   # Reduzido de 30 para detectar falhas mais rápido
+                'keepalives_count': 5,       # Aumentado de 3 para tolerar mais pacotes perdidos
             },
             echo=settings.DEBUG,
             echo_pool=settings.DEBUG if hasattr(settings, 'DEBUG') else False
         )
+
+        # Adicionar retry logic para reconexão automática em caso de falha SSL
+        @event.listens_for(service_role_engine, "handle_error")
+        def handle_service_role_error(exception_context):
+            """Retry automaticamente em caso de erro SSL."""
+            if isinstance(exception_context.original_exception, OperationalError):
+                error_msg = str(exception_context.original_exception)
+                if "SSL connection has been closed" in error_msg or "consuming input failed" in error_msg:
+                    logger.warning(f"SSL connection lost on service_role engine: {error_msg[:100]}... Pool pre-ping will reconnect automatically")
+                    # Retorna None para permitir que o pool pre-ping reconecte
+                    return None
+
+        @event.listens_for(rls_engine, "handle_error")
+        def handle_rls_error(exception_context):
+            """Retry automaticamente em caso de erro SSL."""
+            if isinstance(exception_context.original_exception, OperationalError):
+                error_msg = str(exception_context.original_exception)
+                if "SSL connection has been closed" in error_msg or "consuming input failed" in error_msg:
+                    logger.warning(f"SSL connection lost on rls engine: {error_msg[:100]}... Pool pre-ping will reconnect automatically")
+                    # Retorna None para permitir que o pool pre-ping reconecte
+                    return None
 
         _engines['service_role'] = service_role_engine
         _engines['rls'] = rls_engine
