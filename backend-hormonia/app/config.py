@@ -247,68 +247,43 @@ class Settings(BaseSettings):
     CELERY_WORKER_MAX_TASKS_PER_CHILD: int = Field(default=1000, description="Max tasks per worker child")
     CELERY_WORKER_DISABLE_RATE_LIMITS: bool = Field(default=True, description="Disable rate limits for workers")
     
-    # CORS
-    # Includes origins for:
-    # - Main frontend (3000, 5173) + Railway production
-    # - Monthly quiz interface (3001, 5174) + Railway production
-    # - Evolution API (8080)
-    # - Quiz domain patterns for Railway deployments
+    # CORS - Dynamic configuration (domain-only in production, regex in dev)
+    FRONTEND_URL: str = Field(
+        default="http://localhost:5173",
+        description="Frontend URL (used for CORS in production)"
+    )
+    QUIZ_URL: str = Field(
+        default="http://localhost:3001",
+        description="Quiz interface URL (used for CORS in production)"
+    )
     ALLOWED_ORIGINS: List[str] | str = Field(
-        default=[
-            # Local development - localhost (all common ports)
-            "http://localhost:3000", "http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:5176", "http://localhost:5177", "http://localhost:5178", "http://localhost:5179",  # Main frontend + all Vite ports
-            "http://localhost:3001",  # Monthly quiz interface
-            "http://localhost:8080",  # Evolution API
-            # Local development - 127.0.0.1 (needed for Frontend-v2/config.ts)
-            "http://127.0.0.1:3000", "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://127.0.0.1:5175", "http://127.0.0.1:5176", "http://127.0.0.1:5177", "http://127.0.0.1:5178", "http://127.0.0.1:5179",  # Main frontend + all Vite ports
-            "http://127.0.0.1:3001", "http://127.0.0.1:5174",  # Monthly quiz interface
-            "http://127.0.0.1:8000",  # Backend self-reference
-            "http://127.0.0.1:8080",  # Evolution API
-            # Production Railway URLs - explicit URLs only (no wildcards for security)
-            "https://clinica-oncologica-v02-production.up.railway.app",  # Main production deployment
-            "https://interface-quiz-production.up.railway.app",  # Quiz interface production
-            "https://quiz-mensal-interface.railway.app",  # Quiz interface production (alt)
-            "https://hormonia-frontend.railway.app",  # Frontend production
-            "https://frontend-v2.railway.app"  # Main frontend production
-        ],
-        description="Allowed CORS origins with Railway production support, localhost and 127.0.0.1 development URLs (includes port 5179)"
+        default=[],
+        description="Allowed CORS origins (auto-constructed from FRONTEND_URL + QUIZ_URL in production, empty in dev for regex)"
     )
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
     def _parse_allowed_origins(cls, v):
         """
-        Allow JSON array or comma-separated string for ALLOWED_ORIGINS.
-        Supports wildcard patterns for Railway deployments.
+        Constructs ALLOWED_ORIGINS dynamically:
+        - Production: uses FRONTEND_URL + QUIZ_URL (only domains)
+        - Dev: returns empty list (allow_origin_regex will be used in middleware)
         """
-        if isinstance(v, list):
+        # If explicit value is passed, use it
+        if isinstance(v, list) and len(v) > 0:
             return v
-        if isinstance(v, str):
+        if isinstance(v, str) and v.strip():
+            # Parse JSON or CSV
             s = v.strip()
-            # Try JSON array
             if s.startswith("["):
                 try:
-                    arr = json.loads(s)
-                    if isinstance(arr, list):
-                        return arr
-                except Exception:
+                    return json.loads(s)
+                except:
                     pass
-            # Fallback: comma-separated
             return [item.strip() for item in s.split(",") if item.strip()]
-        # Default fallback with quiz interface support
-        return [
-            "http://localhost:3000", "http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:5176", "http://localhost:5177", "http://localhost:5178", "http://localhost:5179",  # Main frontend + all Vite ports
-            "http://localhost:3001",  # Quiz interface
-            "http://localhost:8080",  # Evolution API
-            "http://127.0.0.1:3000", "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://127.0.0.1:5175", "http://127.0.0.1:5176", "http://127.0.0.1:5177", "http://127.0.0.1:5178", "http://127.0.0.1:5179",  # Main frontend 127.0.0.1 + all Vite ports
-            "http://127.0.0.1:3001", "http://127.0.0.1:5174",  # Quiz interface 127.0.0.1
-            "http://127.0.0.1:8000", "http://127.0.0.1:8080",  # Backend + Evolution 127.0.0.1
-            "https://clinica-oncologica-v02-production.up.railway.app",  # Main production deployment
-            "https://interface-quiz-production.up.railway.app",  # Quiz interface production
-            "https://quiz-mensal-interface.railway.app",  # Quiz production (alt)
-            "https://hormonia-frontend.railway.app",  # Frontend production
-            "https://frontend-v2.railway.app"  # Frontend production
-        ]
+
+        # Auto value: return empty list (regex will be used)
+        return []
     
     # File Storage
     UPLOAD_DIR: str = Field(default="uploads", description="Upload directory for files")
@@ -491,6 +466,26 @@ class Settings(BaseSettings):
                     f"Production environment security validation failed:\n" +
                     "\n".join(f"  - {error}" for error in errors)
                 )
+
+    def get_cors_origins(self) -> List[str]:
+        """
+        Returns CORS origins based on environment.
+        Production: FRONTEND_URL + QUIZ_URL
+        Dev: empty list (uses regex)
+        """
+        if self.ENVIRONMENT.lower() == "production":
+            origins = []
+            if self.FRONTEND_URL:
+                origins.append(self.FRONTEND_URL.rstrip('/'))
+            if self.QUIZ_URL:
+                origins.append(self.QUIZ_URL.rstrip('/'))
+            # If ALLOWED_ORIGINS was explicitly set, use it
+            if self.ALLOWED_ORIGINS:
+                return self.ALLOWED_ORIGINS
+            return origins
+        else:
+            # Dev: return empty, middleware will use regex
+            return []
 
 
 # Global settings instance

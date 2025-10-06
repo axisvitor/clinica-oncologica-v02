@@ -299,6 +299,48 @@ curl https://seu-backend.railway.app/api/v1/health \
 
 ---
 
+## 🚀 Railway Deployment (Domain-Only Mode)
+
+### New Dynamic CORS (v2)
+
+A partir da refatoração de CORS ponta a ponta, o sistema agora usa **configuração dinâmica**:
+
+**Production:**
+- ✅ Apenas `FRONTEND_URL` + `QUIZ_URL` (domínios sem porta)
+- ✅ Zero hardcoding de portas
+- ✅ Fácil manutenção
+
+**Development:**
+- ✅ Regex para `localhost` e `127.0.0.1` com qualquer porta
+- ✅ Sem necessidade de listar portas manualmente
+
+### Migration from Static List
+
+**Before:**
+```python
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    # ... 30+ entries
+]
+```
+
+**After:**
+```python
+# Production
+FRONTEND_URL=https://frontend.railway.app
+QUIZ_URL=https://quiz.railway.app
+# → CORS automático: ["https://frontend.railway.app", "https://quiz.railway.app"]
+
+# Development
+ENVIRONMENT=development
+# → CORS automático: regex ^https?://(localhost|127\.0\.0\.1)(:\d+)?$
+```
+
+See: [docs/deployment/RAILWAY_CORS_CONFIG.md](deployment/RAILWAY_CORS_CONFIG.md)
+
+---
+
 **Modo:** Essential (Simplified)
 **Foco:** Estabilidade > Features
 **Status:** ✅ Ativo

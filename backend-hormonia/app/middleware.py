@@ -447,30 +447,7 @@ class InputSanitizationMiddleware(BaseHTTPMiddleware):
         return self.sanitizer.sanitize_dict(data, field_rules)
 
 
-def setup_cors_middleware(app):
-    """Setup enhanced CORS middleware with security considerations"""
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.ALLOWED_ORIGINS,
-        allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=[
-            "Accept",
-            "Accept-Language",
-            "Content-Language",
-            "Content-Type",
-            "Authorization",
-            "X-Requested-With",
-            "X-Request-ID",
-            "X-Correlation-ID"
-        ],
-        expose_headers=[
-            "X-Request-ID",
-            "X-Correlation-ID",
-            "X-Process-Time",
-            "X-RateLimit-Limit",
-            "X-RateLimit-Remaining",
-            "X-RateLimit-Reset"
-        ],
-        max_age=86400,  # 24 hours
-    )
+# REMOVED: setup_cors_middleware() function
+# CORS configuration has been moved to app/core/middleware_setup.py
+# This provides centralized CORS management with enhanced security features
+# including pattern matching for Railway deployments and environment-based configuration
