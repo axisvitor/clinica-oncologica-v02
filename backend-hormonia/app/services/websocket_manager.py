@@ -174,6 +174,57 @@ class ConnectionManager:
             
         except JWTError as e:
             logger.warning(f"JWT decode error for connection {connection_id}: {e}")
+
+            # Fallback: try Firebase ID token verification (RS256) when configured
+            try:
+                from app.services.firebase_auth_service import get_firebase_auth_service
+
+                firebase_project_id = getattr(settings, 'FIREBASE_ADMIN_PROJECT_ID', None)
+                firebase_private_key = getattr(settings, 'FIREBASE_ADMIN_PRIVATE_KEY', None)
+                firebase_client_email = getattr(settings, 'FIREBASE_ADMIN_CLIENT_EMAIL', None)
+
+                if firebase_project_id and firebase_private_key and firebase_client_email:
+                    firebase_service = get_firebase_auth_service(
+                        project_id=firebase_project_id,
+                        private_key=firebase_private_key,
+                        client_email=firebase_client_email
+                    )
+
+                    # Verify Firebase token and authenticate by email
+                    user_data = await firebase_service.verify_token(token)
+                    email = (user_data.get("email") or "").strip().lower()
+                    if not email:
+                        return None
+
+                    user_repo = UserRepository(db)
+                    user: Optional[User] = user_repo.get_by_email(email)
+                    if not user or not user.is_active:
+                        logger.warning(f"Invalid or inactive user (Firebase) for connection {connection_id}")
+                        return None
+
+                    # Update connection metadata
+                    if connection_id in self.connection_metadata:
+                        self.connection_metadata[connection_id].update({
+                            "user_id": str(user.id),
+                            "authenticated": True,
+                            "user_role": user.role.value if hasattr(user.role, 'value') else str(user.role)
+                        })
+
+                    # Add to authenticated connections
+                    self.authenticated_connections.add(connection_id)
+
+                    # Add to user connections mapping
+                    user_id_str = str(user.id)
+                    if user_id_str not in self.user_connections:
+                        self.user_connections[user_id_str] = set()
+                    self.user_connections[user_id_str].add(connection_id)
+
+                    logger.info(f"WebSocket connection authenticated via Firebase: {connection_id} for {email}")
+                    return user
+
+            except Exception as fe:
+                logger.warning(f"Firebase token verification failed for connection {connection_id}: {fe}")
+
             return None
         except Exception as e:
             logger.error(f"Authentication error for connection {connection_id}: {e}")
