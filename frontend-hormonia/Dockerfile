@@ -59,6 +59,9 @@ RUN npm run build:runtime
 # Stage de produção com Nginx
 FROM nginx:alpine
 
+# Instalar Python3 para sanitização de URLs no entrypoint
+RUN apk add --no-cache python3
+
 # Copiar build do stage anterior
 COPY --from=builder /app/dist /usr/share/nginx/html
 
