@@ -123,7 +123,8 @@ class FirebaseUserSyncService:
             # 1. Try to find by Firebase UID
             user = self.db.query(User).filter(User.firebase_uid == firebase_uid).first()
             if user:
-                await self._update_user_from_firebase(user, firebase_data)
+                # PERFORMANCE: Reuse claims already extracted above to avoid duplicate Firebase API call
+                await self._update_user_from_firebase(user, firebase_data, custom_claims)
                 self._log_sync(firebase_uid, user.id, 'update', 'firebase_to_pg', {}, True)
                 return user, False
 
@@ -412,7 +413,8 @@ class FirebaseUserSyncService:
     async def _update_user_from_firebase(
         self,
         user: User,
-        firebase_data: Dict[str, Any]
+        firebase_data: Dict[str, Any],
+        cached_claims: Dict[str, Any] = None
     ) -> bool:
         """
         Update existing user with Firebase data.
@@ -420,6 +422,7 @@ class FirebaseUserSyncService:
         Args:
             user: User object to update
             firebase_data: User data from Firebase
+            cached_claims: Pre-extracted custom claims to avoid duplicate API calls (optional)
 
         Returns:
             True if user was modified
@@ -455,8 +458,8 @@ class FirebaseUserSyncService:
             changed = True
 
         # Update custom claims (includes role)
-        # Extract claims with fallback logic
-        new_claims = await self._extract_claims(user.firebase_uid, firebase_data)
+        # PERFORMANCE: Use cached claims if provided, otherwise extract fresh
+        new_claims = cached_claims if cached_claims is not None else await self._extract_claims(user.firebase_uid, firebase_data)
         if user.firebase_custom_claims != new_claims:
             user.firebase_custom_claims = new_claims
             # Update role if changed in custom claims
