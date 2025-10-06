@@ -8,12 +8,8 @@ echo "============================================"
 
 echo "📝 Setting up environment variables for build..."
 
-# Export all required environment variables
-export VITE_SUPABASE_URL="https://rszpypytdciggybbpnrp.supabase.co"
-export VITE_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzenB5cHl0ZGNpZ2d5YmJwbnJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkzMDQ0NzksImV4cCI6MjA2NDg4MDQ3OX0.qF_byaebH1q78a6SYhGfCuGSotF523o1ZqTrwOBkPYg"
-export VITE_API_URL="https://backend-production-e0bd.up.railway.app/api/v1"
-export VITE_API_BASE_URL="https://backend-production-e0bd.up.railway.app"
-export VITE_WS_BASE_URL="wss://backend-production-e0bd.up.railway.app/ws"
+# Railway injects these variables - do not hardcode
+# Required: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_API_URL, VITE_API_BASE_URL, VITE_WS_BASE_URL
 
 # Additional environment variables
 export NODE_ENV="production"

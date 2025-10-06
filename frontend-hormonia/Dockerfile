@@ -62,15 +62,23 @@ FROM nginx:alpine
 # Copiar build do stage anterior
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copiar configuração do server block (template com $PORT)
-COPY nginx.server.conf /etc/nginx/templates/default.conf.template
+# Copiar configuração do Nginx com proxy para backend
+COPY nginx.conf /etc/nginx/nginx.conf.template
 
-# Expor porta dinâmica (Railway usa $PORT)
-EXPOSE $PORT
+# Copiar entrypoint para processar variáveis de ambiente
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+# Definir porta padrão
+ENV PORT=3000
+
+# Expor porta
+EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
 
-# Comando de inicialização
+# Usar entrypoint para processar variáveis antes do nginx
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["nginx", "-g", "daemon off;"]
