@@ -4,6 +4,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Bell, Check, X, AlertTriangle, MessageSquare, FileText } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
+import { useAdminAuth } from '@/contexts/AdminAuthContext'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -27,10 +28,12 @@ interface Notification {
 
 export function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false)
+  const { state } = useAdminAuth()
 
   const { data: notificationsData, isLoading } = useQuery({
     queryKey: ['notifications'],
     queryFn: () => apiClient.notifications.list(),
+    enabled: state.isAuthenticated && !state.isLoading, // Only run when authenticated
     refetchInterval: 30000 // Refresh every 30 seconds
   })
 

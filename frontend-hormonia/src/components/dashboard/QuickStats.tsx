@@ -1,8 +1,8 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { 
-  TrendingUp, 
-  TrendingDown, 
+import {
+  TrendingUp,
+  TrendingDown,
   Minus,
   Users,
   MessageSquare,
@@ -10,14 +10,18 @@ import {
   CheckCircle
 } from 'lucide-react'
 import { apiClient } from '../../lib/api-client'
+import { useAdminAuth } from '../../contexts/AdminAuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LoadingSpinner } from '../ui/loading-spinner'
 
 export function QuickStats() {
+  const { state } = useAdminAuth()
+
   const { data: metrics, isLoading } = useQuery({
     queryKey: ['dashboard-metrics'],
     queryFn: () => apiClient.analytics.dashboard(),
+    enabled: state.isAuthenticated && !state.isLoading, // Only run when authenticated
     refetchInterval: 60000 // Refresh every minute
   })
 

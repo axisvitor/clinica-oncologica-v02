@@ -2,6 +2,7 @@ import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Users, MessageSquare, TrendingUp, TriangleAlert as AlertTriangle, Activity, Clock, CircleCheck as CheckCircle, Circle as XCircle, Calendar, FileText } from 'lucide-react'
 import { apiClient } from '../lib/api-client'
+import { useAdminAuth } from '../contexts/AdminAuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -14,9 +15,13 @@ import { QuickStats } from '../components/dashboard/QuickStats'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export function DashboardPage() {
+  const { state } = useAdminAuth()
+
+  // Wait for authentication to be ready before making API calls
   const { data: metrics, isLoading, error } = useQuery({
     queryKey: ['dashboard-metrics'],
     queryFn: () => apiClient.analytics.dashboard(),
+    enabled: state.isAuthenticated && !state.isLoading, // Only run when authenticated
     refetchInterval: 30000 // Refresh every 30 seconds
   })
 
