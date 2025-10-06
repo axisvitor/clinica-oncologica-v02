@@ -151,24 +151,15 @@ class PublicEndpointMiddleware(BaseHTTPMiddleware):
         return response
     
     def _add_cors_headers(self, response: Response, request: Request) -> None:
-        """Add CORS headers to response."""
-        origin = request.headers.get("origin")
-        
-        # For public endpoints, allow all origins but log them
-        response.headers["Access-Control-Allow-Origin"] = origin or "*"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = (
-            "Accept, Accept-Language, Content-Language, Content-Type, "
-            "Authorization, X-Requested-With, X-Request-ID, X-Correlation-ID, "
-            "X-Quiz-Token, X-Patient-ID, X-Monthly-Quiz-Token, X-Session-ID"
-        )
-        response.headers["Access-Control-Expose-Headers"] = (
-            "X-Request-ID, X-Correlation-ID, X-Process-Time, "
-            "X-Quiz-Session-ID, X-Quiz-Progress, X-RateLimit-Limit, "
-            "X-RateLimit-Remaining, X-RateLimit-Reset"
-        )
-        response.headers["Access-Control-Max-Age"] = "86400"  # 24 hours
+        """
+        Add CORS headers to response.
+
+        Note: This method is now a no-op as CORS is fully handled by CORSMiddleware.
+        Keeping for backward compatibility but delegating to main CORS middleware.
+        """
+        # Delegate all CORS handling to CORSMiddleware - do not add duplicate headers
+        # CORSMiddleware will properly handle origin validation, credentials, and all CORS headers
+        pass
 
 
 class PublicEndpointCORSMiddleware(BaseHTTPMiddleware):
@@ -221,32 +212,20 @@ class PublicEndpointCORSMiddleware(BaseHTTPMiddleware):
         return response
     
     def _add_public_cors_headers(self, response: Response, request: Request) -> None:
-        """Add permissive CORS headers for public endpoints."""
+        """
+        Add permissive CORS headers for public endpoints.
+
+        Note: This method is now a no-op as CORS is fully handled by CORSMiddleware.
+        Keeping for backward compatibility but delegating to main CORS middleware.
+        """
+        # Log origin for monitoring only
         origin = request.headers.get("origin")
-        
-        # Log origin for monitoring
         if origin:
             logger.info(
                 f"Public endpoint CORS request from origin: {origin}",
                 extra={'event_type': 'public_cors_request', 'origin': origin}
             )
-        
-        # Allow the requesting origin (or * if no origin)
-        response.headers["Access-Control-Allow-Origin"] = origin or "*"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, HEAD"
-        response.headers["Access-Control-Allow-Headers"] = (
-            "Accept, Accept-Language, Content-Language, Content-Type, "
-            "Authorization, X-Requested-With, X-Request-ID, X-Correlation-ID, "
-            "X-Quiz-Token, X-Patient-ID, X-Monthly-Quiz-Token, X-Session-ID, "
-            "Cache-Control, Pragma"
-        )
-        response.headers["Access-Control-Expose-Headers"] = (
-            "X-Request-ID, X-Correlation-ID, X-Process-Time, "
-            "X-Quiz-Session-ID, X-Quiz-Progress, X-RateLimit-Limit, "
-            "X-RateLimit-Remaining, X-RateLimit-Reset, Content-Length, Date"
-        )
-        response.headers["Access-Control-Max-Age"] = "86400"  # 24 hours
-        
-        # Add Vary header for proper caching
-        response.headers["Vary"] = "Origin, Access-Control-Request-Method, Access-Control-Request-Headers"
+
+        # Delegate all CORS handling to CORSMiddleware - do not add duplicate headers
+        # CORSMiddleware will properly handle origin validation, credentials, and all CORS headers
+        pass

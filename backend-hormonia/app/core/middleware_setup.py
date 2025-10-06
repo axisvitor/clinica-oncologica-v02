@@ -105,8 +105,23 @@ def setup_middleware(app: FastAPI) -> None:
         CORSMiddleware,
         allow_origins=settings.ALLOWED_ORIGINS,
         allow_credentials=True,
-        allow_methods=["*"],  # Allow all methods including OPTIONS
-        allow_headers=["*"],  # Allow all headers for maximum compatibility
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],  # Explicit methods for security
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "Accept",
+            "X-Request-ID",
+            "X-Correlation-ID",
+            "X-Quiz-Token",
+            "X-Patient-ID",
+            "X-Monthly-Quiz-Token",
+            "X-Session-ID",
+            "X-Requested-With",
+            "Accept-Language",
+            "Content-Language",
+            "Cache-Control",
+            "Pragma"
+        ],  # Explicit headers for security
         expose_headers=[
             "X-Request-ID",
             "X-Correlation-ID",

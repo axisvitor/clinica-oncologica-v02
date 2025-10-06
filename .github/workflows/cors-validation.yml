@@ -1,0 +1,895 @@
+name: CORS Configuration Validation
+
+on:
+  push:
+    branches: [main, develop, docs-refactor-py313]
+    paths:
+      - 'backend-hormonia/app/config.py'
+      - 'backend-hormonia/app/core/middleware_setup.py'
+      - 'backend-hormonia/app/middleware/**'
+      - '.github/workflows/cors-validation.yml'
+  pull_request:
+    branches: [main, develop, docs-refactor-py313]
+    paths:
+      - 'backend-hormonia/app/config.py'
+      - 'backend-hormonia/app/core/middleware_setup.py'
+      - 'backend-hormonia/app/middleware/**'
+  workflow_dispatch:
+    inputs:
+      verbose:
+        description: 'Enable verbose logging'
+        required: false
+        default: 'false'
+
+env:
+  PYTHON_VERSION: '3.13'
+  PLAYWRIGHT_VERSION: '1.42.0'
+
+jobs:
+  cors-lint:
+    name: Lint CORS Configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pydantic pydantic-settings
+
+      - name: Run CORS configuration linter
+        id: cors-lint
+        run: |
+          cat > cors_linter.py << 'EOF'
+          #!/usr/bin/env python3
+          """
+          CORS Configuration Linter
+
+          Validates CORS settings for security vulnerabilities and misconfigurations.
+          """
+          import sys
+          import re
+          from typing import List, Dict, Any, Tuple
+
+
+          class CORSLinter:
+              """Lint CORS configuration for security issues."""
+
+              def __init__(self, config_file: str):
+                  self.config_file = config_file
+                  self.errors: List[str] = []
+                  self.warnings: List[str] = []
+                  self.info: List[str] = []
+
+              def lint(self) -> Tuple[bool, Dict[str, List[str]]]:
+                  """Run all CORS linting checks."""
+                  with open(self.config_file, 'r') as f:
+                      content = f.read()
+
+                  # Check for wildcard with credentials
+                  self._check_wildcard_credentials(content)
+
+                  # Check for overly permissive origins
+                  self._check_permissive_origins(content)
+
+                  # Check for duplicate origins
+                  self._check_duplicate_origins(content)
+
+                  # Validate origin format
+                  self._check_origin_format(content)
+
+                  # Check for missing security headers
+                  self._check_security_headers(content)
+
+                  # Check for production CORS settings
+                  self._check_production_settings(content)
+
+                  return len(self.errors) == 0, {
+                      'errors': self.errors,
+                      'warnings': self.warnings,
+                      'info': self.info
+                  }
+
+              def _check_wildcard_credentials(self, content: str) -> None:
+                  """Check for dangerous wildcard + credentials combination."""
+                  # Check for allow_credentials=True with allow_origins=["*"]
+                  wildcard_pattern = r'allow_origins\s*=\s*\[\s*["\']?\*["\']?\s*\]'
+                  credentials_pattern = r'allow_credentials\s*=\s*True'
+
+                  has_wildcard = re.search(wildcard_pattern, content)
+                  has_credentials = re.search(credentials_pattern, content)
+
+                  if has_wildcard and has_credentials:
+                      self.errors.append(
+                          "🚨 CRITICAL: Cannot use allow_origins=['*'] with allow_credentials=True. "
+                          "This violates CORS security policy and will fail in browsers."
+                      )
+                  elif has_wildcard:
+                      self.warnings.append(
+                          "⚠️  Wildcard origin '*' detected. Consider using specific origins for better security."
+                      )
+
+              def _check_permissive_origins(self, content: str) -> None:
+                  """Check for overly permissive origin patterns."""
+                  # Check for patterns like *.railway.app or *.up.railway.app
+                  pattern_match = re.search(r'["\']https?://\*\.', content)
+                  if pattern_match:
+                      self.warnings.append(
+                          "⚠️  Wildcard subdomain pattern detected (e.g., *.railway.app). "
+                          "Ensure this is intentional and required for your deployment."
+                      )
+
+                  # Check for http:// origins in production check
+                  http_origins = re.findall(r'["\']http://[^"\']+["\']', content)
+                  if http_origins and 'localhost' not in content and '127.0.0.1' not in content:
+                      self.warnings.append(
+                          f"⚠️  Non-localhost HTTP origins detected: {len(http_origins)} found. "
+                          "Production should use HTTPS only."
+                      )
+
+              def _check_duplicate_origins(self, content: str) -> None:
+                  """Check for duplicate origin entries."""
+                  # Extract all origins from ALLOWED_ORIGINS default value
+                  origins_pattern = r'ALLOWED_ORIGINS.*?default\s*=\s*\[(.*?)\]'
+                  match = re.search(origins_pattern, content, re.DOTALL)
+
+                  if match:
+                      origins_text = match.group(1)
+                      origins = re.findall(r'["\']([^"\']+)["\']', origins_text)
+
+                      seen = set()
+                      duplicates = []
+                      for origin in origins:
+                          if origin in seen:
+                              duplicates.append(origin)
+                          seen.add(origin)
+
+                      if duplicates:
+                          self.warnings.append(
+                              f"⚠️  Duplicate origins found: {', '.join(set(duplicates))}"
+                          )
+
+                      self.info.append(f"ℹ️  Total unique origins: {len(seen)}")
+
+              def _check_origin_format(self, content: str) -> None:
+                  """Validate origin URL format."""
+                  # Extract all origins
+                  origins = re.findall(r'["\']https?://[^"\']+["\']', content)
+
+                  invalid = []
+                  for origin in origins:
+                      origin_clean = origin.strip('"\'')
+
+                      # Check for trailing slashes (invalid in CORS)
+                      if origin_clean.endswith('/'):
+                          invalid.append(f"{origin_clean} (trailing slash)")
+
+                      # Check for invalid characters
+                      if re.search(r'[<>{}\\^`|]', origin_clean):
+                          invalid.append(f"{origin_clean} (invalid characters)")
+
+                  if invalid:
+                      self.errors.append(
+                          f"🚨 Invalid origin format: {', '.join(invalid)}"
+                      )
+
+              def _check_security_headers(self, content: str) -> None:
+                  """Check for proper CORS security headers configuration."""
+                  required_headers = ['Authorization', 'Content-Type']
+
+                  allow_headers_match = re.search(r'allow_headers\s*=\s*\[(.*?)\]', content, re.DOTALL)
+
+                  if not allow_headers_match:
+                      self.warnings.append(
+                          "⚠️  No explicit allow_headers configuration found. "
+                          "Consider explicitly listing allowed headers."
+                      )
+                  else:
+                      headers_text = allow_headers_match.group(1)
+                      missing = []
+                      for header in required_headers:
+                          if header not in headers_text:
+                              missing.append(header)
+
+                      if missing:
+                          self.warnings.append(
+                              f"⚠️  Missing critical headers in allow_headers: {', '.join(missing)}"
+                          )
+
+              def _check_production_settings(self, content: str) -> None:
+                  """Check for production-safe CORS settings."""
+                  # Check for max_age setting
+                  if 'max_age' not in content:
+                      self.info.append(
+                          "ℹ️  No max_age set for CORS. Consider adding for better performance."
+                      )
+
+                  # Check for explicit methods
+                  if 'allow_methods' not in content:
+                      self.warnings.append(
+                          "⚠️  No explicit allow_methods configuration. "
+                          "Consider explicitly listing allowed HTTP methods."
+                      )
+
+
+          def main():
+              """Main linter execution."""
+              linter = CORSLinter('backend-hormonia/app/config.py')
+              success, results = linter.lint()
+
+              print("=" * 70)
+              print("CORS CONFIGURATION LINT RESULTS")
+              print("=" * 70)
+              print()
+
+              if results['errors']:
+                  print("ERRORS:")
+                  for error in results['errors']:
+                      print(f"  {error}")
+                  print()
+
+              if results['warnings']:
+                  print("WARNINGS:")
+                  for warning in results['warnings']:
+                      print(f"  {warning}")
+                  print()
+
+              if results['info']:
+                  print("INFO:")
+                  for info in results['info']:
+                      print(f"  {info}")
+                  print()
+
+              if success:
+                  print("✅ CORS configuration validation PASSED")
+                  return 0
+              else:
+                  print("❌ CORS configuration validation FAILED")
+                  return 1
+
+
+          if __name__ == '__main__':
+              sys.exit(main())
+          EOF
+
+          chmod +x cors_linter.py
+          python cors_linter.py
+
+      - name: Check middleware configuration
+        run: |
+          cat > middleware_checker.py << 'EOF'
+          #!/usr/bin/env python3
+          """Check middleware setup for CORS configuration issues."""
+          import re
+          import sys
+
+
+          def check_middleware_setup():
+              """Validate middleware_setup.py for CORS issues."""
+              errors = []
+              warnings = []
+
+              with open('backend-hormonia/app/core/middleware_setup.py', 'r') as f:
+                  content = f.read()
+
+              # Check for duplicate CORS middleware
+              cors_middleware_count = len(re.findall(r'add_middleware.*CORS', content, re.IGNORECASE))
+              if cors_middleware_count > 1:
+                  errors.append(
+                      f"🚨 Multiple CORS middleware detected ({cors_middleware_count}). "
+                      "This can cause duplicate headers and CORS failures."
+                  )
+              elif cors_middleware_count == 0:
+                  errors.append("🚨 No CORS middleware found in middleware_setup.py")
+
+              # Check for proper CORS order (should be last added = first executed)
+              lines = content.split('\n')
+              cors_line = -1
+              other_middleware_after = []
+
+              for i, line in enumerate(lines):
+                  if 'add_middleware' in line and 'CORS' in line:
+                      cors_line = i
+                  elif cors_line > 0 and i > cors_line and 'add_middleware' in line:
+                      other_middleware_after.append(line.strip())
+
+              if other_middleware_after:
+                  warnings.append(
+                      f"⚠️  Middleware added after CORS (may execute before CORS): "
+                      f"{len(other_middleware_after)} found"
+                  )
+
+              print("=" * 70)
+              print("MIDDLEWARE SETUP VALIDATION")
+              print("=" * 70)
+              print()
+
+              if errors:
+                  print("ERRORS:")
+                  for error in errors:
+                      print(f"  {error}")
+                  print()
+
+              if warnings:
+                  print("WARNINGS:")
+                  for warning in warnings:
+                      print(f"  {warning}")
+                  print()
+
+              if errors:
+                  print("❌ Middleware validation FAILED")
+                  return 1
+
+              print("✅ Middleware validation PASSED")
+              return 0
+
+
+          if __name__ == '__main__':
+              sys.exit(check_middleware_setup())
+          EOF
+
+          python middleware_checker.py
+
+      - name: Upload lint results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cors-lint-results
+          path: |
+            cors_linter.py
+            middleware_checker.py
+
+  cors-security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: cors-lint
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Run CORS security scanner
+        run: |
+          cat > cors_security_scanner.py << 'EOF'
+          #!/usr/bin/env python3
+          """
+          CORS Security Scanner
+
+          Analyzes CORS configuration for security vulnerabilities.
+          """
+          import re
+          import sys
+          from typing import List, Dict, Tuple
+
+
+          class CORSSecurityScanner:
+              """Security scanner for CORS configuration."""
+
+              SEVERITY_CRITICAL = "CRITICAL"
+              SEVERITY_HIGH = "HIGH"
+              SEVERITY_MEDIUM = "MEDIUM"
+              SEVERITY_LOW = "LOW"
+
+              def __init__(self):
+                  self.findings: List[Dict] = []
+
+              def scan(self) -> Tuple[bool, List[Dict]]:
+                  """Run security scans on CORS configuration."""
+                  with open('backend-hormonia/app/config.py', 'r') as f:
+                      config_content = f.read()
+
+                  with open('backend-hormonia/app/core/middleware_setup.py', 'r') as f:
+                      middleware_content = f.read()
+
+                  # Security checks
+                  self._check_credentials_policy(config_content, middleware_content)
+                  self._check_origin_validation(config_content)
+                  self._check_method_restrictions(middleware_content)
+                  self._check_header_exposure(middleware_content)
+                  self._check_production_safety(config_content)
+
+                  # Check for critical findings
+                  critical_findings = [f for f in self.findings if f['severity'] == self.SEVERITY_CRITICAL]
+
+                  return len(critical_findings) == 0, self.findings
+
+              def _check_credentials_policy(self, config: str, middleware: str) -> None:
+                  """Check for insecure credentials policy."""
+                  has_credentials = 'allow_credentials=True' in middleware or 'allow_credentials = True' in middleware
+                  has_wildcard = '"*"' in config or "'*'" in config
+
+                  if has_credentials and has_wildcard:
+                      self.findings.append({
+                          'severity': self.SEVERITY_CRITICAL,
+                          'title': 'Wildcard origin with credentials',
+                          'description': (
+                              "Using allow_credentials=True with wildcard origins violates "
+                              "CORS security policy and will be rejected by browsers."
+                          ),
+                          'recommendation': 'Use specific origins instead of wildcards when credentials are enabled.',
+                          'cwe': 'CWE-942: Overly Permissive Cross-domain Whitelist'
+                      })
+
+              def _check_origin_validation(self, config: str) -> None:
+                  """Check for proper origin validation."""
+                  # Check for pattern-based origins
+                  has_patterns = re.search(r'\*\..*\.(com|app|io)', config)
+
+                  if has_patterns:
+                      self.findings.append({
+                          'severity': self.SEVERITY_MEDIUM,
+                          'title': 'Pattern-based origin matching',
+                          'description': (
+                              "Pattern-based origin matching (*.domain.com) can be risky if not properly validated."
+                          ),
+                          'recommendation': (
+                              "Ensure pattern matching is implemented securely and only matches intended subdomains."
+                          ),
+                          'cwe': 'CWE-346: Origin Validation Error'
+                      })
+
+                  # Check for HTTP origins in production
+                  http_origins = re.findall(r'["\']http://(?!localhost|127\.0\.0\.1)[^"\']+["\']', config)
+                  if http_origins:
+                      self.findings.append({
+                          'severity': self.SEVERITY_HIGH,
+                          'title': 'Insecure HTTP origins',
+                          'description': f"Found {len(http_origins)} HTTP origins that are not localhost.",
+                          'recommendation': 'Use HTTPS origins for all production endpoints.',
+                          'cwe': 'CWE-311: Missing Encryption of Sensitive Data'
+                      })
+
+              def _check_method_restrictions(self, middleware: str) -> None:
+                  """Check for overly permissive HTTP methods."""
+                  # Check if all methods are allowed
+                  if 'allow_methods=["*"]' in middleware or "allow_methods=['*']" in middleware:
+                      self.findings.append({
+                          'severity': self.SEVERITY_MEDIUM,
+                          'title': 'Wildcard HTTP methods',
+                          'description': 'Allowing all HTTP methods may expose unintended functionality.',
+                          'recommendation': 'Explicitly list allowed HTTP methods (GET, POST, PUT, DELETE, etc.).',
+                          'cwe': 'CWE-749: Exposed Dangerous Method or Function'
+                      })
+
+              def _check_header_exposure(self, middleware: str) -> None:
+                  """Check for sensitive header exposure."""
+                  # Check expose_headers for sensitive information
+                  expose_match = re.search(r'expose_headers\s*=\s*\[(.*?)\]', middleware, re.DOTALL)
+
+                  if expose_match:
+                      headers = expose_match.group(1).lower()
+                      sensitive_patterns = ['secret', 'token', 'password', 'key', 'auth']
+
+                      for pattern in sensitive_patterns:
+                          if pattern in headers:
+                              self.findings.append({
+                                  'severity': self.SEVERITY_HIGH,
+                                  'title': f'Sensitive header exposure: {pattern}',
+                                  'description': f"Potentially sensitive header pattern '{pattern}' in expose_headers.",
+                                  'recommendation': 'Review exposed headers and remove any sensitive information.',
+                                  'cwe': 'CWE-200: Exposure of Sensitive Information'
+                              })
+
+              def _check_production_safety(self, config: str) -> None:
+                  """Check for production safety configurations."""
+                  # Check if production validation exists
+                  if '_validate_production_config' not in config:
+                      self.findings.append({
+                          'severity': self.SEVERITY_LOW,
+                          'title': 'Missing production validation',
+                          'description': 'No production environment validation found.',
+                          'recommendation': 'Implement production-specific CORS validation.',
+                          'cwe': 'CWE-1188: Initialization of Insecure Default Value'
+                      })
+
+
+          def main():
+              """Run security scanner."""
+              scanner = CORSSecurityScanner()
+              passed, findings = scanner.scan()
+
+              print("=" * 70)
+              print("CORS SECURITY SCAN RESULTS")
+              print("=" * 70)
+              print()
+
+              if not findings:
+                  print("✅ No security findings detected")
+                  return 0
+
+              # Group findings by severity
+              by_severity = {}
+              for finding in findings:
+                  severity = finding['severity']
+                  if severity not in by_severity:
+                      by_severity[severity] = []
+                  by_severity[severity].append(finding)
+
+              # Print findings
+              for severity in [scanner.SEVERITY_CRITICAL, scanner.SEVERITY_HIGH,
+                              scanner.SEVERITY_MEDIUM, scanner.SEVERITY_LOW]:
+                  if severity in by_severity:
+                      print(f"{severity} FINDINGS ({len(by_severity[severity])}):")
+                      print()
+                      for finding in by_severity[severity]:
+                          print(f"  [{finding['severity']}] {finding['title']}")
+                          print(f"  Description: {finding['description']}")
+                          print(f"  Recommendation: {finding['recommendation']}")
+                          print(f"  CWE: {finding['cwe']}")
+                          print()
+
+              print(f"Total findings: {len(findings)}")
+
+              if passed:
+                  print("\n✅ Security scan PASSED (no critical issues)")
+                  return 0
+              else:
+                  print("\n❌ Security scan FAILED (critical issues found)")
+                  return 1
+
+
+          if __name__ == '__main__':
+              sys.exit(main())
+          EOF
+
+          python cors_security_scanner.py
+
+  cors-smoke-tests:
+    name: CORS Smoke Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: cors-lint
+
+    env:
+      # Test environment variables
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      ENVIRONMENT: testing
+      DEBUG: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: backend-hormonia/requirements.txt
+
+      - name: Install Python dependencies
+        working-directory: backend-hormonia
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx
+
+      - name: Start FastAPI backend
+        working-directory: backend-hormonia
+        run: |
+          # Start server in background
+          nohup python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+
+          # Wait for server
+          echo "Waiting for server to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8000/health > /dev/null 2>&1; then
+              echo "✅ Server is ready!"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 2
+          done
+
+          # Verify server
+          curl -f http://localhost:8000/health || (echo "❌ Server failed to start" && exit 1)
+
+      - name: Run CORS smoke tests
+        run: |
+          cat > test_cors_smoke.py << 'EOF'
+          #!/usr/bin/env python3
+          """
+          CORS Smoke Tests
+
+          Basic smoke tests to verify CORS configuration works correctly.
+          """
+          import httpx
+          import sys
+          from typing import Tuple, List
+
+
+          class CORSSmokeTests:
+              """Smoke tests for CORS configuration."""
+
+              def __init__(self, base_url: str = "http://localhost:8000"):
+                  self.base_url = base_url
+                  self.client = httpx.Client()
+                  self.results: List[Tuple[str, bool, str]] = []
+
+              def run_all_tests(self) -> bool:
+                  """Run all CORS smoke tests."""
+                  print("=" * 70)
+                  print("CORS SMOKE TESTS")
+                  print("=" * 70)
+                  print()
+
+                  # Test 1: Preflight request
+                  self._test_preflight_request()
+
+                  # Test 2: Simple CORS request
+                  self._test_simple_cors_request()
+
+                  # Test 3: CORS with credentials
+                  self._test_cors_with_credentials()
+
+                  # Test 4: Invalid origin rejection
+                  self._test_invalid_origin_rejection()
+
+                  # Test 5: Allowed methods
+                  self._test_allowed_methods()
+
+                  # Print results
+                  self._print_results()
+
+                  # Check if all tests passed
+                  return all(result[1] for result in self.results)
+
+              def _test_preflight_request(self) -> None:
+                  """Test OPTIONS preflight request."""
+                  try:
+                      response = self.client.options(
+                          f"{self.base_url}/test",
+                          headers={
+                              "Origin": "http://localhost:3000",
+                              "Access-Control-Request-Method": "POST",
+                              "Access-Control-Request-Headers": "Content-Type"
+                          }
+                      )
+
+                      # Check for CORS headers
+                      has_origin = "access-control-allow-origin" in response.headers
+                      has_methods = "access-control-allow-methods" in response.headers
+                      has_headers = "access-control-allow-headers" in response.headers
+
+                      passed = all([has_origin, has_methods, has_headers])
+                      message = "Preflight request successful" if passed else "Missing CORS headers in preflight"
+
+                      self.results.append(("Preflight Request", passed, message))
+                  except Exception as e:
+                      self.results.append(("Preflight Request", False, f"Error: {str(e)}"))
+
+              def _test_simple_cors_request(self) -> None:
+                  """Test simple CORS request."""
+                  try:
+                      response = self.client.get(
+                          f"{self.base_url}/test",
+                          headers={"Origin": "http://localhost:3000"}
+                      )
+
+                      has_cors_header = "access-control-allow-origin" in response.headers
+                      message = "CORS header present" if has_cors_header else "Missing CORS header"
+
+                      self.results.append(("Simple CORS Request", has_cors_header, message))
+                  except Exception as e:
+                      self.results.append(("Simple CORS Request", False, f"Error: {str(e)}"))
+
+              def _test_cors_with_credentials(self) -> None:
+                  """Test CORS request with credentials."""
+                  try:
+                      response = self.client.get(
+                          f"{self.base_url}/test",
+                          headers={"Origin": "http://localhost:3000"}
+                      )
+
+                      allow_credentials = response.headers.get("access-control-allow-credentials", "").lower()
+                      passed = allow_credentials == "true"
+                      message = "Credentials allowed" if passed else "Credentials not properly configured"
+
+                      self.results.append(("CORS with Credentials", passed, message))
+                  except Exception as e:
+                      self.results.append(("CORS with Credentials", False, f"Error: {str(e)}"))
+
+              def _test_invalid_origin_rejection(self) -> None:
+                  """Test that invalid origins are rejected."""
+                  try:
+                      response = self.client.get(
+                          f"{self.base_url}/test",
+                          headers={"Origin": "http://evil.com"}
+                      )
+
+                      # Should not have CORS headers for invalid origin
+                      allow_origin = response.headers.get("access-control-allow-origin", "")
+                      passed = allow_origin != "http://evil.com"
+                      message = "Invalid origin rejected" if passed else "Invalid origin allowed (security issue)"
+
+                      self.results.append(("Invalid Origin Rejection", passed, message))
+                  except Exception as e:
+                      self.results.append(("Invalid Origin Rejection", False, f"Error: {str(e)}"))
+
+              def _test_allowed_methods(self) -> None:
+                  """Test allowed HTTP methods."""
+                  try:
+                      response = self.client.options(
+                          f"{self.base_url}/test",
+                          headers={
+                              "Origin": "http://localhost:3000",
+                              "Access-Control-Request-Method": "POST"
+                          }
+                      )
+
+                      allowed_methods = response.headers.get("access-control-allow-methods", "")
+                      has_post = "POST" in allowed_methods
+                      has_get = "GET" in allowed_methods
+
+                      passed = has_post and has_get
+                      message = f"Methods allowed: {allowed_methods}" if passed else "Required methods not allowed"
+
+                      self.results.append(("Allowed Methods", passed, message))
+                  except Exception as e:
+                      self.results.append(("Allowed Methods", False, f"Error: {str(e)}"))
+
+              def _print_results(self) -> None:
+                  """Print test results."""
+                  print("\nTest Results:")
+                  print("-" * 70)
+
+                  for test_name, passed, message in self.results:
+                      status = "✅ PASS" if passed else "❌ FAIL"
+                      print(f"{status} | {test_name:30s} | {message}")
+
+                  print("-" * 70)
+
+                  passed_count = sum(1 for _, passed, _ in self.results if passed)
+                  total_count = len(self.results)
+
+                  print(f"\nPassed: {passed_count}/{total_count}")
+
+                  if passed_count == total_count:
+                      print("\n✅ All CORS smoke tests PASSED")
+                  else:
+                      print(f"\n❌ {total_count - passed_count} test(s) FAILED")
+
+
+          def main():
+              """Run smoke tests."""
+              tests = CORSSmokeTests()
+              passed = tests.run_all_tests()
+              return 0 if passed else 1
+
+
+          if __name__ == '__main__':
+              sys.exit(main())
+          EOF
+
+          python test_cors_smoke.py
+
+      - name: Stop server
+        if: always()
+        run: |
+          pkill -f "uvicorn app.main:app" || true
+
+  generate-report:
+    name: Generate CORS Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [cors-lint, cors-security-scan, cors-smoke-tests]
+    if: always()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate summary report
+        run: |
+          cat > cors_report.md << 'EOF'
+          # CORS Configuration Validation Report
+
+          ## Summary
+
+          This workflow validates the CORS (Cross-Origin Resource Sharing) configuration for security vulnerabilities and proper functionality.
+
+          ## Validation Steps
+
+          ### 1. Configuration Linting ✅
+          - Checks for wildcard + credentials security issue
+          - Validates ALLOWED_ORIGINS format
+          - Detects duplicate origins
+          - Validates middleware configuration
+
+          ### 2. Security Scanning 🔒
+          - CWE-942: Overly Permissive Cross-domain Whitelist
+          - CWE-346: Origin Validation Error
+          - CWE-311: Missing Encryption (HTTP vs HTTPS)
+          - CWE-200: Exposure of Sensitive Information
+
+          ### 3. Smoke Testing 🧪
+          - Preflight OPTIONS requests
+          - Simple CORS requests
+          - Credentials support
+          - Invalid origin rejection
+          - HTTP method validation
+
+          ## Configuration Best Practices
+
+          ### ✅ Recommended
+          - Use explicit origin list (no wildcards with credentials)
+          - HTTPS origins for production
+          - Explicit allow_methods and allow_headers
+          - max_age for caching preflight responses
+          - Proper expose_headers configuration
+
+          ### ❌ Avoid
+          - `allow_origins=["*"]` with `allow_credentials=True`
+          - Overly broad wildcard patterns
+          - HTTP origins in production
+          - Exposing sensitive headers
+          - Missing origin validation
+
+          ## Security Considerations
+
+          1. **Wildcard Origins**: Never use `*` with credentials enabled
+          2. **Pattern Matching**: Validate wildcard patterns carefully
+          3. **HTTPS Only**: Use HTTPS origins for production environments
+          4. **Header Exposure**: Don't expose sensitive headers
+          5. **Method Restrictions**: Explicitly list allowed HTTP methods
+
+          ## Troubleshooting
+
+          ### Common CORS Issues
+
+          1. **Missing CORS headers**: Check middleware order (CORS should be last added)
+          2. **Duplicate headers**: Ensure only one CORS middleware is configured
+          3. **Origin mismatch**: Verify exact origin match (including protocol and port)
+          4. **Credentials blocked**: Don't use wildcard with credentials
+          5. **Preflight failures**: Check OPTIONS endpoint configuration
+
+          ### Debug Commands
+
+          ```bash
+          # Check CORS configuration
+          npx claude-flow@alpha hooks pre-task --description "CORS debug"
+
+          # Test CORS with curl
+          curl -X OPTIONS http://localhost:8000/api/endpoint \
+            -H "Origin: http://localhost:3000" \
+            -H "Access-Control-Request-Method: POST" \
+            -v
+          ```
+
+          ## Resources
+
+          - [MDN CORS Documentation](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS)
+          - [OWASP CORS Security](https://cheatsheetseries.owasp.org/cheatsheets/CORS_Security_Cheat_Sheet.html)
+          - [FastAPI CORS Middleware](https://fastapi.tiangolo.com/tutorial/cors/)
+
+          ---
+
+          Generated by CORS Validation Workflow
+          EOF
+
+          cat cors_report.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: cors-validation-report
+          path: cors_report.md
