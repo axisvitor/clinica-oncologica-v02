@@ -45,13 +45,13 @@ window.__RUNTIME_CONFIG__ = {
       console.warn('Failed to load runtime config from API:', error);
     }
 
-    // Fallback to development defaults if API fails
+    // Fallback to production Railway defaults if API fails
     const fallbackConfig = {
       VITE_SUPABASE_URL: '',
       VITE_SUPABASE_ANON_KEY: '',
-      VITE_API_URL: process.env['VITE_API_URL'] || 'http://localhost:8000',
-      VITE_WS_BASE_URL: process.env['VITE_WS_BASE_URL'] || 'ws://localhost:8000/ws',
-      VITE_API_BASE_URL: process.env['VITE_API_BASE_URL'] || 'http://localhost:8000'
+      VITE_API_URL: process.env['VITE_API_URL'] || 'https://clinica-oncologica-v02-production.up.railway.app/api/v1',
+      VITE_WS_BASE_URL: process.env['VITE_WS_BASE_URL'] || 'wss://clinica-oncologica-v02-production.up.railway.app/ws',
+      VITE_API_BASE_URL: process.env['VITE_API_BASE_URL'] || 'https://clinica-oncologica-v02-production.up.railway.app'
     };
 
     window.__ENV_CONFIG__ = fallbackConfig;
@@ -135,13 +135,13 @@ if (typeof window !== 'undefined') {
     },
     proxy: mode === 'development' ? {
       '/api': {
-        target: process.env['VITE_API_URL'] || 'http://127.0.0.1:8000',
+        target: process.env['VITE_API_URL'] || 'https://clinica-oncologica-v02-production.up.railway.app',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/api/, '/api/v1'),
       },
       '/ws': {
-        target: process.env['VITE_WS_BASE_URL'] || 'ws://127.0.0.1:8000',
+        target: process.env['VITE_WS_BASE_URL'] || 'wss://clinica-oncologica-v02-production.up.railway.app',
         ws: true,
         changeOrigin: true,
       },

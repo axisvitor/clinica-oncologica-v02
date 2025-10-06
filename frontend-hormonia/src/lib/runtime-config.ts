@@ -149,9 +149,9 @@ async function loadRuntimeConfiguration(): Promise<RuntimeConfig> {
 
   // In development, use Vite's import.meta.env directly
   if (!isProduction) {
-    const apiBaseUrl = import.meta.env['VITE_API_BASE_URL'] || 'http://127.0.0.1:8000';
+    const apiBaseUrl = import.meta.env['VITE_API_BASE_URL'] || 'https://clinica-oncologica-v02-production.up.railway.app';
     const apiUrl = import.meta.env['VITE_API_URL'] || `${apiBaseUrl}/api/v1`;
-    const wsBaseUrl = import.meta.env['VITE_WS_BASE_URL'] || import.meta.env['VITE_WS_URL'] || 'ws://127.0.0.1:8000/ws';
+    const wsBaseUrl = import.meta.env['VITE_WS_BASE_URL'] || import.meta.env['VITE_WS_URL'] || 'wss://clinica-oncologica-v02-production.up.railway.app/ws';
 
     const devConfig: RuntimeConfig = {
       VITE_SUPABASE_URL: import.meta.env['VITE_SUPABASE_URL'] || '',

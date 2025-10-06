@@ -49,7 +49,7 @@ const logger = createLogger('ApiClient')
 
 // Use a default URL in case config hasn't loaded yet
 const getApiUrl = () => {
-  return API_BASE_URL || import.meta.env['VITE_API_URL'] || 'http://localhost:8000'
+  return API_BASE_URL || import.meta.env['VITE_API_URL'] || 'https://clinica-oncologica-v02-production.up.railway.app'
 }
 
 export interface ApiResponse<T> {
