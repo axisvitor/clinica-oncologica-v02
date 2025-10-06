@@ -62,7 +62,8 @@ def register_routers(app: FastAPI) -> None:
     # Medico (Doctor) dashboard and stats endpoints
     app.include_router(medico.router, prefix="/api/v1", tags=["Medico"])
     logger.info("✓ Medico dashboard endpoints registered")
-n    # Physician endpoints - optimized bulk operations
+
+    # Physician endpoints - optimized bulk operations
     app.include_router(physician.router, prefix="/api/v1", tags=["Physician"])
     logger.info("✓ Physician endpoints registered (risk assessments, bulk ops)")
 
