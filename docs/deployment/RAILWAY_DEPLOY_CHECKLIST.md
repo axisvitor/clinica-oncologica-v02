@@ -1,331 +1,287 @@
-# Railway Deployment Checklist
+# Railway Deployment Checklist - Production Ready
 
-**Projeto:** Clínica Oncológica - Hormonia Backend
-**Última Atualização:** 2025-10-05
+## 🎯 Quick Start (10 Minutes to Fix)
 
----
-
-## 🚀 Checklist de Deploy Railway
-
-### 📋 PRÉ-DEPLOY (Fazer ANTES de enviar para produção)
-
-#### 1. Configuração de Arquivos
-
-- [ ] `railway.toml` existe na raiz do projeto
-- [ ] `backend-hormonia/Dockerfile` configurado com `$PORT`
-- [ ] `backend-hormonia/Dockerfile.worker` existe (se usando Celery)
-- [ ] `backend-hormonia/Dockerfile.beat` existe (se usando Celery)
-- [ ] `frontend-hormonia/Dockerfile` existe
-- [ ] `.github/workflows/railway-deploy.yml` configurado
-
-#### 2. Variáveis de Ambiente (Railway Dashboard)
-
-**OBRIGATÓRIAS - API BACKEND:**
-- [ ] `DATABASE_URL` - PostgreSQL connection string
-- [ ] `SECRET_KEY` - 64+ caracteres aleatórios
-- [ ] `REDIS_URL` - Redis connection string (rediss:// com SSL)
-- [ ] `ENVIRONMENT=production`
-- [ ] `DEBUG=false`
-
-**FIREBASE (obrigatório para auth):**
-- [ ] `FIREBASE_PROJECT_ID`
-- [ ] `FIREBASE_PRIVATE_KEY` (formato correto com `\n`)
-- [ ] `FIREBASE_CLIENT_EMAIL`
-- [ ] `FIREBASE_DATABASE_URL`
-
-**SUPABASE (obrigatório para RLS):**
-- [ ] `SUPABASE_URL`
-- [ ] `SUPABASE_KEY` (service role key)
-
-**REDIS (obrigatório para cache/sessions):**
-- [ ] `REDIS_URL` (deve começar com `rediss://` para SSL)
-- [ ] `REDIS_PASSWORD` (se aplicável)
-
-**CELERY (se usando background tasks):**
-- [ ] `CELERY_BROKER_URL` (geralmente = REDIS_URL)
-- [ ] `CELERY_RESULT_BACKEND` (geralmente = REDIS_URL)
-
-**OPCIONAL (mas recomendado):**
-- [ ] `SENTRY_DSN` (para error tracking)
-- [ ] `GEMINI_API_KEY` (se usando AI)
-- [ ] `EVOLUTION_API_URL` (se usando WhatsApp)
-- [ ] `EVOLUTION_API_KEY`
-
-#### 3. Testes Locais
-
-- [ ] `docker build` completa sem erros
-- [ ] `docker run` inicia aplicação com sucesso
-- [ ] Health check `/health` retorna 200 OK
-- [ ] Database migrations aplicadas (`alembic upgrade head`)
-- [ ] Tests passam (`pytest tests/`)
-- [ ] Linting passa (`ruff check`)
-
-#### 4. GitHub Actions
-
-- [ ] Workflow `.github/workflows/railway-deploy.yml` configurado
-- [ ] GitHub Secret `RAILWAY_TOKEN` configurado
-- [ ] GitHub Secret `RAILWAY_BACKEND_URL` configurado (opcional)
-- [ ] GitHub Secret `RAILWAY_FRONTEND_URL` configurado (opcional)
-- [ ] Push para branch `main` ou `production` ativa workflow
+### Prerequisites
+- [x] All code changes committed (✅ Done - commit `acf1026`)
+- [x] Local `.env` files updated (✅ Done)
+- [ ] Access to Railway dashboard
+- [ ] Access to local terminal (for Firebase script)
 
 ---
 
-## 🎯 DURANTE O DEPLOY
+## Step 1: Fix Firebase Custom Claims (5 minutes)
 
-#### 1. Monitoramento do Deploy
+### 1.1 Run Firebase Script Locally
 
-- [ ] Abrir Railway Dashboard
-- [ ] Abrir GitHub Actions tab
-- [ ] Monitorar logs do Railway em tempo real
-- [ ] Verificar status de cada serviço:
-  - Backend API
-  - Celery Worker
-  - Celery Beat
-  - Frontend
+```bash
+# Navigate to backend directory
+cd backend-hormonia
 
-#### 2. Verificação de Build
+# Run the script (loads .env automatically)
+python scripts/fix_firebase_custom_claims.py
+```
 
-- [ ] Build do backend completa (5-10 min esperado)
-- [ ] Build do frontend completa (3-5 min esperado)
-- [ ] Sem erros críticos nos logs de build
-- [ ] Docker images criadas com sucesso
+**Expected Output**:
+```
+================================================================================
+Firebase Custom Claims Fix Script
+================================================================================
+🔍 Validating environment variables...
+✅ All required environment variables are set
+🔧 Initializing Firebase Admin SDK...
+✅ Firebase initialized for project: sistema-oncologico-auth
 
-#### 3. Verificação de Startup
+🎯 Target user:
+   Email: admin@neoplasiaslitoral.com
+   UID: xrqu2gDVL6eGfyNUiwxJlwVBbb73
 
-- [ ] Backend API inicia sem erros
-- [ ] Health check `/health` começa a retornar 200
-- [ ] Database conectada (verificar logs)
-- [ ] Redis conectado (verificar logs)
-- [ ] Migrations aplicadas automaticamente (se configurado)
+👤 Setting custom claims for: admin@neoplasiaslitoral.com
+✅ Custom claims set successfully
 
----
+📋 Verified custom claims:
+{
+  "role": "admin",
+  "roles": ["admin", "super_admin"],
+  "permissions": ["read", "write", "delete", "admin"],
+  "email_verified": true,
+  "system": "neoplasias-litoral",
+  "created_by": "admin_script"
+}
 
-## ✅ PÓS-DEPLOY (Fazer APÓS deploy completar)
+================================================================================
+✅ SUCCESS - Custom claims updated!
+================================================================================
+```
 
-#### 1. Validação de Serviços
+### 1.2 Troubleshooting
 
-**Backend API:**
-- [ ] URL pública acessível
-- [ ] `GET /health` retorna 200 OK
-- [ ] `GET /health/readiness` retorna 200 OK
-- [ ] `GET /health/liveness` retorna 200 OK
-- [ ] `GET /docs` (Swagger) acessível
-- [ ] `GET /test` retorna mensagem correta
+**If you see "Missing environment variables"**:
+```bash
+# Make sure you're in backend-hormonia directory
+pwd  # Should show: .../clinica-oncologica-v02/backend-hormonia
 
-**Frontend:**
-- [ ] URL pública acessível
-- [ ] Página carrega sem erros 404
-- [ ] Assets estáticos (CSS/JS) carregam
-- [ ] Chamadas API funcionam (verificar Network tab)
+# Check .env file exists
+ls -la .env
 
-**Celery (se aplicável):**
-- [ ] Workers aparecem no Railway dashboard
-- [ ] Logs mostram workers processando tasks
-- [ ] Beat scheduler executando tarefas agendadas
+# Manually load .env if needed (Linux/Mac)
+export $(cat .env | grep -v '^#' | xargs)
 
-#### 2. Testes Funcionais
+# Or on Windows PowerShell
+Get-Content .env | ForEach-Object {
+    if ($_ -match '^([^=]+)=(.*)$') {
+        [Environment]::SetEnvironmentVariable($matches[1], $matches[2])
+    }
+}
+```
 
-**Autenticação:**
-- [ ] Login funciona
-- [ ] Registro de usuário funciona
-- [ ] Token JWT válido retornado
-- [ ] Logout funciona
-
-**Database:**
-- [ ] Queries executam com sucesso
-- [ ] RLS (Row Level Security) funcionando
-- [ ] Migrations aplicadas corretamente
-
-**Cache/Redis:**
-- [ ] Cache funcionando (testar endpoint com cache)
-- [ ] Sessions persistindo entre requests
-- [ ] Rate limiting ativo (se configurado)
-
-**APIs Externas:**
-- [ ] Firebase Auth funcionando
-- [ ] Supabase conexão OK
-- [ ] Gemini AI respondendo (se aplicável)
-- [ ] WhatsApp integration OK (se aplicável)
-
-#### 3. Performance e Monitoramento
-
-**Métricas Iniciais:**
-- [ ] Response time < 500ms (média)
-- [ ] Memory usage estável
-- [ ] CPU usage < 70%
-- [ ] No memory leaks (monitorar 24h)
-
-**Logs:**
-- [ ] Sem erros críticos (ERROR/CRITICAL)
-- [ ] Warnings investigados
-- [ ] Structured logging funcionando
-- [ ] Log aggregation ativo (se configurado)
-
-**Health Checks:**
-- [ ] Railway health checks passando
-- [ ] Nenhum restart inesperado
-- [ ] Uptime > 99% após 24h
-
-#### 4. Segurança
-
-- [ ] HTTPS habilitado (Railway faz automaticamente)
-- [ ] CORS configurado corretamente
-- [ ] Rate limiting ativo
-- [ ] Secrets não expostos em logs
-- [ ] Database credentials seguras
-
-#### 5. Rollback Plan
-
-- [ ] Versão anterior identificada
-- [ ] Comando de rollback testado
-- [ ] Tempo de rollback estimado
-- [ ] Stakeholders notificados do deploy
+**If you see "User not found"**:
+- User might not exist in Firebase yet
+- Run `list_users()` option in script to see all users
+- Contact admin to verify Firebase user exists
 
 ---
 
-## 🚨 TROUBLESHOOTING
+## Step 2: Update Railway DATABASE_URL (2 minutes)
 
-### Backend não inicia
+### 2.1 Copy the Correct URL
 
-1. **Verificar logs Railway:**
-   ```bash
-   railway logs --service backend-api
+**Copy this exact value** (including `+psycopg`):
+```
+postgresql+psycopg://postgres.rszpypytdciggybbpnrp:NvbKfi1xMY7wzNof@aws-0-sa-east-1.pooler.supabase.com:5432/postgres
+```
+
+### 2.2 Update in Railway Dashboard
+
+1. Open Railway dashboard: https://railway.app
+2. Select project: `clinica-oncologica-v02`
+3. Click on **Backend Service**
+4. Go to **Variables** tab
+5. Find `DATABASE_URL` variable
+6. Click **Edit**
+7. **Paste** the URL from step 2.1 (replace entire value)
+8. Click **Save**
+
+### 2.3 Wait for Redeploy
+
+Railway will automatically redeploy (takes ~2-3 minutes):
+
+- Watch the **Deployments** tab
+- Wait for status: ✅ **Success**
+- Check logs for startup message
+
+**Expected logs**:
+```
+INFO:     Started server process [1]
+INFO:     Waiting for application startup.
+DEBUG:    Database engine initialized: postgresql+psycopg://postgres.***
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8080
+```
+
+---
+
+## Step 3: Verify Fix Works (3 minutes)
+
+### 3.1 Test Authentication Endpoint
+
+```bash
+# Get a fresh Firebase token (login to frontend)
+# Copy token from browser DevTools → Application → Local Storage
+
+# Test authenticated endpoint
+curl -X GET \
+  'https://clinica-oncologica-v02-production.up.railway.app/api/v1/auth/me' \
+  -H 'Authorization: Bearer YOUR_FIREBASE_TOKEN_HERE'
+```
+
+**✅ Expected Response** (HTTP 200):
+```json
+{
+  "id": "...",
+  "email": "admin@neoplasiaslitoral.com",
+  "role": "admin",
+  "firebase_uid": "xrqu2gDVL6eGfyNUiwxJlwVBbb73"
+}
+```
+
+**❌ If you still get 401**:
+1. Make sure user logged out and back in (to get fresh token)
+2. Check Railway logs for "Invalid role" errors
+3. Verify Firebase script actually ran successfully
+
+### 3.2 Check Railway Logs
+
+Open Railway → Backend Service → **Logs**
+
+**✅ Look for these SUCCESS indicators**:
+```
+✅ Auth request succeeded: 200 OK
+✅ Database connection successful
+✅ Audit log persisted to database
+✅ Request completed in < 1 second
+```
+
+**❌ Should NOT see these ERRORS**:
+```
+❌ Missing role in custom claims
+❌ Invalid role in custom claims: {}
+❌ SCRAM exchange: Wrong password
+❌ Request took 5-7 seconds
+❌ HTTP 401 Unauthorized
+```
+
+### 3.3 Test WebSocket Connection
+
+1. Open frontend application
+2. Login with admin credentials
+3. Check browser console for WebSocket connection
+
+**✅ Expected**:
+```
+WebSocket connected: wss://clinica-oncologica-v02-production.up.railway.app/ws/connect
+Status: 101 Switching Protocols
+Authentication: SUCCESS
+```
+
+**❌ If connection fails**:
+- Check Railway logs for "invalid token" errors
+- Verify Firebase token has custom claims (decode at https://jwt.io)
+- Make sure user logged out and back in
+
+### 3.4 Verify Audit Logging
+
+1. Open Supabase dashboard: https://supabase.com
+2. Go to **SQL Editor**
+3. Run query:
+   ```sql
+   SELECT * FROM audit_log_entries
+   ORDER BY created_at DESC
+   LIMIT 10;
    ```
 
-2. **Verificar variáveis de ambiente:**
-   ```bash
-   railway variables
-   ```
+**✅ Expected**: Recent entries with `created_at` timestamps from last few minutes
 
-3. **Verificar health check:**
-   ```bash
-   curl https://your-backend.railway.app/health
-   ```
-
-4. **Verificar database:**
-   - Database URL correto?
-   - Database acessível do Railway?
-   - Migrations aplicadas?
-
-### Health Check falhando
-
-1. **Verificar timeout:**
-   - Health check demora > 10s?
-   - Aumentar timeout no `railway.toml`
-
-2. **Verificar dependências:**
-   - Database acessível?
-   - Redis acessível?
-   - ServiceProvider inicializa?
-
-3. **Verificar endpoint:**
-   - `/health` retorna 200?
-   - JSON válido?
-   - Sem exceções?
-
-### Celery Worker não processa tasks
-
-1. **Verificar REDIS_URL:**
-   - Deve ser `rediss://` (com SSL)
-   - Password correto?
-   - Acessível do Railway?
-
-2. **Verificar logs:**
-   ```bash
-   railway logs --service celery-worker
-   ```
-
-3. **Verificar queues:**
-   - Tasks sendo enviadas?
-   - Worker conectado ao broker?
-
-### Frontend não carrega
-
-1. **Verificar build:**
-   - `npm run build` completou?
-   - Sem erros de TypeScript?
-
-2. **Verificar environment variables:**
-   - `VITE_API_URL` correto?
-   - Aponta para Railway backend URL?
-
-3. **Verificar CORS:**
-   - Backend permite origem do frontend?
-   - Headers CORS corretos?
+**❌ If empty**: Check Railway logs for database connection errors
 
 ---
 
-## 📊 Métricas de Sucesso
+## 🚨 Rollback Plan (If Something Goes Wrong)
 
-### Critérios de Aceitação
+### If Firebase Script Fails
+```bash
+# No rollback needed - script is read-only if it fails
+# Just fix the error and run again
+```
 
-- [ ] Uptime > 99.5% nas primeiras 24h
-- [ ] Response time médio < 500ms
-- [ ] Zero erros críticos em produção
-- [ ] Todos os health checks passando
-- [ ] Nenhum restart inesperado
-- [ ] Memory usage < 80% alocado
-- [ ] CPU usage < 70% alocado
+### If Railway Deployment Fails
 
-### KPIs a Monitorar (7 dias)
-
-- Uptime %
-- Average Response Time
-- Error Rate %
-- Request Volume
-- Database Query Time
-- Cache Hit Rate
-- Celery Task Success Rate
-
----
-
-## 🔄 Processo de Rollback
-
-### Quando fazer rollback:
-
-- Erros críticos em produção (>5% requests)
-- Health checks falhando consistentemente
-- Performance degradada (>2x slower)
-- Data corruption detectada
-- Security vulnerability descoberta
-
-### Como fazer rollback:
-
-1. **Via Railway Dashboard:**
-   - Ir para "Deployments"
-   - Selecionar deployment anterior
-   - Clicar "Redeploy"
-
-2. **Via Railway CLI:**
-   ```bash
-   railway rollback
+1. **Revert DATABASE_URL** to old value (if you saved it)
+2. **Or** use this temporary URL (old password, may not work):
    ```
-
-3. **Via Git:**
-   ```bash
-   git revert HEAD
-   git push origin main
+   postgresql://postgres.rszpypytdciggybbpnrp:OLD_PASSWORD@...
    ```
+3. **Contact support** if database connection is completely broken
+
+### Emergency Contact
+- Check Railway status: https://status.railway.app
+- Check Supabase status: https://status.supabase.com
+- Review logs in [RAILWAY_LOGS_REVIEW.md](RAILWAY_LOGS_REVIEW.md)
 
 ---
 
-## 📞 Contatos de Emergência
+## ✅ Success Criteria
 
-- **DevOps Lead:** [Nome/Email]
-- **Backend Lead:** [Nome/Email]
-- **Railway Support:** https://railway.app/support
-- **Status Page:** https://status.railway.app
+After completing all steps, verify:
 
----
-
-## 📝 Histórico de Deploys
-
-| Data | Versão | Deploy Por | Status | Notas |
-|------|--------|------------|--------|-------|
-| 2025-10-05 | v2.0.0 | [Nome] | ✅ | Initial Railway deploy |
-| | | | | |
+- [ ] **Firebase script succeeded** (shows custom claims in output)
+- [ ] **Railway redeployed successfully** (status: ✅ Success)
+- [ ] **Auth endpoint returns 200** (not 401)
+- [ ] **Request time < 1 second** (not 5-7 seconds)
+- [ ] **WebSocket connects** (101 status)
+- [ ] **Audit logs persist** (visible in Supabase)
+- [ ] **No "Wrong password" errors** in Railway logs
 
 ---
 
-**Última Revisão:** 2025-10-05
-**Próxima Revisão:** Após primeiro deploy em produção
+## 📊 Performance Comparison
+
+### Before Fix
+- Auth request time: **5-7 seconds**
+- HTTP status: **401 Unauthorized**
+- Database errors: **SCRAM exchange: Wrong password**
+- WebSocket auth: **Failed**
+- Audit logs: **Not persisting**
+
+### After Fix
+- Auth request time: **< 1 second** ✅
+- HTTP status: **200 OK** ✅
+- Database errors: **None** ✅
+- WebSocket auth: **Success** ✅
+- Audit logs: **Persisting** ✅
+
+---
+
+## 🔗 Related Documentation
+
+- [RAILWAY_AUTH_FIX_CRITICAL.md](RAILWAY_AUTH_FIX_CRITICAL.md) - Detailed technical explanation
+- [RAILWAY_PSYCOPG_FIX.md](RAILWAY_PSYCOPG_FIX.md) - psycopg v3 migration details
+- [RAILWAY_VARIABLES_COMPLETE.md](RAILWAY_VARIABLES_COMPLETE.md) - All environment variables
+- [backend-hormonia/scripts/README.md](../../backend-hormonia/scripts/README.md) - Firebase scripts
+
+---
+
+## 📝 Post-Deployment Notes
+
+After successful deployment, add to your team documentation:
+
+1. **Firebase Custom Claims**: All new admin users must have custom claims set
+2. **DATABASE_URL Format**: Always use `postgresql+psycopg://` for Python 3.13
+3. **Token Refresh**: Users must logout/login after claim changes
+4. **Audit Logs**: Check Supabase weekly for security events
+
+---
+
+**Last Updated**: 2025-10-06
+**Estimated Time**: 10 minutes total
+**Difficulty**: Easy (copy-paste and verify)

@@ -26,6 +26,35 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from app.config import get_settings
 
 
+def validate_environment():
+    """Validate required environment variables are set"""
+    print("🔍 Validating environment variables...")
+
+    required_vars = [
+        'FIREBASE_ADMIN_PROJECT_ID',
+        'FIREBASE_ADMIN_PRIVATE_KEY',
+        'FIREBASE_ADMIN_CLIENT_EMAIL'
+    ]
+
+    missing = []
+    for var in required_vars:
+        if not os.getenv(var):
+            missing.append(var)
+
+    if missing:
+        print(f"❌ Missing required environment variables:")
+        for var in missing:
+            print(f"   - {var}")
+        print("\n💡 Make sure .env file is loaded or set these variables:")
+        print("   export FIREBASE_ADMIN_PROJECT_ID=sistema-oncologico-auth")
+        print("   export FIREBASE_ADMIN_PRIVATE_KEY='-----BEGIN PRIVATE KEY-----...'")
+        print("   export FIREBASE_ADMIN_CLIENT_EMAIL=firebase-adminsdk-fbsvc@...")
+        return False
+
+    print("✅ All required environment variables are set")
+    return True
+
+
 def initialize_firebase():
     """Initialize Firebase Admin SDK"""
     print("🔧 Initializing Firebase Admin SDK...")
@@ -51,7 +80,11 @@ def initialize_firebase():
         if "already exists" in str(e):
             print("✅ Firebase already initialized")
             return True
-        raise
+        print(f"❌ Firebase initialization error: {e}")
+        return False
+    except Exception as e:
+        print(f"❌ Unexpected error during Firebase initialization: {e}")
+        return False
 
 
 def set_custom_claims(uid: str, email: str, role: str = "admin"):
@@ -128,6 +161,12 @@ def main():
     print("=" * 80)
     print("Firebase Custom Claims Fix Script")
     print("=" * 80)
+
+    # Validate environment
+    if not validate_environment():
+        print("\n❌ Environment validation failed")
+        print("💡 Load .env file or set environment variables manually")
+        sys.exit(1)
 
     # Initialize Firebase
     if not initialize_firebase():
