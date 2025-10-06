@@ -1,22 +1,28 @@
 -- ============================================================================
 -- SCHEMA MASTER COMPLETO - CLÍNICA ONCOLÓGICA HORMONIA
 -- ============================================================================
--- Versão: 2.2
--- Data: 2025-10-04
--- Última Atualização: 2025-10-04 (Quiz schema cleanup + materialized views rebuild)
+-- Versão: 2.3
+-- Data: 2025-10-06
+-- Última Atualização: 2025-10-06 (Firebase auth fixes + user_sync_log.updated_at)
 -- Descrição: Schema completo consolidado com todas as 41 tabelas do sistema
 --
 -- IMPORTANTE: Este arquivo NÃO deve ser executado diretamente em produção.
 -- Use as migrations do Supabase para alterações incrementais.
 -- Este arquivo serve como referência completa da estrutura atual.
 --
--- CHANGELOG v2.2:
+-- CHANGELOG v2.3 (2025-10-06):
+-- - CRITICAL FIX: Added user_sync_log.updated_at column (migration applied via Supabase MCP)
+-- - Added trigger function update_user_sync_log_updated_at() for auto-timestamp updates
+-- - Added index idx_user_sync_log_updated_at for query performance
+-- - Fixed Firebase authentication claim extraction (backend code)
+-- - Total de migrations: 60 (59 anteriores + 1 nova aplicada em 2025-10-06)
+--
+-- CHANGELOG v2.2 (2025-10-04):
 -- - Removidos campos deprecated de quiz_sessions (is_completed, current_question_index, total_score)
 -- - Adicionado CHECK constraint quiz_sessions_status_check
 -- - Reconstruídas 4 materialized views com novo schema (status-based)
 -- - Criados 8 novos índices v2 otimizados para quiz_sessions
 -- - Adicionado índice único para sessões ativas por paciente/template
--- - Total de migrations: 59 (56 anteriores + 3 novas aplicadas em 2025-10-04)
 -- ============================================================================
 
 -- ============================================================================
@@ -1302,8 +1308,9 @@ CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
 COMMENT ON TABLE user_profiles IS 'Perfis estendidos de usuários profissionais';
 
 -- ----------------------------------------------------------------------------
--- 8.2 USER_SYNC_LOG - Log de Sincronização Firebase/Supabase
+-- 8.2 USER_SYNC_LOG - Log de Sincronização Firebase/Supabase (Updated 2025-10-06)
 -- ----------------------------------------------------------------------------
+-- UPDATED: Added updated_at column (migration 20251006_add_user_sync_log_updated_at)
 CREATE TABLE IF NOT EXISTS user_sync_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     firebase_uid VARCHAR(255) NOT NULL,
@@ -1323,8 +1330,8 @@ CREATE TABLE IF NOT EXISTS user_sync_log (
 
     -- Timing
     synced_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL  -- ADDED 2025-10-06
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_sync_log_firebase_uid
@@ -1333,8 +1340,11 @@ CREATE INDEX IF NOT EXISTS idx_user_sync_log_supabase_user
     ON user_sync_log(supabase_user_id);
 CREATE INDEX IF NOT EXISTS idx_user_sync_log_status
     ON user_sync_log(sync_status, synced_at);
+CREATE INDEX IF NOT EXISTS idx_user_sync_log_updated_at
+    ON user_sync_log(updated_at);  -- ADDED 2025-10-06
 
 COMMENT ON TABLE user_sync_log IS 'Log de sincronização Firebase ↔ Supabase';
+COMMENT ON COLUMN user_sync_log.updated_at IS 'Auto-updated timestamp for record modifications (added 2025-10-06)';
 
 -- ----------------------------------------------------------------------------
 -- 8.3 AUDIT_TRAIL - Trilha de Auditoria Geral
@@ -1549,7 +1559,28 @@ CREATE TRIGGER update_admin_roles_updated_at
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ----------------------------------------------------------------------------
--- 9.2 Funções: Audit Cleanup (Retenção 90 dias)
+-- 9.2 Função: User Sync Log Updated At Trigger (Added 2025-10-06)
+-- ----------------------------------------------------------------------------
+-- CRITICAL FIX: Auto-update timestamp trigger for user_sync_log table
+-- Applied via migration 20251006_add_user_sync_log_updated_at
+
+CREATE OR REPLACE FUNCTION update_user_sync_log_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION update_user_sync_log_updated_at() IS 'Atualiza automaticamente a coluna updated_at na tabela user_sync_log (added 2025-10-06)';
+
+-- Apply trigger to user_sync_log table
+CREATE TRIGGER trigger_user_sync_log_updated_at
+    BEFORE UPDATE ON user_sync_log
+    FOR EACH ROW EXECUTE FUNCTION update_user_sync_log_updated_at();
+
+-- ----------------------------------------------------------------------------
+-- 9.3 Funções: Audit Cleanup (Retenção 90 dias)
 -- ----------------------------------------------------------------------------
 
 -- Cleanup audit_trail

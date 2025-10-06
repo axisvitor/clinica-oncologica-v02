@@ -108,7 +108,8 @@ class FirebaseUserSyncService:
                 raise ValueError(f"Unauthorized email domain: {email_lower}")
 
             # SECURITY VALIDATION STEP 2: Validate custom claims (for new users)
-            custom_claims = firebase_data.get('custom_claims', {})
+            # Extract claims with fallback: custom_claims dict -> top-level claims -> fetch from Firebase
+            custom_claims = await self._extract_claims(firebase_uid, firebase_data)
             if auto_create and not self._validate_custom_claims(custom_claims):
                 self._log_security_event(
                     'rejected',
@@ -229,6 +230,116 @@ class FirebaseUserSyncService:
 
         return True
 
+    async def _extract_claims(
+        self,
+        firebase_uid: str,
+        firebase_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Extract custom claims with fallback logic.
+
+        Fallback order:
+        1. Check firebase_data['custom_claims'] (from cached token)
+        2. Check top-level claims (role, roles) in firebase_data (from decoded ID token)
+        3. Fetch fresh claims via Firebase Admin SDK auth.get_user()
+
+        This handles both:
+        - Decoded ID tokens where roles are top-level (role: "admin", roles: ["admin"])
+        - Cached tokens where roles are in custom_claims dict
+
+        Args:
+            firebase_uid: Firebase user ID
+            firebase_data: User data from Firebase token
+
+        Returns:
+            Dictionary containing custom claims with role information
+        """
+        claims = {}
+
+        # Priority 1: Check custom_claims dict (cached tokens)
+        if 'custom_claims' in firebase_data and firebase_data['custom_claims']:
+            claims = firebase_data['custom_claims'].copy()
+            logger.debug(f"Claims extracted from custom_claims dict: {claims}")
+            return claims
+
+        # Priority 2: Check top-level claims in firebase_data (decoded ID tokens)
+        # Handle both 'role' (string) and 'roles' (list) claims
+        if 'role' in firebase_data:
+            claims['role'] = firebase_data['role']
+            logger.debug(f"Claims extracted from top-level 'role': {claims}")
+
+        if 'roles' in firebase_data:
+            # If roles is a list, use the first role or join them
+            roles_value = firebase_data['roles']
+            if isinstance(roles_value, list) and roles_value:
+                claims['role'] = roles_value[0]  # Use first role as primary
+                claims['roles'] = roles_value
+                logger.debug(f"Claims extracted from top-level 'roles' list: {claims}")
+            elif isinstance(roles_value, str):
+                claims['role'] = roles_value
+                logger.debug(f"Claims extracted from top-level 'roles' string: {claims}")
+
+        # If we found claims in top-level, return them
+        if claims:
+            return claims
+
+        # Priority 3: Fetch fresh claims via Firebase Admin SDK
+        try:
+            logger.info(f"Fetching fresh claims for UID {firebase_uid} via Firebase Admin SDK")
+            from firebase_admin import auth
+
+            user_record = auth.get_user(firebase_uid)
+            if user_record.custom_claims:
+                claims = user_record.custom_claims.copy()
+                logger.info(f"Fresh claims fetched from Firebase Admin: {claims}")
+                return claims
+            else:
+                logger.warning(f"No custom claims found for user {firebase_uid} in Firebase Admin")
+        except Exception as e:
+            logger.error(f"Failed to fetch claims from Firebase Admin for {firebase_uid}: {str(e)}")
+
+        # Return empty dict if no claims found anywhere
+        logger.warning(f"No claims found for user {firebase_uid} in any source")
+        return claims
+
+    def _extract_role_from_claims(self, claims: Dict[str, Any]) -> str:
+        """
+        Extract role string from claims dictionary.
+
+        Handles multiple claim formats:
+        - claims['role'] = "admin" (single role string)
+        - claims['roles'] = ["admin", "medico"] (list of roles)
+        - claims['role'] = "medico" with claims['roles'] = ["medico", "doctor"]
+
+        Args:
+            claims: Claims dictionary
+
+        Returns:
+            Role string (lowercase), defaults to 'doctor' if not found
+        """
+        # Check single role claim first
+        if 'role' in claims and claims['role']:
+            role = str(claims['role']).lower().strip()
+            logger.debug(f"Extracted role from 'role' claim: {role}")
+            return role
+
+        # Check roles list claim
+        if 'roles' in claims and claims['roles']:
+            roles_value = claims['roles']
+            if isinstance(roles_value, list) and roles_value:
+                # Use first role in list
+                role = str(roles_value[0]).lower().strip()
+                logger.debug(f"Extracted role from 'roles' list: {role} (from {roles_value})")
+                return role
+            elif isinstance(roles_value, str):
+                role = roles_value.lower().strip()
+                logger.debug(f"Extracted role from 'roles' string: {role}")
+                return role
+
+        # Default to doctor
+        logger.warning("No role found in claims, defaulting to 'doctor'")
+        return 'doctor'
+
     async def _create_user_from_firebase(
         self,
         firebase_uid: str,
@@ -260,8 +371,9 @@ class FirebaseUserSyncService:
         )
 
         # Determine role (ADMIN or DOCTOR only)
-        custom_claims = firebase_data.get('custom_claims', {})
-        role_str = custom_claims.get('role', 'doctor').lower()
+        # Extract claims with fallback logic
+        custom_claims = await self._extract_claims(firebase_uid, firebase_data)
+        role_str = self._extract_role_from_claims(custom_claims)
 
         # Map to UserRole (only ADMIN and DOCTOR supported)
         if role_str in ['admin', 'super_admin']:
@@ -343,14 +455,15 @@ class FirebaseUserSyncService:
             changed = True
 
         # Update custom claims (includes role)
-        new_claims = firebase_data.get('custom_claims', {})
+        # Extract claims with fallback logic
+        new_claims = await self._extract_claims(user.firebase_uid, firebase_data)
         if user.firebase_custom_claims != new_claims:
             user.firebase_custom_claims = new_claims
             # Update role if changed in custom claims
-            role_str = new_claims.get('role', '').lower()
+            role_str = self._extract_role_from_claims(new_claims)
             if role_str in ['admin', 'super_admin']:
                 new_role = UserRole.ADMIN
-            elif role_str == 'doctor':
+            elif role_str in ['doctor', 'medico']:
                 new_role = UserRole.DOCTOR
             else:
                 new_role = None
@@ -402,7 +515,8 @@ class FirebaseUserSyncService:
         user.firebase_email_verified = firebase_data.get('email_verified', False)
         user.firebase_display_name = firebase_data.get('name')
         user.firebase_photo_url = firebase_data.get('picture')
-        user.firebase_custom_claims = firebase_data.get('custom_claims', {})
+        # Extract claims with fallback logic
+        user.firebase_custom_claims = await self._extract_claims(firebase_uid, firebase_data)
         user.firebase_created_at = self._parse_timestamp(firebase_data.get('auth_time'))
         user.firebase_last_sign_in = datetime.now()
         user.last_firebase_sync = datetime.now()

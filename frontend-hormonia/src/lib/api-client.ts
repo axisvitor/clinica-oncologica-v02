@@ -336,11 +336,11 @@ class ApiClient {
   // Auth endpoints
   auth = {
     login: async (_credentials: { email: string; password: string }) => {
-      throw new ApiError(410, { message: 'Local authentication is disabled. Use Supabase Auth on the client.' }, 'Local authentication is disabled. Use Supabase Auth on the client.')
+      throw new ApiError(410, { message: 'Local authentication is disabled. Use Firebase Auth on the client.' }, 'Local authentication is disabled. Use Firebase Auth on the client.')
     },
 
     refresh: async (_refreshToken: string) => {
-      throw new ApiError(410, { message: 'Local token refresh is disabled. Supabase handles session refresh automatically.' }, 'Local token refresh is disabled. Supabase handles session refresh automatically.')
+      throw new ApiError(410, { message: 'Local token refresh is disabled. Firebase handles session refresh automatically.' }, 'Local token refresh is disabled. Firebase handles session refresh automatically.')
     },
 
     me: async () => {

@@ -20,10 +20,13 @@ interface UseAuthOptions {
 
 /**
  * Main authentication hook that provides a unified interface
- * combining Supabase auth, API auth, session management, and permissions
+ * combining Firebase/Supabase auth, API auth, session management, and permissions
+ *
+ * Note: Now defaults to Firebase-first authentication (preferSupabase = false)
+ * to match AdminAuthContext and production configuration
  */
 export function useAuth({
-  preferSupabase = true,
+  preferSupabase = false,
   onAuthEvent,
   autoConnectWebSocket = true,
   persistTokens = true,
