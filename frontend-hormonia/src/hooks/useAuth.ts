@@ -1,6 +1,5 @@
 import { useContext } from 'react'
 import { AuthContext } from '@/contexts/AuthContext'
-import { useSessionManagement } from './auth/useSessionManagement'
 import { usePermissions } from './auth/usePermissions'
 import { useAuthRetry } from './auth/useAuthRetry'
 
@@ -17,9 +16,10 @@ interface UseAuthOptions {
 
 /**
  * Main authentication hook that provides a unified interface
- * combining Firebase auth (via AuthContext), session management, and permissions
+ * combining Firebase auth (via AuthContext) and permissions
  *
  * This hook uses Firebase exclusively for authentication.
+ * Session management is handled internally by Firebase and AuthContext.
  */
 export function useAuth(options: UseAuthOptions = {}) {
   // Get Firebase auth from AuthContext
@@ -37,16 +37,6 @@ export function useAuth(options: UseAuthOptions = {}) {
   // Initialize permissions based on current user
   const permissions = usePermissions({ user: auth.user })
 
-  // Initialize session management
-  const sessionManagement = useSessionManagement({
-    onRefreshNeeded: async () => {
-      // Firebase handles token refresh automatically
-      // This is a no-op as AuthContext already handles refresh
-    },
-    onSessionExpired: auth.logout,
-    autoRefresh: true
-  })
-
   return {
     // User and auth state from AuthContext
     user: auth.user,
@@ -56,9 +46,9 @@ export function useAuth(options: UseAuthOptions = {}) {
     isLoading: auth.isLoading,
     error: null,
 
-    // Session data
-    sessionData: sessionManagement.sessionData,
-    isSessionExpiring: sessionManagement.isSessionExpiring,
+    // Session state (derived from auth state)
+    sessionData: null, // Firebase session is managed internally
+    isSessionExpiring: false, // Firebase handles expiration automatically
 
     // Auth methods from AuthContext
     login: async (email: string, password: string) => {
