@@ -2,11 +2,21 @@
 
 ## Critical Variables to Update (Copy-Paste Ready)
 
-### 1. Database Connection (CRITICAL - Wrong Password)
+### 1. Database Connection (CRITICAL - Python 3.13 Compatible)
+
+**⚠️ IMPORTANT**: Use `postgresql+psycopg://` for Python 3.13 compatibility (psycopg v3 driver)
 
 ```bash
-DATABASE_URL=postgresql://postgres.rszpypytdciggybbpnrp:NvbKfi1xMY7wzNof@aws-0-sa-east-1.pooler.supabase.com:5432/postgres
+DATABASE_URL=postgresql+psycopg://postgres.rszpypytdciggybbpnrp:NvbKfi1xMY7wzNof@aws-0-sa-east-1.pooler.supabase.com:5432/postgres
 ```
+
+**Why `+psycopg`?**
+- Railway uses Python 3.13 (from `runtime.txt`)
+- SQLAlchemy with `postgresql://` tries to import `psycopg2` first (not installed)
+- Using `postgresql+psycopg://` explicitly selects psycopg v3 driver
+- Prevents `ModuleNotFoundError: No module named 'psycopg2'`
+
+See [RAILWAY_PSYCOPG_FIX.md](RAILWAY_PSYCOPG_FIX.md) for detailed explanation.
 
 ### 2. Redis Configuration (Already Fixed - For Reference)
 
