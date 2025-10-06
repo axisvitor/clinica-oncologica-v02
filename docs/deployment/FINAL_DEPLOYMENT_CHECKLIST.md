@@ -274,7 +274,7 @@ Todos os documentos criados durante as correções:
 | **Backend Code** | ✅ DEPLOYADO | 3 commits pushed |
 | **Frontend Code** | ✅ DEPLOYADO | WebSocket fix aplicado |
 | **Backend .env** | ✅ APLICADO | Via apply-env-fixes-simple.ps1 |
-| **Frontend .env** | ⚠️ PENDENTE | Executar: `Copy-Item "frontend-hormonia\.env.FINAL" "frontend-hormonia\.env"` |
+| **Frontend .env** | ✅ APLICADO | VITE_FIREBASE_ENABLED=true, VITE_SUPABASE_AUTH_ENABLED=false aplicados |
 | **Railway Backend Vars** | ⏳ PENDENTE | Executar comandos acima |
 | **Railway Frontend Vars** | ⏳ PENDENTE | Executar comandos acima |
 | **FIREBASE_ADMIN_PRIVATE_KEY** | ⏳ PENDENTE | Atualizar via Railway UI |
@@ -286,7 +286,7 @@ Todos os documentos criados durante as correções:
 - [x] Corrigir código backend (firebase_user_sync_service.py)
 - [x] Corrigir código frontend (useWebSocket.ts)
 - [x] Aplicar backend .env.FINAL
-- [ ] Aplicar frontend .env.FINAL ⚠️
+- [x] Aplicar frontend .env.FINAL ✅
 - [x] Commit e push de todas as correções
 - [ ] Atualizar Railway backend variables
 - [ ] Atualizar Railway frontend variables
@@ -298,7 +298,7 @@ Todos os documentos criados durante as correções:
 
 ---
 
-**Última Atualização:** 2025-10-06 13:30 BRT
-**Commits:** 31cb40f, c744e05, bb50d47
+**Última Atualização:** 2025-10-06 15:30 BRT
+**Commits:** 31cb40f, c744e05, bb50d47, 9b767e2
 **Autor:** João Milani / Claude Code
-**Status:** 🟢 **90% COMPLETO - AGUARDANDO RAILWAY UPDATE**
+**Status:** 🟢 **95% COMPLETO - AGUARDANDO RAILWAY UPDATE**
