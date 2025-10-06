@@ -189,17 +189,23 @@ async def websocket_endpoint(
                     break
                 
             except Exception as e:
-                logger.error(f"Error processing WebSocket message: {e}")
-                # Check if it's a connection-related error
-                if "disconnect" in str(e).lower() or "receive" in str(e).lower():
-                    logger.info(f"Connection error detected, breaking loop: {connection_id}")
+                error_str = str(e).lower()
+
+                # Check if it's a connection-related error (WebSocket closed/disconnected)
+                if any(keyword in error_str for keyword in [
+                    "disconnect", "receive", "not connected", "websocket", "connection"
+                ]):
+                    logger.info(f"WebSocket connection error detected, breaking loop: {connection_id} - {e}")
                     break
-                    
+
+                # For other errors, log and try to send error message
+                logger.error(f"Error processing WebSocket message: {e}")
+
                 error_response = ErrorResponse(
                     error="message_processing_error",
                     message="Error processing message"
                 )
-                
+
                 error_message = create_websocket_message(
                     WebSocketEventType.ERROR,
                     error_response.dict()

@@ -341,7 +341,13 @@ class ConnectionManager:
             await websocket.send_text(json.dumps(serialized_message))
             return True
         except Exception as e:
-            logger.error(f"Error sending message to connection {connection_id}: {e}")
+            error_str = str(e).lower()
+            # Only log as error if it's NOT a connection-closed error
+            if "not connected" in error_str or "websocket" in error_str:
+                logger.debug(f"WebSocket connection closed for {connection_id}, cleaning up")
+            else:
+                logger.error(f"Error sending message to connection {connection_id}: {e}")
+
             await self.disconnect(connection_id)
             return False
 
