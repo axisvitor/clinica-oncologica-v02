@@ -37,7 +37,14 @@
       "Bash(openssl:*)",
       "Bash(where railway)",
       "Bash(where railway.exe)",
-      "Bash(railway variables:*)"
+      "Bash(railway variables:*)",
+      "Bash(railway link:*)",
+      "Bash(railway service:*)",
+      "Bash(railway logs:*)",
+      "Bash(Select-Object -Last 50)",
+      "Bash(railway up:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm audit:*)"
     ],
     "deny": []
   }
