@@ -65,17 +65,20 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
       setConnectionState('connecting')
 
       // Build WebSocket URL - handle both absolute URLs and relative paths
-      let wsUrl: URL
+      let finalUrl: string
       if (url.startsWith('ws://') || url.startsWith('wss://')) {
         // Absolute WebSocket URL
-        wsUrl = new URL(url)
+        finalUrl = url
       } else {
         // Relative path - backend only exposes /ws/connect, ignore path from component
         // All WebSocket connections go to the same endpoint, use rooms for routing
-        const baseWsUrl = config?.VITE_WS_BASE_URL || config?.VITE_WS_URL || 'ws://localhost:8000/ws/connect'
-        wsUrl = new URL(baseWsUrl)
+        finalUrl = config?.VITE_WS_BASE_URL || config?.VITE_WS_URL || 'ws://localhost:8000/ws/connect'
       }
 
+      // Normalize URL to ensure proper protocol format (wss:// not wss:)
+      finalUrl = finalUrl.replace(/^wss:(?!\/\/)/, 'wss://').replace(/^ws:(?!\/\/)/, 'ws://')
+
+      const wsUrl = new URL(finalUrl)
       wsUrl.searchParams.set('token', authToken)
 
       wsRef.current = new WebSocket(wsUrl.toString())
