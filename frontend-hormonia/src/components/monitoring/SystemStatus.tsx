@@ -22,10 +22,7 @@ export function SystemStatus() {
     },
     refetchInterval: 30000,
     retry: 2,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    onError: (err) => {
-      console.error('Failed to fetch system status:', err)
-    }
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000)
   })
 
   // Handle error state (HTTP 503, timeout, etc.)

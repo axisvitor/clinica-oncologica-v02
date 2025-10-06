@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react'
-import { apiClient } from '../src/lib/api-client'
-import { firebaseAuth } from '../src/lib/firebase-client'
+import { apiClient } from '@/lib/api-client'
+import { firebaseAuth } from '@/lib/firebase-client'
 import type {
   AdminAuthState,
   AdminUser,
   AdminLoginResponse
-} from '../src/types/admin'
-import { toast } from '../src/hooks/use-toast'
+} from '@/types/admin'
+import { toast } from '@/hooks/use-toast'
 
 interface AdminAuthContextValue {
   state: AdminAuthState

@@ -2,7 +2,7 @@ import React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from './components/ui/toaster'
 import { AuthProvider } from './contexts/AuthContext'
-import { AdminAuthProvider } from '../contexts/AdminAuthContext'
+import { AdminAuthProvider } from './contexts/AdminAuthContext'
 import AdminRoutes from './routes/AdminRoutes'
 import ErrorBoundary from './components/ErrorBoundary'
 
