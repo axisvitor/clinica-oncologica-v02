@@ -1,0 +1,107 @@
+# syntax=docker/dockerfile:1.4
+# Backend Dockerfile - FastAPI com Python 3.13 (Multi-stage Build Optimized)
+
+# ============================================================================
+# Stage 1: Builder - Install dependencies
+# ============================================================================
+FROM python:3.13-slim AS builder
+
+# Metadata labels
+LABEL maintainer="Clínica Oncológica Hormonia <dev@hormonia.clinic>"
+LABEL org.opencontainers.image.title="Hormonia Backend API"
+LABEL org.opencontainers.image.description="FastAPI backend for oncology clinic management system"
+LABEL org.opencontainers.image.version="1.0.0"
+LABEL org.opencontainers.image.vendor="Hormonia Clinic"
+LABEL org.opencontainers.image.licenses="Proprietary"
+LABEL python.version="3.13"
+LABEL framework="FastAPI"
+
+WORKDIR /app
+
+# Install build dependencies with pinned versions for reproducibility
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential=12.9ubuntu3 \
+    libpq-dev=16.6-0ubuntu0.24.04.1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements file
+COPY requirements.txt .
+
+# Install Python dependencies with BuildKit cache mounts for faster builds
+# This reduces build time by ~50% on rebuilds
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+# ============================================================================
+# Stage 2: Runtime - Minimal production image
+# ============================================================================
+FROM python:3.13-slim
+
+# Metadata labels (repeated for final image)
+LABEL maintainer="Clínica Oncológica Hormonia <dev@hormonia.clinic>"
+LABEL org.opencontainers.image.title="Hormonia Backend API"
+LABEL org.opencontainers.image.description="FastAPI backend for oncology clinic management system"
+LABEL org.opencontainers.image.version="1.0.0"
+LABEL python.version="3.13"
+
+WORKDIR /app
+
+# Install ONLY runtime dependencies (no build tools)
+# wget: for healthcheck
+# libpq5: PostgreSQL client library (runtime only)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5=16.6-0ubuntu0.24.04.1 \
+    wget=1.21.4-1ubuntu4.1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy installed Python packages from builder stage
+COPY --from=builder /install /usr/local
+
+# Copy application code
+COPY . .
+
+# Create non-root user for security
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app && \
+    chmod -R 755 /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port (Railway/Render will inject $PORT)
+EXPOSE 8000
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/home/appuser/.local/bin:$PATH"
+
+# Healthcheck with wget (more reliable than curl)
+# Increased start-period to 90s for complex apps with Firebase/Supabase initialization
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-8000}/health || exit 1
+
+# Create entrypoint script for proper signal handling
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+# Use PORT environment variable or default to 8000\n\
+export PORT=${PORT:-8000}\n\
+\n\
+echo "Starting Hormonia Backend API on port $PORT..."\n\
+\n\
+# Execute uvicorn with proper signal handling\n\
+exec uvicorn app.main:app --host 0.0.0.0 --port "$PORT" --workers ${WORKERS:-1} "$@"\n\
+' > /app/docker-entrypoint.sh && chmod +x /app/docker-entrypoint.sh
+
+# Use ENTRYPOINT + CMD for proper signal handling (PID 1)
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD []
+
+# Build instructions:
+# docker build -t hormonia-backend:latest .
+# docker run -p 8000:8000 -e PORT=8000 hormonia-backend:latest
+
+# Railway deployment:
+# Railway will automatically detect this Dockerfile and use $PORT environment variable

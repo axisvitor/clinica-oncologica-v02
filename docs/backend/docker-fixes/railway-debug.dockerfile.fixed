@@ -1,0 +1,141 @@
+# ============================================================================
+# Railway Debug Dockerfile - For identifying deployment issues
+# Updated to Python 3.13 to match production environment
+# ============================================================================
+FROM python:3.13-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    libpq-dev \
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies with verbose output
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt --verbose
+
+# Copy application code
+COPY . .
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app
+
+# Create comprehensive debug script
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+echo "=== Railway Debug Information (Python 3.13) ==="\n\
+echo ""\n\
+echo "1. System Information:"\n\
+echo "   - Python version: $(python --version)"\n\
+echo "   - Working directory: $(pwd)"\n\
+echo "   - Python path: $PYTHONPATH"\n\
+echo "   - PORT: ${PORT:-8000}"\n\
+echo ""\n\
+\n\
+echo "2. Directory Structure:"\n\
+echo "   Contents of /app:"\n\
+ls -la /app\n\
+echo ""\n\
+echo "   Contents of app/ directory:"\n\
+ls -la app/ || echo "   ERROR: app/ directory not found"\n\
+echo ""\n\
+\n\
+echo "3. Python Environment:"\n\
+echo "   Python sys.path:"\n\
+python -c "import sys; import pprint; pprint.pprint(sys.path)"\n\
+echo ""\n\
+\n\
+echo "4. Critical Dependencies (Python 3.13 compatibility):"\n\
+echo "   - NumPy version (must be 2.x for Python 3.13):"\n\
+python -c "try: import numpy; print(f\"     ✓ NumPy {numpy.__version__}\"); except Exception as e: print(f\"     ✗ NumPy: {e}\")"\n\
+echo "   - FastAPI version:"\n\
+python -c "try: import fastapi; print(f\"     ✓ FastAPI {fastapi.__version__}\"); except Exception as e: print(f\"     ✗ FastAPI: {e}\")"\n\
+echo "   - Pydantic version:"\n\
+python -c "try: import pydantic; print(f\"     ✓ Pydantic {pydantic.__version__}\"); except Exception as e: print(f\"     ✗ Pydantic: {e}\")"\n\
+echo "   - SQLAlchemy version:"\n\
+python -c "try: import sqlalchemy; print(f\"     ✓ SQLAlchemy {sqlalchemy.__version__}\"); except Exception as e: print(f\"     ✗ SQLAlchemy: {e}\")"\n\
+echo ""\n\
+\n\
+echo "5. Module Import Tests:"\n\
+echo "   - app module:"\n\
+python -c "try: import app; print(\"     ✓ SUCCESS\"); except Exception as e: print(f\"     ✗ FAILED: {e}\")"\n\
+echo "   - app.config:"\n\
+python -c "try: import app.config; print(\"     ✓ SUCCESS\"); except Exception as e: print(f\"     ✗ FAILED: {e}\")"\n\
+echo "   - app.main:"\n\
+python -c "try: import app.main; print(\"     ✓ SUCCESS\"); except Exception as e: print(f\"     ✗ FAILED: {e}\")"\n\
+echo "   - app.agents.base:"\n\
+python -c "try: import app.agents.base; print(\"     ✓ SUCCESS\"); except Exception as e: print(f\"     ✗ FAILED: {e}\")"\n\
+echo "   - app.agents.base (BaseAgent, AgentCapabilities):"\n\
+python -c "try: from app.agents.base import BaseAgent, AgentCapabilities; print(\"     ✓ SUCCESS\"); except Exception as e: print(f\"     ✗ FAILED: {e}\")"\n\
+echo ""\n\
+\n\
+echo "6. Environment Variables Check:"\n\
+echo "   Critical env vars:"\n\
+echo "   - DATABASE_URL: ${DATABASE_URL:0:30}..." || echo "   - DATABASE_URL: NOT SET"\n\
+echo "   - FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}" || echo "   - FIREBASE_PROJECT_ID: NOT SET"\n\
+echo "   - SUPABASE_URL: ${SUPABASE_URL:0:30}..." || echo "   - SUPABASE_URL: NOT SET"\n\
+echo "   - GEMINI_API_KEY: ${GEMINI_API_KEY:0:10}..." || echo "   - GEMINI_API_KEY: NOT SET"\n\
+echo ""\n\
+\n\
+echo "7. Database Connection Test:"\n\
+python -c "\n\
+try:\n\
+    from app.config import settings\n\
+    print(f\"     Database URL configured: {settings.DATABASE_URL[:30]}...\")\n\
+    print(\"     ✓ Config loaded successfully\")\n\
+except Exception as e:\n\
+    print(f\"     ✗ Config load failed: {e}\")"\n\
+echo ""\n\
+\n\
+echo "8. API Initialization Test:"\n\
+python -c "\n\
+try:\n\
+    from app.main import app\n\
+    print(\"     ✓ FastAPI app created successfully\")\n\
+    print(f\"     Routes: {len(app.routes)} registered\")\n\
+except Exception as e:\n\
+    print(f\"     ✗ FastAPI app creation failed: {e}\")"\n\
+echo ""\n\
+\n\
+echo "=== End Debug Info ==="\n\
+echo ""\n\
+echo "Starting minimal server on port ${PORT:-8000}..."\n\
+echo ""\n\
+\n\
+# Try to start the server with full error output\n\
+if [ -f "app/minimal_main.py" ]; then\n\
+    echo "Using minimal main for debugging..."\n\
+    uvicorn app.minimal_main:app --host 0.0.0.0 --port ${PORT:-8000} --log-level debug\n\
+else\n\
+    echo "Using standard main..."\n\
+    uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --log-level debug\n\
+fi\n\
+' > /app/debug_start.sh && chmod +x /app/debug_start.sh
+
+# Expose port
+EXPOSE 8000
+
+# Healthcheck for Railway
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-8000}/health || exit 1
+
+# Use debug startup script
+CMD ["/app/debug_start.sh"]
+
+# ============================================================================
+# Build Instructions:
+# ============================================================================
+# docker build -f railway-debug.dockerfile -t hormonia-debug:latest .
+# docker run -p 8000:8000 -e PORT=8000 hormonia-debug:latest
+# ============================================================================

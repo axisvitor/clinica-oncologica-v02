@@ -1,0 +1,211 @@
+# ============================================================================
+# .dockerignore - Optimized for Docker builds
+# ============================================================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+ENV/
+*.egg-info/
+.eggs/
+dist/
+build/
+pip-wheel-metadata/
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+pytest_cache/
+coverage.xml
+*.cover
+.cache
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.editorconfig
+.project
+.pydevproject
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+.directory
+desktop.ini
+
+# Logs
+*.log
+logs/
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files (keep templates)
+.env
+.env.local
+.env.*.local
+!.env.example
+!.env.railway.template
+!.env.quiz.example
+
+# Git
+.git/
+.gitignore
+.gitattributes
+.github/
+.gitlab/
+
+# Docker (keep railway-debug.dockerfile)
+docker-compose*.yml
+!railway-debug.dockerfile
+.dockerignore
+
+# Documentation (keep critical docs)
+docs/
+*.md
+README*
+LICENSE*
+CHANGELOG*
+CONTRIBUTING*
+!README.md
+!CHANGELOG.md
+!docs/openapi.yaml
+!docs/api-spec.md
+!docs/architecture/
+
+# Node modules (if using npm for dev tools)
+node_modules/
+package-lock.json
+yarn.lock
+.npm
+.yarn
+
+# Railway specific
+.railway/
+railway.json
+
+# Secrets and credentials
+secrets/
+*.key
+*.pem
+*.cert
+*.p12
+credentials/
+service-account*.json
+.credentials/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+db.sqlite3
+migrations/versions/*.py.bak
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*.swo
+.temp/
+
+# Build artifacts
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# pyenv
+.python-version
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# Media files (if stored locally)
+media/
+staticfiles/
+static_collected/
+
+# Backup files
+*.backup
+*.bk
+*~
+
+# Performance profiling
+*.prof
+*.lprof
+.benchmarks/
+
+# ============================================================================
+# Notes:
+# ============================================================================
+# - This file is optimized for Docker BuildKit caching
+# - Keep .env.example files for documentation
+# - Exclude all secrets and credentials
+# - Include only production-critical documentation
+# ============================================================================

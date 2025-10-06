@@ -1,0 +1,267 @@
+version: '3.8'
+
+# ============================================================================
+# Hormonia Backend - Docker Compose Configuration (Production-Ready)
+# ============================================================================
+
+services:
+  # --------------------------------------------------------------------------
+  # Redis - Cache and Celery Broker
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: hormonia-redis
+    restart: unless-stopped
+
+    # Use external config file instead of inline password
+    volumes:
+      - redis_data:/data
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+
+    command: redis-server /usr/local/etc/redis/redis.conf
+
+    # Use Docker secrets for password management
+    secrets:
+      - redis_password
+
+    # Network isolation - only internal network
+    networks:
+      - cache-network
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+    # Healthcheck with secret
+    healthcheck:
+      test: ["CMD", "sh", "-c", "redis-cli -a $$(cat /run/secrets/redis_password) ping | grep PONG"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # --------------------------------------------------------------------------
+  # Celery Worker - Background task processing
+  # --------------------------------------------------------------------------
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hormonia-celery-worker
+    restart: unless-stopped
+
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=4
+
+    # Development: mount source code for hot reload
+    # Production: remove volumes (code is in the image)
+    volumes:
+      - ./app:/app/app:ro  # Read-only source code mount
+
+    depends_on:
+      redis:
+        condition: service_healthy
+
+    networks:
+      - cache-network
+      - app-network
+
+    # Resource limits - allow more resources for workers
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      replicas: 2  # Multiple workers for high availability
+
+    environment:
+      - CELERY_BROKER_URL=redis://:$${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:$${REDIS_PASSWORD}@redis:6379/0
+      - PYTHONUNBUFFERED=1
+
+    env_file:
+      - .env
+
+    # Healthcheck for worker
+    healthcheck:
+      test: ["CMD", "celery", "-A", "app.celery_app", "inspect", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # --------------------------------------------------------------------------
+  # Celery Beat - Scheduled tasks
+  # --------------------------------------------------------------------------
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hormonia-celery-beat
+    restart: unless-stopped
+
+    command: celery -A app.celery_app beat --loglevel=info
+
+    volumes:
+      - ./app:/app/app:ro
+      - celery_beat_schedule:/app/celerybeat-schedule  # Persist schedule
+
+    depends_on:
+      redis:
+        condition: service_healthy
+
+    networks:
+      - cache-network
+      - app-network
+
+    # Resource limits - beat is lightweight
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+    environment:
+      - CELERY_BROKER_URL=redis://:$${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:$${REDIS_PASSWORD}@redis:6379/0
+      - PYTHONUNBUFFERED=1
+
+    env_file:
+      - .env
+
+  # --------------------------------------------------------------------------
+  # Celery Flower - Monitoring dashboard (with authentication)
+  # --------------------------------------------------------------------------
+  celery-flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hormonia-celery-flower
+    restart: unless-stopped
+
+    command: >
+      celery -A app.celery_app flower
+      --port=5555
+      --basic_auth=$${FLOWER_USER:-admin}:$${FLOWER_PASSWORD}
+      --url_prefix=flower
+      --max_tasks=10000
+
+    # Only expose to localhost or use reverse proxy (nginx/traefik)
+    ports:
+      - "127.0.0.1:5555:5555"
+
+    volumes:
+      - ./app:/app/app:ro
+
+    depends_on:
+      redis:
+        condition: service_healthy
+
+    networks:
+      - cache-network
+      - monitoring-network
+
+    # Resource limits - flower is lightweight
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+    environment:
+      - CELERY_BROKER_URL=redis://:$${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:$${REDIS_PASSWORD}@redis:6379/0
+      - FLOWER_USER=$${FLOWER_USER:-admin}
+      - FLOWER_PASSWORD=$${FLOWER_PASSWORD}
+      - PYTHONUNBUFFERED=1
+
+    env_file:
+      - .env
+
+    # Healthcheck for Flower
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5555/flower/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+# ============================================================================
+# Networks - Segregated for security
+# ============================================================================
+networks:
+  # Internal cache network - Redis only, no external access
+  cache-network:
+    driver: bridge
+    internal: true
+
+  # Application network - for services communication
+  app-network:
+    driver: bridge
+
+  # Monitoring network - for Flower and metrics
+  monitoring-network:
+    driver: bridge
+
+# ============================================================================
+# Volumes - Persistent data
+# ============================================================================
+volumes:
+  redis_data:
+    driver: local
+  celery_beat_schedule:
+    driver: local
+
+# ============================================================================
+# Secrets - Secure credential management
+# ============================================================================
+secrets:
+  redis_password:
+    file: ./secrets/redis_password.txt
+
+# ============================================================================
+# Usage Instructions:
+# ============================================================================
+# 1. Create secrets directory:
+#    mkdir -p secrets
+#    echo "your-strong-redis-password" > secrets/redis_password.txt
+#    chmod 600 secrets/redis_password.txt
+#
+# 2. Create config directory:
+#    mkdir -p config
+#    cp config/redis.conf.example config/redis.conf
+#
+# 3. Set environment variables in .env:
+#    REDIS_PASSWORD=your-strong-redis-password
+#    FLOWER_USER=admin
+#    FLOWER_PASSWORD=your-strong-flower-password
+#
+# 4. Start services:
+#    docker-compose up -d
+#
+# 5. View logs:
+#    docker-compose logs -f
+#
+# 6. Access Flower (with authentication):
+#    http://localhost:5555/flower
+#
+# 7. Stop services:
+#    docker-compose down
+#
+# 8. Remove volumes (WARNING: deletes data):
+#    docker-compose down -v
+# ============================================================================
