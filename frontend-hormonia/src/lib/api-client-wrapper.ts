@@ -15,7 +15,9 @@
  * - User-friendly error messages
  */
 
-import { SupabaseClient } from '@supabase/supabase-js'
+// Removed Supabase dependency
+type SupabaseClient = any
+
 import {
   errorHandler,
   createUserFriendlyError,

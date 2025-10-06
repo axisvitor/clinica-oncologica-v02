@@ -5,7 +5,7 @@
 
 import type { BaseEntity, BaseError, BaseEvent } from './shared'
 import { UserRole } from './shared'
-import type { Session, User as SupabaseUser } from '@supabase/supabase-js'
+// Removed Supabase imports - now using Firebase exclusively
 
 // ============================================================================
 // CORE AUTH TYPES
@@ -42,7 +42,7 @@ export interface AuthTokens {
 /** Login response */
 export interface LoginResponse extends AuthTokens {
   readonly user: User
-  readonly session?: Session
+  readonly session?: any  // Generic session type (Firebase handles this)
 }
 
 /** Login credentials */
@@ -86,10 +86,10 @@ export interface SessionData {
   readonly autoRefresh: boolean
 }
 
-/** Supabase-specific auth data */
+/** Supabase-specific auth data (deprecated - kept for backward compatibility) */
 export interface SupabaseAuthData {
-  readonly user: SupabaseUser | null
-  readonly session: Session | null
+  readonly user: any | null
+  readonly session: any | null
   readonly loading: boolean
   readonly isAuthenticated: boolean
 }
@@ -335,11 +335,11 @@ export interface UseApiAuthReturn {
   readonly storeTokens: (tokens: AuthTokens) => void
 }
 
-/** Supabase auth hook return type */
+/** Supabase auth hook return type (deprecated - kept for backward compatibility) */
 export interface UseSupabaseAuthReturn {
   readonly authData: SupabaseAuthData
-  readonly user: SupabaseUser | null
-  readonly session: Session | null
+  readonly user: any | null
+  readonly session: any | null
   readonly loading: boolean
   readonly error: AuthError | null
   readonly isAuthenticated: boolean
@@ -352,7 +352,7 @@ export interface UseSupabaseAuthReturn {
   readonly refreshSession: () => Promise<void>
   readonly resetPassword: (email: string) => Promise<void>
   readonly updatePassword: (newPassword: string) => Promise<void>
-  readonly convertToAppUser: (supabaseUser: SupabaseUser) => User
+  readonly convertToAppUser: (supabaseUser: any) => User
 }
 
 /** Session management hook return type */

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -8,6 +8,7 @@ import { Search, Plus, ListFilter as Filter, MoveHorizontal as MoreHorizontal, F
 import { apiClient } from '@/lib/api-client'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/components/ui/use-toast'
+import { useQuestionarios } from '@/hooks/api/useQuestionarios'
 
 // UI Components
 import { Button } from '@/components/ui/button'
@@ -121,54 +122,20 @@ export function QuestionariosPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 12
 
-  // Queries
+  // Queries - Using useQuestionarios hook with server-side filtering
   const {
     data: templatesData,
     isLoading: isLoadingTemplates,
     error: templatesError,
     refetch: refetchTemplates
-  } = useQuery({
-    queryKey: ['quiz-templates', currentPage, pageSize, filters],
-    queryFn: async () => {
-      const result = await apiClient.quizzes.listTemplates()
-
-      // Transform to expected format
-      const resultData = (result as any)?.items || (Array.isArray(result) ? result : [])
-      const transformedResult = {
-        data: resultData,
-        total: (result as any)?.total || resultData.length || 0,
-        page: currentPage,
-        size: pageSize
-      }
-      
-      // Get analytics for each template
-      const templatesWithAnalytics = await Promise.all(
-        (transformedResult.data || []).map(async (template: QuizTemplate) => {
-          try {
-            const analytics = await (apiClient as any).quizzes.getTemplateAnalytics(template.id)
-            return { ...template, analytics }
-          } catch (error) {
-            logger.warn(`Failed to get analytics for template`, { templateId: template.id, error });
-            return {
-              ...template,
-              analytics: {
-                total_responses: 0,
-                completion_rate: 0,
-                average_completion_time: null
-              }
-            }
-          }
-        })
-      )
-      
-      return {
-        ...transformedResult,
-        data: templatesWithAnalytics
-      }
-    },
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
-    retry: 3
+  } = useQuestionarios({
+    search: filters.search,
+    type: filters.type,
+    status: filters.status,
+    sortBy: filters.sortBy,
+    sortOrder: filters.sortOrder,
+    page: currentPage,
+    size: pageSize
   })
 
   // Create mutation
@@ -253,65 +220,24 @@ export function QuestionariosPage() {
 
   const questions = watch('questions')
 
-  // Filter and sort templates
-  const filteredTemplates = useMemo(() => {
-    if (!templatesData?.data) return []
-
-    let filtered = templatesData.data.filter((template: any) => {
-      // Search filter
-      if (filters.search && !template.name.toLowerCase().includes(filters.search.toLowerCase())) {
-        return false
-      }
-
-      // Type filter (based on template name patterns or metadata)
-      if (filters.type !== 'all') {
-        const templateType = template.name.toLowerCase().includes('medical') || 
-                           template.name.toLowerCase().includes('oncolog') ? 'medical' : 'wellness'
-        if (templateType !== filters.type) {
-          return false
+  // Performance logging - Server-side filtering
+  useEffect(() => {
+    if (process.env['NODE_ENV'] === 'development' && templatesData) {
+      logger.info('QuestionariosPage Performance', {
+        serverSideFiltering: true,
+        totalTemplates: templatesData.total,
+        currentPage: templatesData.page,
+        loadedCount: templatesData.data.length,
+        filters: {
+          search: filters.search || 'none',
+          type: filters.type,
+          status: filters.status,
+          sortBy: filters.sortBy,
+          sortOrder: filters.sortOrder
         }
-      }
-
-      // Status filter
-      if (filters.status !== 'all') {
-        const isActive = template.is_active
-        if ((filters.status === 'active' && !isActive) || (filters.status === 'inactive' && isActive)) {
-          return false
-        }
-      }
-
-      return true
-    })
-
-    // Sort
-    filtered.sort((a: any, b: any) => {
-      let aValue, bValue
-
-      switch (filters.sortBy) {
-        case 'name':
-          aValue = a.name
-          bValue = b.name
-          break
-        case 'responses':
-          aValue = a.analytics?.total_responses || 0
-          bValue = b.analytics?.total_responses || 0
-          break
-        default: // created_at
-          aValue = new Date(a.created_at)
-          bValue = new Date(b.created_at)
-      }
-
-      if (typeof aValue === 'string') {
-        aValue = aValue.toLowerCase()
-        bValue = bValue.toLowerCase()
-      }
-
-      const comparison = aValue < bValue ? -1 : aValue > bValue ? 1 : 0
-      return filters.sortOrder === 'asc' ? comparison : -comparison
-    })
-
-    return filtered
-  }, [templatesData?.data, filters])
+      })
+    }
+  }, [templatesData, filters])
 
   // Event handlers
   const handleSearch = (value: string) => {
@@ -371,12 +297,12 @@ export function QuestionariosPage() {
     setValue('questions', updatedQuestions)
   }
 
-  // Get summary statistics
-  const totalTemplates = (templatesData as any)?.total || 0
-  const activeTemplates = filteredTemplates.filter((t: any) => t.is_active).length
-  const totalResponses = filteredTemplates.reduce((sum: number, t: any) => sum + (t.analytics?.total_responses || 0), 0)
-  const averageCompletionRate = filteredTemplates.length > 0 ? 
-    filteredTemplates.reduce((sum: number, t: any) => sum + (t.analytics?.completion_rate || 0), 0) / filteredTemplates.length : 0
+  // Get summary statistics from server data
+  const totalTemplates = templatesData?.total || 0
+  const activeTemplates = (templatesData?.data || []).filter((t: any) => t.is_active).length
+  const totalResponses = (templatesData?.data || []).reduce((sum: number, t: any) => sum + (t.analytics?.total_responses || 0), 0)
+  const averageCompletionRate = templatesData?.data && templatesData.data.length > 0 ?
+    templatesData.data.reduce((sum: number, t: any) => sum + (t.analytics?.completion_rate || 0), 0) / templatesData.data.length : 0
 
   return (
     <div className="container mx-auto py-4 sm:py-6 lg:py-8 px-3 sm:px-4 lg:px-6 max-w-7xl">
@@ -539,13 +465,13 @@ export function QuestionariosPage() {
               </Button>
             </AlertDescription>
           </Alert>
-        ) : filteredTemplates.length === 0 ? (
+        ) : !templatesData?.data || templatesData.data.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">
-                {filters.search || filters.type !== 'all' || filters.status !== 'all' 
-                  ? 'Nenhum questionário encontrado' 
+                {filters.search || filters.type !== 'all' || filters.status !== 'all'
+                  ? 'Nenhum questionário encontrado'
                   : 'Nenhum questionário criado ainda'
                 }
               </h3>
@@ -567,7 +493,7 @@ export function QuestionariosPage() {
           <>
             {/* Templates Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-              {filteredTemplates.map((template: any) => (
+              {templatesData.data.map((template: any) => (
                 <QuestionnaireCard
                   key={template.id}
                   template={template}
@@ -577,7 +503,7 @@ export function QuestionariosPage() {
             </div>
 
             {/* Pagination */}
-            {templatesData && (templatesData as any).total > pageSize && (
+            {templatesData && templatesData.total > pageSize && (
               <div className="flex justify-center mt-6 sm:mt-8">
                 <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-0 sm:space-x-2">
                   <Button
@@ -590,13 +516,13 @@ export function QuestionariosPage() {
                     Anterior
                   </Button>
                   <span className="text-sm text-muted-foreground whitespace-nowrap px-2">
-                    Página {currentPage} de {Math.ceil((templatesData as any).total / pageSize)}
+                    Página {currentPage} de {Math.ceil(templatesData.total / pageSize)}
                   </span>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setCurrentPage(prev => prev + 1)}
-                    disabled={currentPage >= Math.ceil((templatesData as any).total / pageSize)}
+                    disabled={currentPage >= Math.ceil(templatesData.total / pageSize)}
                     className="w-full sm:w-auto"
                   >
                     Próxima

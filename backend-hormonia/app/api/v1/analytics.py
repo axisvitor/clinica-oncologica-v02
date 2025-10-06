@@ -18,12 +18,15 @@ from app.models.user import User, UserRole
 from app.models.patient import Patient
 from app.models.message import Message, MessageDirection
 from app.services.analytics import AnalyticsService, AnalyticsError
+from app.models.analytics_models import TreatmentDistributionResponse
 from app.schemas.report import (
     AnalyticsRequest,
     AnalyticsResponse,
     DashboardResponse
 )
 from app.schemas.common import ErrorResponse
+from app.core.redis_unified import get_sync_redis
+import json
 
 
 logger = logging.getLogger(__name__)
@@ -102,6 +105,63 @@ async def get_dashboard(
 
     logger.info(f"Dashboard data retrieved for user {current_user.id}")
     return dashboard_data
+
+
+@router.get(
+    "/treatment-distribution",
+    response_model=TreatmentDistributionResponse,
+    summary="Get treatment type distribution",
+    description="Returns distribution of patients across different treatment types with counts, percentages, and chart colors"
+)
+@handle_analytics_errors("treatment distribution retrieval")
+async def get_treatment_distribution(
+    period: str = Query("30d", regex="^(7d|30d|90d|all)$", description="Time period for analysis"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> TreatmentDistributionResponse:
+    """
+    Get treatment type distribution for analytics charts.
+
+    Returns chart-ready data with counts, percentages, and colors for visualization.
+    Supports filtering by time period and automatically filters by doctor role.
+
+    Cache: 5 minutes (Redis)
+    """
+    analytics_service = AnalyticsService(db)
+
+    # Filter by doctor if user is not admin
+    doctor_id = None if current_user.role in {UserRole.ADMIN, UserRole.SUPER_ADMIN} else current_user.id
+
+    # Build cache key
+    cache_key = f"analytics:treatment-distribution:{period}:{doctor_id or 'all'}"
+
+    # Try to get from cache
+    try:
+        redis_client = get_sync_redis()
+        cached = redis_client.get(cache_key)
+        if cached:
+            logger.info(f"Treatment distribution cache hit for period: {period}")
+            cached_data = json.loads(cached)
+            return TreatmentDistributionResponse(**cached_data)
+    except Exception as e:
+        logger.warning(f"Redis cache read failed: {e}")
+
+    # Generate fresh data
+    result = analytics_service.get_treatment_distribution(period, doctor_id)
+
+    # Create response
+    response = TreatmentDistributionResponse(**result)
+
+    # Cache for 5 minutes (300 seconds)
+    try:
+        redis_client = get_sync_redis()
+        redis_client.setex(cache_key, 300, response.model_dump_json())
+        logger.info(f"Treatment distribution cached for period: {period}")
+    except Exception as e:
+        logger.warning(f"Redis cache write failed: {e}")
+
+    logger.info(f"Treatment distribution retrieved for user {current_user.id}, period: {period}")
+    return response
 
 
 @router.post(

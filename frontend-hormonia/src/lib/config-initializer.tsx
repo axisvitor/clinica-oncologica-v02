@@ -9,7 +9,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { getRuntimeConfig, type RuntimeConfig } from './runtime-config';
 import { apiClient } from './api-client';
-import { initializeSupabase } from './supabase-client';
 import { createLogger } from './logger';
 
 const logger = createLogger('ConfigInitializer');
@@ -61,18 +60,8 @@ export function ConfigProvider({
       logger.info('Initializing API client with base URL:', apiBaseUrl);
       apiClient.setBaseURL(apiBaseUrl);
 
-      // Initialize Supabase client with runtime config
-      const supabaseUrl = runtimeConfig.VITE_SUPABASE_URL;
-      const supabaseAnonKey = runtimeConfig.VITE_SUPABASE_ANON_KEY;
-      const realtimeEnabled = runtimeConfig.VITE_SUPABASE_REALTIME_ENABLED === 'true';
-
-      if (supabaseUrl && supabaseAnonKey) {
-        logger.info('Initializing Supabase client');
-        initializeSupabase(supabaseUrl, supabaseAnonKey, realtimeEnabled);
-      } else {
-        logger.warn('Supabase credentials missing in runtime config');
-        logger.info('App will run without Supabase features');
-      }
+      // Supabase removed - using Firebase exclusively
+      logger.info('Using Firebase for authentication and backend API for data');
 
       setConfig(runtimeConfig);
       logger.info('Configuration initialization complete');
@@ -241,7 +230,6 @@ export function useConfigValidation() {
 
   return {
     isValid: !!config && !error,
-    hasSupabase: !!(config?.VITE_SUPABASE_URL && config?.VITE_SUPABASE_ANON_KEY),
     hasAPI: !!(config?.VITE_API_BASE_URL || config?.VITE_API_URL),
     hasWebSocket: !!(config?.VITE_WS_BASE_URL || config?.VITE_WS_URL),
     config,

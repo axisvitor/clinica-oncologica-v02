@@ -1,6 +1,9 @@
 import React from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMedicoAuth } from '../../contexts/MedicoAuthContext'
+import { useMedicoDashboardStats } from '@/hooks/api/useMedicoDashboardStats'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { createLogger } from '../../lib/logger'
 
 const logger = createLogger('MedicoDashboard')
@@ -8,6 +11,9 @@ const logger = createLogger('MedicoDashboard')
 export default function MedicoDashboard() {
   const navigate = useNavigate()
   const { state, signOut } = useMedicoAuth()
+  const { data: stats, isLoading, error } = useMedicoDashboardStats({
+    refetchInterval: 120000 // 2 minutes
+  })
 
   const handleLogout = async () => {
     try {
@@ -92,24 +98,110 @@ export default function MedicoDashboard() {
         {/* Quick Stats */}
         <div className="mt-8 bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Estatísticas Rápidas</h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <p className="text-3xl font-bold text-blue-600">0</p>
-              <p className="text-sm text-gray-600">Pacientes Ativos</p>
+
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="text-center">
+                  <Skeleton className="h-10 w-20 mx-auto mb-2" />
+                  <Skeleton className="h-4 w-32 mx-auto" />
+                </div>
+              ))}
             </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-green-600">0</p>
-              <p className="text-sm text-gray-600">Consultas Hoje</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-purple-600">0</p>
-              <p className="text-sm text-gray-600">Pendências</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-orange-600">0</p>
-              <p className="text-sm text-gray-600">Exames Aguardando</p>
-            </div>
-          </div>
+          ) : error ? (
+            <Alert variant="destructive">
+              <AlertTitle>Erro ao carregar estatísticas</AlertTitle>
+              <AlertDescription>
+                {error instanceof Error ? error.message : 'Erro desconhecido'}
+              </AlertDescription>
+            </Alert>
+          ) : stats ? (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-blue-600">{stats.overview.total_patients}</p>
+                  <p className="text-sm text-gray-600">Pacientes Ativos</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-green-600">{stats.overview.active_treatments}</p>
+                  <p className="text-sm text-gray-600">Tratamentos Ativos</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-purple-600">{stats.overview.pending_reviews}</p>
+                  <p className="text-sm text-gray-600">Pendências</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-orange-600">{stats.overview.new_alerts_today}</p>
+                  <p className="text-sm text-gray-600">Alertas Hoje</p>
+                </div>
+              </div>
+
+              {/* Engagement Section */}
+              {stats.engagement_metrics && (
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Engajamento</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-blue-600">{stats.engagement_metrics.messages_today}</p>
+                      <p className="text-sm text-gray-600">Mensagens Hoje</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-green-600">
+                        {stats.engagement_metrics.response_rate_7d.toFixed(0)}%
+                      </p>
+                      <p className="text-sm text-gray-600">Taxa de Resposta (7d)</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-purple-600">
+                        {stats.engagement_metrics.avg_response_time_hours.toFixed(1)}h
+                      </p>
+                      <p className="text-sm text-gray-600">Tempo Médio</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-indigo-600">
+                        {stats.engagement_metrics.quizzes_completed_7d}
+                      </p>
+                      <p className="text-sm text-gray-600">Questionários (7d)</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Alerts Section */}
+              {stats.alerts_summary && (
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Alertas</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-gray-900">{stats.alerts_summary.unacknowledged}</p>
+                      <p className="text-sm text-gray-600">Não Reconhecidos</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-red-600">{stats.alerts_summary.by_severity.critical}</p>
+                      <p className="text-sm text-gray-600">Críticos</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-orange-600">{stats.alerts_summary.by_severity.high}</p>
+                      <p className="text-sm text-gray-600">Altos</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-yellow-600">{stats.alerts_summary.by_severity.medium}</p>
+                      <p className="text-sm text-gray-600">Médios</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-green-600">{stats.alerts_summary.by_severity.low}</p>
+                      <p className="text-sm text-gray-600">Baixos</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Timestamp */}
+              <div className="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-500 text-center">
+                Última atualização: {new Date(stats.last_updated).toLocaleString('pt-BR')}
+              </div>
+            </>
+          ) : null}
         </div>
       </main>
     </div>

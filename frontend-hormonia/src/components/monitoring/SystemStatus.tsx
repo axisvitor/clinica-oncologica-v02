@@ -3,12 +3,23 @@ import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CheckCircle, XCircle, AlertCircle, Activity } from 'lucide-react'
-import { utils } from '@/lib/supabase-client'
+import { apiClient } from '@/lib/api-client'
+
+interface HealthCheckResponse {
+  status: string
+  configured: boolean
+  connected: boolean
+  realtimeConnected: boolean
+  error?: string
+}
 
 export function SystemStatus() {
-  const { data: status, isLoading } = useQuery({
+  const { data: status, isLoading } = useQuery<HealthCheckResponse>({
     queryKey: ['system-status'],
-    queryFn: utils.healthCheck,
+    queryFn: async () => {
+      const response: any = await apiClient.get('/api/v1/health')
+      return response.data as HealthCheckResponse
+    },
     refetchInterval: 30000
   })
 

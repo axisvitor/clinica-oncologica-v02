@@ -342,3 +342,61 @@ def auth_headers() -> callable:
         }
 
     return _create_headers
+
+
+# ============================================================================
+# ADDITIONAL FIXTURES FOR WAVE 2 PHASE 2 ENDPOINT TESTS
+# ============================================================================
+
+@pytest.fixture
+def medico_credentials() -> Dict[str, str]:
+    """
+    Create credentials for a medico/doctor user.
+
+    Returns:
+        Dictionary with firebase_uid, email, and JWT token
+    """
+    return jwt_helper.create_doctor_token(
+        doctor_id="firebase_medico_test",
+        email="medico@test.clinica.com",
+        name="Dr. Medico Test"
+    )
+
+
+@pytest.fixture
+def physician_credentials() -> Dict[str, str]:
+    """
+    Create credentials for a physician user (alias for doctor).
+
+    Returns:
+        Dictionary with firebase_uid, email, and JWT token
+    """
+    return jwt_helper.create_doctor_token(
+        doctor_id="firebase_physician_test",
+        email="physician@test.clinica.com",
+        name="Dr. Physician Test"
+    )
+
+
+@pytest.fixture
+def empty_db(db_session):
+    """
+    Empty database for testing edge cases.
+
+    Clears all test data from key tables.
+    """
+    from app.models.patient import Patient
+    from app.models.alert import Alert
+    from app.models.message import Message
+    from app.models.user import User
+
+    # Clear tables (order matters due to foreign keys)
+    db_session.query(Alert).delete()
+    db_session.query(Message).delete()
+    db_session.query(Patient).delete()
+    # Don't delete users as auth fixtures need them
+    db_session.commit()
+
+    yield db_session
+
+    # Cleanup happens automatically via session rollback

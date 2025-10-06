@@ -7,6 +7,7 @@ import { firebaseAuth } from '../lib/firebase-client'
 import type { User as FirebaseUser } from 'firebase/auth'
 import { wsManager } from '../lib/websocket'
 import { createLogger } from '../lib/logger'
+import { toast } from '../hooks/use-toast'
 
 const logger = createLogger('AuthContext')
 
@@ -15,13 +16,13 @@ interface AuthContextType {
   session: { access_token: string } | null
   isAuthenticated: boolean
   isLoading: boolean
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>
   logout: () => void
   hasPermission: (permission: string) => boolean
   hasRole: (role: string) => boolean
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function useAuth() {
   const context = useContext(AuthContext)
@@ -65,18 +66,43 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Helper to transform Firebase user to app User
   const transformFirebaseUser = useCallback(async (firebaseUser: FirebaseUser): Promise<User | null> => {
-    const token = await firebaseUser.getIdToken()
-
-    // CRITICAL: Backend validation is REQUIRED for proper authorization
-    // Do NOT create fallback users - if backend fails, sign out
     try {
+      const token = await firebaseUser.getIdToken()
+
+      // Call /auth/me with auth header
       apiClient.setAuthToken(token)
       const response = await apiClient.auth.me()
+
+      if (!response || !response.data) {
+        // No user data returned, force sign out
+        logger.warn('No user data from /auth/me, signing out')
+        await firebaseAuth.signOut()
+
+        toast({
+          title: 'Sessão expirada',
+          description: 'Sua sessão expirou. Por favor, faça login novamente.',
+          variant: 'destructive'
+        })
+
+        return null
+      }
+
       return response.data
-    } catch (error) {
-      logger.error('Backend authentication failed - signing out:', error)
-      // SECURITY: Sign out on backend failure to prevent unauthorized access
+
+    } catch (error: any) {
+      // ANY error from /auth/me = force sign out
+      logger.error('/auth/me failed, signing out user', { error })
+
+      // Don't use fallback data - always sign out
       await firebaseAuth.signOut()
+
+      // Show error to user
+      toast({
+        title: 'Sessão expirada',
+        description: 'Sua sessão expirou. Por favor, faça login novamente.',
+        variant: 'destructive'
+      })
+
       return null
     }
   }, [])
@@ -193,7 +219,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     init()
   }, [transformFirebaseUser])
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, rememberMe: boolean = false) => {
     setIsLoading(true)
     try {
       logger.log('Attempting login:', email)
@@ -213,6 +239,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // Connect WebSocket for mock auth
         wsManager.connect(result.session.access_token)
       } else {
+        // Set persistence BEFORE signIn using the firebaseAuth module's setPersistence wrapper
+        try {
+          await firebaseAuth.setPersistence(rememberMe)
+          logger.log(`Persistence set to ${rememberMe ? 'LOCAL' : 'SESSION'}`)
+        } catch (error) {
+          logger.error('Failed to set persistence, continuing with default:', error)
+        }
+
         const result = await firebaseAuth.signInWithPassword({ email, password })
 
         if (result.error || !result.user || !result.session) {

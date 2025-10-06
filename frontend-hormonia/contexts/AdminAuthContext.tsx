@@ -6,6 +6,7 @@ import type {
   AdminUser,
   AdminLoginResponse
 } from '../src/types/admin'
+import { toast } from '../src/hooks/use-toast'
 
 interface AdminAuthContextValue {
   state: AdminAuthState
@@ -100,46 +101,80 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
   }, [])
 
   const signIn = useCallback(
-    async (email: string, password: string, _rememberMe?: boolean): Promise<AdminLoginResponse> => {
+    async (email: string, password: string, rememberMe: boolean = false): Promise<AdminLoginResponse> => {
       dispatch({ type: 'AUTH_LOADING' })
 
       try {
         console.log('[AdminAuth] Attempting sign in for:', email)
 
-        {
-          // Firebase authentication implementation for Admin
-          console.log('[AdminAuth] Using Firebase authentication')
+        // Firebase authentication implementation for Admin
+        console.log('[AdminAuth] Using Firebase authentication')
 
-          const result = await firebaseAuth.signInWithPassword({
-            email: email,
-            password
-          })
+        // Set persistence BEFORE signIn using the firebaseAuth module's setPersistence wrapper
+        try {
+          await firebaseAuth.setPersistence(rememberMe)
+          console.log(`[AdminAuth] Persistence set to ${rememberMe ? 'LOCAL' : 'SESSION'}`)
+        } catch (error) {
+          console.error('[AdminAuth] Failed to set persistence, continuing with default:', error)
+        }
 
-          if (result.error || !result.user || !result.session) {
-            throw result.error || new Error('Authentication failed')
+        const result = await firebaseAuth.signInWithPassword({
+          email: email,
+          password
+        })
+
+        if (result.error || !result.user || !result.session) {
+          throw result.error || new Error('Authentication failed')
+        }
+
+        // Set Firebase ID token
+        const token = result.session.access_token
+        console.log('[AdminAuth] Firebase token set successfully')
+        apiClient.setAuthToken(token)
+
+        // Fetch user from backend and validate admin role
+        console.log('[AdminAuth → Backend] Calling /api/v1/auth/me...')
+
+        try {
+          const me = await apiClient.auth.me()
+
+          if (!me || !me.data) {
+            console.error('[AdminAuth] No user data from /auth/me, signing out')
+            await firebaseAuth.signOut()
+
+            toast({
+              title: 'Sessão expirada',
+              description: 'Sua sessão expirou. Por favor, faça login novamente.',
+              variant: 'destructive'
+            })
+
+            const msg = 'No user data returned from backend'
+            dispatch({ type: 'AUTH_ERROR', payload: msg })
+            return { success: false, error: msg }
           }
 
-          // Set Firebase ID token
-          const token = result.session.access_token
-          console.log('[AdminAuth] Firebase token set successfully')
-          apiClient.setAuthToken(token)
-
-          // Fetch user from backend and validate admin role
-          console.log('[AdminAuth → Backend] Calling /api/v1/auth/me...')
-          const me = await apiClient.auth.me()
           console.log('[AdminAuth ← Backend] Received user data:', {
             userId: me.data.id,
             email: me.data.email,
             role: me.data.role
           })
+
           const role = (me.data.role || '').toLowerCase()
           console.log('[AdminAuth] Validating role:', {
             role,
             isAdmin: ['admin', 'super_admin'].includes(role)
           })
+
           if (!['admin', 'super_admin'].includes(role)) {
             console.error('[AdminAuth] Role validation failed - not an admin')
             await firebaseAuth.signOut()
+
+            toast({
+              title: 'Acesso negado',
+              description: 'Você não tem permissões de administrador.',
+              variant: 'destructive'
+            })
+
             const msg = 'Access denied: user is not an admin'
             dispatch({ type: 'AUTH_ERROR', payload: msg })
             return { success: false, error: msg }
@@ -167,7 +202,26 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
 
           console.log('[AdminAuth] Admin user authenticated via Firebase:', adminUser.email)
           return { success: true, user: adminUser, token }
+
+        } catch (error: any) {
+          // ANY error from /auth/me = force sign out
+          console.error('[AdminAuth] /auth/me failed, signing out user', { error })
+
+          // Don't use fallback data - always sign out
+          await firebaseAuth.signOut()
+
+          // Show error to user
+          toast({
+            title: 'Sessão expirada',
+            description: 'Sua sessão expirou. Por favor, faça login novamente.',
+            variant: 'destructive'
+          })
+
+          const errorMessage = error instanceof Error ? error.message : 'Backend authentication failed'
+          dispatch({ type: 'AUTH_ERROR', payload: errorMessage })
+          return { success: false, error: errorMessage }
         }
+
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Authentication failed'
         console.error('[AdminAuth] Sign in failed:', errorMessage)
@@ -214,32 +268,73 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
       const token = session.access_token
       apiClient.setAuthToken(token)
 
-      const me = await apiClient.auth.me()
-      const role = (me.data.role || '').toLowerCase()
-      if (!['admin', 'super_admin'].includes(role)) {
-        throw new Error('User is not an admin')
+      try {
+        const me = await apiClient.auth.me()
+
+        if (!me || !me.data) {
+          console.error('[AdminAuth] No user data from /auth/me, signing out')
+          await firebaseAuth.signOut()
+
+          toast({
+            title: 'Sessão expirada',
+            description: 'Sua sessão expirou. Por favor, faça login novamente.',
+            variant: 'destructive'
+          })
+
+          dispatch({ type: 'AUTH_LOGOUT' })
+          throw new Error('No user data returned from backend')
+        }
+
+        const role = (me.data.role || '').toLowerCase()
+        if (!['admin', 'super_admin'].includes(role)) {
+          await firebaseAuth.signOut()
+
+          toast({
+            title: 'Acesso negado',
+            description: 'Você não tem permissões de administrador.',
+            variant: 'destructive'
+          })
+
+          dispatch({ type: 'AUTH_LOGOUT' })
+          throw new Error('User is not an admin')
+        }
+
+        const adminUser: AdminUser = {
+          id: me.data.id,
+          email: me.data.email,
+          full_name: me.data.full_name,
+          role: me.data.role as AdminUser['role'],
+          is_active: me.data.is_active,
+          permissions: me.data.permissions || [],
+          created_at: me.data.created_at || new Date().toISOString(),
+          updated_at: me.data.updated_at || new Date().toISOString(),
+          last_login: me.data.last_login || new Date().toISOString(),
+          login_count: state.user?.login_count || 0,
+          two_factor_enabled: state.user?.two_factor_enabled || false,
+          failed_login_attempts: 0,
+          locked_until: null
+        }
+
+        const sessionExpiry = calculateSessionExpiry()
+        dispatch({ type: 'AUTH_SUCCESS', payload: { user: adminUser, sessionExpiry } })
+
+        console.log('[AdminAuth] Firebase token refresh successful')
+
+      } catch (error: any) {
+        // ANY error from /auth/me = force sign out
+        console.error('[AdminAuth] /auth/me failed during token refresh, signing out', { error })
+        await firebaseAuth.signOut()
+
+        toast({
+          title: 'Sessão expirada',
+          description: 'Sua sessão expirou. Por favor, faça login novamente.',
+          variant: 'destructive'
+        })
+
+        dispatch({ type: 'AUTH_LOGOUT' })
+        throw error
       }
 
-      const adminUser: AdminUser = {
-        id: me.data.id,
-        email: me.data.email,
-        full_name: me.data.full_name,
-        role: me.data.role as AdminUser['role'],
-        is_active: me.data.is_active,
-        permissions: me.data.permissions || [],
-        created_at: me.data.created_at || new Date().toISOString(),
-        updated_at: me.data.updated_at || new Date().toISOString(),
-        last_login: me.data.last_login || new Date().toISOString(),
-        login_count: state.user?.login_count || 0,
-        two_factor_enabled: state.user?.two_factor_enabled || false,
-        failed_login_attempts: 0,
-        locked_until: null
-      }
-
-      const sessionExpiry = calculateSessionExpiry()
-      dispatch({ type: 'AUTH_SUCCESS', payload: { user: adminUser, sessionExpiry } })
-
-      console.log('[AdminAuth] Firebase token refresh successful')
     } catch (error) {
       console.error('[AdminAuth] Token refresh error:', error)
       dispatch({ type: 'AUTH_LOGOUT' })
@@ -296,14 +391,37 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
           try {
             console.log('[AdminAuth → Backend] Restoring session - calling /api/v1/auth/me...')
             const me = await apiClient.auth.me()
+
+            if (!me || !me.data) {
+              console.error('[AdminAuth] No user data from /auth/me, signing out')
+              await firebaseAuth.signOut()
+
+              toast({
+                title: 'Sessão expirada',
+                description: 'Sua sessão expirou. Por favor, faça login novamente.',
+                variant: 'destructive'
+              })
+
+              dispatch({ type: 'AUTH_LOGOUT' })
+              return
+            }
+
             console.log('[AdminAuth ← Backend] Session restored successfully:', {
               userId: me.data.id,
               role: me.data.role
             })
+
             const role = (me.data.role || '').toLowerCase()
             if (!['admin', 'super_admin'].includes(role)) {
               console.log('[AdminAuth] User is not admin, signing out')
               await firebaseAuth.signOut()
+
+              toast({
+                title: 'Acesso negado',
+                description: 'Você não tem permissões de administrador.',
+                variant: 'destructive'
+              })
+
               dispatch({ type: 'AUTH_LOGOUT' })
             } else {
               const adminUser: AdminUser = {
@@ -325,8 +443,17 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
               const sessionExpiry = calculateSessionExpiry()
               dispatch({ type: 'AUTH_SUCCESS', payload: { user: adminUser, sessionExpiry } })
             }
-          } catch (error) {
-            console.error('[AdminAuth] Failed to fetch user from backend:', error)
+          } catch (error: any) {
+            // ANY error from /auth/me = force sign out
+            console.error('[AdminAuth] /auth/me failed during session restore, signing out', { error })
+            await firebaseAuth.signOut()
+
+            toast({
+              title: 'Sessão expirada',
+              description: 'Sua sessão expirou. Por favor, faça login novamente.',
+              variant: 'destructive'
+            })
+
             dispatch({ type: 'AUTH_LOGOUT' })
           }
         } else {

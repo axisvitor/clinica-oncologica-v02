@@ -39,6 +39,18 @@ class AnalyticsError(Exception):
     pass
 
 
+# Treatment type color mapping for consistent chart rendering
+TREATMENT_COLORS = {
+    "Quimioterapia": "#3b82f6",  # blue
+    "Radioterapia": "#10b981",   # green
+    "Imunoterapia": "#f59e0b",   # amber
+    "Cirurgia": "#ef4444",       # red
+    "Terapia Alvo": "#8b5cf6",   # purple
+    "Hormonioterapia": "#ec4899", # pink
+    "Outros": "#6b7280"          # gray
+}
+
+
 class AnalyticsService:
     """
     Analytics service for patient and system metrics.
@@ -181,6 +193,105 @@ class AnalyticsService:
         except Exception as e:
             logger.error(f"Dashboard data generation failed: {e}")
             raise AnalyticsError(f"Dashboard generation failed: {str(e)}")
+
+    @with_db_retry(max_retries=3)
+    def get_treatment_distribution(
+        self,
+        period: str = "30d",
+        doctor_id: Optional[UUID] = None
+    ) -> Dict[str, Any]:
+        """
+        Get treatment type distribution for specified period.
+
+        Args:
+            period: Time period ("7d", "30d", "90d", or "all")
+            doctor_id: Optional doctor ID to filter patients
+
+        Returns:
+            Distribution data with counts, percentages, and colors
+        """
+        try:
+            logger.info(f"Generating treatment distribution for period: {period}")
+
+            # Calculate date filter based on period
+            if period == "all":
+                date_filter = None
+            else:
+                days = int(period.rstrip('d'))
+                date_filter = datetime.utcnow() - timedelta(days=days)
+
+            # Build base query for treatment type counts
+            query = self.db.query(
+                Patient.treatment_type,
+                func.count(Patient.id).label('count')
+            )
+
+            # Apply date filter if specified
+            if date_filter:
+                query = query.filter(Patient.created_at >= date_filter)
+
+            # Apply doctor filter if specified
+            if doctor_id:
+                query = query.filter(Patient.doctor_id == doctor_id)
+
+            # Filter out null treatment types and group by treatment type
+            query = query.filter(Patient.treatment_type.isnot(None))
+            results = query.group_by(Patient.treatment_type).all()
+
+            # Calculate total patients
+            total = sum(r.count for r in results)
+
+            # Handle empty results
+            if total == 0:
+                return {
+                    "data": [],
+                    "period": period,
+                    "total_patients": 0,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+
+            # Build distribution list with percentages and colors
+            distribution = []
+            for treatment_type, count in results:
+                percentage = round((count / total * 100) if total > 0 else 0, 2)
+                color = TREATMENT_COLORS.get(treatment_type, "#6b7280")
+
+                distribution.append({
+                    "treatment_type": treatment_type,
+                    "count": count,
+                    "percentage": percentage,
+                    "color": color
+                })
+
+            # Sort by count descending (most common treatments first)
+            distribution.sort(key=lambda x: x['count'], reverse=True)
+
+            # Group small categories into "Outros" if they're below threshold
+            MIN_PERCENTAGE_THRESHOLD = 2.0
+            large_categories = [d for d in distribution if d['percentage'] >= MIN_PERCENTAGE_THRESHOLD]
+            small_categories = [d for d in distribution if d['percentage'] < MIN_PERCENTAGE_THRESHOLD]
+
+            if small_categories and len(large_categories) > 0:
+                outros_count = sum(c['count'] for c in small_categories)
+                outros_percentage = sum(c['percentage'] for c in small_categories)
+                large_categories.append({
+                    "treatment_type": "Outros",
+                    "count": outros_count,
+                    "percentage": round(outros_percentage, 2),
+                    "color": TREATMENT_COLORS["Outros"]
+                })
+                distribution = large_categories
+
+            return {
+                "data": distribution,
+                "period": period,
+                "total_patients": total,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+
+        except Exception as e:
+            logger.error(f"Treatment distribution generation failed: {e}")
+            raise AnalyticsError(f"Treatment distribution failed: {str(e)}")
 
     @with_db_retry(max_retries=3)
     def detect_patterns(

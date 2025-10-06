@@ -1,17 +1,17 @@
 import React, { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Calendar, TrendingUp, Users, MessageSquare, Activity, Download, RefreshCw, ChartBar as BarChart3, ListFilter as Filter, ArrowUp, ArrowDown } from 'lucide-react'
-import { 
-  LineChart, 
-  Line, 
+import {
+  LineChart,
+  Line,
   AreaChart,
   Area,
   BarChart,
   Bar,
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   Legend,
   PieChart,
@@ -30,18 +30,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-
-interface TreatmentDistribution {
-  name: string
-  value: number
-  percentage?: number
-  color?: string
-}
+import { useTreatmentDistribution, type Period } from '@/hooks/api/useTreatmentDistribution'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 
 export function AnalyticsPage() {
   const [dateRange, setDateRange] = useState('7d')
   const [compareMode, setCompareMode] = useState(false)
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>(['all'])
+  const [treatmentPeriod, setTreatmentPeriod] = useState<Period>('30d')
 
   const { data: dashboardData, isLoading } = useQuery({
     queryKey: ['analytics-dashboard'],
@@ -64,15 +61,11 @@ export function AnalyticsPage() {
     })
   })
 
-  const { data: treatmentDistribution, isLoading: treatmentLoading } = useQuery({
-    queryKey: ['analytics', 'treatment-distribution', dateRange],
-    queryFn: async () => {
-      const params = new URLSearchParams()
-      params.append('period', dateRange)
-      const response = await apiClient.request<TreatmentDistribution[]>(`/analytics/treatment-distribution?${params}`)
-      return response
-    }
-  })
+  const {
+    data: treatmentDistribution,
+    isLoading: treatmentLoading,
+    error: treatmentError
+  } = useTreatmentDistribution(treatmentPeriod)
 
   function getStartDate(range: string): string {
     const now = new Date()
@@ -356,35 +349,77 @@ export function AnalyticsPage() {
                   Proporção de pacientes por terapia
                 </CardDescription>
               </div>
-              <Button variant="ghost" size="sm">
-                <Download className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1">
+                  <Button
+                    variant={treatmentPeriod === '7d' ? 'default' : 'outline'}
+                    onClick={() => setTreatmentPeriod('7d')}
+                    size="sm"
+                  >
+                    7d
+                  </Button>
+                  <Button
+                    variant={treatmentPeriod === '30d' ? 'default' : 'outline'}
+                    onClick={() => setTreatmentPeriod('30d')}
+                    size="sm"
+                  >
+                    30d
+                  </Button>
+                  <Button
+                    variant={treatmentPeriod === '90d' ? 'default' : 'outline'}
+                    onClick={() => setTreatmentPeriod('90d')}
+                    size="sm"
+                  >
+                    90d
+                  </Button>
+                  <Button
+                    variant={treatmentPeriod === 'all' ? 'default' : 'outline'}
+                    onClick={() => setTreatmentPeriod('all')}
+                    size="sm"
+                  >
+                    Todos
+                  </Button>
+                </div>
+                <Button variant="ghost" size="sm">
+                  <Download className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
             {treatmentLoading ? (
-              <div className="h-[300px] flex items-center justify-center">
-                <LoadingSpinner size="lg" />
-              </div>
-            ) : (
+              <Skeleton className="h-[300px] w-full" />
+            ) : treatmentError ? (
+              <Alert variant="destructive">
+                <AlertTitle>Erro ao carregar distribuição</AlertTitle>
+                <AlertDescription>
+                  {treatmentError instanceof Error ? treatmentError.message : 'Erro desconhecido'}
+                </AlertDescription>
+              </Alert>
+            ) : treatmentDistribution && treatmentDistribution.distribution && treatmentDistribution.distribution.length > 0 ? (
               <>
+                <div className="mb-4 flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    {treatmentDistribution.total_patients} pacientes • Período: {treatmentDistribution.period}
+                  </span>
+                </div>
                 <div className="h-[300px] flex items-center justify-center">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={treatmentDistribution || []}
+                        data={treatmentDistribution.distribution}
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                        label={({ percentage }) => `${percentage.toFixed(1)}%`}
                         outerRadius={90}
                         innerRadius={50}
                         fill="#8884d8"
-                        dataKey="value"
+                        dataKey="count"
                         paddingAngle={2}
                       >
-                        {(treatmentDistribution || []).map((entry: TreatmentDistribution, index: number) => (
-                          <Cell key={`cell-${index}`} fill={entry.color || '#8884d8'} />
+                        {treatmentDistribution.distribution.map((entry, index: number) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
                       <Tooltip
@@ -392,8 +427,9 @@ export function AnalyticsPage() {
                           if (active && payload && payload.length && payload[0]) {
                             return (
                               <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-                                <p className="font-medium text-sm">{payload[0].name}</p>
+                                <p className="font-medium text-sm">{payload[0].payload.treatment_type}</p>
                                 <p className="text-sm text-gray-600">{payload[0].value} pacientes</p>
+                                <p className="text-sm text-gray-500">{payload[0].payload.percentage.toFixed(1)}%</p>
                               </div>
                             )
                           }
@@ -403,15 +439,25 @@ export function AnalyticsPage() {
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  {(treatmentDistribution || []).map((item: TreatmentDistribution, idx: number) => (
+                <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3">
+                  {treatmentDistribution.distribution.map((item, idx: number) => (
                     <div key={idx} className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color || '#8884d8' }} />
-                      <span className="text-xs text-gray-600">{item.name}</span>
+                      <div className="w-4 h-4 rounded" style={{ backgroundColor: item.color }} />
+                      <span className="text-sm">
+                        {item.treatment_type} ({item.percentage.toFixed(1)}%)
+                      </span>
                     </div>
                   ))}
                 </div>
               </>
+            ) : (
+              <div className="flex h-[300px] items-center justify-center rounded-lg border border-dashed">
+                <div className="text-center">
+                  <p className="text-muted-foreground">
+                    Nenhum tratamento encontrado para o período selecionado
+                  </p>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>

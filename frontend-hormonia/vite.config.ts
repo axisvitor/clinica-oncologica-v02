@@ -47,8 +47,6 @@ window.__RUNTIME_CONFIG__ = {
 
     // Fallback to production Railway defaults if API fails
     const fallbackConfig = {
-      VITE_SUPABASE_URL: '',
-      VITE_SUPABASE_ANON_KEY: '',
       VITE_API_URL: process.env['VITE_API_URL'] || 'https://clinica-oncologica-v02-production.up.railway.app/api/v1',
       VITE_WS_BASE_URL: process.env['VITE_WS_BASE_URL'] || 'wss://clinica-oncologica-v02-production.up.railway.app/ws',
       VITE_API_BASE_URL: process.env['VITE_API_BASE_URL'] || 'https://clinica-oncologica-v02-production.up.railway.app'
@@ -91,8 +89,8 @@ if (typeof window !== 'undefined') {
           // Charts and data visualization
           charts: ['recharts'],
 
-          // Backend integration and APIs
-          supabase: ['@supabase/supabase-js'],
+          // Firebase and backend integration
+          firebase: ['firebase/app', 'firebase/auth'],
 
           // Utility libraries
           utils: ['lodash', 'date-fns', 'clsx', 'tailwind-merge'],
@@ -176,7 +174,8 @@ if (typeof window !== 'undefined') {
       'react-dom',
       'react-router-dom',
       '@tanstack/react-query',
-      '@supabase/supabase-js',
+      'firebase/app',
+      'firebase/auth',
       'clsx',
       'tailwind-merge',
       'date-fns',

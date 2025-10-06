@@ -36,7 +36,7 @@ def register_routers(app: FastAPI) -> None:
             auth, patients, messages, flows, quiz, reports, alerts, webhooks,
             tasks, localization, analytics, dashboard, docs, health, performance,
             platform_sync, template_management, template_versioning, monthly_quiz, monthly_quiz_public, ai, metrics, debug, config, admin_users, admin_roles,
-            health_rls, upload  # RLS endpoints and upload (patients_rls temporarily disabled due to dependency issues)
+            health_rls, upload, medico, physician  # RLS endpoints, upload, medico dashboard, and physician endpoints
         )
         logger.info("✓ All router imports successful")
     except Exception as e:
@@ -59,9 +59,12 @@ def register_routers(app: FastAPI) -> None:
     # Include API routers - Core functionality
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 
-    # Medico router removed - functionality integrated into main API routes
-    # Doctor-specific endpoints are available through /api/v1/users with role filtering
-    logger.info("✓ Doctor endpoints available through users API")
+    # Medico (Doctor) dashboard and stats endpoints
+    app.include_router(medico.router, prefix="/api/v1", tags=["Medico"])
+    logger.info("✓ Medico dashboard endpoints registered")
+n    # Physician endpoints - optimized bulk operations
+    app.include_router(physician.router, prefix="/api/v1", tags=["Physician"])
+    logger.info("✓ Physician endpoints registered (risk assessments, bulk ops)")
 
     # Admin endpoints - protected by admin permissions
     # Import admin module router which includes all admin sub-routers

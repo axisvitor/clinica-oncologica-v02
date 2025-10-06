@@ -9,7 +9,7 @@ from app.models.message_events import MessageStatusEvent, WebhookEvent
 from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion
 from app.models.quiz import QuizTemplate, QuizResponse
 from app.models.report import MedicalReport
-from app.models.alert import Alert, AlertSeverity
+from app.models.alert import Alert, AlertSeverity, AlertStatus
 from app.models.flow_analytics import FlowAnalytics, FlowMessage, QuizQuestion
 from app.models.ab_experiment import (
     ABExperiment,
@@ -21,6 +21,12 @@ from app.models.ab_experiment import (
     ExperimentStatus,
     VariantType,
     PatientSafetyLevel
+)
+# Pydantic models for API responses (not SQLAlchemy)
+from app.models.physician import (
+    RiskAssessment,
+    PatientRiskProfile,
+    RiskAssessmentsResponse
 )
 
 __all__ = [
@@ -58,6 +64,7 @@ __all__ = [
     # Alert models
     "Alert",
     "AlertSeverity",
+    "AlertStatus",
 
     # Analytics models
     "FlowAnalytics",
@@ -74,4 +81,9 @@ __all__ = [
     "ExperimentStatus",
     "VariantType",
     "PatientSafetyLevel",
+
+    # Physician API models (Pydantic)
+    "RiskAssessment",
+    "PatientRiskProfile",
+    "RiskAssessmentsResponse",
 ]

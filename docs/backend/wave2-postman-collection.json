@@ -1,0 +1,449 @@
+{
+  "info": {
+    "name": "Hormonia - Wave 2 API Endpoints",
+    "description": "Complete collection for testing 4 new Wave 2 backend endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{firebase_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://api.hormonia.com",
+      "type": "string"
+    },
+    {
+      "key": "firebase_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "doctor_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "patient_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Admin System Stats",
+      "item": [
+        {
+          "name": "Get System Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/system-stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "system-stats"]
+            },
+            "description": "Get comprehensive system statistics for admin dashboard.\n\n**Authorization**: Admin or Super Admin role required\n\n**Cache**: 30 seconds\n\n**Response**:\n- System health (CPU, memory, disk, uptime)\n- Active user counts by role\n- Database metrics\n- Service status\n\n**Performance Target**: p95 < 100ms"
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/system-stats"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "X-Cache-Status",
+                  "value": "MISS"
+                },
+                {
+                  "key": "X-Cache-TTL",
+                  "value": "30"
+                }
+              ],
+              "body": "{\n  \"system_health\": {\n    \"cpu_percent\": 45.2,\n    \"memory_percent\": 65.5,\n    \"disk_usage_gb\": 128.7,\n    \"uptime_hours\": 168.5\n  },\n  \"active_users\": {\n    \"total\": 127,\n    \"doctors\": 12,\n    \"patients\": 98,\n    \"admins\": 3\n  },\n  \"database_metrics\": {\n    \"total_size_mb\": 2048.5,\n    \"active_connections\": 15,\n    \"query_performance_ms\": 45.3,\n    \"cache_hit_rate\": 0.87\n  },\n  \"service_status\": {\n    \"redis\": \"healthy\",\n    \"database\": \"healthy\",\n    \"evolution_api\": \"healthy\",\n    \"openai_api\": \"healthy\"\n  },\n  \"last_updated\": \"2025-10-06T14:30:00Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get System Stats (Non-Admin - Should Fail)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/system-stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "admin", "system-stats"]
+            },
+            "description": "Test that non-admin users receive 403 Forbidden"
+          },
+          "response": [
+            {
+              "name": "403 Forbidden",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/api/v1/admin/system-stats"
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"detail\": \"Admin role required to access system statistics\",\n  \"error_code\": \"FORBIDDEN\",\n  \"timestamp\": \"2025-10-06T14:30:00Z\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Analytics Treatment Distribution",
+      "item": [
+        {
+          "name": "Get Treatment Distribution (30 days)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/analytics/treatment-distribution?period=30d",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "analytics", "treatment-distribution"],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "30d",
+                  "description": "Time period: 7d, 30d, 90d, or all"
+                }
+              ]
+            },
+            "description": "Get treatment type distribution for last 30 days.\n\n**Authorization**: Any authenticated user\n\n**Cache**: 5 minutes\n\n**Response**:\n- Treatment type counts and percentages\n- Active patient counts\n- Average treatment duration\n- Chart-ready colors\n- 12-week trend data\n\n**Performance Target**: p95 < 150ms"
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/api/v1/analytics/treatment-distribution?period=30d"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"period\": \"30d\",\n  \"total_patients\": 127,\n  \"distribution\": [\n    {\n      \"treatment_type\": \"Terapia Hormonal - Mama\",\n      \"count\": 45,\n      \"percentage\": 35.43,\n      \"active_patients\": 42,\n      \"avg_treatment_days\": 87.5,\n      \"color\": \"#3B82F6\"\n    },\n    {\n      \"treatment_type\": \"Quimioterapia - Próstata\",\n      \"count\": 38,\n      \"percentage\": 29.92,\n      \"active_patients\": 35,\n      \"avg_treatment_days\": 62.3,\n      \"color\": \"#10B981\"\n    }\n  ],\n  \"trend_data\": [\n    {\n      \"week\": \"2025-09-08\",\n      \"count\": 118\n    },\n    {\n      \"week\": \"2025-09-15\",\n      \"count\": 122\n    }\n  ],\n  \"last_updated\": \"2025-10-06T14:30:00Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Treatment Distribution (7 days)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/analytics/treatment-distribution?period=7d",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "analytics", "treatment-distribution"],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "7d"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Treatment Distribution (90 days)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/analytics/treatment-distribution?period=90d",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "analytics", "treatment-distribution"],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "90d"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Treatment Distribution (All Time)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/analytics/treatment-distribution?period=all",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "analytics", "treatment-distribution"],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "all"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Treatment Distribution (Specific Doctor - Admin Only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/analytics/treatment-distribution?period=30d&doctor_id={{doctor_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "analytics", "treatment-distribution"],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "30d"
+                },
+                {
+                  "key": "doctor_id",
+                  "value": "{{doctor_id}}",
+                  "description": "Admin only - filter by specific doctor"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Physician Risk Assessments",
+      "item": [
+        {
+          "name": "Get All Risk Assessments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/physician/risk-assessments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "physician", "risk-assessments"]
+            },
+            "description": "Get risk assessments for all patients of current physician.\n\n**Authorization**: Physician, Doctor, or Admin role\n\n**Cache**: 1 minute\n\n**Response**:\n- Risk level classifications\n- Risk scores (0-10)\n- Recent alerts\n- Risk trends\n- Summary by risk level\n\n**Performance**: Replaces N+1 pattern (51 → 1 request)\n\n**Performance Target**: p95 < 200ms"
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/api/v1/physician/risk-assessments"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"assessments\": [\n    {\n      \"patient_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n      \"patient_name\": \"Maria Silva\",\n      \"risk_level\": \"high\",\n      \"risk_score\": 7.5,\n      \"risk_category\": \"symptom_severity\",\n      \"assessment_date\": \"2025-10-06T14:30:00Z\",\n      \"recent_alerts\": [\n        {\n          \"severity\": \"high\",\n          \"type\": \"severe_symptom\",\n          \"message\": \"Náusea severa reportada\",\n          \"created_at\": \"2025-10-06T10:15:00Z\"\n        }\n      ],\n      \"trend\": \"worsening\",\n      \"last_interaction\": \"2025-10-06T12:00:00Z\"\n    }\n  ],\n  \"summary\": {\n    \"total_patients\": 45,\n    \"by_risk_level\": {\n      \"critical\": 3,\n      \"high\": 12,\n      \"medium\": 20,\n      \"low\": 10\n    },\n    \"requiring_attention\": 15\n  },\n  \"last_updated\": \"2025-10-06T14:30:00Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Risk Assessment for Specific Patient",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/physician/risk-assessments?patient_id={{patient_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "physician", "risk-assessments"],
+              "query": [
+                {
+                  "key": "patient_id",
+                  "value": "{{patient_id}}",
+                  "description": "Filter by specific patient UUID"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get High Risk Patients Only",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/physician/risk-assessments?risk_level=high&limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "physician", "risk-assessments"],
+              "query": [
+                {
+                  "key": "risk_level",
+                  "value": "high",
+                  "description": "Filter by risk level: low, medium, high, critical"
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Maximum results (1-100)"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Critical Risk Patients",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/physician/risk-assessments?risk_level=critical",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "physician", "risk-assessments"],
+              "query": [
+                {
+                  "key": "risk_level",
+                  "value": "critical"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Medico Dashboard Stats",
+      "item": [
+        {
+          "name": "Get Dashboard Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/medico/dashboard-stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "medico", "dashboard-stats"]
+            },
+            "description": "Get comprehensive dashboard statistics for medical professionals.\n\n**Authorization**: Medico or Doctor role\n\n**Cache**: 2 minutes\n\n**Response**:\n- Overview metrics (patients, treatments, pending reviews, alerts)\n- Patient breakdown by flow state and treatment type\n- Engagement metrics (messages, response rate)\n- Alerts summary by severity\n- Recent activity feed\n- Performance indicators\n\n**Performance Target**: p95 < 100ms"
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/api/v1/medico/dashboard-stats"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"overview\": {\n    \"total_patients\": 87,\n    \"active_treatments\": 65,\n    \"pending_reviews\": 12,\n    \"new_alerts_today\": 5\n  },\n  \"patient_breakdown\": {\n    \"by_flow_state\": {\n      \"active\": 65,\n      \"paused\": 8,\n      \"completed\": 14,\n      \"onboarding\": 0,\n      \"inactive\": 0\n    },\n    \"by_treatment_type\": [\n      {\n        \"treatment_type\": \"Terapia Hormonal - Mama\",\n        \"count\": 32\n      },\n      {\n        \"treatment_type\": \"Quimioterapia - Próstata\",\n        \"count\": 28\n      }\n    ]\n  },\n  \"engagement_metrics\": {\n    \"messages_today\": 45,\n    \"response_rate_7d\": 87.5,\n    \"avg_response_time_hours\": 2.3,\n    \"quizzes_completed_7d\": 32\n  },\n  \"alerts_summary\": {\n    \"unacknowledged\": 8,\n    \"by_severity\": {\n      \"critical\": 2,\n      \"high\": 5,\n      \"medium\": 10,\n      \"low\": 15\n    }\n  },\n  \"recent_activity\": [\n    {\n      \"type\": \"alert\",\n      \"patient_name\": \"Maria Silva\",\n      \"description\": \"Alerta de náusea severa\",\n      \"timestamp\": \"2025-10-06T14:15:00Z\"\n    }\n  ],\n  \"performance_indicators\": {\n    \"completion_rate\": 78.5,\n    \"patient_satisfaction_score\": 4.6,\n    \"adherence_rate\": 85.2\n  },\n  \"last_updated\": \"2025-10-06T14:30:00Z\"\n}"
+            },
+            {
+              "name": "New Doctor with No Patients",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/api/v1/medico/dashboard-stats"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"overview\": {\n    \"total_patients\": 0,\n    \"active_treatments\": 0,\n    \"pending_reviews\": 0,\n    \"new_alerts_today\": 0\n  },\n  \"patient_breakdown\": {\n    \"by_flow_state\": {\n      \"active\": 0,\n      \"paused\": 0,\n      \"completed\": 0,\n      \"onboarding\": 0,\n      \"inactive\": 0\n    },\n    \"by_treatment_type\": []\n  },\n  \"engagement_metrics\": {\n    \"messages_today\": 0,\n    \"response_rate_7d\": 0.0,\n    \"avg_response_time_hours\": null,\n    \"quizzes_completed_7d\": 0\n  },\n  \"alerts_summary\": {\n    \"unacknowledged\": 0,\n    \"by_severity\": {\n      \"critical\": 0,\n      \"high\": 0,\n      \"medium\": 0,\n      \"low\": 0\n    }\n  },\n  \"recent_activity\": [],\n  \"performance_indicators\": {\n    \"completion_rate\": 0.0,\n    \"patient_satisfaction_score\": 0.0,\n    \"adherence_rate\": 0.0\n  },\n  \"last_updated\": \"2025-10-06T14:30:00Z\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Error Responses",
+      "item": [
+        {
+          "name": "401 Unauthorized",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/medico/dashboard-stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "medico", "dashboard-stats"]
+            },
+            "description": "Test unauthorized access (no token)"
+          },
+          "response": [
+            {
+              "name": "401 Response",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/api/v1/medico/dashboard-stats"
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"detail\": \"Invalid or expired authentication token\",\n  \"error_code\": \"UNAUTHORIZED\",\n  \"timestamp\": \"2025-10-06T14:30:00Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "422 Validation Error",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/analytics/treatment-distribution?period=invalid",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "analytics", "treatment-distribution"],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "invalid"
+                }
+              ]
+            },
+            "description": "Test validation error with invalid period"
+          },
+          "response": [
+            {
+              "name": "422 Response",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/api/v1/analytics/treatment-distribution?period=invalid"
+                }
+              },
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"detail\": \"Validation error\",\n  \"error_code\": \"VALIDATION_ERROR\",\n  \"errors\": [\n    {\n      \"field\": \"period\",\n      \"message\": \"Must be one of: 7d, 30d, 90d, all\",\n      \"value\": \"invalid\"\n    }\n  ],\n  \"timestamp\": \"2025-10-06T14:30:00Z\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

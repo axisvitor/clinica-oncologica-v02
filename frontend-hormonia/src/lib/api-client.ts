@@ -736,6 +736,21 @@ class ApiClient {
       this.request<any>(`/api/v1/ai/recommendations/${patientId}`)
   }
 
+  // Physician-specific endpoints
+  physician = {
+    // Get aggregated risk assessments (Wave 2 Performance Fix)
+    // Replaces N+1 queries (1 patient list + N ai/insights) with 1 aggregated call
+    riskAssessments: (patientId?: string, daysLookback?: number) => {
+      const params: Record<string, string | number | boolean> = {}
+      if (patientId) params['patient_id'] = patientId
+      if (daysLookback) params['days_lookback'] = daysLookback
+
+      return this.request<any>('/api/v1/physician/risk-assessments',
+        Object.keys(params).length > 0 ? { params } : {}
+      )
+    }
+  }
+
   // Monthly Quiz Management endpoints
   monthlyQuiz = {
     // Create quiz link for a single patient

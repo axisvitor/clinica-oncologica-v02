@@ -1,14 +1,11 @@
-import { useCallback, useMemo } from 'react'
-import { useSupabaseAuth } from './auth/useSupabaseAuth'
-import { useApiAuth } from './auth/useApiAuth'
+import { useContext } from 'react'
+import { AuthContext } from '@/contexts/AuthContext'
 import { useSessionManagement } from './auth/useSessionManagement'
 import { usePermissions } from './auth/usePermissions'
 import { useAuthRetry } from './auth/useAuthRetry'
-import { AuthEventListener, User } from './auth/types'
 
 interface UseAuthOptions {
-  preferSupabase?: boolean
-  onAuthEvent?: AuthEventListener
+  onAuthEvent?: (event: any) => void
   autoConnectWebSocket?: boolean
   persistTokens?: boolean
   retryConfig?: {
@@ -20,227 +17,74 @@ interface UseAuthOptions {
 
 /**
  * Main authentication hook that provides a unified interface
- * combining Firebase/Supabase auth, API auth, session management, and permissions
+ * combining Firebase auth (via AuthContext), session management, and permissions
  *
- * Note: Now defaults to Firebase-first authentication (preferSupabase = false)
- * to match AdminAuthContext and production configuration
+ * This hook uses Firebase exclusively for authentication.
  */
-export function useAuth({
-  preferSupabase = false,
-  onAuthEvent,
-  autoConnectWebSocket = true,
-  persistTokens = true,
-  retryConfig
-}: UseAuthOptions = {}) {
-  // Initialize auth retry with config
-  const { executeWithRetry, isRetrying, retryCount, resetRetryState } = useAuthRetry(retryConfig ? { config: retryConfig } : {})
+export function useAuth(options: UseAuthOptions = {}) {
+  // Get Firebase auth from AuthContext
+  const auth = useContext(AuthContext)
 
-  // Initialize Supabase auth
-  const supabaseAuth = useSupabaseAuth()
-
-  // DEPRECATED: useApiAuth removed to eliminate dead code in Firebase-only builds
-  // apiAuth hook is no longer used since Firebase handles all authentication
-  const apiAuth = {
-    user: null,
-    token: null,
-    refreshToken: null,
-    loading: false,
-    error: null,
-    isAuthenticated: false,
-    login: async (_credentials: { email: string; password: string }) => {
-      throw new Error('API auth is deprecated - use Firebase authentication')
-    },
-    refreshAuth: async (): Promise<any> => {
-      throw new Error('API refresh is deprecated - Firebase handles session refresh')
-    },
-    logout: () => {},
-    restoreSession: async () => false
+  if (!auth) {
+    throw new Error('useAuth must be used within an AuthProvider')
   }
 
-  // Determine which user to use based on preference and availability
-  const user: User | null = useMemo(() => {
-    if (preferSupabase && supabaseAuth.user) {
-      return supabaseAuth.convertToAppUser(supabaseAuth.user)
-    }
-    return apiAuth.user
-  }, [preferSupabase, supabaseAuth.user, supabaseAuth.convertToAppUser, apiAuth.user])
+  // Initialize auth retry with config
+  const { executeWithRetry, isRetrying, retryCount, resetRetryState } = useAuthRetry(
+    options.retryConfig ? { config: options.retryConfig } : {}
+  )
 
-  // Determine which token to use
-  const token = useMemo(() => {
-    if (preferSupabase && supabaseAuth.accessToken) {
-      return supabaseAuth.accessToken
-    }
-    return apiAuth.token
-  }, [preferSupabase, supabaseAuth.accessToken, apiAuth.token])
-
-  const refreshToken = useMemo(() => {
-    if (preferSupabase && supabaseAuth.refreshToken) {
-      return supabaseAuth.refreshToken
-    }
-    return apiAuth.refreshToken
-  }, [preferSupabase, supabaseAuth.refreshToken, apiAuth.refreshToken])
+  // Initialize permissions based on current user
+  const permissions = usePermissions({ user: auth.user })
 
   // Initialize session management
   const sessionManagement = useSessionManagement({
-    onRefreshNeeded: useCallback(async () => {
-      if (preferSupabase && supabaseAuth.session) {
-        await supabaseAuth.refreshSession()
-      } else if (apiAuth.refreshToken) {
-        await apiAuth.refreshAuth()
-      }
-    }, [preferSupabase, supabaseAuth.session, supabaseAuth.refreshSession, apiAuth.refreshToken, apiAuth.refreshAuth]),
-
-    onSessionExpired: useCallback(() => {
-      if (preferSupabase) {
-        supabaseAuth.signOut()
-      } else {
-        apiAuth.logout()
-      }
-    }, [preferSupabase, supabaseAuth.signOut, apiAuth.logout]),
-
+    onRefreshNeeded: async () => {
+      // Firebase handles token refresh automatically
+      // This is a no-op as AuthContext already handles refresh
+    },
+    onSessionExpired: auth.logout,
     autoRefresh: true
   })
 
-  // Initialize permissions
-  const permissions = usePermissions({ user })
-
-  // Unified login method
-  const login = useCallback(async (email: string, password: string) => {
-    resetRetryState()
-
-    if (preferSupabase) {
-      return await supabaseAuth.signIn(email, password)
-    } else {
-      const result = await apiAuth.login({ email, password })
-
-      // Update session management with token info
-      if (result && 'expires_in' in result) {
-        sessionManagement.updateSessionFromTokens(result as any)
-      }
-
-      return result
-    }
-  }, [preferSupabase, supabaseAuth.signIn, apiAuth.login, sessionManagement.updateSessionFromTokens, resetRetryState])
-
-  // Unified logout method
-  const logout = useCallback(async () => {
-    sessionManagement.clearSession()
-
-    if (preferSupabase) {
-      await supabaseAuth.signOut()
-    } else {
-      await apiAuth.logout()
-    }
-  }, [preferSupabase, supabaseAuth.signOut, apiAuth.logout, sessionManagement.clearSession])
-
-  // Unified refresh method
-  const refreshAuth = useCallback(async () => {
-    return await executeWithRetry(async () => {
-      if (preferSupabase && supabaseAuth.session) {
-        const result = await supabaseAuth.refreshSession()
-        if (result?.session?.expires_at) {
-          const expiresIn = result.session.expires_at - Math.floor(Date.now() / 1000)
-          sessionManagement.updateSessionFromTokens({ expires_in: expiresIn } as any)
-        }
-        return result
-      } else if (apiAuth.refreshToken) {
-        const result = await apiAuth.refreshAuth()
-        if (result && 'expires_in' in result) {
-          sessionManagement.updateSessionFromTokens(result)
-        }
-        return result
-      } else {
-        throw new Error('No refresh token available')
-      }
-    }, 'auth refresh')
-  }, [preferSupabase, supabaseAuth.session, supabaseAuth.refreshSession, apiAuth.refreshToken, apiAuth.refreshAuth, sessionManagement.updateSessionFromTokens, executeWithRetry])
-
-  // Sign up method (primarily for Supabase)
-  const signUp = useCallback(async (email: string, password: string) => {
-    if (preferSupabase) {
-      await supabaseAuth.signUp(email, password)
-    } else {
-      throw new Error('Sign up is only available with Supabase authentication')
-    }
-  }, [preferSupabase, supabaseAuth.signUp])
-
-  // Password reset (primarily for Supabase)
-  const resetPassword = useCallback(async (email: string) => {
-    if (preferSupabase) {
-      return await supabaseAuth.resetPassword(email)
-    }
-    throw new Error('Password reset is only available with Supabase authentication')
-  }, [preferSupabase, supabaseAuth.resetPassword])
-
-  // Update password (primarily for Supabase)
-  const updatePassword = useCallback(async (newPassword: string) => {
-    if (preferSupabase) {
-      return await supabaseAuth.updatePassword(newPassword)
-    }
-    throw new Error('Password update is only available with Supabase authentication')
-  }, [preferSupabase, supabaseAuth.updatePassword])
-
-  // Restore session on app start
-  const restoreSession = useCallback(async () => {
-    if (preferSupabase) {
-      // Supabase handles this automatically
-      return supabaseAuth.isAuthenticated
-    } else {
-      const restored = await apiAuth.restoreSession()
-      if (restored && sessionManagement.restoreSessionFromStorage()) {
-        return true
-      }
-      return false
-    }
-  }, [preferSupabase, supabaseAuth.isAuthenticated, apiAuth.restoreSession, sessionManagement.restoreSessionFromStorage])
-
-  // Compute loading state
-  const isLoading = useMemo(() => {
-    if (preferSupabase) {
-      return supabaseAuth.loading
-    }
-    return apiAuth.loading
-  }, [preferSupabase, supabaseAuth.loading, apiAuth.loading])
-
-  // Compute error state
-  const error = useMemo(() => {
-    if (preferSupabase) {
-      return supabaseAuth.error
-    }
-    return apiAuth.error
-  }, [preferSupabase, supabaseAuth.error, apiAuth.error])
-
-  // Compute authentication state
-  const isAuthenticated = useMemo(() => {
-    if (preferSupabase) {
-      return supabaseAuth.isAuthenticated
-    }
-    return apiAuth.isAuthenticated
-  }, [preferSupabase, supabaseAuth.isAuthenticated, apiAuth.isAuthenticated])
-
   return {
-    // User and auth state
-    user,
-    token,
-    refreshToken,
-    isAuthenticated,
-    isLoading,
-    error,
+    // User and auth state from AuthContext
+    user: auth.user,
+    token: auth.session?.access_token || null,
+    refreshToken: null, // Firebase handles refresh internally
+    isAuthenticated: auth.isAuthenticated,
+    isLoading: auth.isLoading,
+    error: null,
 
     // Session data
     sessionData: sessionManagement.sessionData,
     isSessionExpiring: sessionManagement.isSessionExpiring,
 
-    // Auth methods
-    login,
-    logout,
-    refreshAuth,
-    signUp,
-    resetPassword,
-    updatePassword,
-    restoreSession,
+    // Auth methods from AuthContext
+    login: async (email: string, password: string) => {
+      resetRetryState()
+      return await auth.login(email, password)
+    },
+    logout: auth.logout,
+    refreshAuth: async () => {
+      // Firebase handles refresh automatically via AuthContext
+      return null
+    },
+    signUp: async (_email: string, _password: string) => {
+      throw new Error('Sign up must be handled through the backend API')
+    },
+    resetPassword: async (_email: string) => {
+      throw new Error('Password reset must be handled through Firebase directly')
+    },
+    updatePassword: async (_newPassword: string) => {
+      throw new Error('Password update must be handled through Firebase directly')
+    },
+    restoreSession: async () => {
+      // Firebase/AuthContext handles session restoration automatically
+      return auth.isAuthenticated
+    },
 
-    // Permission methods
+    // Permission methods from usePermissions
     hasPermission: permissions.hasPermission,
     hasRole: permissions.hasRole,
     hasAnyRole: permissions.hasAnyRole,
@@ -258,18 +102,6 @@ export function useAuth({
     // Retry state
     isRetrying,
     retryCount,
-    resetRetryState,
-
-    // Raw auth providers (for advanced use cases)
-    supabaseAuth: supabaseAuth.authData,
-    apiAuth: {
-      user: apiAuth.user,
-      token: apiAuth.token,
-      loading: apiAuth.loading,
-      error: apiAuth.error
-    },
-
-    // Configuration
-    preferSupabase
+    resetRetryState
   }
 }

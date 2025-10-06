@@ -15,8 +15,11 @@
  * - Auth context providers
  */
 
-import { User, Session } from '@supabase/supabase-js'
 import { createContext, useContext } from 'react'
+
+// Removed Supabase imports - using generic types
+type User = any
+type Session = any
 type UserMetadata = Record<string, any>
 
 // Extended user interface with application-specific fields

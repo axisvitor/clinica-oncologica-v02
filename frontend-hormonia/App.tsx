@@ -7,7 +7,7 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { Layout } from '@/components/layout/Layout'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
-import { Landing } from '@/components/Landing'
+import { LandingRoute } from '@/pages/LandingRoute'
 
 // Lazy load pages for better performance
 const LoginPage = lazy(() => import('@/pages/LoginPage').then(m => ({ default: m.LoginPage })))
@@ -93,8 +93,8 @@ function App() {
               <Suspense fallback={<PageLoader />}>
                 <Routes>
                   <Route path="/login" element={<LoginPage />} />
-                  {/* Smart routing: redirect to /dashboard if authenticated, /login if not */}
-                  <Route path="/" element={<Landing />} />
+                  {/* Smart routing: shows loading spinner, then redirects based on auth state and role */}
+                  <Route path="/" element={<LandingRoute />} />
 
                   {/* Protected Routes with Suspense */}
                   <Route path="/dashboard" element={

@@ -21,8 +21,8 @@ export interface LoginResponse extends AuthTokens {
 }
 
 export interface SupabaseAuthData {
-  user: import('@supabase/supabase-js').User | null
-  session: import('@supabase/supabase-js').Session | null
+  user: any | null  // Removed Supabase dependency
+  session: any | null  // Removed Supabase dependency
   loading: boolean
 }
 

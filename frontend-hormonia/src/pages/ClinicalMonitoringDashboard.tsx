@@ -31,6 +31,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Activity,
   AlertTriangle,
@@ -44,11 +45,14 @@ import {
   Calendar,
   RefreshCw,
 } from 'lucide-react';
-import { apiClient } from '@/lib/api-client';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { format, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { createLogger } from '../lib/logger';
+import { useClinicalMetrics } from '@/hooks/api/useClinicalMetrics';
+import { useRiskPatients } from '@/hooks/api/useRiskPatients';
+import { useAdherenceData } from '@/hooks/api/useAdherenceData';
+import { useQueryClient } from '@tanstack/react-query';
 
 const logger = createLogger('ClinicalMonitoringDashboard');
 
@@ -99,89 +103,56 @@ interface TreatmentAdherence {
 }
 
 const ClinicalMonitoringDashboard: React.FC = () => {
-  const [metrics, setMetrics] = useState<ClinicalMetrics>({
-    patientEngagement: 0,
-    quizCompletion: 0,
-    messageResponseRate: 0,
-    averageSentiment: 0,
-    riskPatients: 0,
-    totalPatients: 0,
-    activeFlows: 0,
-    completedFlows: 0,
+  const [selectedTimeRange, setSelectedTimeRange] = useState<'7d' | '30d' | '90d'>('7d');
+  const [refreshing, setRefreshing] = useState(false);
+  const queryClient = useQueryClient();
+
+  // React Query hooks for data fetching
+  const {
+    data: metrics,
+    isLoading: isLoadingMetrics,
+    error: metricsError,
+    refetch: refetchMetrics
+  } = useClinicalMetrics({
+    timeRange: selectedTimeRange,
+    refetchInterval: 30000
   });
 
-  const [riskPatients, setRiskPatients] = useState<PatientRisk[]>([]);
-  const [adherenceData, setAdherenceData] = useState<TreatmentAdherence[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [selectedTimeRange, setSelectedTimeRange] = useState('7d');
+  const {
+    data: riskPatients = [],
+    isLoading: isLoadingRisk,
+    refetch: refetchRisk
+  } = useRiskPatients();
+
+  const {
+    data: adherenceData = [],
+    isLoading: isLoadingAdherence,
+    refetch: refetchAdherence
+  } = useAdherenceData({
+    days: parseInt(selectedTimeRange.replace('d', ''))
+  });
+
+  const isLoading = isLoadingMetrics || isLoadingRisk || isLoadingAdherence;
 
   // WebSocket para atualizações em tempo real
   const { lastMessage: wsData } = useWebSocket({ url: '/clinical-metrics' });
 
-  // Buscar métricas iniciais
-  useEffect(() => {
-    fetchClinicalMetrics();
-    fetchRiskPatients();
-    fetchAdherenceData();
-  }, [selectedTimeRange]);
-
   // Atualizar com dados do WebSocket
   useEffect(() => {
-    if (wsData?.type === 'metrics_update' && wsData.data?.metrics) {
-      setMetrics(wsData.data.metrics as ClinicalMetrics);
+    if (wsData?.type === 'metrics_update') {
+      queryClient.invalidateQueries({ queryKey: ['clinical', 'metrics'] });
     }
     if (wsData?.type === 'risk_alert') {
-      fetchRiskPatients();
+      queryClient.invalidateQueries({ queryKey: ['clinical', 'risk-patients'] });
     }
-  }, [wsData]);
-
-  const fetchClinicalMetrics = async () => {
-    try {
-      setLoading(true);
-      logger.info('Fetching clinical metrics', { timeRange: selectedTimeRange });
-      const response = await apiClient.get<ApiResponse<ClinicalMetrics>>('/api/v1/metrics/clinical', {
-        params: { timeRange: selectedTimeRange }
-      });
-      setMetrics(response['data']);
-      logger.debug('Clinical metrics loaded', { metrics: response['data'] });
-    } catch (error) {
-      logger.error('Error fetching clinical metrics', { error, timeRange: selectedTimeRange });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchRiskPatients = async () => {
-    try {
-      logger.info('Fetching risk patients');
-      const response = await apiClient.get<ApiResponse<PatientRisk[]>>('/api/v1/patients/at-risk');
-      setRiskPatients(response['data']);
-      logger.debug('Risk patients loaded', { count: response['data'].length });
-    } catch (error) {
-      logger.error('Error fetching risk patients', { error });
-    }
-  };
-
-  const fetchAdherenceData = async () => {
-    try {
-      logger.info('Fetching adherence data', { days: parseInt(selectedTimeRange) });
-      const response = await apiClient.get<ApiResponse<TreatmentAdherence[]>>('/api/v1/analytics/adherence', {
-        params: { days: parseInt(selectedTimeRange) }
-      });
-      setAdherenceData(response['data']);
-      logger.debug('Adherence data loaded', { dataPoints: response['data'].length });
-    } catch (error) {
-      logger.error('Error fetching adherence data', { error, days: parseInt(selectedTimeRange) });
-    }
-  };
+  }, [wsData, queryClient]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     await Promise.all([
-      fetchClinicalMetrics(),
-      fetchRiskPatients(),
-      fetchAdherenceData()
+      refetchMetrics(),
+      refetchRisk(),
+      refetchAdherence()
     ]);
     setRefreshing(false);
   };
@@ -212,6 +183,42 @@ const ClinicalMonitoringDashboard: React.FC = () => {
 
   const formatPercentage = (value: number) => `${(value * 100).toFixed(1)}%`;
 
+  // Loading state with skeleton
+  if (isLoading && !metrics) {
+    return (
+      <div className="p-6 space-y-6">
+        <Skeleton className="h-12 w-96" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-32" />)}
+        </div>
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
+
+  // Error state
+  if (metricsError) {
+    return (
+      <div className="p-6 space-y-6">
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Erro ao carregar métricas clínicas</AlertTitle>
+          <AlertDescription>
+            Não foi possível carregar as métricas. Tente novamente.
+            <Button onClick={() => refetchMetrics()} variant="outline" size="sm" className="ml-2">
+              Tentar novamente
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  // Ensure metrics is defined before rendering
+  if (!metrics) {
+    return null;
+  }
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -224,11 +231,11 @@ const ClinicalMonitoringDashboard: React.FC = () => {
           <select
             className="px-4 py-2 border rounded-lg"
             value={selectedTimeRange}
-            onChange={(e) => setSelectedTimeRange(e.target.value)}
+            onChange={(e) => setSelectedTimeRange(e.target.value as '7d' | '30d' | '90d')}
           >
-            <option value="7">Últimos 7 dias</option>
-            <option value="30">Últimos 30 dias</option>
-            <option value="90">Últimos 90 dias</option>
+            <option value="7d">Últimos 7 dias</option>
+            <option value="30d">Últimos 30 dias</option>
+            <option value="90d">Últimos 90 dias</option>
           </select>
           <Button
             onClick={handleRefresh}

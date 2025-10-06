@@ -19,7 +19,8 @@ const logger = createLogger('LoginPage')
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
-  password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres')
+  password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
+  rememberMe: z.boolean().optional()
 })
 
 type LoginFormData = z.infer<typeof loginSchema>
@@ -71,7 +72,7 @@ export function LoginPage() {
     try {
       setLoginError(null)
       setIsSubmittingForm(true)
-      await login(data['email'], data['password'])
+      await login(data['email'], data['password'], data['rememberMe'] || false)
     } catch (error: any) {
       logger.error('Login error', { error })
 
@@ -238,6 +239,19 @@ export function LoginPage() {
                     {errors['password'].message}
                   </p>
                 )}
+              </div>
+
+              {/* Remember Me Checkbox */}
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="rememberMe"
+                  {...register('rememberMe')}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <Label htmlFor="rememberMe" className="text-sm font-normal cursor-pointer">
+                  Manter-me conectado
+                </Label>
               </div>
 
               <Button

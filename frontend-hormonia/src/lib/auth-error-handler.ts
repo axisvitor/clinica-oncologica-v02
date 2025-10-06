@@ -12,8 +12,15 @@
  * - Permission context helpers
  */
 
-import { PostgrestError } from '@supabase/supabase-js'
 import { createLogger } from './logger'
+
+// Removed Supabase dependency - PostgrestError type replaced with generic error
+type PostgrestError = {
+  message: string
+  code?: string
+  details?: string
+  hint?: string
+}
 
 const logger = createLogger('AuthErrorHandler')
 

@@ -1,5 +1,4 @@
 import React, { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -7,10 +6,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Skeleton } from '@/components/ui/skeleton'
 import { SystemStatus } from '@/components/monitoring/SystemStatus'
 import { useAuth } from '@/contexts/AuthContext'
 import { useConfig } from '@/lib/config-initializer'
 import { apiClient } from '@/lib/api-client'
+import { useSystemStats } from '@/hooks/api/useSystemStats'
 import { Loader2, Settings, Users, Database, Shield, Activity, FileText, Download, Upload, RefreshCw, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, Search, ListFilter as ListFilter } from 'lucide-react'
 
 interface BackupResponse {
@@ -35,17 +36,19 @@ interface SettingsPayload {
   debug_mode: boolean
 }
 
-interface SystemStats {
-  totalUsers: number
-  activeUsers: number
-  totalPatients: number
-  activePatients?: number
-  messagesProcessed?: number
-  apiCalls?: number
-  averageResponseTime: number
-  uptime: number
-  diskUsage?: number
-  memoryUsage?: number
+// Helper function to format uptime in human-readable format
+function formatUptime(seconds: number): string {
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+
+  if (days > 0) {
+    return `${days}d ${hours}h`
+  } else if (hours > 0) {
+    return `${hours}h ${minutes}m`
+  } else {
+    return `${minutes}m`
+  }
 }
 
 export default function AdminPage() {
@@ -61,15 +64,9 @@ export default function AdminPage() {
   const [maintenanceMode, setMaintenanceMode] = useState(false)
   const [debugMode, setDebugMode] = useState(false)
 
-  // Fetch system stats with React Query
-  const { data: systemStats, isLoading: statsLoading, error: statsError } = useQuery({
-    queryKey: ['admin', 'system-stats'],
-    queryFn: async () => {
-      const response = await apiClient.request<SystemStats>('/admin/system-stats')
-      return response as SystemStats
-    },
-    refetchInterval: 30000, // Refresh every 30s
-    staleTime: 20000 // Consider data stale after 20s
+  // Fetch system stats with automatic refetching
+  const { data: stats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useSystemStats({
+    refetchInterval: 30000 // Refresh every 30s
   })
 
   // Check admin access
@@ -170,8 +167,13 @@ export default function AdminPage() {
             <p className="text-gray-600 mt-1">Controle completo do sistema e monitoramento em tempo real</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
-              <RefreshCw className="mr-2 h-4 w-4" />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetchStats()}
+              disabled={statsLoading}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${statsLoading ? 'animate-spin' : ''}`} />
               Atualizar
             </Button>
             <Button size="sm">
@@ -218,29 +220,250 @@ export default function AdminPage() {
         </TabsList>
 
         <TabsContent value="monitoring" className="space-y-6">
-          {/* System Stats Overview */}
+          {/* Error Alert */}
           {statsError && (
-            <Alert className="bg-red-50 mb-6">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-              <AlertTitle>Erro ao carregar estatísticas</AlertTitle>
-              <AlertDescription>
-                Não foi possível carregar as estatísticas do sistema. Tente novamente mais tarde.
+            <Alert variant="destructive" className="mb-6">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Erro ao carregar estatísticas do sistema</AlertTitle>
+              <AlertDescription className="flex items-center justify-between">
+                <span>{statsError instanceof Error ? statsError.message : 'Erro desconhecido'}</span>
+                <Button onClick={() => refetchStats()} variant="outline" size="sm" className="ml-4">
+                  Tentar Novamente
+                </Button>
               </AlertDescription>
             </Alert>
           )}
 
+          {/* System Metrics Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* CPU Usage */}
             <Card className="hover:shadow-lg transition-shadow">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Usuários Ativos</p>
+                    <p className="text-sm font-medium text-gray-600">CPU Usage</p>
                     {statsLoading ? (
-                      <Loader2 className="h-8 w-8 animate-spin text-gray-400 mt-2" />
+                      <Skeleton className="h-10 w-20 mt-2" />
                     ) : (
                       <>
-                        <p className="text-3xl font-bold mt-2">{systemStats?.activeUsers ?? 0}</p>
-                        <p className="text-xs text-gray-500 mt-1">de {systemStats?.totalUsers ?? 0} total</p>
+                        <p className={`text-3xl font-bold mt-2 ${stats && stats.system.cpu_percent > 80 ? 'text-red-600' : ''}`}>
+                          {stats?.system.cpu_percent.toFixed(1)}%
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {stats && stats.system.cpu_percent > 80 ? 'Alta utilização' : 'Normal'}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                  <div className={`h-12 w-12 rounded-full flex items-center justify-center ${
+                    stats && stats.system.cpu_percent > 80 ? 'bg-red-100' : 'bg-blue-100'
+                  }`}>
+                    <Activity className={`h-6 w-6 ${
+                      stats && stats.system.cpu_percent > 80 ? 'text-red-600' : 'text-blue-600'
+                    }`} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Memory Usage */}
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Memory Usage</p>
+                    {statsLoading ? (
+                      <Skeleton className="h-10 w-20 mt-2" />
+                    ) : (
+                      <>
+                        <p className={`text-3xl font-bold mt-2 ${stats && stats.system.memory_percent > 80 ? 'text-orange-600' : ''}`}>
+                          {stats?.system.memory_percent.toFixed(1)}%
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {stats && stats.system.memory_percent > 80 ? 'Atenção' : 'Normal'}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                  <div className={`h-12 w-12 rounded-full flex items-center justify-center ${
+                    stats && stats.system.memory_percent > 80 ? 'bg-orange-100' : 'bg-green-100'
+                  }`}>
+                    <Activity className={`h-6 w-6 ${
+                      stats && stats.system.memory_percent > 80 ? 'text-orange-600' : 'text-green-600'
+                    }`} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Disk Usage */}
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Disk Usage</p>
+                    {statsLoading ? (
+                      <Skeleton className="h-10 w-20 mt-2" />
+                    ) : (
+                      <>
+                        <p className="text-3xl font-bold mt-2">{stats?.system.disk_percent.toFixed(1)}%</p>
+                        <p className="text-xs text-gray-500 mt-1">Armazenamento</p>
+                      </>
+                    )}
+                  </div>
+                  <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
+                    <Database className="h-6 w-6 text-purple-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* System Uptime */}
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">System Uptime</p>
+                    {statsLoading ? (
+                      <Skeleton className="h-10 w-20 mt-2" />
+                    ) : (
+                      <>
+                        <p className="text-3xl font-bold mt-2">{stats ? formatUptime(stats.system.uptime_seconds) : '0m'}</p>
+                        <p className="text-xs text-green-600 mt-1">Online</p>
+                      </>
+                    )}
+                  </div>
+                  <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
+                    <CheckCircle className="h-6 w-6 text-green-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* User Metrics */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Total Users</p>
+                    {statsLoading ? (
+                      <Skeleton className="h-10 w-16 mt-2" />
+                    ) : (
+                      <>
+                        <p className="text-3xl font-bold mt-2">{stats?.users.total.toLocaleString()}</p>
+                        <p className="text-xs text-gray-500 mt-1">Cadastrados</p>
+                      </>
+                    )}
+                  </div>
+                  <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                    <Users className="h-6 w-6 text-blue-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Active Users (24h)</p>
+                    {statsLoading ? (
+                      <Skeleton className="h-10 w-16 mt-2" />
+                    ) : (
+                      <>
+                        <p className="text-3xl font-bold mt-2">{stats?.users.active_now.toLocaleString()}</p>
+                        <p className="text-xs text-gray-500 mt-1">Últimas 24h</p>
+                      </>
+                    )}
+                  </div>
+                  <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
+                    <Activity className="h-6 w-6 text-green-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Admins</p>
+                    {statsLoading ? (
+                      <Skeleton className="h-10 w-12 mt-2" />
+                    ) : (
+                      <>
+                        <p className="text-3xl font-bold mt-2">{(stats?.users.by_role.admin ?? 0).toString()}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {(stats?.users.by_role.doctor ?? 0).toString()} médicos
+                        </p>
+                      </>
+                    )}
+                  </div>
+                  <div className="h-12 w-12 rounded-full bg-orange-100 flex items-center justify-center">
+                    <Shield className="h-6 w-6 text-orange-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Database Metrics */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Total Records</p>
+                    {statsLoading ? (
+                      <Skeleton className="h-10 w-16 mt-2" />
+                    ) : (
+                      <>
+                        <p className="text-3xl font-bold mt-2">{stats?.database.total_records.toLocaleString()}</p>
+                        <p className="text-xs text-gray-500 mt-1">Registros</p>
+                      </>
+                    )}
+                  </div>
+                  <div className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center">
+                    <Database className="h-6 w-6 text-indigo-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Patients</p>
+                    {statsLoading ? (
+                      <Skeleton className="h-10 w-16 mt-2" />
+                    ) : (
+                      <>
+                        <p className="text-3xl font-bold mt-2">{stats?.database.total_patients.toLocaleString()}</p>
+                        <p className="text-xs text-gray-500 mt-1">Pacientes</p>
+                      </>
+                    )}
+                  </div>
+                  <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                    <Users className="h-6 w-6 text-blue-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">DB Users</p>
+                    {statsLoading ? (
+                      <Skeleton className="h-10 w-16 mt-2" />
+                    ) : (
+                      <>
+                        <p className="text-3xl font-bold mt-2">{stats?.database.total_users.toLocaleString()}</p>
+                        <p className="text-xs text-gray-500 mt-1">Usuários</p>
                       </>
                     )}
                   </div>
@@ -255,55 +478,13 @@ export default function AdminPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Pacientes Ativos</p>
+                    <p className="text-sm font-medium text-gray-600">DB Connections</p>
                     {statsLoading ? (
-                      <Loader2 className="h-8 w-8 animate-spin text-gray-400 mt-2" />
+                      <Skeleton className="h-10 w-12 mt-2" />
                     ) : (
                       <>
-                        <p className="text-3xl font-bold mt-2">{systemStats?.activePatients ?? 0}</p>
-                        <p className="text-xs text-gray-500 mt-1">de {systemStats?.totalPatients ?? 0} total</p>
-                      </>
-                    )}
-                  </div>
-                  <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                    <Activity className="h-6 w-6 text-blue-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Mensagens Hoje</p>
-                    {statsLoading ? (
-                      <Loader2 className="h-8 w-8 animate-spin text-gray-400 mt-2" />
-                    ) : (
-                      <>
-                        <p className="text-3xl font-bold mt-2">{(systemStats?.messagesProcessed ?? 0).toLocaleString()}</p>
-                        <p className="text-xs text-gray-500 mt-1">{(systemStats?.apiCalls ?? 0).toLocaleString()} API calls</p>
-                      </>
-                    )}
-                  </div>
-                  <div className="h-12 w-12 rounded-full bg-orange-100 flex items-center justify-center">
-                    <Activity className="h-6 w-6 text-orange-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Tempo Resposta</p>
-                    {statsLoading ? (
-                      <Loader2 className="h-8 w-8 animate-spin text-gray-400 mt-2" />
-                    ) : (
-                      <>
-                        <p className="text-3xl font-bold mt-2">{systemStats?.averageResponseTime ?? 0}ms</p>
-                        <p className="text-xs text-green-600 mt-1">Uptime: {systemStats?.uptime ?? 0}%</p>
+                        <p className="text-3xl font-bold mt-2">{stats?.database.connections.toString()}</p>
+                        <p className="text-xs text-gray-500 mt-1">Ativas</p>
                       </>
                     )}
                   </div>
@@ -314,6 +495,15 @@ export default function AdminPage() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Timestamp */}
+          {!statsLoading && stats && (
+            <div className="flex justify-end">
+              <p className="text-sm text-muted-foreground">
+                Última atualização: {new Date(stats.timestamp).toLocaleString('pt-BR')}
+              </p>
+            </div>
+          )}
 
           {/* System Status and Resources */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -329,46 +519,67 @@ export default function AdminPage() {
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
                   </div>
-                ) : (
+                ) : stats ? (
                   <>
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium">CPU</span>
-                        <span className="text-sm text-gray-600">{systemStats?.memoryUsage ?? 0}%</span>
+                        <span className="text-sm text-gray-600">{stats.system.cpu_percent.toFixed(1)}%</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${systemStats?.memoryUsage ?? 0}%` }} />
+                        <div
+                          className={`h-2 rounded-full ${
+                            stats.system.cpu_percent > 80 ? 'bg-red-600' :
+                            stats.system.cpu_percent > 60 ? 'bg-orange-600' :
+                            'bg-blue-600'
+                          }`}
+                          style={{ width: `${Math.min(stats.system.cpu_percent, 100)}%` }}
+                        />
                       </div>
                     </div>
 
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium">Memória</span>
-                        <span className="text-sm text-gray-600">{systemStats?.memoryUsage ?? 0}%</span>
+                        <span className="text-sm text-gray-600">{stats.system.memory_percent.toFixed(1)}%</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-green-600 h-2 rounded-full" style={{ width: `${systemStats?.memoryUsage ?? 0}%` }} />
+                        <div
+                          className={`h-2 rounded-full ${
+                            stats.system.memory_percent > 80 ? 'bg-red-600' :
+                            stats.system.memory_percent > 60 ? 'bg-orange-600' :
+                            'bg-green-600'
+                          }`}
+                          style={{ width: `${Math.min(stats.system.memory_percent, 100)}%` }}
+                        />
                       </div>
                     </div>
 
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium">Disco</span>
-                        <span className="text-sm text-gray-600">{systemStats?.diskUsage ?? 0}%</span>
+                        <span className="text-sm text-gray-600">{stats.system.disk_percent.toFixed(1)}%</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-orange-600 h-2 rounded-full" style={{ width: `${systemStats?.diskUsage ?? 0}%` }} />
+                        <div
+                          className={`h-2 rounded-full ${
+                            stats.system.disk_percent > 80 ? 'bg-red-600' :
+                            stats.system.disk_percent > 60 ? 'bg-orange-600' :
+                            'bg-purple-600'
+                          }`}
+                          style={{ width: `${Math.min(stats.system.disk_percent, 100)}%` }}
+                        />
                       </div>
                     </div>
 
                     <div className="pt-4 border-t">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-600">Última atualização</span>
-                        <span className="font-medium">Há 30 segundos</span>
+                        <span className="font-medium">{new Date(stats.timestamp).toLocaleTimeString('pt-BR')}</span>
                       </div>
                     </div>
                   </>
-                )}
+                ) : null}
               </CardContent>
             </Card>
           </div>
@@ -505,7 +716,7 @@ export default function AdminPage() {
                       {statsLoading ? (
                         <Loader2 className="h-4 w-4 animate-spin inline" />
                       ) : (
-                        `${systemStats?.totalUsers ?? 0} usuários cadastrados, ${systemStats?.activeUsers ?? 0} ativos`
+                        `${stats?.users.total ?? 0} usuários cadastrados, ${stats?.users.active_now ?? 0} ativos`
                       )}
                     </CardDescription>
                   </div>
