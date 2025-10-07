@@ -8,7 +8,7 @@ All Supabase fallback code has been removed.
 """
 from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 import logging
 
 from app.models.user import User, UserRole
