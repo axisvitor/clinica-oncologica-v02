@@ -16,7 +16,18 @@ class PatientRepository(BaseRepository[Patient]):
         super().__init__(db, Patient)
     
     def get_by_phone(self, phone: str) -> Optional[Patient]:
-        """Get patient by phone number"""
+        """
+        Get patient by phone number.
+
+        Handles both E.164 format (+55...) and without prefix (55...).
+        The webhook processor handles fallback strategies, this just does exact match.
+
+        Args:
+            phone: Phone number in any format
+
+        Returns:
+            Patient or None if not found
+        """
         return self.db.query(Patient).filter(Patient.phone == phone).first()
     
     def get_by_doctor(self, doctor_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = False) -> List[Patient]:

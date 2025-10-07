@@ -435,7 +435,7 @@ class FlowEngineIntegrationService:
 
                 # Try to schedule - if this fails, rollback everything
                 try:
-                    scheduled = await self.message_scheduler.schedule_message(
+                    scheduled = await self.message_scheduler.schedule_existing_message(
                         message_id=message.id,
                         send_time=send_time,
                         priority='normal'
@@ -830,8 +830,8 @@ class FlowEngineIntegrationService:
             
             # Schedule for immediate delivery (within 5 minutes)
             send_time = datetime.utcnow() + timedelta(minutes=5)
-            
-            scheduled = await self.message_scheduler.schedule_message(
+
+            scheduled = await self.message_scheduler.schedule_existing_message(
                 message_id=message.id,
                 send_time=send_time,
                 priority='high' if context.get('requires_attention') else 'normal'

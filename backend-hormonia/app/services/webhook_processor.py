@@ -513,60 +513,139 @@ class WebhookProcessor:
             logger.error(f"Error extracting message data: {e}")
             return None
 
-    def _find_patient_by_phone(self, phone: str) -> Optional[Patient]:
+    def _normalize_phone_e164(self, phone: str) -> str:
         """
-        Find patient by phone number.
+        Normalize phone number to E.164 format (+55...).
 
         Args:
-            phone: Cleaned phone number
+            phone: Raw phone number (may have +, 55, or neither)
+
+        Returns:
+            E.164 formatted phone (+55...)
+        """
+        # Remove all non-digit characters except +
+        cleaned = "".join(c for c in phone if c.isdigit() or c == "+")
+
+        # Remove leading zeros
+        cleaned = cleaned.lstrip("0")
+
+        # If already has +, return as-is
+        if cleaned.startswith("+"):
+            return cleaned
+
+        # If starts with country code (55), add +
+        if cleaned.startswith("55"):
+            return f"+{cleaned}"
+
+        # Otherwise, assume Brazilian number and add +55
+        return f"+55{cleaned}"
+
+    def _find_patient_by_phone(self, phone: str) -> Optional[Patient]:
+        """
+        Find patient by phone number with E.164 normalization and fallback strategies.
+
+        Tries multiple formats for maximum compatibility:
+        1. E.164 format with + prefix (+55...)
+        2. Without + prefix (55...)
+        3. Add country code if missing (+55{phone})
+        4. Remove country code (last 10-11 digits)
+
+        Args:
+            phone: Cleaned phone number (from _clean_phone_number)
 
         Returns:
             Patient or None if not found
         """
         try:
-            # Try exact match first
-            patient = self.patient_service.get_by_phone(phone)
+            # Strategy 1: Normalize to E.164 and try with +
+            normalized = self._normalize_phone_e164(phone)
+            logger.info(f"Phone lookup attempt 1: E.164 format '{normalized}'")
+            patient = self.patient_service.get_by_phone(normalized)
             if patient:
+                logger.info(f"Patient found with E.164 format: {normalized}")
                 return patient
 
-            # Try with country code variations
-            if not phone.startswith("55"):
+            # Strategy 2: Try without + prefix
+            without_plus = normalized.lstrip("+")
+            logger.info(f"Phone lookup attempt 2: Without + prefix '{without_plus}'")
+            patient = self.patient_service.get_by_phone(without_plus)
+            if patient:
+                logger.info(f"Patient found without + prefix: {without_plus}")
+                return patient
+
+            # Strategy 3: Try adding +55 if not present
+            if not phone.startswith("55") and not phone.startswith("+55"):
+                with_country_code = f"+55{phone}"
+                logger.info(f"Phone lookup attempt 3: With country code '{with_country_code}'")
+                patient = self.patient_service.get_by_phone(with_country_code)
+                if patient:
+                    logger.info(f"Patient found with added country code: {with_country_code}")
+                    return patient
+
+                # Also try without +
+                logger.info(f"Phone lookup attempt 4: With country code no + '55{phone}'")
                 patient = self.patient_service.get_by_phone(f"55{phone}")
                 if patient:
+                    logger.info(f"Patient found with country code (no +): 55{phone}")
                     return patient
 
-            # Try without country code
-            if phone.startswith("55"):
-                patient = self.patient_service.get_by_phone(phone[2:])
+            # Strategy 4: Try removing country code (last 10-11 digits for Brazilian numbers)
+            if len(without_plus) > 11:
+                # Extract last 11 digits (DDD + 9 digits) or 10 digits (DDD + 8 digits)
+                local_11 = without_plus[-11:]
+                local_10 = without_plus[-10:]
+
+                logger.info(f"Phone lookup attempt 5: Local 11 digits '{local_11}'")
+                patient = self.patient_service.get_by_phone(local_11)
                 if patient:
+                    logger.info(f"Patient found with local 11 digits: {local_11}")
                     return patient
 
+                logger.info(f"Phone lookup attempt 6: Local 10 digits '{local_10}'")
+                patient = self.patient_service.get_by_phone(local_10)
+                if patient:
+                    logger.info(f"Patient found with local 10 digits: {local_10}")
+                    return patient
+
+            logger.warning(
+                f"Patient not found after all phone lookup strategies. "
+                f"Original: {phone}, Normalized: {normalized}, Tried: "
+                f"[{normalized}, {without_plus}, +55{phone}, 55{phone}]"
+            )
             return None
 
         except Exception as e:
-            logger.error(f"Error finding patient by phone {phone}: {e}")
+            logger.error(f"Error finding patient by phone {phone}: {e}", exc_info=True)
             return None
 
     def _clean_phone_number(self, phone: str) -> str:
         """
-        Clean and normalize phone number.
+        Clean and normalize phone number from WhatsApp format.
+
+        Preserves + prefix for E.164 format compatibility.
+        WhatsApp sends numbers like: "5511987654321@s.whatsapp.net"
 
         Args:
-            phone: Raw phone number
+            phone: Raw phone number from WhatsApp (e.g., "5511987654321@s.whatsapp.net")
 
         Returns:
-            Cleaned phone number
+            Cleaned phone number with + prefix if valid (e.g., "+5511987654321")
         """
         # Remove @s.whatsapp.net suffix
         if "@" in phone:
             phone = phone.split("@")[0]
 
-        # Remove non-digit characters
-        cleaned = "".join(filter(str.isdigit, phone))
+        # Remove non-digit characters except +
+        cleaned = "".join(c for c in phone if c.isdigit() or c == "+")
 
-        # Remove leading zeros
-        cleaned = cleaned.lstrip("0")
+        # Remove leading zeros (but preserve +)
+        if cleaned.startswith("+"):
+            # Keep the +, remove zeros after it
+            cleaned = "+" + cleaned[1:].lstrip("0")
+        else:
+            cleaned = cleaned.lstrip("0")
 
+        logger.debug(f"Phone number cleaned: '{phone}' -> '{cleaned}'")
         return cleaned
 
     def _get_flow_type_from_state(self, flow_state: PatientFlowState) -> str:

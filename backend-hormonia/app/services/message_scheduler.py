@@ -627,21 +627,113 @@ class MessageScheduler:
             logger.error(f"Failed to calculate optimal delivery time for patient {patient.id}: {e}")
             raise TimezoneError(f"Unable to calculate delivery time: {e}")
 
+    @with_db_retry(max_retries=3)
+    async def schedule_existing_message(self,
+                                       message_id: UUID,
+                                       send_time: datetime,
+                                       priority: str = 'normal') -> bool:
+        """
+        Schedule an existing message that has already been created in the database.
+        This method is used when the message record exists but needs to be scheduled for delivery.
+
+        Args:
+            message_id: UUID of the existing message
+            send_time: When to send the message
+            priority: Message priority ('low', 'normal', 'high', 'urgent')
+
+        Returns:
+            True if scheduled successfully, False otherwise
+
+        Raises:
+            NotFoundError: If message doesn't exist
+            ValidationError: If message is in invalid state for scheduling
+        """
+        try:
+            # Validate priority
+            valid_priorities = ['low', 'normal', 'high', 'urgent']
+            if priority not in valid_priorities:
+                logger.warning(f"Invalid priority '{priority}', using 'normal'")
+                priority = 'normal'
+
+            # Get the existing message
+            message = self.message_repo.get(message_id)
+            if not message:
+                raise NotFoundError(f"Message {message_id} not found")
+
+            # Validate message state
+            if message.status not in [MessageStatus.PENDING, MessageStatus.SCHEDULED]:
+                raise ValidationError(
+                    f"Cannot schedule message {message_id} with status {message.status}. "
+                    f"Message must be in PENDING or SCHEDULED status."
+                )
+
+            # Validate send_time is in the future
+            if send_time <= datetime.utcnow():
+                logger.warning(f"Send time {send_time} is in the past, adjusting to 1 minute from now")
+                send_time = datetime.utcnow() + timedelta(minutes=1)
+
+            # Update message with scheduling information
+            message.scheduled_for = send_time
+            message.status = MessageStatus.SCHEDULED
+
+            # Add priority to metadata
+            if message.message_metadata is None:
+                message.message_metadata = {}
+            message.message_metadata['priority'] = priority
+            message.message_metadata['scheduled_at'] = datetime.utcnow().isoformat()
+
+            # Schedule Celery task
+            task_result = await self._schedule_celery_task(message, send_time)
+
+            if task_result.get('task_id'):
+                # Update message with task ID
+                message.message_metadata['celery_task_id'] = task_result.get('task_id')
+                message.message_metadata['scheduling_status'] = 'success'
+                self.db.commit()
+
+                logger.info(
+                    f"Successfully scheduled existing message {message_id} for {send_time.isoformat()} "
+                    f"with priority {priority}, task_id: {task_result.get('task_id')}"
+                )
+                return True
+            else:
+                # Scheduling failed
+                message.message_metadata['scheduling_status'] = 'failed'
+                message.message_metadata['scheduling_error'] = task_result.get('error', 'Unknown error')
+                message.status = MessageStatus.FAILED
+                self.db.commit()
+
+                logger.error(
+                    f"Failed to schedule message {message_id}: {task_result.get('error', 'Unknown error')}"
+                )
+                return False
+
+        except NotFoundError:
+            logger.error(f"Message {message_id} not found for scheduling")
+            raise
+        except ValidationError:
+            logger.error(f"Invalid message state for scheduling: {message_id}")
+            raise
+        except Exception as e:
+            logger.error(f"Failed to schedule existing message {message_id}: {e}", exc_info=True)
+            self.db.rollback()
+            return False
+
     async def _get_task_status(self, task_id: str) -> Dict[str, Any]:
         """
         Get Celery task status.
-        
+
         Args:
             task_id: Celery task ID
-            
+
         Returns:
             Task status information
         """
         try:
             from celery.result import AsyncResult
-            
+
             result = AsyncResult(task_id)
-            
+
             return {
                 "task_id": task_id,
                 "status": result.status,
@@ -649,7 +741,7 @@ class MessageScheduler:
                 "traceback": result.traceback if result.failed() else None,
                 "date_done": result.date_done
             }
-            
+
         except Exception as e:
             logger.error(f"Failed to get task status for {task_id}: {e}")
             return {

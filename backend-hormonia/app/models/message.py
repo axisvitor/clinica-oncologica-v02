@@ -36,10 +36,12 @@ class MessageType(enum.Enum):
 class MessageStatus(enum.Enum):
     """Message status enumeration."""
     PENDING = "pending"
+    SCHEDULED = "scheduled"
     SENT = "sent"
     DELIVERED = "delivered"
     READ = "read"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class Message(BaseModel):
