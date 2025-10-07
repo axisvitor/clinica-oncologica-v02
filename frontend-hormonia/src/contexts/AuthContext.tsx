@@ -374,7 +374,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
    */
   const refreshToken = useCallback(async (): Promise<void> => {
     try {
-      const currentUser = firebaseAuth.getCurrentUser()
+      const currentUser = await firebaseAuth.getCurrentUser()
       if (currentUser) {
         const newToken = await currentUser.getIdToken(true) // force refresh
         localStorage.setItem('firebase_token', newToken)
