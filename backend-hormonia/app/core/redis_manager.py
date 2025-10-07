@@ -20,6 +20,7 @@ import concurrent.futures
 
 from app.config import settings
 from datetime import datetime, timedelta
+from app.models.user import User  # Import User model for type hints
 
 logger = logging.getLogger(__name__)
 
