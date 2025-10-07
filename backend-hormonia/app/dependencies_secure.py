@@ -16,7 +16,8 @@ from datetime import datetime
 from uuid import UUID
 import logging
 
-from app.database import get_db, get_supabase
+from app.database import get_db
+# get_supabase - REMOVED (migrated to AWS RDS PostgreSQL)
 from app.config import settings
 from app.models.user import User, UserRole
 from app.models.patient import Patient

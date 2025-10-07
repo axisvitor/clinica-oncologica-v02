@@ -1,7 +1,23 @@
+/**
+ * @deprecated This hook is DEPRECATED after migration to Firebase + AWS RDS (2025-10-07)
+ *
+ * Supabase authentication is no longer used in production.
+ * Use Firebase authentication via useApiAuth hook instead.
+ *
+ * This hook is kept for:
+ * - Backward compatibility during migration period
+ * - Legacy test suites that haven't been updated
+ * - Reference for migration documentation
+ *
+ * Do NOT use this hook in new code!
+ */
 import { useState, useEffect } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { auth } from '@/lib/supabase-client'
 
+/**
+ * @deprecated Use Firebase auth types instead
+ */
 export interface UseSupabaseAuthReturn {
   user: User | null
   session: Session | null

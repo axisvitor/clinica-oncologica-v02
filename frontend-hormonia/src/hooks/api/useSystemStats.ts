@@ -52,7 +52,7 @@ export function useSystemStats(
   return useQuery<SystemStats, Error>({
     queryKey: ['admin', 'system-stats'],
     queryFn: async () => {
-      const response = await apiClient.request<SystemStats>('/admin/system-stats')
+      const response = await apiClient.request<SystemStats>('/api/v1/admin/system-stats')
       return response
     },
     staleTime: 20000, // Consider data stale after 20s

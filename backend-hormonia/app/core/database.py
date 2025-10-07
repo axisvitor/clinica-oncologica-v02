@@ -453,47 +453,7 @@ class RLSContextError(RLSError):
     pass
 
 
-# Supabase client initialization (backward compatibility)
-# Module-level sentinel to prevent duplicate initialization
-_SUPABASE_CLIENT_INITIALIZED = False
-supabase_client = None
-
-def init_supabase_client():
-    """Initialize Supabase client safely (idempotent)."""
-    global supabase_client, _SUPABASE_CLIENT_INITIALIZED
-
-    # Return early if already initialized
-    if _SUPABASE_CLIENT_INITIALIZED:
-        return supabase_client is not None
-
-    try:
-        from supabase import create_client, Client
-
-        # Use service role key for bypassing RLS when needed
-        supabase_client = create_client(
-            settings.SUPABASE_URL,
-            settings.SUPABASE_SERVICE_ROLE_KEY
-        )
-
-        _SUPABASE_CLIENT_INITIALIZED = True
-        logger.info("Supabase client initialized successfully")
-        return True
-
-    except ImportError:
-        _SUPABASE_CLIENT_INITIALIZED = True
-        logger.warning("Supabase client not available. Install supabase-py for full functionality.")
-        return False
-    except Exception as e:
-        _SUPABASE_CLIENT_INITIALIZED = True
-        logger.error(f"Error initializing Supabase client: {e}")
-        return False
-
-# Try to initialize on import (idempotent - will only log once)
-init_supabase_client()
-
-
-def get_supabase():
-    """Get Supabase client instance."""
-    if supabase_client is None:
-        raise RuntimeError("Supabase client not initialized")
-    return supabase_client
+# Supabase client removed - now using direct AWS RDS PostgreSQL connection
+# All database access goes through SQLAlchemy with AWS RDS credentials
+# Authentication handled by Firebase Admin SDK (not Supabase Auth)
+# Migration completed: 2025-10-07

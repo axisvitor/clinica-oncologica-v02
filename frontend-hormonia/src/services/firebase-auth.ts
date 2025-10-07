@@ -61,11 +61,13 @@ export async function loginUser(
 
     // Step 3: Create backend session via /api/v1/session endpoint
     // SECURITY FIX: Session ID is now stored in httpOnly cookie (automatic)
+    const csrfToken = apiClient.getCsrfToken()
     const sessionResponse = await fetch(`${apiClient.getBaseURL()}/api/v1/session`, {
       method: 'POST',
       credentials: 'include',  // CRITICAL: Send/receive cookies
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
       },
       body: JSON.stringify({
         firebase_token: firebaseToken,
@@ -130,11 +132,13 @@ export async function logoutUser(): Promise<void> {
     // Call backend session logout endpoint (invalidates Redis session + clears cookie)
     // SECURITY: Cookie sent automatically, backend clears it
     try {
+      const csrfToken = apiClient.getCsrfToken()
       const response = await fetch(`${apiClient.getBaseURL()}/api/v1/session/logout`, {
         method: 'DELETE',
         credentials: 'include',  // CRITICAL: Send cookies
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
         }
       })
 
@@ -192,12 +196,14 @@ export async function logoutAllDevices(): Promise<{ sessions_deleted: number }> 
     try {
       // Call backend logout-all endpoint (invalidates all Redis sessions for user)
       // SECURITY: Uses Bearer token (not session) to authenticate this action
+      const csrfToken = apiClient.getCsrfToken()
       const response = await fetch(`${apiClient.getBaseURL()}/api/v1/session/logout-all`, {
         method: 'DELETE',
         credentials: 'include',  // CRITICAL: Clear cookie on this device
         headers: {
           'Authorization': `Bearer ${firebaseToken}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
         }
       })
 

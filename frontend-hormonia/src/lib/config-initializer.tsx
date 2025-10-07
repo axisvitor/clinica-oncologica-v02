@@ -60,6 +60,10 @@ export function ConfigProvider({
       logger.info('Initializing API client with base URL:', apiBaseUrl);
       apiClient.setBaseURL(apiBaseUrl);
 
+      // Fetch CSRF token for session security
+      logger.info('Fetching CSRF token...');
+      await apiClient.fetchCsrfToken();
+
       // Supabase removed - using Firebase exclusively
       logger.info('Using Firebase for authentication and backend API for data');
 

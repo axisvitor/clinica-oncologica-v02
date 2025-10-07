@@ -14,7 +14,8 @@ from jose import jwt, JWTError
 from datetime import datetime
 from uuid import UUID
 
-from app.database import get_db, get_supabase
+from app.database import get_db
+# get_supabase - REMOVED (migrated to AWS RDS PostgreSQL)
 from app.services.flow_analytics import FlowAnalyticsService
 from app.config import settings
 from app.models.user import User, UserRole
@@ -355,7 +356,8 @@ async def get_optional_user(
 get_database = get_db
 
 # Supabase client dependency
-get_supabase_client = get_supabase
+# get_supabase_client - REMOVED (migrated to AWS RDS PostgreSQL)
+# Use get_db() for direct database access via SQLAlchemy
 
 
 # WebSocket user authentication dependency

@@ -164,11 +164,12 @@ describe('loginUser', () => {
 
     await loginUser('test@example.com', 'password123')
 
-    // CRITICAL TEST: Verify session_id is stored
+    // SECURITY FIX: session_id is now in httpOnly cookie (not localStorage)
+    // JavaScript cannot access httpOnly cookies, so we verify the response status instead
     const storedSessionId = localStorage.getItem('session_id')
-    expect(storedSessionId).toBe(mockSessionResponse.session_id)
+    expect(storedSessionId).toBeNull() // No longer stored in localStorage
 
-    // Verify Firebase token is also stored
+    // Verify Firebase token is still stored for WebSocket/API auth
     const storedToken = localStorage.getItem('firebase_token')
     expect(storedToken).toBe('mock_firebase_token_abc123')
   })
@@ -199,19 +200,18 @@ describe('loginUser', () => {
     expect(callOrder).toEqual(['session_creation', 'auth_me'])
   })
 
-  it('should throw error if backend does not return session_id', async () => {
-    // Mock session creation without session_id
+  it('should throw error if backend does not return authenticated status', async () => {
+    // Mock session creation with invalid status (session in cookie is validated server-side)
     vi.mocked(global.fetch).mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        user: mockSessionResponse.user,
-        // Missing session_id
+        status: 'error' // Invalid status (should be 'authenticated')
       })
     } as Response)
 
     await expect(
       loginUser('test@example.com', 'password123')
-    ).rejects.toThrow('Backend did not return session_id')
+    ).rejects.toThrow('Session creation failed - invalid status')
   })
 
   it('should throw error if Firebase login fails', async () => {

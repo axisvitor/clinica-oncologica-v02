@@ -2,6 +2,10 @@
 export { useAuth } from '../useAuth'
 
 // Specialized authentication hooks
+/**
+ * @deprecated Supabase auth is deprecated after migration to Firebase + AWS RDS (2025-10-07)
+ * Use useApiAuth (Firebase) instead. This hook is kept for backward compatibility only.
+ */
 export { useSupabaseAuth } from './useSupabaseAuth'
 export { useApiAuth } from './useApiAuth'
 export { useSessionManagement } from './useSessionManagement'

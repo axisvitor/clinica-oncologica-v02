@@ -255,17 +255,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // Use new firebase-auth service with session management
         const loginResponse = await firebaseAuthService.loginUser(email, password)
 
-        logger.log('Firebase login successful with session:', loginResponse.session_id.substring(0, 8))
+        logger.log('Firebase login successful (session in httpOnly cookie)')
 
-        // Validate that we received a real session_id
-        if (!loginResponse.session_id || loginResponse.session_id.length < 32) {
-          throw new Error('Invalid session_id received from backend')
-        }
+        // SECURITY: session_id is now in httpOnly cookie (not exposed to JavaScript)
+        // loginResponse.session_id is just a placeholder ('cookie')
+        // Actual session validation happens server-side via cookie
 
         setUser(loginResponse.user)
         setSession({
           access_token: localStorage.getItem('firebase_token') || '',
-          session_id: loginResponse.session_id
+          session_id: loginResponse.session_id // 'cookie' placeholder
         })
 
         // Connect WebSocket with Firebase token

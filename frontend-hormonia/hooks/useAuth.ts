@@ -21,9 +21,12 @@ interface UseAuthOptions {
 /**
  * Main authentication hook that provides a unified interface
  * combining Supabase auth, API auth, session management, and permissions
+ *
+ * NOTE: After migration to AWS RDS + Firebase, preferSupabase should be FALSE
+ * Supabase auth is DEPRECATED - Firebase is the primary authentication method
  */
 export function useAuth({
-  preferSupabase = true,
+  preferSupabase = false, // CHANGED: Firebase is now primary auth (2025-10-07)
   onAuthEvent,
   autoConnectWebSocket = true,
   persistTokens = true,

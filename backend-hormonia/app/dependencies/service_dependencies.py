@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 import redis.asyncio as redis
 
-from app.database import get_db, get_supabase
+from app.database import get_db
 from app.services import ServiceProvider, get_service_provider
 
 # =============================================================================
@@ -14,8 +14,9 @@ from app.services import ServiceProvider, get_service_provider
 # Database dependency
 get_database = get_db
 
-# Supabase client dependency  
-get_supabase_client = get_supabase
+# Supabase client dependency - REMOVED (migrated to AWS RDS PostgreSQL)
+# All database access now uses SQLAlchemy directly via get_db()
+# Authentication uses Firebase Admin SDK (not Supabase Auth)
 
 # Redis dependency
 async def get_redis(services: ServiceProvider = Depends(get_service_provider)) -> Optional[redis.Redis]:

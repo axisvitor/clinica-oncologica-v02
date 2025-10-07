@@ -5,11 +5,15 @@ This module provides secure dependency injection with fixed auto-provisioning,
 comprehensive RBAC, rate limiting, and audit logging.
 
 SECURITY FIXES:
-1. Secure role determination from Supabase metadata
+1. Secure role determination from Firebase metadata (not Supabase)
 2. Domain validation for auto-provisioning
 3. Rate limiting for authentication endpoints
 4. Comprehensive audit logging
 5. Permission validation middleware
+
+MIGRATION NOTE (2025-10-07):
+- Authentication: Firebase Admin SDK (not Supabase Auth)
+- Database: AWS RDS PostgreSQL via SQLAlchemy (not Supabase client)
 """
 import logging
 import httpx
@@ -26,7 +30,8 @@ import redis.asyncio as redis
 from functools import wraps
 
 # Core imports
-from app.database import get_db, get_supabase
+from app.database import get_db
+# get_supabase - REMOVED (migrated to AWS RDS PostgreSQL)
 from app.config import settings
 from app.models.user import User, UserRole
 from app.repositories.user import UserRepository

@@ -47,7 +47,9 @@
       "Bash(npm audit:*)",
       "Bash(set PYTHONIOENCODING=utf-8)",
       "Bash(pytest:*)",
-      "Bash([ -f \"contexts/AdminAuthContext.tsx\" ])"
+      "Bash([ -f \"contexts/AdminAuthContext.tsx\" ])",
+      "Bash(timeout 60 railway logs -s backend)",
+      "Bash(timeout 90 railway logs -s backend)"
     ],
     "deny": []
   }
