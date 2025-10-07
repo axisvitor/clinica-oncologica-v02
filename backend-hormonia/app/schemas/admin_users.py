@@ -56,7 +56,7 @@ class UserCreate(BaseModel):
         return v
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "name": "Dr. João Silva",
                 "email": "joao.silva@clinica.com",
@@ -93,7 +93,7 @@ class UserUpdate(BaseModel):
         return values
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "name": "Dr. João Silva Santos",
                 "email": "joao.santos@clinica.com",
@@ -121,7 +121,7 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "name": "Dr. João Silva",
@@ -142,7 +142,7 @@ class UserListResponse(PaginatedResponse):
     data: List[UserResponse] = Field(..., description="List of users")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "data": [
                     {
@@ -174,7 +174,7 @@ class RoleUpdate(BaseModel):
     role: UserRole = Field(..., description="New role to assign to the user")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "role": "admin"
             }
@@ -207,7 +207,7 @@ class PermissionsUpdate(BaseModel):
         return v
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "permissions": [
                     "read_patients",
@@ -235,7 +235,7 @@ class PasswordReset(BaseModel):
         return v
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "new_password": "NewSecurePass123"
             }
@@ -256,7 +256,7 @@ class UserFilter(BaseModel):
     has_patients: Optional[bool] = Field(None, description="Filter doctors by whether they have patients")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "name": "João",
                 "role": "doctor",
@@ -279,7 +279,7 @@ class UserStatsResponse(BaseModel):
     recent_logins: int = Field(..., description="Recent logins count")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "total_users": 150,
                 "active_users": 142,
@@ -309,7 +309,7 @@ class UserActivityResponse(BaseModel):
 
     class Config:
         from_attributes = True
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "user_id": "123e4567-e89b-12d3-a456-426614174000",
                 "last_login": "2024-01-20T14:30:00Z",
@@ -334,7 +334,7 @@ class BulkUserOperation(BaseModel):
         return v
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "user_ids": [
                     "123e4567-e89b-12d3-a456-426614174000",
@@ -352,7 +352,7 @@ class BulkOperationResult(BaseModel):
     total_processed: int = Field(..., description="Total number of users processed")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "successful": [
                     "123e4567-e89b-12d3-a456-426614174000"

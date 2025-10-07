@@ -35,7 +35,7 @@ class MedicoDashboardStats(BaseModel):
 
     class Config:
         """Pydantic model configuration."""
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "pacientes_ativos": 45,
                 "consultas_hoje": 8,
