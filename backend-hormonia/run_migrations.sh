@@ -2,11 +2,10 @@
 # Migration script for Railway deployment
 # This script runs Alembic migrations before starting the application
 
-set -e  # Exit on error
+set -e
 
 echo "🔄 Running database migrations..."
 
-# Run Alembic upgrade
 python -m alembic upgrade head
 
 if [ $? -eq 0 ]; then
