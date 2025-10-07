@@ -92,13 +92,15 @@ async def websocket_endpoint(
             from app.database import get_db
             db_gen = get_db()
             db = next(db_gen)
-            
+
             try:
                 authenticated_user = await connection_manager.authenticate_connection(
                     connection_id, token, db
                 )
             finally:
+                # [P1 FIX] Close both session and generator to prevent connection leaks
                 db.close()
+                db_gen.close()
             
             auth_response = AuthenticationResponse(
                 success=authenticated_user is not None,
@@ -251,13 +253,15 @@ async def _handle_authentication(
         from app.database import get_db
         db_gen = get_db()
         db = next(db_gen)
-        
+
         try:
             authenticated_user = await connection_manager.authenticate_connection(
                 connection_id, auth_request.token, db
             )
         finally:
+            # [P1 FIX] Close both session and generator to prevent connection leaks
             db.close()
+            db_gen.close()
         
         auth_response = AuthenticationResponse(
             success=authenticated_user is not None,
@@ -442,7 +446,9 @@ async def patient_websocket(
                     connection_id, token, db
                 )
             finally:
+                # [P1 FIX] Close both session and generator to prevent connection leaks
                 db.close()
+                db_gen.close()
 
         if not authenticated_user:
             # Send authentication required message instead of closing immediately
