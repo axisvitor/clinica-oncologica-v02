@@ -8,16 +8,18 @@ import type { User as FirebaseUser } from 'firebase/auth'
 import { wsManager } from '../lib/websocket'
 import { createLogger } from '../lib/logger'
 import { toast } from '../hooks/use-toast'
+import * as firebaseAuthService from '../services/firebase-auth'
 
 const logger = createLogger('AuthContext')
 
 interface AuthContextType {
   user: User | null
-  session: { access_token: string } | null
+  session: { access_token: string; session_id?: string } | null
   isAuthenticated: boolean
   isLoading: boolean
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>
   logout: () => void
+  logoutAll: () => Promise<void>
   hasPermission: (permission: string) => boolean
   hasRole: (role: string) => boolean
 }
@@ -38,7 +40,7 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null)
-  const [session, setSession] = useState<{ access_token: string } | null>(null)
+  const [session, setSession] = useState<{ access_token: string; session_id?: string } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   const isAuthenticated = !!user
@@ -250,27 +252,37 @@ export function AuthProvider({ children }: AuthProviderProps) {
           logger.error('Failed to set persistence, continuing with default:', error)
         }
 
-        const result = await firebaseAuth.signInWithPassword({ email, password })
+        // Use new firebase-auth service with session management
+        const loginResponse = await firebaseAuthService.loginUser(email, password)
 
-        if (result.error || !result.user || !result.session) {
-          throw result.error || new Error('Login failed')
+        logger.log('Firebase login successful with session:', loginResponse.session_id.substring(0, 8))
+
+        // Validate that we received a real session_id
+        if (!loginResponse.session_id || loginResponse.session_id.length < 32) {
+          throw new Error('Invalid session_id received from backend')
         }
 
-        logger.log('Firebase login successful:', result.user.email)
-
-        const appUser = await transformFirebaseUser(result.user)
-        setUser(appUser)
-        setSession(result.session)
-        apiClient.setAuthToken(result.session.access_token)
+        setUser(loginResponse.user)
+        setSession({
+          access_token: localStorage.getItem('firebase_token') || '',
+          session_id: loginResponse.session_id
+        })
 
         // Connect WebSocket with Firebase token
-        wsManager.connect(result.session.access_token)
+        const firebaseToken = localStorage.getItem('firebase_token')
+        if (firebaseToken) {
+          wsManager.connect(firebaseToken)
+        }
       }
     } catch (error: any) {
       logger.error('Login failed:', error)
       setUser(null)
       setSession(null)
       apiClient.setAuthToken(null)
+
+      // Ensure cleanup on error (cookie cleared by backend)
+      localStorage.removeItem('firebase_token')
+
       throw error
     } finally {
       setIsLoading(false)
@@ -284,7 +296,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (isMockAuthEnabled()) {
         await mockAuthService.signOut()
       } else {
-        await firebaseAuth.signOut()
+        // Use new firebase-auth service with session cleanup
+        await firebaseAuthService.logoutUser()
       }
 
       apiClient.setAuthToken(null)
@@ -296,9 +309,52 @@ export function AuthProvider({ children }: AuthProviderProps) {
       logger.log('Logout complete')
     } catch (error) {
       logger.error('Logout error:', error)
+
+      // Force cleanup even on error (cookie cleared by backend)
       apiClient.setAuthToken(null)
       setUser(null)
       setSession(null)
+      localStorage.removeItem('firebase_token')
+      wsManager.disconnect()
+    }
+  }, [])
+
+  const logoutAll = useCallback(async () => {
+    try {
+      logger.log('Logging out from all devices...')
+
+      if (isMockAuthEnabled()) {
+        await mockAuthService.signOut()
+      } else {
+        // Use new firebase-auth service to logout all sessions
+        const result = await firebaseAuthService.logoutAllDevices()
+        logger.log(`${result.sessions_deleted} sessions invalidated`)
+      }
+
+      apiClient.setAuthToken(null)
+      setUser(null)
+      setSession(null)
+
+      // Disconnect WebSocket
+      wsManager.disconnect()
+      logger.log('Logout from all devices complete')
+
+      toast({
+        title: 'Logout realizado',
+        description: 'Você foi desconectado de todos os dispositivos.',
+        variant: 'default'
+      })
+    } catch (error) {
+      logger.error('Logout all error:', error)
+
+      // Force cleanup even on error (cookie cleared by backend)
+      apiClient.setAuthToken(null)
+      setUser(null)
+      setSession(null)
+      localStorage.removeItem('firebase_token')
+      wsManager.disconnect()
+
+      throw error
     }
   }, [])
 
@@ -309,6 +365,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isLoading,
     login,
     logout,
+    logoutAll,
     hasPermission,
     hasRole
   }

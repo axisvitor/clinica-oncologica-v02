@@ -175,16 +175,19 @@ async def logout(
 
 
 @router.get(
-    "/me", 
+    "/me",
     response_model=UserResponse,
     summary="Get Current User Profile",
     description="""
     Retrieve the profile information of the currently authenticated user.
-    
+
     This endpoint returns detailed information about the authenticated user,
     including their role, permissions, and account status.
-    
-    **Authentication Required**: Bearer token in Authorization header.
+
+    **Authentication Required**:
+    - Session cookie (httpOnly) - PREFERRED (secure, XSS-safe)
+    - X-Session-ID header - Fallback for backward compatibility
+    - Bearer token in Authorization header - Legacy support
     """,
     responses={
         200: {
@@ -215,7 +218,14 @@ async def logout(
     }
 )
 async def get_current_user_profile(current_user: User = Depends(get_current_user)) -> UserResponse:
-    """Get current user profile."""
+    """
+    Get current user profile.
+
+    SECURITY: Accepts session authentication via:
+    1. httpOnly cookie (most secure)
+    2. X-Session-ID header (backward compatible)
+    3. Bearer token (legacy)
+    """
     return UserResponse.from_orm(current_user)
 
 

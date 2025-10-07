@@ -79,6 +79,7 @@ class ApiClient {
   private baseURL: string
   private authToken: string | null = null
   private initialized: boolean = false
+  private csrfToken: string | null = null
 
   constructor(baseURL: string) {
     this.baseURL = baseURL
@@ -118,6 +119,35 @@ class ApiClient {
       tokenLength: token?.length
     })
     this.authToken = token
+  }
+
+  /**
+   * Fetch CSRF token from backend
+   * Called on app initialization and after session creation
+   */
+  async fetchCsrfToken(): Promise<void> {
+    try {
+      const response = await fetch(`${this.baseURL}/api/v1/csrf-token`, {
+        credentials: 'include' // Include cookies
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        this.csrfToken = data.csrf_token
+        logger.debug('[ApiClient] CSRF token fetched successfully')
+      } else {
+        logger.warn('[ApiClient] Failed to fetch CSRF token:', response.status)
+      }
+    } catch (error) {
+      logger.error('[ApiClient] Error fetching CSRF token:', error)
+    }
+  }
+
+  /**
+   * Get current CSRF token
+   */
+  getCsrfToken(): string | null {
+    return this.csrfToken
   }
 
   setSupabaseToken(session: any) {
@@ -211,12 +241,26 @@ class ApiClient {
           })
         }
 
+        // SECURITY FIX: Session ID now in httpOnly cookie (sent automatically)
+        // No need to manually add X-Session-ID header - cookies are automatic
+
+        // Add CSRF token for state-changing requests (POST, PUT, DELETE)
+        const method = (fetchOptions.method || 'GET').toUpperCase()
+        if (['POST', 'PUT', 'DELETE'].includes(method) && this.csrfToken) {
+          headers['X-CSRF-Token'] = this.csrfToken
+          logger.debug('[ApiClient] Request with CSRF token', {
+            endpoint,
+            method
+          })
+        }
+
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
 
         const response = await fetch(url, {
           ...fetchOptions,
           headers,
+          credentials: 'include',  // CRITICAL: Send cookies with every request
           signal: controller.signal
         })
 
@@ -229,6 +273,21 @@ class ApiClient {
           } catch {
             errorData = { message: `HTTP ${response.status}: ${response.statusText}` }
           }
+
+          // Handle 401 Unauthorized - session expired
+          if (response.status === 401) {
+            logger.warn('[ApiClient] Session expired (401), clearing session data')
+            if (typeof window !== 'undefined') {
+              // SECURITY: Cookie cleared by backend, just clear localStorage
+              localStorage.removeItem('firebase_token')
+
+              // Redirect to login page if not already there
+              if (!window.location.pathname.includes('/login')) {
+                window.location.href = '/login?session_expired=true'
+              }
+            }
+          }
+
           logger.error('[ApiClient] Request failed:', {
             endpoint,
             status: response.status,

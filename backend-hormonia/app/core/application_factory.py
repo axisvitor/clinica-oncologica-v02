@@ -104,6 +104,59 @@ def create_application(
         app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
         logger.info("✓ Rate limiter configured")
 
+    # Configure CSRF protection
+    try:
+        from fastapi_csrf_protect.exceptions import CsrfProtectError
+        from app.middleware.csrf import csrf_protect, get_csrf_token
+
+        @app.exception_handler(CsrfProtectError)
+        async def csrf_protect_exception_handler(request: Request, exc: CsrfProtectError):
+            """Handle CSRF validation failures with proper logging."""
+            logger.warning(
+                f"CSRF validation failed: {str(exc)}",
+                extra={
+                    "path": str(request.url.path),
+                    "method": request.method,
+                    "client_ip": request.client.host if request.client else "unknown"
+                }
+            )
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "error": "csrf_validation_failed",
+                    "message": "CSRF token validation failed. Please refresh and try again.",
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            )
+
+        # Add CSRF token endpoint
+        @app.get("/api/v1/csrf-token", tags=["Authentication"])
+        async def get_csrf_token_endpoint(request: Request):
+            """
+            Get CSRF token for session-based authentication.
+
+            Returns CSRF token in response body and sets secure cookie.
+            Frontend must include this token in X-CSRF-Token header for
+            state-changing requests (POST, PUT, DELETE) to session endpoints.
+
+            Returns:
+                dict: CSRF token and expiration information
+            """
+            from fastapi import Response
+            token = get_csrf_token(request)
+            response = Response(content={
+                "csrf_token": token,
+                "expires_in": 3600,  # 1 hour
+                "usage": "Include this token in X-CSRF-Token header for POST/PUT/DELETE requests"
+            })
+            csrf_protect.set_csrf_cookie(response)
+            return response
+
+        app.state.csrf_protect = csrf_protect
+        logger.info("✓ CSRF protection configured")
+    except Exception as e:
+        logger.warning(f"CSRF protection not configured: {e}")
+
     # Configure application components in order
     logger.info("Setting up application components...")
 

@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     SESSION_COOKIE_SECURE: bool = Field(default=False, description="Require HTTPS for session cookies")
     SECURE_SSL_REDIRECT: bool = Field(default=False, description="Force HTTPS redirect")
 
+    # Security: CSRF Protection
+    CSRF_SECRET_KEY: Optional[str] = Field(
+        default=None,
+        description="Secret key for CSRF token generation (generate with secrets.token_urlsafe(32))"
+    )
+
     # Firebase Admin SDK Configuration
     FIREBASE_ADMIN_PROJECT_ID: Optional[str] = Field(
         default=None,
