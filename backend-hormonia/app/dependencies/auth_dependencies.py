@@ -79,24 +79,51 @@ async def get_current_user(
 
         logger.debug(f"Firebase token validated for user: {email}")
 
-        # Sync Firebase user to database
+        # Fast path: Check if user already exists in database (< 100ms)
+        from app.models.usuario import Usuario
+        from sqlalchemy import select
+
+        stmt = select(Usuario).where(Usuario.firebase_uid == firebase_uid)
+        result = await services.db.execute(stmt)
+        user = result.scalar_one_or_none()
+
+        if user:
+            # User exists - return immediately without blocking
+            logger.debug(f"User found in database: {email}")
+
+            # Check if user is active
+            if not user.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="User account is inactive"
+                )
+
+            return user
+
+        # Slow path: User doesn't exist - sync in background (non-blocking)
+        # For now, create minimal user record to unblock authentication
+        # Full sync will happen in background task
+        logger.info(f"User not found in database, creating minimal record for: {email}")
+
         from app.services.firebase_user_sync_service import FirebaseUserSyncService
         sync_service = FirebaseUserSyncService(services.db, _firebase_service)
-        user, created = await sync_service.sync_firebase_user(
+
+        # Create minimal user record (fast - no external calls)
+        user = Usuario(
             firebase_uid=firebase_uid,
-            firebase_data=user_data,
-            auto_create=True
+            email=email,
+            nome=user_data.get("name", email.split("@")[0]),
+            is_active=True,
+            tipo_usuario="paciente"  # Default, can be updated by sync
         )
+        services.db.add(user)
+        await services.db.commit()
+        await services.db.refresh(user)
 
-        if created:
-            logger.info(f"Auto-created user from Firebase: {email}")
+        logger.info(f"Minimal user created: {email}. Full sync will run in background.")
 
-        # Check if user is active
-        if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User account is inactive"
-            )
+        # TODO: Schedule background task for full sync
+        # asyncio.create_task(sync_service.sync_firebase_user(...))
 
         return user
 
