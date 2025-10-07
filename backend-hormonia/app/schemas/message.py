@@ -36,6 +36,7 @@ class MessageBase(BaseModel):
 class MessageCreate(MessageBase):
     """Schema for creating a message"""
     scheduled_for: Optional[datetime] = Field(None, description="Scheduled delivery time")
+    status: Optional[MessageStatus] = Field(None, description="Initial message status (optional, defaults to PENDING)")
 
 
 class MessageUpdate(BaseModel):

@@ -122,18 +122,18 @@ class MessageScheduler:
     async def _schedule_celery_task(self, message: Message, delivery_time: datetime) -> Dict[str, Any]:
         """
         Schedule Celery task for message delivery.
-        
+
         Args:
-            message: Message to schedule
+            message: Message to schedule (must have ID already)
             delivery_time: When to deliver the message
-            
+
         Returns:
             Task scheduling result
         """
         try:
             # Import here to avoid circular imports
             from app.tasks.flows import send_flow_message
-            
+
             # Prepare message data for Celery task
             message_data = {
                 "content": message.content,
@@ -141,21 +141,22 @@ class MessageScheduler:
                 "metadata": message.message_metadata,
                 "flow_context": message.message_metadata.get("flow_context", {})
             }
-            
-            # Schedule task with ETA
+
+            # Schedule task with ETA, passing message_id to UPDATE existing message
             task_result = send_flow_message.apply_async(
-                args=[str(message.patient_id), message_data],
+                args=[str(message.patient_id), message_data, str(message.id)],
                 eta=delivery_time
             )
-            
-            logger.info(f"Scheduled Celery task {task_result.id} for message {message.id}")
-            
+
+            logger.info(f"Scheduled Celery task {task_result.id} for message {message.id} at {delivery_time.isoformat()}")
+
             return {
                 "task_id": task_result.id,
                 "eta": delivery_time.isoformat(),
-                "status": "scheduled"
+                "status": "scheduled",
+                "message_id": str(message.id)
             }
-            
+
         except Exception as e:
             logger.error(f"Failed to schedule Celery task for message {message.id}: {e}")
             return {

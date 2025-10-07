@@ -37,6 +37,7 @@ class MessageStatus(enum.Enum):
     """Message status enumeration."""
     PENDING = "pending"
     SCHEDULED = "scheduled"
+    SENDING = "sending"  # Message is being sent by Celery worker
     SENT = "sent"
     DELIVERED = "delivered"
     READ = "read"

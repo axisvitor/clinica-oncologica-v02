@@ -16,6 +16,7 @@ from app.services.enhanced_flow_engine import get_enhanced_flow_engine, FlowType
 from app.services.message_sender import MessageSender
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
+from app.repositories.message import MessageRepository
 from app.models.message import Message, MessageType, MessageDirection, MessageStatus
 from app.models.flow import PatientFlowState
 from app.exceptions import NotFoundError, ValidationError
@@ -205,10 +206,10 @@ def process_daily_flows(self, limit: int = 100) -> dict[str, Any]:
 
 
 @celery_app.task(bind=True, base=FlowTaskBase, max_retries=3, default_retry_delay=60)
-def send_flow_message(self, patient_id: str, message_data: dict[str, Any]) -> dict[str, Any]:
+def send_flow_message(self, patient_id: str, message_data: dict[str, Any], message_id: str = None) -> dict[str, Any]:
     """
     Send individual flow message with retry logic and exponential backoff.
-    
+
     Args:
         patient_id (str): Patient UUID as string
         message_data (dict[str, Any]): Message data dictionary containing:
@@ -219,48 +220,71 @@ def send_flow_message(self, patient_id: str, message_data: dict[str, Any]) -> di
             - template_id: Template identifier
             - personalized: Whether message is personalized
             - metadata: Additional metadata
-        
+        message_id (str, optional): Existing message UUID to update instead of creating new one
+
     Returns:
         dict[str, Any]: Message sending result containing:
             - status: Success or failure status
             - patient_id: Patient identifier
-            - message_id: Generated message ID
+            - message_id: Message ID (existing or newly created)
             - sent_at: Timestamp when message was sent
-    
+
     Raises:
         Exception: If message sending fails after all retries
     """
     try:
-        logger.info(f"Sending flow message to patient {patient_id}")
-        
+        logger.info(f"Sending flow message to patient {patient_id}, message_id: {message_id}")
+
         # Get database session
         db = next(get_db())
-        
+
         try:
             # Initialize services
             message_sender = MessageSender(db)
             patient_repo = PatientRepository(db)
-            
+            message_repo = MessageRepository(db)
+
             # Get patient
             patient = patient_repo.get(UUID(patient_id))
             if not patient:
                 raise NotFoundError(f"Patient {patient_id} not found")
-            
-            # Create message object
-            message = Message(
-                patient_id=UUID(patient_id),
-                direction=MessageDirection.OUTBOUND,
-                type=MessageType(message_data.get("type", "text")),
-                content=message_data.get("content", ""),
-                message_metadata=message_data.get("metadata", {}),
-                status=MessageStatus.PENDING,
-                scheduled_for=datetime.utcnow()
-            )
-            
-            # Add flow context to metadata
+
+            # Get or create message object
+            if message_id:
+                # UPDATE existing scheduled message
+                message = message_repo.get(UUID(message_id))
+                if not message:
+                    raise NotFoundError(f"Scheduled message {message_id} not found")
+
+                # Validate message state
+                if message.status not in [MessageStatus.SCHEDULED, MessageStatus.PENDING]:
+                    logger.warning(f"Message {message_id} has unexpected status {message.status}, proceeding anyway")
+
+                # Update message status to SENDING
+                message.status = MessageStatus.SENDING
+                message.message_metadata["celery_execution_started"] = datetime.utcnow().isoformat()
+                message.message_metadata["task_id"] = self.request.id
+
+            else:
+                # CREATE new message (backward compatibility for legacy calls)
+                logger.warning(f"Creating new message for patient {patient_id} - this may indicate message_id was not passed")
+                message = Message(
+                    patient_id=UUID(patient_id),
+                    direction=MessageDirection.OUTBOUND,
+                    type=MessageType(message_data.get("type", "text")),
+                    content=message_data.get("content", ""),
+                    message_metadata=message_data.get("metadata", {}),
+                    status=MessageStatus.SENDING,
+                    scheduled_for=datetime.utcnow()
+                )
+
+                # Add to database
+                db.add(message)
+
+            # Add/update flow context in metadata
             if "flow_context" not in message.message_metadata:
                 message.message_metadata["flow_context"] = {}
-            
+
             message.message_metadata["flow_context"].update({
                 "flow_day": message_data.get("flow_day"),
                 "flow_type": message_data.get("flow_type"),
@@ -269,9 +293,8 @@ def send_flow_message(self, patient_id: str, message_data: dict[str, Any]) -> di
                 "sent_via_celery": True,
                 "task_id": self.request.id
             })
-            
-            # Save message to database
-            db.add(message)
+
+            # Commit transaction before sending
             db.commit()
             db.refresh(message)
             
@@ -293,21 +316,38 @@ def send_flow_message(self, patient_id: str, message_data: dict[str, Any]) -> di
                         success = future.result(timeout=60)  # 1 minute timeout
                 else:
                     raise
-            
+
+            # Update message status based on send result
+            if success:
+                # MessageSender.send_message() already updates status to SENT
+                # Just update metadata with final status
+                message.message_metadata["celery_execution_completed"] = datetime.utcnow().isoformat()
+                message.message_metadata["execution_status"] = "success"
+                db.commit()
+
+                logger.info(f"Flow message sent successfully to patient {patient_id}, message_id: {message.id}")
+            else:
+                # Update status to FAILED
+                message.status = MessageStatus.FAILED
+                message.message_metadata["celery_execution_completed"] = datetime.utcnow().isoformat()
+                message.message_metadata["execution_status"] = "failed"
+                message.message_metadata["failure_reason"] = "Message sending failed"
+                db.commit()
+
+                logger.error(f"Failed to send flow message to patient {patient_id}, message_id: {message.id}")
+
             result = {
                 "status": "success" if success else "failed",
                 "patient_id": patient_id,
                 "message_id": str(message.id),
                 "sent_at": datetime.utcnow().isoformat(),
-                "whatsapp_id": message.whatsapp_id
+                "whatsapp_id": message.whatsapp_id,
+                "updated_existing": bool(message_id)
             }
-            
-            if success:
-                logger.info(f"Flow message sent successfully to patient {patient_id}")
-            else:
-                logger.error(f"Failed to send flow message to patient {patient_id}")
+
+            if not success:
                 result["error"] = "Message sending failed"
-            
+
             return result
             
         finally:
@@ -315,7 +355,26 @@ def send_flow_message(self, patient_id: str, message_data: dict[str, Any]) -> di
             
     except Exception as e:
         logger.error(f"Error sending flow message to patient {patient_id}: {e}")
-        
+
+        # Try to mark message as failed if message_id was provided
+        if message_id:
+            try:
+                db = next(get_db())
+                try:
+                    message_repo = MessageRepository(db)
+                    message = message_repo.get(UUID(message_id))
+                    if message:
+                        message.status = MessageStatus.FAILED
+                        message.message_metadata["celery_execution_error"] = str(e)
+                        message.message_metadata["celery_execution_failed_at"] = datetime.utcnow().isoformat()
+                        message.message_metadata["retry_count"] = self.request.retries
+                        db.commit()
+                        logger.info(f"Marked message {message_id} as FAILED after exception")
+                finally:
+                    db.close()
+            except Exception as update_error:
+                logger.error(f"Failed to update message status after exception: {update_error}")
+
         # Retry with exponential backoff
         if self.request.retries < self.max_retries:
             retry_delay = 60 * (2 ** self.request.retries)  # 1min, 2min, 4min
@@ -326,6 +385,7 @@ def send_flow_message(self, patient_id: str, message_data: dict[str, Any]) -> di
             return {
                 "status": "failed",
                 "patient_id": patient_id,
+                "message_id": message_id,
                 "error": f"Failed after {self.max_retries} retries: {str(e)}",
                 "final_attempt": True
             }

@@ -4,7 +4,7 @@ Handles incoming messages from WhatsApp and processes them through the flow engi
 """
 import logging
 from typing import Any, Optional, Dict, List
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import UUID
 from sqlalchemy.orm import Session
 import redis.asyncio as redis
@@ -395,6 +395,16 @@ class WebhookProcessor:
         """
         Create and send response message.
 
+        FIX P0-2: Creates ONE message only, then schedules it using schedule_existing_message().
+        This prevents ghost message duplication where UI shows Message #1 but scheduler works on Message #2.
+
+        Flow:
+        1. Create single message with PENDING status
+        2. Persist to database
+        3. Publish via WebSocket (UI shows this message)
+        4. Schedule the SAME message using schedule_existing_message()
+        5. Status transitions: PENDING → SCHEDULED → SENT/DELIVERED
+
         Args:
             patient_id: Patient ID
             content: Response content
@@ -404,33 +414,56 @@ class WebhookProcessor:
             Created message or None
         """
         try:
-            # Create outbound message
+            # Step 1: Create ONE outbound message with PENDING status
             response_data = MessageCreate(
                 patient_id=patient_id,
                 direction=MessageDirection.OUTBOUND,
                 type=MessageType.TEXT,
                 content=content,
-                message_metadata=metadata
+                message_metadata=metadata,
+                status=MessageStatus.PENDING  # Explicit PENDING status
             )
 
+            # Step 2: Persist to database
             response_message = self.message_service.create_message(response_data)
+            logger.info(f"Created message {response_message.id} for patient {patient_id}")
 
-            # Publish WebSocket event
+            # Step 3: Publish WebSocket event (UI will show this message)
             await self._publish_message_event(response_message, patient_id)
+            logger.debug(f"Published WebSocket event for message {response_message.id}")
 
-            # Schedule for sending via Evolution API
-            self.message_service.schedule_message(
-                patient_id=patient_id,
-                content=content,
-                scheduled_for=datetime.utcnow(),
-                message_metadata=metadata
+            # Step 4: Schedule the SAME message for immediate delivery
+            # Import MessageScheduler
+            from app.services.message_scheduler import get_message_scheduler
+            scheduler = get_message_scheduler(self.db)
+
+            # Schedule the existing message (status: PENDING → SCHEDULED)
+            send_time = datetime.utcnow() + timedelta(seconds=1)  # Send almost immediately
+            scheduling_success = await scheduler.schedule_existing_message(
+                message_id=response_message.id,
+                send_time=send_time,
+                priority='high'  # Auto-responses are high priority
             )
 
-            logger.info(f"Response message {response_message.id} created for patient {patient_id}")
+            if scheduling_success:
+                logger.info(
+                    f"Successfully scheduled message {response_message.id} for delivery at {send_time.isoformat()}"
+                )
+            else:
+                logger.error(
+                    f"Failed to schedule message {response_message.id}, status remains PENDING"
+                )
+                # Message stays in PENDING state, can be picked up by retry mechanisms
+
             return response_message
 
         except Exception as e:
             logger.error(f"Error sending response: {e}", exc_info=True)
+            # Rollback on failure to maintain consistency
+            try:
+                self.db.rollback()
+            except Exception as rollback_error:
+                logger.error(f"Rollback failed: {rollback_error}", exc_info=True)
             return None
 
     async def _publish_message_event(self, message: Message, patient_id: UUID) -> None:
