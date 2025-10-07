@@ -53,9 +53,6 @@ reportlab>=4.0.7,<5.0.0
 # Firebase Admin SDK - Python 3.13 compatible (updated for pkg_resources fix)
 firebase-admin>=6.9.0,<7.0.0  # Latest version with updated Google dependencies
 
-# Supabase client - Python 3.11 compatible (kept for backward compatibility)
-supabase>=2.3.4,<3.0.0
-
 # Security - Python 3.11 compatible
 bleach>=6.1.0,<7.0.0
 cryptography>=43.0.0,<45.0.0  # For data encryption (Fernet)

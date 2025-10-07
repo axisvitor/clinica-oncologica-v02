@@ -631,10 +631,11 @@ async def update_profile(
 
 @router.post(
     "/avatar",
-    summary="Upload User Avatar",
-    description="Upload avatar image for the current authenticated user (multipart/form-data)"
+    summary="Upload User Avatar (DISABLED)",
+    description="Avatar upload temporarily disabled during migration to AWS S3",
+    deprecated=True
 )
-@limiter.limit("10/hour")  # Rate limit: 10 uploads per hour per IP
+@limiter.limit("10/hour")
 async def upload_avatar(
     request: Request,
     file: UploadFile = File(...),
@@ -642,95 +643,15 @@ async def upload_avatar(
     db: Session = Depends(get_db)
 ):
     """
-    Upload user avatar to Supabase Storage with validation.
+    Avatar upload temporarily disabled.
+
+    NOTE: This feature is being migrated from Supabase Storage to AWS S3.
+    Will be re-enabled once migration is complete.
     """
-
-    try:
-        # Import Supabase client
-        from supabase import create_client
-
-        # Validate file
-        if not file:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No file provided"
-            )
-
-        # Validate file size (max 5MB)
-        MAX_FILE_SIZE = 5 * 1024 * 1024
-        contents = await file.read()
-        if len(contents) > MAX_FILE_SIZE:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File size exceeds 5MB limit"
-            )
-
-        # Validate MIME type
-        allowed_types = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp']
-        if file.content_type not in allowed_types:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid file type. Allowed: {', '.join(allowed_types)}"
-            )
-
-        # Generate unique filename
-        import uuid
-        from datetime import datetime
-        ext = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
-        firebase_uid = current_user.metadata.get('firebase_uid', str(current_user.id)) if hasattr(current_user, 'metadata') else str(current_user.id)
-        filename = f"{firebase_uid}/{datetime.utcnow().timestamp()}.{ext}"
-
-        # Upload to Supabase Storage
-        supabase_url = settings.SUPABASE_URL
-        supabase_key = settings.SUPABASE_SERVICE_ROLE_KEY
-
-        if not supabase_url or not supabase_key:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Storage not configured"
-            )
-
-        supabase = create_client(supabase_url, supabase_key)
-        bucket_name = getattr(settings, 'SUPABASE_AVATARS_BUCKET', 'avatars')
-
-        # Upload file
-        await file.seek(0)  # Reset file pointer
-        result = supabase.storage.from_(bucket_name).upload(
-            filename,
-            contents,
-            file_options={"content-type": file.content_type}
-        )
-
-        # Get public URL
-        avatar_url = supabase.storage.from_(bucket_name).get_public_url(filename)
-
-        # Update user metadata
-        if not hasattr(current_user, 'metadata') or current_user.metadata is None:
-            current_user.metadata = {}
-
-        current_user.metadata['avatar_url'] = avatar_url
-        current_user.updated_at = datetime.utcnow()
-
-        db.commit()
-
-        # Invalidate cache
-        invalidate_user_cache(firebase_uid, str(current_user.id))
-
-        return {
-            "success": True,
-            "avatar_url": avatar_url,
-            "message": "Avatar uploaded successfully"
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error uploading avatar: {e}")
-        db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to upload avatar: {str(e)}"
-        )
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Avatar upload temporarily disabled during storage migration to AWS S3. This feature will be available soon."
+    )
 
 
 @router.put(
