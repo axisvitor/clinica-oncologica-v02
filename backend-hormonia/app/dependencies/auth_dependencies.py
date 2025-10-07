@@ -110,12 +110,16 @@ async def get_current_user(
         sync_service = FirebaseUserSyncService(services.db, _firebase_service)
 
         # Create minimal user record (fast - no external calls)
+        # Extract role from Firebase custom claims or default to DOCTOR
+        firebase_role = user_data.get("role", "doctor").lower()
+        user_role = UserRole.ADMIN if firebase_role == "admin" else UserRole.DOCTOR
+
         user = User(
             firebase_uid=firebase_uid,
             email=email,
             full_name=user_data.get("name", email.split("@")[0]),
             is_active=True,
-            role=UserRole.PATIENT  # Default, can be updated by sync
+            role=user_role  # From Firebase custom claims
         )
         services.db.add(user)
         await services.db.commit()
