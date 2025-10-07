@@ -247,7 +247,6 @@ class ConnectionPoolMonitor:
             "checked_in": pool.checkedin(),
             "checked_out": pool.checkedout(),
             "overflow": pool.overflow(),
-            "invalid": pool.invalid(),
             "total_connections": pool.size() + pool.overflow(),
             "utilization_percent": round((pool.checkedout() / (pool.size() + pool.overflow())) * 100, 2) if (pool.size() + pool.overflow()) > 0 else 0
         }
@@ -261,14 +260,6 @@ class ConnectionPoolMonitor:
             logger.warning(
                 f"High connection pool utilization: {status['utilization_percent']}%",
                 extra={'event_type': 'high_pool_utilization', 'pool_status': status}
-            )
-            return False
-        
-        # Pool is unhealthy if there are too many invalid connections
-        if status["invalid"] > status["pool_size"] * 0.1:  # More than 10% invalid
-            logger.warning(
-                f"High number of invalid connections: {status['invalid']}",
-                extra={'event_type': 'high_invalid_connections', 'pool_status': status}
             )
             return False
         

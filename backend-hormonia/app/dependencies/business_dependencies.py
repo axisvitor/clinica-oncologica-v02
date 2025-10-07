@@ -122,7 +122,7 @@ def verify_patient_access(
 
 async def verify_monthly_quiz_token(
     token: str,
-    services: ServiceProvider = Depends(_get_thread_safe_provider())
+    services: ServiceProvider = Depends(_get_provider_dep)
 ) -> Dict[str, Any]:
     """
     Verify monthly quiz token for public access.

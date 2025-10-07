@@ -206,7 +206,6 @@ class ThreadSafeDatabaseManager:
             'checked_in': pool.checkedin(),
             'checked_out': pool.checkedout(),
             'overflow': pool.overflow(),
-            'invalid': pool.invalid(),
         }
 
     def cleanup(self):
