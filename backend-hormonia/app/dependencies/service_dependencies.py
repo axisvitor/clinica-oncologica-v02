@@ -1,11 +1,21 @@
-"""Service Dependencies - Clean Domain Separation"""
+"""Service Dependencies - Clean Domain Separation with Thread-Safe Session Management
+
+REFACTORED: 2025-10-07
+- All service dependencies now use get_thread_safe_service_provider()
+- Ensures per-request session isolation (no session cross-talk)
+- Fixes critical thread-safety violation in production multi-worker deployments
+
+See: docs/deployment/SERVICE_DI_REFACTOR.md
+"""
 from fastapi import Depends
 from sqlalchemy.orm import Session
 from typing import Optional
 import redis.asyncio as redis
 
 from app.database import get_db
-from app.services import ServiceProvider, get_service_provider
+from app.services import ServiceProvider
+# CRITICAL: Use thread-safe provider instead of deprecated get_service_provider
+from app.dependencies import get_thread_safe_service_provider
 
 # =============================================================================
 # DATABASE & EXTERNAL SERVICE DEPENDENCIES
@@ -18,25 +28,43 @@ get_database = get_db
 # All database access now uses SQLAlchemy directly via get_db()
 # Authentication uses Firebase Admin SDK (not Supabase Auth)
 
-# Redis dependency
-async def get_redis(services: ServiceProvider = Depends(get_service_provider)) -> Optional[redis.Redis]:
-    """Get Redis client instance"""
+# Redis dependency (THREAD-SAFE: Uses per-request ServiceProvider)
+async def get_redis(services: ServiceProvider = Depends(get_thread_safe_service_provider)) -> Optional[redis.Redis]:
+    """
+    Get Redis client instance from thread-safe ServiceProvider.
+
+    Thread-safety: Each request gets its own ServiceProvider instance with
+    isolated Redis client (if stateful operations are needed).
+
+    Returns:
+        Redis client or None if not configured
+    """
     return services.redis_client
 
 # =============================================================================
 # DOMAIN SERVICE DEPENDENCIES (Using Clean Architecture)
 # =============================================================================
 
-# Patient Domain Services
-def get_patient_service(services: ServiceProvider = Depends(get_service_provider)):
+# Patient Domain Services (THREAD-SAFE: Per-request session isolation)
+def get_patient_service(services: ServiceProvider = Depends(get_thread_safe_service_provider)):
+    """
+    Get PatientService with thread-safe per-request database session.
+
+    Thread-safety: Each request gets its own ServiceProvider with isolated session.
+    No session cross-talk between concurrent requests.
+
+    Returns:
+        PatientService instance with request-scoped dependencies
+    """
     return services.patient_service
 
 def get_patient_repository(db: Session = Depends(get_db)):
     from app.repositories.patient import PatientRepository
     return PatientRepository(db)
 
-# Flow Domain Services
-def get_flow_service(services: ServiceProvider = Depends(get_service_provider)):
+# Flow Domain Services (THREAD-SAFE: Per-request session isolation)
+def get_flow_service(services: ServiceProvider = Depends(get_thread_safe_service_provider)):
+    """Get FlowEngineIntegrationService with thread-safe session."""
     return services.flow_service
 
 def get_flow_state_repository(db: Session = Depends(get_db)):
@@ -47,54 +75,68 @@ def get_flow_analytics_service(db: Session = Depends(get_db)):
     from app.services.flow_analytics import FlowAnalyticsService
     return FlowAnalyticsService(db)
 
-# Quiz Domain Services
-def get_quiz_service(services: ServiceProvider = Depends(get_service_provider)):
+# Quiz Domain Services (THREAD-SAFE: Per-request session isolation)
+def get_quiz_service(services: ServiceProvider = Depends(get_thread_safe_service_provider)):
+    """Get QuizService with thread-safe session."""
     return services.quiz_service
 
-def get_quiz_template_service(services: ServiceProvider = Depends(get_service_provider)):
+def get_quiz_template_service(services: ServiceProvider = Depends(get_thread_safe_service_provider)):
+    """Get QuizTemplateService with thread-safe session."""
     return services.quiz_service.template_service
 
-def get_quiz_response_service(services: ServiceProvider = Depends(get_service_provider)):
+def get_quiz_response_service(services: ServiceProvider = Depends(get_thread_safe_service_provider)):
+    """Get QuizResponseService with thread-safe session."""
     return services.quiz_service.response_service
 
-def get_quiz_session_service(services: ServiceProvider = Depends(get_service_provider)):
+def get_quiz_session_service(services: ServiceProvider = Depends(get_thread_safe_service_provider)):
+    """Get QuizSessionService with thread-safe session."""
     return services.quiz_service.session_service
 
-def get_quiz_analytics_service(services: ServiceProvider = Depends(get_service_provider)):
+def get_quiz_analytics_service(services: ServiceProvider = Depends(get_thread_safe_service_provider)):
+    """Get QuizAnalyticsService with thread-safe session."""
     return services.quiz_service.analytics_service
 
-# Message Domain Services
-def get_message_service(services: ServiceProvider = Depends(get_service_provider)):
+# Message Domain Services (THREAD-SAFE)
+def get_message_service(services: ServiceProvider = Depends(get_thread_safe_service_provider)):
+    """Get MessageService with thread-safe session."""
     return services.message_service
 
-def get_auth_service(services: ServiceProvider = Depends(get_service_provider)):
+def get_auth_service(services: ServiceProvider = Depends(get_thread_safe_service_provider)):
+    """Get AuthService with thread-safe session."""
     return services.auth_service
 
-# Analytics Domain Services
-def get_analytics_service(services: ServiceProvider = Depends(get_service_provider)):
+# Analytics Domain Services (THREAD-SAFE)
+def get_analytics_service(services: ServiceProvider = Depends(get_thread_safe_service_provider)):
+    """Get AnalyticsService with thread-safe session."""
     return services.analytics_service
 
-# Report Domain Services
-def get_report_service(services: ServiceProvider = Depends(get_service_provider)):
+# Report Domain Services (THREAD-SAFE)
+def get_report_service(services: ServiceProvider = Depends(get_thread_safe_service_provider)):
+    """Get ReportService with thread-safe session."""
     return services.report_service
 
-# Notification Domain Services
-def get_notification_service(services: ServiceProvider = Depends(get_service_provider)):
+# Notification Domain Services (THREAD-SAFE)
+def get_notification_service(services: ServiceProvider = Depends(get_thread_safe_service_provider)):
+    """Get NotificationService with thread-safe session."""
     return services.notification_service
 
-# File Domain Services
-def get_file_service(services: ServiceProvider = Depends(get_service_provider)):
+# File Domain Services (THREAD-SAFE)
+def get_file_service(services: ServiceProvider = Depends(get_thread_safe_service_provider)):
+    """Get FileService with thread-safe session."""
     return services.file_service
 
-# Monthly Quiz Domain Services
-def get_monthly_quiz_service(services: ServiceProvider = Depends(get_service_provider)):
+# Monthly Quiz Domain Services (THREAD-SAFE)
+def get_monthly_quiz_service(services: ServiceProvider = Depends(get_thread_safe_service_provider)):
+    """Get MonthlyQuizService with thread-safe session."""
     return services.monthly_quiz_service
 
-# Metrics Domain Services
-def get_metrics_collector_service(services: ServiceProvider = Depends(get_service_provider)):
+# Metrics Domain Services (THREAD-SAFE)
+def get_metrics_collector_service(services: ServiceProvider = Depends(get_thread_safe_service_provider)):
+    """Get MetricsCollectorService with thread-safe session."""
     return services.metrics_collector_service
 
-def get_metrics_redis_storage(services: ServiceProvider = Depends(get_service_provider)):
+def get_metrics_redis_storage(services: ServiceProvider = Depends(get_thread_safe_service_provider)):
+    """Get MetricsRedisStorage with thread-safe session."""
     return services.metrics_redis_storage
 
 # =============================================================================

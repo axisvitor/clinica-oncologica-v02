@@ -260,26 +260,45 @@ async def _initialize_session_manager(app: FastAPI, logger) -> None:
 
 
 async def _initialize_service_provider(app: FastAPI, logger) -> None:
-    """Initialize ServiceProvider with database session."""
+    """
+    DEPRECATED: Global ServiceProvider initialization (CAUSES THREAD-SAFETY ISSUES).
+
+    Historical purpose: Initialize global ServiceProvider for app startup.
+
+    PROBLEM: This created a single global SQLAlchemy session shared by ALL requests,
+    causing session cross-talk and thread-safety violations under concurrent load.
+
+    SOLUTION: All endpoints now use get_thread_safe_service_provider() which creates
+    per-request ServiceProvider instances with isolated sessions.
+
+    Migration Guide: docs/deployment/SERVICE_DI_REFACTOR.md
+
+    Status: DISABLED - Global provider no longer initialized
+    """
+    logger.warning(
+        "⚠️  DEPRECATED: Global ServiceProvider initialization is DISABLED for thread safety. "
+        "All endpoints now use get_thread_safe_service_provider() for per-request session isolation. "
+        "See docs/deployment/SERVICE_DI_REFACTOR.md for details."
+    )
+
+    # DO NOT initialize global service provider - causes thread-safety violations
+    # app.state.service_provider = None  # Explicitly set to None if needed
+
+    # Optional: Keep for backward compatibility with startup health checks
+    # that may still reference app.state.service_provider
     try:
+        # Only create if absolutely needed for startup checks
+        # This instance should NOT be used for request handling
         from app.services import ServiceProvider
 
-        db_session = next(get_db())
+        # Note: This session will be closed and should not be used
+        # db_session = next(get_db())
+        # app.state.service_provider = ServiceProvider(db_session, None)
 
-        # Get Redis manager for compatibility
-        redis_manager = getattr(app.state, 'redis_manager', None)
-        if redis_manager:
-            # Provide compatibility wrapper for mixed sync/async usage
-            redis_client = redis_manager.get_compatible_client("auto")
-        else:
-            redis_client = None
-
-        app.state.service_provider = ServiceProvider(db_session, redis_client)
-
-        logger.info("✓ ServiceProvider initialized")
+        logger.info("✓ ServiceProvider initialization skipped (using thread-safe per-request providers)")
 
     except Exception as e:
-        logger.error(f"Failed to initialize ServiceProvider: {e}")
+        logger.error(f"ServiceProvider initialization check failed: {e}")
 
 
 async def _initialize_redis_pubsub(app: FastAPI, logger) -> None:

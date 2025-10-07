@@ -9,7 +9,9 @@ from app.models.patient import Patient
 from app.schemas.common import PaginationParams
 from app.dependencies.auth_dependencies import get_current_user, get_optional_user
 from app.dependencies.service_dependencies import get_patient_service, get_patient_repository
-from app.services import ServiceProvider, get_service_provider
+from app.services import ServiceProvider
+# CRITICAL: Use thread-safe provider instead of deprecated get_service_provider
+from app.dependencies import get_thread_safe_service_provider
 
 # =============================================================================
 # PAGINATION DEPENDENCIES
@@ -112,9 +114,13 @@ def verify_patient_access(
 
 async def verify_monthly_quiz_token(
     token: str,
-    services: ServiceProvider = Depends(get_service_provider)
+    services: ServiceProvider = Depends(get_thread_safe_service_provider)
 ) -> Dict[str, Any]:
-    """Verify monthly quiz token for public access"""
+    """
+    Verify monthly quiz token for public access.
+
+    Thread-safety: Uses per-request ServiceProvider with isolated session.
+    """
     from app.exceptions import ValidationError
 
     try:

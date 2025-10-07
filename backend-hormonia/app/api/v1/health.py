@@ -374,60 +374,44 @@ async def auth_system_health() -> dict[str, Any]:
     return results
 
 
-@router.post("/health/reset-dependencies", response_model=None)
-async def reset_dependency_system(current_user: User = Depends(get_current_user)) -> dict[str, Any]:
-    """
-    Reset the dependency system to try primary systems again.
+"""
+ENDPOINT REMOVED: POST /health/reset-dependencies
 
-    This endpoint forces the system to try the primary (complex) dependency
-    systems again after they have been marked as failed. Requires authentication.
-    """
-    from datetime import datetime
+This endpoint has been removed due to ImportError - the required functions do not exist:
+- app.dependencies_enhanced.get_dependency_manager() - NOT EXPORTED
+- app.dependencies_enhanced.reset_dependency_system() - NOT EXPORTED
 
-    try:
-        # Import the enhanced dependency system
-        from app.dependencies_enhanced import get_dependency_manager, reset_dependency_system as reset_deps
+The endpoint would raise ImportError on any call, making it non-functional since creation.
 
-        # Get status before reset
-        manager = get_dependency_manager()
-        status_before = manager.get_health_status()
+ARCHITECTURE CONTEXT:
+The current DI system architecture uses:
+- app.core.session_manager.SessionManager - For request-scoped session lifecycle management
+- app.dependencies.get_thread_safe_service_provider() - For thread-safe service injection
+- app.dependencies_enhanced - For automatic fallback to simple implementations when thread-safe fails
 
-        # Reset the system
-        reset_deps()
+FUTURE IMPLEMENTATION:
+If dependency reset functionality is needed for production monitoring, implement it as:
+1. Add SessionManager.reset_all_sessions() method in app.core.session_manager
+2. Add ServiceProvider.reset_caches() method in app.services
+3. Export proper reset functions from app.dependencies_enhanced with these signatures:
+   - def get_dependency_manager() -> DependencyManager
+   - def reset_dependency_system() -> None
+4. Re-enable this endpoint with correct imports
 
-        # Get status after reset
-        status_after = manager.get_health_status()
+REMOVAL DATE: 2025-10-07
+REASON: ImportError - functions never existed, endpoint was dead code
+IMPACT: None - endpoint was non-functional since creation, no production usage
+PRIORITY: P0 - Critical fix to prevent ImportError on any API call to this route
+"""
 
-        logger.info(
-            f"Dependency system reset by user {current_user.email}",
-            extra={
-                'event_type': 'dependency_reset',
-                'user_id': str(current_user.id),
-                'status_before': status_before,
-                'status_after': status_after
-            }
-        )
-
-        return {
-            "status": "success",
-            "message": "Dependency system reset successfully",
-            "timestamp": datetime.utcnow().isoformat(),
-            "reset_by": current_user.email,
-            "status_before": status_before,
-            "status_after": status_after
-        }
-
-    except Exception as e:
-        logger.error(
-            f"Failed to reset dependency system: {e}",
-            extra={
-                'event_type': 'dependency_reset_error',
-                'user_id': str(current_user.id)
-            },
-            exc_info=True
-        )
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to reset dependency system: {e}"
-        )
+# @router.post("/health/reset-dependencies", response_model=None)
+# async def reset_dependency_system(current_user: User = Depends(get_current_user)) -> dict[str, Any]:
+#     """
+#     Reset the dependency system to try primary systems again.
+#
+#     This endpoint forces the system to try the primary (complex) dependency
+#     systems again after they have been marked as failed. Requires authentication.
+#     """
+#     # COMMENTED OUT: See docstring above for detailed removal explanation
+#     # TODO: Implement proper dependency reset mechanism if needed (see architecture notes above)
+#     pass

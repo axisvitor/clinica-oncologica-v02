@@ -169,7 +169,7 @@ async def _check_service_provider_initialization() -> Dict[str, Any]:
     """Check ServiceProvider initialization - the most critical component."""
     try:
         from app.services import ServiceProvider
-        from app.dependencies.session_manager import get_db
+        from app.database import get_db
 
         # Create a test database session
         db = next(get_db())

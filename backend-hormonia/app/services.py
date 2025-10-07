@@ -307,37 +307,57 @@ class ServiceProvider:
         return self._metrics_redis_storage
 
 
-# Legacy function kept for backward compatibility during migration
-# This function should not be used in new code - use dependency injection instead
+# Legacy function - NOW DISABLED to prevent thread-safety violations
+# CRITICAL: This function caused ALL requests to share the same SQLAlchemy session
 def get_service_provider(request) -> ServiceProvider:
     """
-    DEPRECATED: Get service provider from FastAPI request.
+    ⛔ DEPRECATED AND DISABLED: Get service provider from FastAPI request.
 
-    This function is kept for backward compatibility during migration.
-    New code should use the dependency injection system with request-scoped
-    ServiceProvider instances.
+    CRITICAL THREAD-SAFETY VIOLATION:
+    This function returned app.state.service_provider which was a GLOBAL SINGLETON,
+    causing all concurrent requests to share the same SQLAlchemy session.
 
-    Args:
-        request: FastAPI request object
+    Problem Impact:
+    - Session cross-talk between requests
+    - Data corruption under concurrent load
+    - Unpredictable query results
+    - Race conditions in database transactions
 
-    Returns:
-        ServiceProvider: Legacy service provider (may cause thread-safety issues)
+    SOLUTION: Use thread-safe dependency injection instead
+    --------------------------------------------------
+    OLD (UNSAFE):
+        def my_endpoint(services = Depends(get_service_provider)):
+            user = services.user_service.get_user()
+
+    NEW (THREAD-SAFE):
+        from app.dependencies import get_thread_safe_service_provider
+
+        def my_endpoint(services = Depends(get_thread_safe_service_provider)):
+            user = services.user_service.get_user()
+
+    Migration Guide: docs/deployment/SERVICE_DI_REFACTOR.md
 
     Raises:
-        RuntimeError: If legacy service provider is not available
+        RuntimeError: ALWAYS raises to prevent unsafe usage
     """
     import warnings
     warnings.warn(
-        "get_service_provider(request) is deprecated. Use dependency injection instead.",
+        "⛔ get_service_provider(request) is DEPRECATED and CAUSES THREAD-SAFETY VIOLATIONS. "
+        "Use get_thread_safe_service_provider() dependency injection instead. "
+        "See docs/deployment/SERVICE_DI_REFACTOR.md for migration guide.",
         DeprecationWarning,
         stacklevel=2
     )
 
-    if not hasattr(request.app.state, 'service_provider'):
-        raise RuntimeError(
-            "Legacy service provider not available. "
-            "This typically means the application is using the new thread-safe session management. "
-            "Update your code to use dependency injection instead."
-        )
-
-    return request.app.state.service_provider
+    # ALWAYS raise to prevent unsafe usage
+    raise RuntimeError(
+        "❌ Global service provider is DISABLED for thread safety. "
+        "This function caused all requests to share the same SQLAlchemy session. "
+        "\n\n"
+        "SOLUTION: Use get_thread_safe_service_provider() instead:\n"
+        "  from app.dependencies import get_thread_safe_service_provider\n"
+        "  def my_endpoint(services = Depends(get_thread_safe_service_provider)):\n"
+        "      ...\n"
+        "\n"
+        "See: docs/deployment/SERVICE_DI_REFACTOR.md"
+    )

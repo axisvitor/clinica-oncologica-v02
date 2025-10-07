@@ -49,7 +49,8 @@
       "Bash(pytest:*)",
       "Bash([ -f \"contexts/AdminAuthContext.tsx\" ])",
       "Bash(timeout 60 railway logs -s backend)",
-      "Bash(timeout 90 railway logs -s backend)"
+      "Bash(timeout 90 railway logs -s backend)",
+      "Bash(test:*)"
     ],
     "deny": []
   }
