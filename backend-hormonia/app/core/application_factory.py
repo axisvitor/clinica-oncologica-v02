@@ -142,9 +142,9 @@ def create_application(
             Returns:
                 dict: CSRF token and expiration information
             """
-            from fastapi import Response
+            from fastapi.responses import JSONResponse
             token = get_csrf_token(request)
-            response = Response(content={
+            response = JSONResponse(content={
                 "csrf_token": token,
                 "expires_in": 3600,  # 1 hour
                 "usage": "Include this token in X-CSRF-Token header for POST/PUT/DELETE requests"
