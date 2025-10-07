@@ -14,18 +14,23 @@ import redis.asyncio as redis
 
 from app.database import get_db
 from app.services import ServiceProvider
+from typing import Generator
 
 # =============================================================================
 # THREAD-SAFE SERVICE PROVIDER (Lazy Import to Avoid Circular Dependency)
 # =============================================================================
 
-def _get_thread_safe_provider():
+class _ThreadSafeProviderDependency:
     """
-    Lazy import helper to get thread-safe service provider.
-    Avoids circular import between __init__.py and service_dependencies.py
+    Callable class for lazy importing get_thread_safe_service_provider.
+    Prevents circular import by deferring the import until call time.
     """
-    from app.dependencies import get_thread_safe_service_provider
-    return get_thread_safe_service_provider
+    def __call__(self) -> Generator:
+        from app.dependencies import get_thread_safe_service_provider
+        return get_thread_safe_service_provider()
+
+# Create singleton instance
+_get_provider_dep = _ThreadSafeProviderDependency()
 
 # =============================================================================
 # DATABASE & EXTERNAL SERVICE DEPENDENCIES
@@ -39,7 +44,7 @@ get_database = get_db
 # Authentication uses Firebase Admin SDK (not Supabase Auth)
 
 # Redis dependency (THREAD-SAFE: Uses per-request ServiceProvider)
-async def get_redis(services: ServiceProvider = Depends(_get_thread_safe_provider())) -> Optional[redis.Redis]:
+async def get_redis(services: ServiceProvider = Depends(_get_provider_dep)) -> Optional[redis.Redis]:
     """
     Get Redis client instance from thread-safe ServiceProvider.
 
@@ -56,7 +61,7 @@ async def get_redis(services: ServiceProvider = Depends(_get_thread_safe_provide
 # =============================================================================
 
 # Patient Domain Services (THREAD-SAFE: Per-request session isolation)
-def get_patient_service(services: ServiceProvider = Depends(_get_thread_safe_provider())):
+def get_patient_service(services: ServiceProvider = Depends(_get_provider_dep)):
     """
     Get PatientService with thread-safe per-request database session.
 
@@ -73,7 +78,7 @@ def get_patient_repository(db: Session = Depends(get_db)):
     return PatientRepository(db)
 
 # Flow Domain Services (THREAD-SAFE: Per-request session isolation)
-def get_flow_service(services: ServiceProvider = Depends(_get_thread_safe_provider())):
+def get_flow_service(services: ServiceProvider = Depends(_get_provider_dep)):
     """Get FlowEngineIntegrationService with thread-safe session."""
     return services.flow_service
 
@@ -86,66 +91,66 @@ def get_flow_analytics_service(db: Session = Depends(get_db)):
     return FlowAnalyticsService(db)
 
 # Quiz Domain Services (THREAD-SAFE: Per-request session isolation)
-def get_quiz_service(services: ServiceProvider = Depends(_get_thread_safe_provider())):
+def get_quiz_service(services: ServiceProvider = Depends(_get_provider_dep)):
     """Get QuizService with thread-safe session."""
     return services.quiz_service
 
-def get_quiz_template_service(services: ServiceProvider = Depends(_get_thread_safe_provider())):
+def get_quiz_template_service(services: ServiceProvider = Depends(_get_provider_dep)):
     """Get QuizTemplateService with thread-safe session."""
     return services.quiz_service.template_service
 
-def get_quiz_response_service(services: ServiceProvider = Depends(_get_thread_safe_provider())):
+def get_quiz_response_service(services: ServiceProvider = Depends(_get_provider_dep)):
     """Get QuizResponseService with thread-safe session."""
     return services.quiz_service.response_service
 
-def get_quiz_session_service(services: ServiceProvider = Depends(_get_thread_safe_provider())):
+def get_quiz_session_service(services: ServiceProvider = Depends(_get_provider_dep)):
     """Get QuizSessionService with thread-safe session."""
     return services.quiz_service.session_service
 
-def get_quiz_analytics_service(services: ServiceProvider = Depends(_get_thread_safe_provider())):
+def get_quiz_analytics_service(services: ServiceProvider = Depends(_get_provider_dep)):
     """Get QuizAnalyticsService with thread-safe session."""
     return services.quiz_service.analytics_service
 
 # Message Domain Services (THREAD-SAFE)
-def get_message_service(services: ServiceProvider = Depends(_get_thread_safe_provider())):
+def get_message_service(services: ServiceProvider = Depends(_get_provider_dep)):
     """Get MessageService with thread-safe session."""
     return services.message_service
 
-def get_auth_service(services: ServiceProvider = Depends(_get_thread_safe_provider())):
+def get_auth_service(services: ServiceProvider = Depends(_get_provider_dep)):
     """Get AuthService with thread-safe session."""
     return services.auth_service
 
 # Analytics Domain Services (THREAD-SAFE)
-def get_analytics_service(services: ServiceProvider = Depends(_get_thread_safe_provider())):
+def get_analytics_service(services: ServiceProvider = Depends(_get_provider_dep)):
     """Get AnalyticsService with thread-safe session."""
     return services.analytics_service
 
 # Report Domain Services (THREAD-SAFE)
-def get_report_service(services: ServiceProvider = Depends(_get_thread_safe_provider())):
+def get_report_service(services: ServiceProvider = Depends(_get_provider_dep)):
     """Get ReportService with thread-safe session."""
     return services.report_service
 
 # Notification Domain Services (THREAD-SAFE)
-def get_notification_service(services: ServiceProvider = Depends(_get_thread_safe_provider())):
+def get_notification_service(services: ServiceProvider = Depends(_get_provider_dep)):
     """Get NotificationService with thread-safe session."""
     return services.notification_service
 
 # File Domain Services (THREAD-SAFE)
-def get_file_service(services: ServiceProvider = Depends(_get_thread_safe_provider())):
+def get_file_service(services: ServiceProvider = Depends(_get_provider_dep)):
     """Get FileService with thread-safe session."""
     return services.file_service
 
 # Monthly Quiz Domain Services (THREAD-SAFE)
-def get_monthly_quiz_service(services: ServiceProvider = Depends(_get_thread_safe_provider())):
+def get_monthly_quiz_service(services: ServiceProvider = Depends(_get_provider_dep)):
     """Get MonthlyQuizService with thread-safe session."""
     return services.monthly_quiz_service
 
 # Metrics Domain Services (THREAD-SAFE)
-def get_metrics_collector_service(services: ServiceProvider = Depends(_get_thread_safe_provider())):
+def get_metrics_collector_service(services: ServiceProvider = Depends(_get_provider_dep)):
     """Get MetricsCollectorService with thread-safe session."""
     return services.metrics_collector_service
 
-def get_metrics_redis_storage(services: ServiceProvider = Depends(_get_thread_safe_provider())):
+def get_metrics_redis_storage(services: ServiceProvider = Depends(_get_provider_dep)):
     """Get MetricsRedisStorage with thread-safe session."""
     return services.metrics_redis_storage
 

@@ -10,12 +10,16 @@ from app.schemas.common import PaginationParams
 from app.dependencies.auth_dependencies import get_current_user, get_optional_user
 from app.dependencies.service_dependencies import get_patient_service, get_patient_repository
 from app.services import ServiceProvider
+from typing import Generator
 
 # CRITICAL: Lazy import to avoid circular dependency
-def _get_thread_safe_provider():
-    """Lazy import helper to avoid circular import"""
-    from app.dependencies import get_thread_safe_service_provider
-    return get_thread_safe_service_provider
+class _ThreadSafeProviderDependency:
+    """Callable class for lazy importing to prevent circular import"""
+    def __call__(self) -> Generator:
+        from app.dependencies import get_thread_safe_service_provider
+        return get_thread_safe_service_provider()
+
+_get_provider_dep = _ThreadSafeProviderDependency()
 
 # =============================================================================
 # PAGINATION DEPENDENCIES
