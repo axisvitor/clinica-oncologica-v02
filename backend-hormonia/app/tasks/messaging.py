@@ -68,8 +68,9 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
                     "status": message.status.value
                 }
 
-            # Send the message using the same session
-            message_sender = MessageSender(db)
+            # Send the message using the same session with QUEUE mode for retry policies
+            from app.services.unified_whatsapp_service import MessagingMode
+            message_sender = MessageSender(db, messaging_mode=MessagingMode.QUEUE)
             import asyncio
             success = asyncio.run(message_sender.send_message(message))
 
@@ -131,7 +132,8 @@ def process_scheduled_messages(self, limit: int = 100) -> dict[str, Any]:
 
     try:
         with get_db_session() as db:
-            message_sender = MessageSender(db)
+            from app.services.unified_whatsapp_service import MessagingMode
+            message_sender = MessageSender(db, messaging_mode=MessagingMode.QUEUE)
 
             # Process scheduled messages
             import asyncio
@@ -172,7 +174,8 @@ def retry_failed_messages(self, limit: int = 50, max_retries: int = 3) -> dict[s
 
     try:
         with get_db_session() as db:
-            message_sender = MessageSender(db)
+            from app.services.unified_whatsapp_service import MessagingMode
+            message_sender = MessageSender(db, messaging_mode=MessagingMode.QUEUE)
 
             # Retry failed messages
             import asyncio

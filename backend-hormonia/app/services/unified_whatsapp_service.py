@@ -299,6 +299,11 @@ class UnifiedWhatsAppService:
             }
         })
 
+        # Ensure requires_queue flag is set for queue mode
+        if mode == MessagingMode.QUEUE:
+            message.message_metadata['requires_queue'] = True
+            logger.debug(f"Message {message.id} marked for queue mode processing")
+
         # Add flow context if provided
         flow_context = kwargs.get('flow_context')
         if flow_context:
@@ -312,6 +317,11 @@ class UnifiedWhatsAppService:
                 message.message_metadata['retry_policy'] = 'urgent'
             elif 'quiz' in flow_type.lower():
                 message.message_metadata['retry_policy'] = 'quiz_link'
+
+        # Set default retry policy if not set and using queue mode
+        if mode == MessagingMode.QUEUE and 'retry_policy' not in message.message_metadata:
+            message.message_metadata['retry_policy'] = 'default'
+            logger.debug(f"Message {message.id} assigned default retry policy for queue mode")
 
     async def _send_via_legacy(self, message: Message, **kwargs) -> bool:
         """Send message via legacy pipeline."""

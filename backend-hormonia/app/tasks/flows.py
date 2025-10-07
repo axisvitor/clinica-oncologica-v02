@@ -239,8 +239,9 @@ def send_flow_message(self, patient_id: str, message_data: dict[str, Any], messa
         db = next(get_db())
 
         try:
-            # Initialize services
-            message_sender = MessageSender(db)
+            # Initialize services with QUEUE mode for retry/backoff policies
+            from app.services.unified_whatsapp_service import MessagingMode
+            message_sender = MessageSender(db, messaging_mode=MessagingMode.QUEUE)
             patient_repo = PatientRepository(db)
             message_repo = MessageRepository(db)
 

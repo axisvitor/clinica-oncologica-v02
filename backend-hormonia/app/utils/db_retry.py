@@ -60,11 +60,45 @@ class DatabaseCircuitBreaker:
         self.last_failure_time: Optional[float] = None
         self.state = "closed"  # closed, open, half_open
 
+    def _check_circuit_state(self):
+        """Check and update circuit state before operation
+
+        Raises:
+            Exception: If circuit is open and not ready for recovery
+        """
+        if self.state == "open":
+            if self.last_failure_time and (time.time() - self.last_failure_time) > self.recovery_timeout:
+                logger.info("Circuit breaker transitioning to HALF_OPEN state")
+                self.state = "half_open"
+            else:
+                logger.error("Circuit breaker is OPEN - rejecting database operation")
+                raise Exception("Circuit breaker is OPEN - database operations temporarily disabled")
+
+    def _record_success(self):
+        """Record successful operation and update circuit state"""
+        if self.state == "half_open":
+            logger.info("Circuit breaker closing after successful operation")
+            self.state = "closed"
+            self.failure_count = 0
+
+    def _record_failure(self):
+        """Record failed operation and update circuit state"""
+        self.failure_count += 1
+        self.last_failure_time = time.time()
+
+        # Open circuit if threshold exceeded
+        if self.failure_count >= self.failure_threshold:
+            logger.error(
+                f"Circuit breaker OPENING after {self.failure_count} failures. "
+                f"Will attempt recovery in {self.recovery_timeout}s"
+            )
+            self.state = "open"
+
     def call(self, func: Callable, *args, **kwargs) -> Any:
-        """Execute function through circuit breaker
+        """Execute synchronous function through circuit breaker
 
         Args:
-            func: Function to execute
+            func: Synchronous function to execute
             *args: Positional arguments for function
             **kwargs: Keyword arguments for function
 
@@ -74,38 +108,41 @@ class DatabaseCircuitBreaker:
         Raises:
             Exception: If circuit is open or function fails
         """
-        # Check if circuit should transition from OPEN to HALF_OPEN
-        if self.state == "open":
-            if self.last_failure_time and (time.time() - self.last_failure_time) > self.recovery_timeout:
-                logger.info("Circuit breaker transitioning to HALF_OPEN state")
-                self.state = "half_open"
-            else:
-                logger.error("Circuit breaker is OPEN - rejecting database operation")
-                raise Exception("Circuit breaker is OPEN - database operations temporarily disabled")
+        self._check_circuit_state()
 
         try:
             result = func(*args, **kwargs)
-
-            # Success in HALF_OPEN state closes the circuit
-            if self.state == "half_open":
-                logger.info("Circuit breaker closing after successful operation")
-                self.state = "closed"
-                self.failure_count = 0
-
+            self._record_success()
             return result
 
         except Exception as e:
-            self.failure_count += 1
-            self.last_failure_time = time.time()
+            self._record_failure()
+            raise
 
-            # Open circuit if threshold exceeded
-            if self.failure_count >= self.failure_threshold:
-                logger.error(
-                    f"Circuit breaker OPENING after {self.failure_count} failures. "
-                    f"Will attempt recovery in {self.recovery_timeout}s"
-                )
-                self.state = "open"
+    async def acall(self, func: Callable, *args, **kwargs) -> Any:
+        """Execute asynchronous function through circuit breaker
 
+        Args:
+            func: Async function to execute (coroutine function)
+            *args: Positional arguments for function
+            **kwargs: Keyword arguments for function
+
+        Returns:
+            Result from function execution
+
+        Raises:
+            Exception: If circuit is open or function fails
+        """
+        self._check_circuit_state()
+
+        try:
+            # Properly await the coroutine
+            result = await func(*args, **kwargs)
+            self._record_success()
+            return result
+
+        except Exception as e:
+            self._record_failure()
             raise
 
 
@@ -150,8 +187,8 @@ def with_db_retry(
 
             for attempt in range(max_retries + 1):
                 try:
-                    # Execute through circuit breaker
-                    result = await db_circuit_breaker.call(func, *args, **kwargs)
+                    # Execute through circuit breaker (async variant)
+                    result = await db_circuit_breaker.acall(func, *args, **kwargs)
                     return result
 
                 except (OperationalError, SQLTimeoutError, DBAPIError) as e:

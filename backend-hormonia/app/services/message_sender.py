@@ -28,13 +28,23 @@ from app.exceptions import ExternalServiceError, NotFoundError
 
 logger = logging.getLogger(__name__)
 
-# Deprecation warning
+# Deprecation warnings
 import warnings
 warnings.warn(
     "MessageSender is deprecated. Use UnifiedWhatsAppService instead.",
     DeprecationWarning,
     stacklevel=2
 )
+
+# Legacy mode deprecation
+def _warn_legacy_mode():
+    """Warn about legacy mode usage."""
+    warnings.warn(
+        "MessagingMode.LEGACY is deprecated and will be removed in a future version. "
+        "Use MessagingMode.QUEUE for retry/backoff policies.",
+        DeprecationWarning,
+        stacklevel=3
+    )
 
 
 class MessageSender:
@@ -45,15 +55,33 @@ class MessageSender:
     Maintains backward compatibility while encouraging migration to the unified service.
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, messaging_mode: MessagingMode = MessagingMode.QUEUE):
+        """
+        Initialize MessageSender with configurable messaging mode.
+
+        Args:
+            db: Database session
+            messaging_mode: Messaging mode (default: QUEUE for retry/backoff policies)
+        """
         self.db = db
         self.message_service = MessageService(db)
+        self.messaging_mode = messaging_mode
+
+        # Warn if using legacy mode
+        if messaging_mode == MessagingMode.LEGACY:
+            _warn_legacy_mode()
+            logger.warning("MessageSender using LEGACY mode - retry/backoff policies may be limited")
+        else:
+            logger.info(f"MessageSender using {messaging_mode.value} mode with full retry/backoff support")
 
         # Initialize unified service as delegate
         self._unified_service = UnifiedWhatsAppService(
             db=db,
-            messaging_mode=MessagingMode.LEGACY  # Use legacy mode for compatibility
+            messaging_mode=messaging_mode  # Use queue mode by default for retry/backoff
         )
+
+        # Log mode selection for monitoring
+        logger.info(f"MessageSender initialized with messaging_mode={messaging_mode.value}")
 
         # Note: WhatsAppQueueService (queue-based service) is imported for reference
         # but actual implementation is delegated to UnifiedWhatsAppService for consistency
