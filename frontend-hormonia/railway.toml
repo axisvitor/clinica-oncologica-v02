@@ -1,7 +1,7 @@
 
 [build]
-builder = "dockerfile"
-dockerfilePath = "Dockerfile"
+builder = "DOCKERFILE"
+dockerfilePath = "frontend-hormonia/Dockerfile"
 
 [deploy]
 healthcheckPath = "/"
