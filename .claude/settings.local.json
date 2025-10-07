@@ -54,7 +54,8 @@
       "Bash(git mv:*)",
       "Bash(git rm:*)",
       "Bash(python3.11 -m pytest tests/test_message_scheduler_signature_fix.py -v --tb=short)",
-      "Bash(railway run:*)"
+      "Bash(railway run:*)",
+      "Bash(timeout 90 railway logs --service backend)"
     ],
     "deny": []
   }
