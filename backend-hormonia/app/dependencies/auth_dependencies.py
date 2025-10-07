@@ -80,10 +80,10 @@ async def get_current_user(
         logger.debug(f"Firebase token validated for user: {email}")
 
         # Fast path: Check if user already exists in database (< 100ms)
-        from app.models.usuario import Usuario
+        from app.models.user import User
         from sqlalchemy import select
 
-        stmt = select(Usuario).where(Usuario.firebase_uid == firebase_uid)
+        stmt = select(User).where(User.firebase_uid == firebase_uid)
         result = await services.db.execute(stmt)
         user = result.scalar_one_or_none()
 
@@ -106,15 +106,16 @@ async def get_current_user(
         logger.info(f"User not found in database, creating minimal record for: {email}")
 
         from app.services.firebase_user_sync_service import FirebaseUserSyncService
+        from app.models.user import UserRole
         sync_service = FirebaseUserSyncService(services.db, _firebase_service)
 
         # Create minimal user record (fast - no external calls)
-        user = Usuario(
+        user = User(
             firebase_uid=firebase_uid,
             email=email,
-            nome=user_data.get("name", email.split("@")[0]),
+            full_name=user_data.get("name", email.split("@")[0]),
             is_active=True,
-            tipo_usuario="paciente"  # Default, can be updated by sync
+            role=UserRole.PATIENT  # Default, can be updated by sync
         )
         services.db.add(user)
         await services.db.commit()
