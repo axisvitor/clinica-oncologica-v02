@@ -70,6 +70,9 @@ async def _startup(app: FastAPI) -> object:
     # Initialize Redis and WebSocket events
     await _initialize_redis_websocket_events(app, logger)
 
+    # Initialize Redis Pub/Sub for horizontal WebSocket scaling
+    await _initialize_redis_pubsub(app, logger)
+
     # Initialize thread-safe session management
     await _initialize_session_manager(app, logger)
 
@@ -96,6 +99,9 @@ async def _shutdown(app: FastAPI, logger) -> None:
     try:
         # Stop monitoring system
         await _cleanup_monitoring(app, logger)
+
+        # Stop Redis Pub/Sub
+        await _cleanup_redis_pubsub(app, logger)
 
         # Cleanup session manager
         await _cleanup_session_manager(app, logger)
@@ -276,6 +282,48 @@ async def _initialize_service_provider(app: FastAPI, logger) -> None:
         logger.error(f"Failed to initialize ServiceProvider: {e}")
 
 
+async def _initialize_redis_pubsub(app: FastAPI, logger) -> None:
+    """Initialize Redis Pub/Sub for horizontal WebSocket scaling."""
+    try:
+        from app.services.redis_pubsub_manager import RedisPubSubManager, set_pubsub_manager
+        from app.services.websocket_manager import connection_manager
+        import uuid
+
+        # Get Redis client from app state
+        redis_client = getattr(app.state, 'redis_client', None)
+
+        if not redis_client:
+            logger.warning("Redis client not available - Redis Pub/Sub disabled")
+            logger.warning("WebSocket scaling will be limited to single instance")
+            app.state.pubsub_manager = None
+            return
+
+        # Generate unique instance ID for this server
+        instance_id = f"fastapi_{uuid.uuid4().hex[:8]}"
+
+        # Create pub/sub manager
+        pubsub_manager = RedisPubSubManager(
+            redis_client=redis_client,
+            connection_manager=connection_manager,
+            instance_id=instance_id
+        )
+
+        # Start pub/sub listener
+        await pubsub_manager.start()
+
+        # Store in app state and set global
+        app.state.pubsub_manager = pubsub_manager
+        set_pubsub_manager(pubsub_manager)
+
+        logger.info(f"✓ Redis Pub/Sub initialized (instance: {instance_id})")
+        logger.info("✓ WebSocket horizontal scaling enabled")
+
+    except Exception as e:
+        logger.error(f"Failed to initialize Redis Pub/Sub: {e}")
+        logger.warning("Continuing without Redis Pub/Sub - single instance mode only")
+        app.state.pubsub_manager = None
+
+
 async def _initialize_ai_services(app: FastAPI, logger) -> None:
     """Initialize AI services and integrations."""
     try:
@@ -350,6 +398,19 @@ async def _cleanup_monitoring(app: FastAPI, logger) -> None:
 
     except Exception as e:
         logger.error(f"Error stopping monitoring system: {e}")
+
+
+async def _cleanup_redis_pubsub(app: FastAPI, logger) -> None:
+    """Cleanup Redis Pub/Sub manager."""
+    try:
+        if hasattr(app.state, 'pubsub_manager') and app.state.pubsub_manager:
+            logger.info("Stopping Redis Pub/Sub manager...")
+            await app.state.pubsub_manager.stop()
+            app.state.pubsub_manager = None
+            logger.info("✓ Redis Pub/Sub manager stopped")
+
+    except Exception as e:
+        logger.error(f"Error stopping Redis Pub/Sub manager: {e}")
 
 
 async def _cleanup_redis_connections(app: FastAPI, logger) -> None:
