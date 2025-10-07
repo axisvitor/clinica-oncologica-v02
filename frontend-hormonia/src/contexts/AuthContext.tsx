@@ -22,6 +22,9 @@ interface AuthContextType {
   logoutAll: () => Promise<void>
   hasPermission: (permission: string) => boolean
   hasRole: (role: string) => boolean
+  // WebSocket helpers
+  getFirebaseToken: () => string | null
+  refreshToken: () => Promise<void>
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -357,6 +360,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [])
 
+  /**
+   * Get current Firebase token from localStorage
+   * Used by WebSocket connections and direct API calls
+   */
+  const getFirebaseToken = useCallback((): string | null => {
+    return localStorage.getItem('firebase_token')
+  }, [])
+
+  /**
+   * Force refresh Firebase token
+   * Useful for WebSocket reconnection after token expiry
+   */
+  const refreshToken = useCallback(async (): Promise<void> => {
+    try {
+      const currentUser = firebaseAuth.getCurrentUser()
+      if (currentUser) {
+        const newToken = await currentUser.getIdToken(true) // force refresh
+        localStorage.setItem('firebase_token', newToken)
+        apiClient.setAuthToken(newToken)
+        logger.info('Firebase token refreshed successfully')
+      }
+    } catch (error) {
+      logger.error('Failed to refresh Firebase token:', error)
+      throw error
+    }
+  }, [])
+
   const value: AuthContextType = {
     user,
     session,
@@ -366,7 +396,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     logout,
     logoutAll,
     hasPermission,
-    hasRole
+    hasRole,
+    getFirebaseToken,
+    refreshToken
   }
 
   return (
