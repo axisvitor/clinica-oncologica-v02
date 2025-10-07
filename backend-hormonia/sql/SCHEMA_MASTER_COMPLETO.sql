@@ -1,14 +1,30 @@
 -- ============================================================================
 -- SCHEMA MASTER COMPLETO - CLÍNICA ONCOLÓGICA HORMONIA
 -- ============================================================================
--- Versão: 2.3
--- Data: 2025-10-06
--- Última Atualização: 2025-10-06 (Firebase auth fixes + user_sync_log.updated_at)
+-- Versão: 2.4
+-- Data: 2025-10-07
+-- Última Atualização: 2025-10-07 (Firebase authentication fields added to users table)
 -- Descrição: Schema completo consolidado com todas as 41 tabelas do sistema
 --
 -- IMPORTANTE: Este arquivo NÃO deve ser executado diretamente em produção.
 -- Use as migrations do Supabase para alterações incrementais.
 -- Este arquivo serve como referência completa da estrutura atual.
+--
+-- CHANGELOG v2.4 (2025-10-07):
+-- - CRITICAL FIX: Added 9 Firebase authentication fields to users table
+--   * firebase_uid (already existed)
+--   * auth_provider (already existed)
+--   * firebase_last_sign_in (NEW)
+--   * firebase_created_at (NEW)
+--   * firebase_email_verified (NEW)
+--   * firebase_display_name (NEW)
+--   * firebase_photo_url (NEW)
+--   * firebase_custom_claims (NEW - JSONB for role management)
+--   * last_firebase_sync (NEW)
+-- - Made hashed_password NULLABLE for Firebase-only users
+-- - Added indexes for firebase_uid (partial) and auth_provider
+-- - Source: migration 20250930_add_firebase_fields.py
+-- - Total de migrations: 61 (60 anteriores + 1 nova: add_firebase_fields)
 --
 -- CHANGELOG v2.3 (2025-10-06):
 -- - CRITICAL FIX: Added user_sync_log.updated_at column (migration applied via Supabase MCP)
@@ -128,30 +144,52 @@ CREATE TYPE http_method_type AS ENUM (
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- 3.1 USERS - Profissionais de Saúde
+-- 3.1 USERS - Profissionais de Saúde (Updated 2025-10-07: Firebase fields)
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email VARCHAR(255) UNIQUE NOT NULL,
-    hashed_password VARCHAR(255) NOT NULL,
-    firebase_uid VARCHAR(255) UNIQUE,
+
+    -- Password field (nullable for Firebase-only users)
+    hashed_password VARCHAR(255),  -- NULLABLE for Firebase users
+
+    -- Basic user info
     full_name VARCHAR(255),
     role user_role NOT NULL DEFAULT 'doctor',
-    auth_provider auth_provider NOT NULL DEFAULT 'local',
     is_active BOOLEAN DEFAULT true NOT NULL,
+
+    -- Firebase Authentication Fields (Added 2025-10-07)
+    firebase_uid VARCHAR(255) UNIQUE,
+    auth_provider auth_provider NOT NULL DEFAULT 'local',
+    firebase_last_sign_in TIMESTAMP WITH TIME ZONE,
+    firebase_created_at TIMESTAMP WITH TIME ZONE,
+    firebase_email_verified BOOLEAN NOT NULL DEFAULT false,
+    firebase_display_name VARCHAR(255),
+    firebase_photo_url VARCHAR(500),
+    firebase_custom_claims JSONB NOT NULL DEFAULT '{}',
+    last_firebase_sync TIMESTAMP WITH TIME ZONE,
+
+    -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
 
     CONSTRAINT valid_email CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
 );
 
+-- Indexes
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-CREATE INDEX IF NOT EXISTS idx_users_firebase_uid ON users(firebase_uid);
+CREATE INDEX IF NOT EXISTS idx_users_firebase_uid ON users(firebase_uid) WHERE firebase_uid IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 CREATE INDEX IF NOT EXISTS idx_users_auth_provider ON users(auth_provider);
 CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active);
 
-COMMENT ON TABLE users IS 'Profissionais de saúde (médicos e administradores)';
+-- Comments
+COMMENT ON TABLE users IS 'Profissionais de saúde (médicos e administradores) - Supports local and Firebase authentication';
+COMMENT ON COLUMN users.firebase_uid IS 'Firebase user UID from Firebase Authentication';
+COMMENT ON COLUMN users.auth_provider IS 'Authentication provider: local (password) or firebase';
+COMMENT ON COLUMN users.firebase_custom_claims IS 'Firebase custom claims including role (admin/doctor) and permissions';
+COMMENT ON COLUMN users.hashed_password IS 'Password hash - NULL for Firebase-only users';
+COMMENT ON COLUMN users.last_firebase_sync IS 'Timestamp of last sync with Firebase Authentication';
 
 -- ----------------------------------------------------------------------------
 -- 3.2 PATIENTS - Pacientes
@@ -1666,23 +1704,27 @@ COMMENT ON FUNCTION cleanup_all_audit_tables() IS 'Remove entradas antigas de to
 -- ============================================================================
 
 -- NOTAS:
--- 1. Este arquivo representa o estado completo do banco após 59 migrações aplicadas
+-- 1. Este arquivo representa o estado completo do banco após 61 migrações aplicadas
 --    - 56 migrations anteriores (até 2025-10-02)
 --    - 3 migrations aplicadas em 2025-10-04:
 --      a) 20251004_drop_rebuild_quiz_materialized_views (reconstrução de views com novo schema)
 --      b) 20251004_final_quiz_sessions_cleanup (remoção de campos deprecated)
 --      c) 20251004_expand_message_type_enum + add_gin_indexes_jsonb + add_foreign_key_cascade_rules
+--    - 1 migration aplicada em 2025-10-06:
+--      d) 20251006_add_user_sync_log_updated_at (adiciona coluna updated_at + trigger)
+--    - 1 migration aplicada em 2025-10-07:
+--      e) 20250930_add_firebase_fields (adiciona 9 campos Firebase à tabela users + user_sync_log)
 -- 2. RLS policies não estão incluídas neste arquivo (veja migrations específicas e RELATORIO_REVISAO_RLS.md)
 -- 3. Dados iniciais (seeds) não estão incluídos
 -- 4. Para aplicar mudanças em produção, use migrations incrementais via Supabase
--- 5. Total de tabelas: 41 (documentadas) - ATENÇÃO: banco real difere da documentação
+-- 5. Total de tabelas: 42 (41 documentadas + user_sync_log adicionada em v2.4)
 -- 6. Total de ENUMs: 10 (user_role, flow_state, message_direction, message_type (13 valores), message_status,
 --    alert_severity, auth_provider, admin_role_type, severity_type, http_method_type)
--- 7. Total de índices: 110+ (incluindo 14 GIN indexes para JSONB + 8 novos índices v2 quiz_sessions)
+-- 7. Total de índices: 115+ (incluindo 14 GIN indexes para JSONB + 8 índices v2 quiz_sessions + 2 novos para Firebase)
 -- 8. Total de Materialized Views: 5 (quiz_patient_latest_responses + 4 novas views de analytics)
 -- 9. Retenção de auditoria: 90 dias (cleanup automático)
 -- 10. RLS habilitado: 6+ tabelas críticas (users, patients, medical_reports, quiz_templates, messages, alerts)
--- 11. Última atualização: 2025-10-04 (Database cleanup - quiz_sessions schema v2 + materialized views rebuild)
+-- 11. Última atualização: 2025-10-07 (Firebase authentication integration - 9 campos + user_sync_log)
 -- 12. Schema v2 Changes (quiz_sessions):
 --     - REMOVED: is_completed (boolean) → replaced by status ('started'|'completed'|'cancelled')
 --     - REMOVED: current_question_index (integer) → renamed to current_question
@@ -1690,6 +1732,13 @@ COMMENT ON FUNCTION cleanup_all_audit_tables() IS 'Remove entradas antigas de to
 --     - ADDED: CHECK constraint quiz_sessions_status_check for valid status values
 --     - ADDED: Unique index for active sessions (one per patient/template)
 --     - OPTIMIZED: 8 new v2 indexes replacing old index patterns
+-- 13. Firebase Authentication Integration (v2.4):
+--     - users.hashed_password agora é NULLABLE (para usuários Firebase-only)
+--     - Adicionados 9 campos Firebase: firebase_uid, auth_provider, firebase_last_sign_in,
+--       firebase_created_at, firebase_email_verified, firebase_display_name, firebase_photo_url,
+--       firebase_custom_claims (JSONB), last_firebase_sync
+--     - Criada tabela user_sync_log para auditoria de sincronização Firebase ↔ Supabase
+--     - Índices otimizados: idx_users_firebase_uid (partial), idx_users_auth_provider
 
 -- Para verificar a estrutura:
 -- SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;
