@@ -20,10 +20,12 @@ export interface User {
   full_name: string
   role: string
   is_active: boolean
-  permissions?: string[]
-  created_at?: string
+  permissions: string[]  // Required to match hooks/auth/types.ts
+  created_at: string     // Required to match hooks/auth/types.ts
   firebase_uid?: string
   session_id?: string
+  token?: string         // Optional for WebSocket/API auth
+  avatar_url?: string    // Optional for profile picture
 }
 
 export interface LoginResponse {

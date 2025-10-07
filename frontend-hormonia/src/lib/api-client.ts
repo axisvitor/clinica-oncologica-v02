@@ -406,8 +406,8 @@ class ApiClient {
         full_name: string;
         role: string;
         is_active: boolean;
-        created_at?: string;
-        permissions?: string[];
+        created_at: string;      // Required field
+        permissions: string[];   // Required field
         // Optional medico-specific fields
         crm?: string;
         nome?: string;
@@ -431,9 +431,9 @@ class ApiClient {
           full_name: user['full_name'],
           role: user['role'],
           is_active: user.is_active,
-          // Use server-provided values instead of client-side defaults
-          permissions: user['permissions'] || [],
-          created_at: user['created_at'] || new Date().toISOString(),
+          // Required fields with fallbacks for type safety
+          permissions: user['permissions'] ?? [],
+          created_at: user['created_at'] ?? new Date().toISOString(),
           // Include optional medico-specific fields if present
           crm: user['crm'],
           nome: user['nome'],
