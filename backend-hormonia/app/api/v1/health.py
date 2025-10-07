@@ -349,18 +349,6 @@ async def auth_system_health() -> dict[str, Any]:
                 "error": str(e)
             }
 
-    # Test fallback system status
-    try:
-        from app.dependencies_fallback import test_fallback_systems
-        fallback_status = test_fallback_systems()
-        results["fallback_systems"] = fallback_status
-    except Exception as e:
-        logger.error(f"Fallback systems test failed: {e}")
-        results["fallback_systems"] = {
-            "status": "failed",
-            "error": str(e)
-        }
-
     # Determine overall status
     auth_ready = (
         results["database_session"].get("status") == "available" and
@@ -372,46 +360,3 @@ async def auth_system_health() -> dict[str, Any]:
     results["login_should_work"] = auth_ready
 
     return results
-
-
-"""
-ENDPOINT REMOVED: POST /health/reset-dependencies
-
-This endpoint has been removed due to ImportError - the required functions do not exist:
-- app.dependencies_enhanced.get_dependency_manager() - NOT EXPORTED
-- app.dependencies_enhanced.reset_dependency_system() - NOT EXPORTED
-
-The endpoint would raise ImportError on any call, making it non-functional since creation.
-
-ARCHITECTURE CONTEXT:
-The current DI system architecture uses:
-- app.core.session_manager.SessionManager - For request-scoped session lifecycle management
-- app.dependencies.get_thread_safe_service_provider() - For thread-safe service injection
-- app.dependencies_enhanced - For automatic fallback to simple implementations when thread-safe fails
-
-FUTURE IMPLEMENTATION:
-If dependency reset functionality is needed for production monitoring, implement it as:
-1. Add SessionManager.reset_all_sessions() method in app.core.session_manager
-2. Add ServiceProvider.reset_caches() method in app.services
-3. Export proper reset functions from app.dependencies_enhanced with these signatures:
-   - def get_dependency_manager() -> DependencyManager
-   - def reset_dependency_system() -> None
-4. Re-enable this endpoint with correct imports
-
-REMOVAL DATE: 2025-10-07
-REASON: ImportError - functions never existed, endpoint was dead code
-IMPACT: None - endpoint was non-functional since creation, no production usage
-PRIORITY: P0 - Critical fix to prevent ImportError on any API call to this route
-"""
-
-# @router.post("/health/reset-dependencies", response_model=None)
-# async def reset_dependency_system(current_user: User = Depends(get_current_user)) -> dict[str, Any]:
-#     """
-#     Reset the dependency system to try primary systems again.
-#
-#     This endpoint forces the system to try the primary (complex) dependency
-#     systems again after they have been marked as failed. Requires authentication.
-#     """
-#     # COMMENTED OUT: See docstring above for detailed removal explanation
-#     # TODO: Implement proper dependency reset mechanism if needed (see architecture notes above)
-#     pass

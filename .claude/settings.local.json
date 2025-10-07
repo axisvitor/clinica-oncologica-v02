@@ -50,7 +50,9 @@
       "Bash([ -f \"contexts/AdminAuthContext.tsx\" ])",
       "Bash(timeout 60 railway logs -s backend)",
       "Bash(timeout 90 railway logs -s backend)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(git mv:*)",
+      "Bash(git rm:*)"
     ],
     "deny": []
   }
