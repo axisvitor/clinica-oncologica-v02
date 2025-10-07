@@ -1,6 +1,6 @@
 """
 Configuration settings for Hormonia Backend System using Pydantic Settings.
-Adapted for Supabase Cloud database.
+Using AWS RDS PostgreSQL database.
 """
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -10,7 +10,7 @@ import json
 
 
 class Settings(BaseSettings):
-    """Application settings with Supabase Cloud integration."""
+    """Application settings with AWS RDS PostgreSQL integration."""
     
     # Application
     DEBUG: bool = Field(default=True, description="Debug mode")
@@ -26,16 +26,6 @@ class Settings(BaseSettings):
     # Security: Session and Cookie Configuration
     SESSION_COOKIE_SECURE: bool = Field(default=False, description="Require HTTPS for session cookies")
     SECURE_SSL_REDIRECT: bool = Field(default=False, description="Force HTTPS redirect")
-    
-    # Supabase Configuration
-    SUPABASE_URL: str = Field(..., description="Supabase project URL")
-    SUPABASE_ANON_KEY: str = Field(..., description="Supabase anonymous key")
-    SUPABASE_SERVICE_ROLE_KEY: str = Field(..., description="Supabase service role key")
-    # Supabase User Auto-Provisioning
-    AUTO_PROVISION_SUPABASE_USERS: bool = Field(
-        default=False,
-        description="Automatically create a local user when a valid Supabase user authenticates"
-    )
 
     # Firebase Admin SDK Configuration
     FIREBASE_ADMIN_PROJECT_ID: Optional[str] = Field(
@@ -102,51 +92,6 @@ class Settings(BaseSettings):
         description="Public email domains that are explicitly blocked"
     )
 
-    # Supabase RLS Configuration
-    SUPABASE_USE_SERVICE_ROLE: bool = Field(
-        default=False,
-        description="Use service_role key (bypass RLS) or user JWT tokens for RLS"
-    )
-    SUPABASE_BYPASS_RLS: bool = Field(
-        default=False,
-        description="Whether to bypass Row Level Security policies"
-    )
-    SUPABASE_JWT_HEADER_NAME: str = Field(
-        default="Authorization",
-        description="Header name for JWT token"
-    )
-    SUPABASE_JWT_PREFIX: str = Field(
-        default="Bearer",
-        description="Prefix for JWT token in header"
-    )
-
-    # RLS Context Settings
-    RLS_OPERATION_TIMEOUT: int = Field(
-        default=30,
-        description="Timeout for RLS operations in seconds"
-    )
-    RLS_MAX_RETRIES: int = Field(
-        default=3,
-        description="Maximum retries for RLS operations"
-    )
-    RLS_ENABLE_AUDIT_LOGGING: bool = Field(
-        default=True,
-        description="Enable audit logging for RLS operations"
-    )
-    RLS_DEFAULT_ROLE: str = Field(
-        default="authenticated",
-        description="Default role for RLS context"
-    )
-
-    # Connection Pool Settings for RLS
-    RLS_POOL_SIZE: int = Field(
-        default=30,  # SECURITY FIX: Increased from 15
-        description="Database pool size for RLS connections"
-    )
-    RLS_POOL_MAX_OVERFLOW: int = Field(
-        default=50,  # SECURITY FIX: Increased from 25
-        description="Maximum overflow connections for RLS pool"
-    )
 
     # File Upload Settings
     UPLOAD_DIR: str = Field(
@@ -158,8 +103,8 @@ class Settings(BaseSettings):
         description="Maximum file upload size in bytes"
     )
     
-    # Database (Supabase PostgreSQL)
-    DATABASE_URL: str = Field(..., description="Supabase PostgreSQL connection string")
+    # Database (AWS RDS PostgreSQL)
+    DATABASE_URL: str = Field(..., description="AWS RDS PostgreSQL connection string")
     
     # Redis (for caching and Celery)
     # Redis Connection Settings (redis-py 6.0.0 compatible)
@@ -203,6 +148,20 @@ class Settings(BaseSettings):
     REDIS_SESSION_DB: int = Field(default=2, description="Redis database number for sessions (0-15)")
     REDIS_RATE_LIMIT_DB: int = Field(default=3, description="Redis database number for rate limiting (0-15)")
     REDIS_ENABLE_DB_ISOLATION: bool = Field(default=True, description="Enable separate DBs for cache vs broker")
+
+    # Firebase Redis Cache Configuration (3-Layer Architecture)
+    FIREBASE_TOKEN_CACHE_TTL: int = Field(
+        default=3600,
+        description="Firebase token validation cache TTL in seconds (Layer 1 - Default: 1 hour)"
+    )
+    FIREBASE_USER_CACHE_TTL: int = Field(
+        default=7200,
+        description="Firebase user object cache TTL in seconds (Layer 2 - Default: 2 hours)"
+    )
+    FIREBASE_SESSION_TTL: int = Field(
+        default=86400,
+        description="Firebase session management TTL in seconds (Layer 3 - Default: 24 hours)"
+    )
 
     # Rate Limiting Configuration
     RATE_LIMIT_ENABLED: bool = Field(default=True, description="Enable rate limiting on authentication endpoints")
@@ -534,16 +493,6 @@ def get_humanization_config() -> dict:
 def get_settings():
     """Get settings instance."""
     return settings
-
-
-# Supabase client configuration
-def get_supabase_config():
-    """Get Supabase configuration for client initialization."""
-    return {
-        "url": settings.SUPABASE_URL,
-        "key": settings.SUPABASE_ANON_KEY,
-        "service_role_key": settings.SUPABASE_SERVICE_ROLE_KEY
-    }
 
 
 def get_firebase_security_config():

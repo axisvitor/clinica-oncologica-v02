@@ -50,6 +50,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";      -- Geração de UUIDs
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";       -- Funções criptográficas
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";        -- Busca por similaridade
 CREATE EXTENSION IF NOT EXISTS "pg_stat_statements"; -- Estatísticas SQL
+CREATE EXTENSION IF NOT EXISTS "btree_gist";     -- Suporte a índices GIST para tipos como CIDR
 
 -- ============================================================================
 -- SEÇÃO 2: ENUMS E TIPOS CUSTOMIZADOS
