@@ -15,7 +15,7 @@ with engine.connect() as conn:
     # Check if messagestatus enum exists
     result = conn.execute(text('''
         SELECT EXISTS (
-            SELECT 1 FROM pg_type WHERE typname = ''messagestatus''
+            SELECT 1 FROM pg_type WHERE typname = 'messagestatus'
         );
     '''))
     enum_exists = result.scalar()
@@ -30,8 +30,8 @@ with engine.connect() as conn:
         SELECT EXISTS (
             SELECT 1 FROM pg_enum e
             JOIN pg_type t ON e.enumtypid = t.oid
-            WHERE t.typname = ''messagestatus''
-            AND e.enumlabel = ''sending''
+            WHERE t.typname = 'messagestatus'
+            AND e.enumlabel = 'sending'
         );
     '''))
     sending_exists = result.scalar()
@@ -43,7 +43,7 @@ with engine.connect() as conn:
     # Add SENDING value
     print('➕ Adding SENDING status to messagestatus enum...')
     conn.execute(text('''
-        ALTER TYPE messagestatus ADD VALUE ''sending'' AFTER ''scheduled'';
+        ALTER TYPE messagestatus ADD VALUE 'sending' AFTER 'scheduled';
     '''))
     conn.commit()
     print('✅ SENDING status added successfully')
