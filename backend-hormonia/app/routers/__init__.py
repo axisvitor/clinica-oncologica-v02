@@ -6,6 +6,5 @@ This package contains specialized authentication routers:
 - quiz_auth: Quiz-specific authentication with httpOnly cookies
 """
 
-from app.routers import auth_session, quiz_auth
-
-__all__ = ["auth_session", "quiz_auth"]
+# Empty __init__.py to make this a valid Python package
+# Modules are imported directly in router_registry.py to avoid circular imports
