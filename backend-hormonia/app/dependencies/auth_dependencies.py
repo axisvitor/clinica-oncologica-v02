@@ -379,8 +379,8 @@ async def get_current_user(
             role=user_role  # From Firebase custom claims
         )
         services.db.add(user)
-        await services.db.commit()
-        await services.db.refresh(user)
+        services.db.commit()
+        services.db.refresh(user)
 
         # Cache new user
         user_dict = {

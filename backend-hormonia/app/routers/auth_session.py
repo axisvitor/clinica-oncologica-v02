@@ -142,7 +142,7 @@ async def create_session(
         from sqlalchemy import select
 
         stmt = select(User).where(User.firebase_uid == firebase_uid)
-        result = await services.db.execute(stmt)
+        result = services.db.execute(stmt)
         user = result.scalar_one_or_none()
 
         if not user:
@@ -159,8 +159,8 @@ async def create_session(
                 role=user_role
             )
             services.db.add(user)
-            await services.db.commit()
-            await services.db.refresh(user)
+            services.db.commit()
+            services.db.refresh(user)
             logger.info(f"Created new user: {email}")
 
         # Check if user is active
@@ -302,7 +302,7 @@ async def validate_session(
             from sqlalchemy import select
 
             stmt = select(User).where(User.firebase_uid == firebase_uid)
-            result = await services.db.execute(stmt)
+            result = services.db.execute(stmt)
             user = result.scalar_one_or_none()
 
             if not user:

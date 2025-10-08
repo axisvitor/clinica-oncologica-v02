@@ -257,6 +257,15 @@ async function loadFromRuntimeAPI(): Promise<RuntimeConfig | null> {
  */
 async function loadFromWindowConfig(): Promise<RuntimeConfig | null> {
   // Check if config was injected by server-side rendering or runtime script
+  if (typeof window !== 'undefined' && (window as any).RUNTIME_CONFIG) {
+    const rawConfig = (window as any).RUNTIME_CONFIG;
+    const config = normalizeConfig(rawConfig);
+    if (import.meta.env['DEV']) {
+      logger.log('Loaded from window.RUNTIME_CONFIG');
+    }
+    return config;
+  }
+
   if (typeof window !== 'undefined' && (window as any).__ENV_CONFIG__) {
     const rawConfig = (window as any).__ENV_CONFIG__;
     // Ensure WS variable aliases are set
