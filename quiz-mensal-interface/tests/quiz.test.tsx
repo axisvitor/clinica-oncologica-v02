@@ -1,444 +1,401 @@
 /**
- * Frontend tests for Monthly Quiz Interface.
- *
- * Tests React components, navigation, form validation, and user interactions.
+ * Quiz Interface Integration Tests
+ * Tests the complete quiz flow using real components and MSW mocks
  */
+
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { BrowserRouter } from 'react-router-dom';
 import '@testing-library/jest-dom';
+import QuizInterface from '@/components/quiz-interface';
+import { mockQuizSession } from './mocks/handlers';
 
-// Mock components (create actual components in implementation)
-const QuizContainer = ({ token }: { token: string }) => (
-  <div data-testid="quiz-container" className="quiz-container">
-    <h1>Quiz Mensal</h1>
-    <p>Token: {token}</p>
-  </div>
-);
+describe('Quiz Interface Integration Tests', () => {
+  const mockToken = 'valid-token';
+  const mockOnComplete = jest.fn();
+  const mockOnTokenUpdate = jest.fn();
 
-const QuizQuestion = ({
-  question,
-  onAnswer
-}: {
-  question: any;
-  onAnswer: (value: string) => void;
-}) => (
-  <div className="quiz-question" data-testid="quiz-question">
-    <h2>{question.text}</h2>
-    {question.type === 'scale' && (
-      <input
-        type="number"
-        name="response_value"
-        min="0"
-        max="10"
-        onChange={(e) => onAnswer(e.target.value)}
-        data-testid="scale-input"
-      />
-    )}
-    {question.type === 'yes_no' && (
-      <div>
-        <button onClick={() => onAnswer('yes')} data-testid="yes-button">Sim</button>
-        <button onClick={() => onAnswer('no')} data-testid="no-button">Não</button>
-      </div>
-    )}
-    {question.type === 'open_text' && (
-      <textarea
-        onChange={(e) => onAnswer(e.target.value)}
-        data-testid="text-area"
-      />
-    )}
-  </div>
-);
-
-const QuizComplete = () => (
-  <div className="quiz-complete" data-testid="quiz-complete">
-    <h2>Obrigado por completar o quiz!</h2>
-    <p>Suas respostas foram salvas com sucesso.</p>
-  </div>
-);
-
-describe('QuizContainer', () => {
-  test('renders quiz container with token', () => {
-    const token = 'test-token-123';
-
-    render(
-      <BrowserRouter>
-        <QuizContainer token={token} />
-      </BrowserRouter>
-    );
-
-    expect(screen.getByTestId('quiz-container')).toBeInTheDocument();
-    expect(screen.getByText(/Quiz Mensal/i)).toBeInTheDocument();
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
-  test('displays error when token is invalid', () => {
-    // Mock implementation would validate token
-    const invalidToken = 'invalid';
+  describe('Quiz Rendering', () => {
+    it('should render quiz interface with session data', () => {
+      render(
+        <QuizInterface
+          session={mockQuizSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+          onTokenUpdate={mockOnTokenUpdate}
+        />
+      );
 
-    // Would show error message
-    const errorMessage = 'Token inválido ou expirado';
-    expect(errorMessage).toBeTruthy();
-  });
-});
+      expect(screen.getByText(mockQuizSession.patient_name)).toBeInTheDocument();
+      expect(screen.getByText(mockQuizSession.template_name)).toBeInTheDocument();
+    });
 
-describe('QuizQuestion - Scale Type', () => {
-  test('renders scale question correctly', () => {
-    const question = {
-      id: 'q1',
-      type: 'scale',
-      text: 'Como você se sente hoje? (0-10)',
-      required: true
-    };
+    it('should display first question', () => {
+      render(
+        <QuizInterface
+          session={mockQuizSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-    const mockOnAnswer = jest.fn();
+      const firstQuestion = mockQuizSession.questions[0];
+      expect(screen.getByText(firstQuestion.text)).toBeInTheDocument();
+    });
 
-    render(
-      <QuizQuestion question={question} onAnswer={mockOnAnswer} />
-    );
+    it('should show progress indicator', () => {
+      render(
+        <QuizInterface
+          session={mockQuizSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-    expect(screen.getByText(/Como você se sente/i)).toBeInTheDocument();
-    expect(screen.getByTestId('scale-input')).toBeInTheDocument();
-  });
-
-  test('validates scale input range', async () => {
-    const question = {
-      id: 'q1',
-      type: 'scale',
-      text: 'Rate 0-10',
-      required: true
-    };
-
-    const mockOnAnswer = jest.fn();
-
-    render(
-      <QuizQuestion question={question} onAnswer={mockOnAnswer} />
-    );
-
-    const input = screen.getByTestId('scale-input') as HTMLInputElement;
-
-    // Valid input
-    fireEvent.change(input, { target: { value: '7' } });
-    expect(mockOnAnswer).toHaveBeenCalledWith('7');
-
-    // Invalid input (out of range)
-    fireEvent.change(input, { target: { value: '15' } });
-    // Should validate and reject or limit
+      const progressText = `1 de ${mockQuizSession.total_questions}`;
+      expect(screen.getByText(new RegExp(progressText, 'i'))).toBeInTheDocument();
+    });
   });
 
-  test('handles scale input change', async () => {
-    const question = {
-      id: 'q1',
-      type: 'scale',
-      text: 'Rate',
-      required: true
-    };
+  describe('Scale Question Type', () => {
+    it('should render scale question correctly', () => {
+      render(
+        <QuizInterface
+          session={mockQuizSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-    const mockOnAnswer = jest.fn();
+      // First question is scale type (0-10)
+      const slider = screen.getByRole('slider');
+      expect(slider).toBeInTheDocument();
+      expect(slider).toHaveAttribute('min', '0');
+      expect(slider).toHaveAttribute('max', '10');
+    });
 
-    render(
-      <QuizQuestion question={question} onAnswer={mockOnAnswer} />
-    );
+    it('should update value when slider is moved', async () => {
+      const user = userEvent.setup();
+      render(
+        <QuizInterface
+          session={mockQuizSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-    const input = screen.getByTestId('scale-input');
+      const slider = screen.getByRole('slider') as HTMLInputElement;
 
-    await userEvent.type(input, '8');
+      fireEvent.change(slider, { target: { value: '7' } });
 
-    expect(mockOnAnswer).toHaveBeenCalled();
-  });
-});
-
-describe('QuizQuestion - Yes/No Type', () => {
-  test('renders yes/no question correctly', () => {
-    const question = {
-      id: 'q2',
-      type: 'yes_no',
-      text: 'Está tomando os medicamentos?',
-      required: true
-    };
-
-    const mockOnAnswer = jest.fn();
-
-    render(
-      <QuizQuestion question={question} onAnswer={mockOnAnswer} />
-    );
-
-    expect(screen.getByText(/Está tomando/i)).toBeInTheDocument();
-    expect(screen.getByTestId('yes-button')).toBeInTheDocument();
-    expect(screen.getByTestId('no-button')).toBeInTheDocument();
+      expect(slider.value).toBe('7');
+    });
   });
 
-  test('handles yes button click', async () => {
-    const question = {
-      id: 'q2',
-      type: 'yes_no',
-      text: 'Question?',
-      required: true
-    };
+  describe('Yes/No Question Type', () => {
+    it('should render yes/no question with buttons', async () => {
+      const user = userEvent.setup();
+      render(
+        <QuizInterface
+          session={mockQuizSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-    const mockOnAnswer = jest.fn();
+      // Answer first question to move to second (yes/no)
+      const slider = screen.getByRole('slider');
+      fireEvent.change(slider, { target: { value: '5' } });
 
-    render(
-      <QuizQuestion question={question} onAnswer={mockOnAnswer} />
-    );
+      const nextButton = screen.getByRole('button', { name: /próxima/i });
+      await user.click(nextButton);
 
-    const yesButton = screen.getByTestId('yes-button');
-    await userEvent.click(yesButton);
+      await waitFor(() => {
+        expect(screen.getByText(/tomando seus medicamentos/i)).toBeInTheDocument();
+      });
 
-    expect(mockOnAnswer).toHaveBeenCalledWith('yes');
+      expect(screen.getByRole('button', { name: /sim/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /não/i })).toBeInTheDocument();
+    });
+
+    it('should allow selecting yes or no', async () => {
+      const user = userEvent.setup();
+      render(
+        <QuizInterface
+          session={{ ...mockQuizSession, current_question_index: 1 }}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
+
+      const yesButton = screen.getByRole('button', { name: /sim/i });
+      await user.click(yesButton);
+
+      // Button should be selected/active
+      expect(yesButton).toHaveClass(/selected|active/i);
+    });
   });
 
-  test('handles no button click', async () => {
-    const question = {
-      id: 'q2',
-      type: 'yes_no',
-      text: 'Question?',
-      required: true
-    };
+  describe('Multiple Choice Questions', () => {
+    it('should render multiple choice options', () => {
+      render(
+        <QuizInterface
+          session={{ ...mockQuizSession, current_question_index: 2 }}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-    const mockOnAnswer = jest.fn();
+      const checkboxes = screen.getAllByRole('checkbox');
+      expect(checkboxes.length).toBeGreaterThan(0);
+    });
 
-    render(
-      <QuizQuestion question={question} onAnswer={mockOnAnswer} />
-    );
+    it('should allow selecting multiple options', async () => {
+      const user = userEvent.setup();
+      render(
+        <QuizInterface
+          session={{ ...mockQuizSession, current_question_index: 2 }}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-    const noButton = screen.getByTestId('no-button');
-    await userEvent.click(noButton);
+      const checkboxes = screen.getAllByRole('checkbox');
 
-    expect(mockOnAnswer).toHaveBeenCalledWith('no');
-  });
-});
+      await user.click(checkboxes[0]);
+      await user.click(checkboxes[1]);
 
-describe('QuizQuestion - Open Text Type', () => {
-  test('renders open text question correctly', () => {
-    const question = {
-      id: 'q3',
-      type: 'open_text',
-      text: 'Alguma observação?',
-      required: false
-    };
-
-    const mockOnAnswer = jest.fn();
-
-    render(
-      <QuizQuestion question={question} onAnswer={mockOnAnswer} />
-    );
-
-    expect(screen.getByText(/Alguma observação/i)).toBeInTheDocument();
-    expect(screen.getByTestId('text-area')).toBeInTheDocument();
+      expect(checkboxes[0]).toBeChecked();
+      expect(checkboxes[1]).toBeChecked();
+    });
   });
 
-  test('handles text input', async () => {
-    const question = {
-      id: 'q3',
-      type: 'open_text',
-      text: 'Comments?',
-      required: false
-    };
+  describe('Quiz Navigation', () => {
+    it('should navigate to next question after answering', async () => {
+      const user = userEvent.setup();
+      render(
+        <QuizInterface
+          session={mockQuizSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-    const mockOnAnswer = jest.fn();
+      // Answer scale question
+      const slider = screen.getByRole('slider');
+      fireEvent.change(slider, { target: { value: '7' } });
 
-    render(
-      <QuizQuestion question={question} onAnswer={mockOnAnswer} />
-    );
+      // Click next
+      const nextButton = screen.getByRole('button', { name: /próxima/i });
+      await user.click(nextButton);
 
-    const textarea = screen.getByTestId('text-area');
+      // Should show second question
+      await waitFor(() => {
+        const secondQuestion = mockQuizSession.questions[1];
+        expect(screen.getByText(secondQuestion.text)).toBeInTheDocument();
+      });
+    });
 
-    await userEvent.type(textarea, 'Estou me sentindo bem');
+    it('should allow going back to previous question', async () => {
+      const user = userEvent.setup();
+      render(
+        <QuizInterface
+          session={{ ...mockQuizSession, current_question_index: 1 }}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-    expect(mockOnAnswer).toHaveBeenCalled();
+      const backButton = screen.getByRole('button', { name: /anterior/i });
+      await user.click(backButton);
+
+      await waitFor(() => {
+        const firstQuestion = mockQuizSession.questions[0];
+        expect(screen.getByText(firstQuestion.text)).toBeInTheDocument();
+      });
+    });
+
+    it('should disable back button on first question', () => {
+      render(
+        <QuizInterface
+          session={mockQuizSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
+
+      const backButton = screen.queryByRole('button', { name: /anterior/i });
+      expect(backButton).toBeDisabled();
+    });
   });
 
-  test('validates max length', async () => {
-    const question = {
-      id: 'q3',
-      type: 'open_text',
-      text: 'Comments (max 500 chars)?',
-      required: false,
-      validation_rules: [
-        { type: 'max_length', value: 500 }
-      ]
-    };
+  describe('Form Validation', () => {
+    it('should require answer before proceeding', async () => {
+      const user = userEvent.setup();
+      render(
+        <QuizInterface
+          session={mockQuizSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-    const mockOnAnswer = jest.fn();
+      // Try to proceed without answering
+      const nextButton = screen.getByRole('button', { name: /próxima/i });
+      await user.click(nextButton);
 
-    render(
-      <QuizQuestion question={question} onAnswer={mockOnAnswer} />
-    );
+      // Should show validation error
+      await waitFor(() => {
+        expect(screen.getByText(/obrigatória/i)).toBeInTheDocument();
+      });
+    });
 
-    const textarea = screen.getByTestId('text-area') as HTMLTextAreaElement;
-    const longText = 'A'.repeat(600);
+    it('should validate scale value is within range', () => {
+      render(
+        <QuizInterface
+          session={mockQuizSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-    fireEvent.change(textarea, { target: { value: longText } });
+      const slider = screen.getByRole('slider') as HTMLInputElement;
 
-    // Should validate and show error or truncate
-    // Implementation would handle this
-  });
-});
+      // Try invalid value
+      fireEvent.change(slider, { target: { value: '15' } });
 
-describe('QuizComplete', () => {
-  test('renders completion message', () => {
-    render(<QuizComplete />);
-
-    expect(screen.getByTestId('quiz-complete')).toBeInTheDocument();
-    expect(screen.getByText(/Obrigado/i)).toBeInTheDocument();
-    expect(screen.getByText(/salvas com sucesso/i)).toBeInTheDocument();
-  });
-});
-
-describe('Quiz Navigation', () => {
-  test('navigates between questions', async () => {
-    // Mock quiz flow
-    const questions = [
-      { id: 'q1', type: 'scale', text: 'Question 1' },
-      { id: 'q2', type: 'yes_no', text: 'Question 2' },
-      { id: 'q3', type: 'open_text', text: 'Question 3' }
-    ];
-
-    let currentIndex = 0;
-    const nextQuestion = () => currentIndex++;
-
-    expect(currentIndex).toBe(0);
-    nextQuestion();
-    expect(currentIndex).toBe(1);
-    nextQuestion();
-    expect(currentIndex).toBe(2);
+      // Should be constrained to max
+      expect(parseInt(slider.value)).toBeLessThanOrEqual(10);
+    });
   });
 
-  test('shows progress indicator', () => {
-    const totalQuestions = 3;
-    const currentQuestion = 1;
-    const progress = Math.round((currentQuestion / totalQuestions) * 100);
+  describe('Quiz Completion', () => {
+    it('should show completion button on last question', () => {
+      const lastQuestionIndex = mockQuizSession.total_questions - 1;
 
-    expect(progress).toBe(33);
-  });
-});
+      render(
+        <QuizInterface
+          session={{ ...mockQuizSession, current_question_index: lastQuestionIndex }}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-describe('Form Validation', () => {
-  test('validates required fields', () => {
-    const question = {
-      id: 'q1',
-      type: 'scale',
-      text: 'Required question',
-      required: true
-    };
+      expect(screen.getByRole('button', { name: /concluir/i })).toBeInTheDocument();
+    });
 
-    let responseValue = '';
-    const isValid = question.required ? responseValue !== '' : true;
+    it('should call onComplete when quiz is finished', async () => {
+      const user = userEvent.setup();
+      const lastQuestionIndex = mockQuizSession.total_questions - 1;
 
-    expect(isValid).toBe(false);
+      render(
+        <QuizInterface
+          session={{ ...mockQuizSession, current_question_index: lastQuestionIndex }}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-    responseValue = '7';
-    const isValidNow = question.required ? responseValue !== '' : true;
-    expect(isValidNow).toBe(true);
-  });
+      // Answer last question (text type)
+      const textarea = screen.getByRole('textbox');
+      await user.type(textarea, 'Final answer');
 
-  test('validates numeric inputs', () => {
-    const value = '7';
-    const numericValue = parseFloat(value);
-    const isNumeric = !isNaN(numericValue);
+      // Complete quiz
+      const completeButton = screen.getByRole('button', { name: /concluir/i });
+      await user.click(completeButton);
 
-    expect(isNumeric).toBe(true);
-
-    const invalidValue = 'abc';
-    const invalidNumeric = parseFloat(invalidValue);
-    expect(isNaN(invalidNumeric)).toBe(true);
-  });
-});
-
-describe('Error Handling', () => {
-  test('displays error message on API failure', () => {
-    const errorMessage = 'Falha ao salvar resposta. Tente novamente.';
-
-    // Mock API error
-    const apiError = new Error('Network error');
-
-    expect(apiError.message).toBeTruthy();
-    expect(errorMessage).toBeTruthy();
+      await waitFor(() => {
+        expect(mockOnComplete).toHaveBeenCalled();
+      });
+    });
   });
 
-  test('handles network errors gracefully', async () => {
-    // Mock network error
-    const fetchMock = jest.fn(() =>
-      Promise.reject(new Error('Network error'))
-    );
+  describe('Loading States', () => {
+    it('should show loading indicator during submission', async () => {
+      const user = userEvent.setup();
+      render(
+        <QuizInterface
+          session={mockQuizSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-    try {
-      await fetchMock();
-    } catch (error) {
-      expect(error).toBeTruthy();
-    }
-  });
-});
+      const slider = screen.getByRole('slider');
+      fireEvent.change(slider, { target: { value: '5' } });
 
-describe('Loading States', () => {
-  test('shows loading indicator while submitting', () => {
-    let isLoading = true;
+      const nextButton = screen.getByRole('button', { name: /próxima/i });
+      await user.click(nextButton);
 
-    expect(isLoading).toBe(true);
-
-    // After submission
-    isLoading = false;
-    expect(isLoading).toBe(false);
+      // Should show loading state briefly
+      expect(nextButton).toBeDisabled();
+    });
   });
 
-  test('disables submit button while loading', () => {
-    const isLoading = true;
-    const isDisabled = isLoading;
+  describe('Accessibility', () => {
+    it('should have proper ARIA labels on progress bar', () => {
+      render(
+        <QuizInterface
+          session={mockQuizSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-    expect(isDisabled).toBe(true);
+      const progressBar = screen.getByRole('progressbar');
+      expect(progressBar).toHaveAttribute('aria-valuemin');
+      expect(progressBar).toHaveAttribute('aria-valuemax');
+      expect(progressBar).toHaveAttribute('aria-valuenow');
+    });
+
+    it('should support keyboard navigation for yes/no buttons', async () => {
+      const user = userEvent.setup();
+      render(
+        <QuizInterface
+          session={{ ...mockQuizSession, current_question_index: 1 }}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
+
+      // Tab to yes button and activate with Enter
+      await user.tab();
+      await user.keyboard('{Enter}');
+
+      const yesButton = screen.getByRole('button', { name: /sim/i });
+      expect(yesButton).toHaveClass(/selected|active/i);
+    });
   });
-});
 
-describe('Accessibility', () => {
-  test('has proper ARIA labels', () => {
-    const question = {
-      id: 'q1',
-      type: 'scale',
-      text: 'Rate your experience',
-      required: true
-    };
+  describe('Error Handling', () => {
+    it('should display error message on submission failure', async () => {
+      const user = userEvent.setup();
 
-    const mockOnAnswer = jest.fn();
+      // This test would require MSW to return an error
+      // For now, we test the component handles errors
+      render(
+        <QuizInterface
+          session={mockQuizSession}
+          token="invalid-token"
+          onComplete={mockOnComplete}
+        />
+      );
 
-    render(
-      <QuizQuestion question={question} onAnswer={mockOnAnswer} />
-    );
+      const slider = screen.getByRole('slider');
+      fireEvent.change(slider, { target: { value: '5' } });
 
-    const input = screen.getByTestId('scale-input');
-    expect(input).toHaveAttribute('name', 'response_value');
-  });
+      const nextButton = screen.getByRole('button', { name: /próxima/i });
+      await user.click(nextButton);
 
-  test('supports keyboard navigation', async () => {
-    const question = {
-      id: 'q1',
-      type: 'scale',
-      text: 'Rate',
-      required: true
-    };
-
-    const mockOnAnswer = jest.fn();
-
-    render(
-      <QuizQuestion question={question} onAnswer={mockOnAnswer} />
-    );
-
-    const input = screen.getByTestId('scale-input');
-    input.focus();
-
-    expect(document.activeElement).toBe(input);
+      // Should show error toast/message
+      await waitFor(() => {
+        // Error handling would be visible here
+        expect(nextButton).toBeEnabled(); // Can retry
+      });
+    });
   });
 });
-
-describe('Mobile Responsiveness', () => {
-  test('renders correctly on mobile viewport', () => {
-    // Mock mobile viewport
-    global.innerWidth = 375;
-    global.innerHeight = 667;
-
-    const isMobile = window.innerWidth < 768;
-    expect(isMobile).toBe(true);
-  });
-});
-
-export {};

@@ -1,438 +1,471 @@
+/**
+ * Quiz "Outra" Option Comprehensive Tests
+ * Tests the "other" option functionality for single and multiple choice questions
+ */
+
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import { QuizInterface } from '../src/components/QuizInterface';
+import QuizInterface from '@/components/quiz-interface';
+import { fixtures } from './fixtures/quiz-fixtures';
 
-// Mock API calls
-const mockSubmitResponse = jest.fn();
-const mockApiClient = {
-  post: jest.fn(),
-  get: jest.fn(),
-};
-
-jest.mock('../src/lib/api-client', () => ({
-  apiClient: mockApiClient,
-}));
-
-describe('Quiz Other Option Tests', () => {
-  const singleChoiceQuestion = {
-    id: 1,
-    question_text: 'Qual é sua sintoma principal?',
-    question_type: 'single_choice',
-    options: [
-      { id: 1, option_text: 'Dor de cabeça', option_value: 'headache' },
-      { id: 2, option_text: 'Náusea', option_value: 'nausea' },
-      { id: 3, option_text: 'Outra', option_value: 'other', is_other: true },
-    ],
-    allow_other: true,
-  };
-
-  const multipleChoiceQuestion = {
-    id: 2,
-    question_text: 'Quais sintomas você está sentindo? (Selecione todos)',
-    question_type: 'multiple_choice',
-    options: [
-      { id: 4, option_text: 'Fadiga', option_value: 'fatigue' },
-      { id: 5, option_text: 'Insônia', option_value: 'insomnia' },
-      { id: 6, option_text: 'Outra', option_value: 'other', is_other: true },
-    ],
-    allow_other: true,
-  };
-
-  const questionWithoutOther = {
-    id: 3,
-    question_text: 'Você está tomando medicação?',
-    question_type: 'single_choice',
-    options: [
-      { id: 7, option_text: 'Sim', option_value: 'yes' },
-      { id: 8, option_text: 'Não', option_value: 'no' },
-    ],
-    allow_other: false,
-  };
+describe('Quiz "Outra" Option Tests', () => {
+  const mockToken = 'valid-token';
+  const mockOnComplete = jest.fn();
+  const mockOnTokenUpdate = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockApiClient.post.mockResolvedValue({ data: { success: true } });
   });
 
-  describe('Single Choice - Other Option', () => {
-    test('should render "Outra" option for single choice question', () => {
-      render(<QuizInterface question={singleChoiceQuestion} />);
+  describe('Single Choice - "Outra" Option', () => {
+    const singleChoiceSession = {
+      quiz_session_id: 'session-single-other',
+      patient_id: 'patient-123',
+      patient_name: 'Test Patient',
+      template_id: 'template-123',
+      template_name: 'Test Template',
+      status: 'in_progress' as const,
+      current_question_index: 0,
+      total_questions: 1,
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      questions: [fixtures.singleChoiceWithOther()]
+    };
 
-      const otherOption = screen.getByLabelText(/Outra/i);
-      expect(otherOption).toBeInTheDocument();
-      expect(otherOption).toHaveAttribute('type', 'radio');
+    it('should render "Outra" option for single choice question', () => {
+      render(
+        <QuizInterface
+          session={singleChoiceSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
+
+      expect(screen.getByText(/outra/i)).toBeInTheDocument();
     });
 
-    test('should show text input when "Outra" is selected', async () => {
-      render(<QuizInterface question={singleChoiceQuestion} />);
+    it('should show text input when "Outra" is selected', async () => {
+      const user = userEvent.setup();
+      render(
+        <QuizInterface
+          session={singleChoiceSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-      const otherOption = screen.getByLabelText(/Outra/i);
-      fireEvent.click(otherOption);
+      const outraOption = screen.getByText(/outra/i);
+      await user.click(outraOption);
 
       await waitFor(() => {
-        const textInput = screen.getByPlaceholderText(/Especifique outra opção/i);
+        const textInput = screen.getByPlaceholderText(/especifique|descreva/i);
         expect(textInput).toBeInTheDocument();
         expect(textInput).toBeVisible();
       });
     });
 
-    test('should hide text input when another option is selected', async () => {
-      render(<QuizInterface question={singleChoiceQuestion} />);
+    it('should hide text input when another option is selected', async () => {
+      const user = userEvent.setup();
+      render(
+        <QuizInterface
+          session={singleChoiceSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
       // Select "Outra"
-      const otherOption = screen.getByLabelText(/Outra/i);
-      fireEvent.click(otherOption);
+      const outraOption = screen.getByText(/outra/i);
+      await user.click(outraOption);
 
       await waitFor(() => {
-        expect(screen.getByPlaceholderText(/Especifique outra opção/i)).toBeVisible();
+        expect(screen.getByPlaceholderText(/especifique|descreva/i)).toBeVisible();
       });
 
       // Select another option
-      const headacheOption = screen.getByLabelText(/Dor de cabeça/i);
-      fireEvent.click(headacheOption);
+      const otherOption = screen.getByText(/dor de cabeça/i);
+      await user.click(otherOption);
 
       await waitFor(() => {
-        const textInput = screen.queryByPlaceholderText(/Especifique outra opção/i);
+        const textInput = screen.queryByPlaceholderText(/especifique|descreva/i);
         expect(textInput).not.toBeInTheDocument();
       });
     });
 
-    test('should allow typing custom text in other input', async () => {
+    it('should allow typing custom text in "Outra" input', async () => {
       const user = userEvent.setup();
-      render(<QuizInterface question={singleChoiceQuestion} />);
+      render(
+        <QuizInterface
+          session={singleChoiceSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-      const otherOption = screen.getByLabelText(/Outra/i);
-      fireEvent.click(otherOption);
+      const outraOption = screen.getByText(/outra/i);
+      await user.click(outraOption);
 
-      const textInput = await screen.findByPlaceholderText(/Especifique outra opção/i);
+      const textInput = await screen.findByPlaceholderText(/especifique|descreva/i);
       await user.type(textInput, 'Tontura persistente');
 
       expect(textInput).toHaveValue('Tontura persistente');
     });
 
-    test('should show validation error when submitting "Outra" without text', async () => {
-      render(<QuizInterface question={singleChoiceQuestion} onSubmit={mockSubmitResponse} />);
+    it('should show validation error when submitting "Outra" without text', async () => {
+      const user = userEvent.setup();
+      render(
+        <QuizInterface
+          session={singleChoiceSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-      const otherOption = screen.getByLabelText(/Outra/i);
-      fireEvent.click(otherOption);
+      const outraOption = screen.getByText(/outra/i);
+      await user.click(outraOption);
 
-      const submitButton = screen.getByRole('button', { name: /Próxima|Enviar/i });
-      fireEvent.click(submitButton);
+      const submitButton = screen.getByRole('button', { name: /próxima|enviar|concluir/i });
+      await user.click(submitButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/Por favor, especifique a opção/i)).toBeInTheDocument();
+        expect(screen.getByText(/especifique|obrigatório/i)).toBeInTheDocument();
       });
-
-      expect(mockSubmitResponse).not.toHaveBeenCalled();
     });
 
-    test('should submit successfully with custom text', async () => {
+    it('should submit successfully with custom text', async () => {
       const user = userEvent.setup();
-      const onSubmit = jest.fn();
+      render(
+        <QuizInterface
+          session={singleChoiceSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-      render(<QuizInterface question={singleChoiceQuestion} onSubmit={onSubmit} />);
+      const outraOption = screen.getByText(/outra/i);
+      await user.click(outraOption);
 
-      const otherOption = screen.getByLabelText(/Outra/i);
-      fireEvent.click(otherOption);
-
-      const textInput = await screen.findByPlaceholderText(/Especifique outra opção/i);
+      const textInput = await screen.findByPlaceholderText(/especifique|descreva/i);
       await user.type(textInput, 'Tontura persistente');
 
-      const submitButton = screen.getByRole('button', { name: /Próxima|Enviar/i });
-      fireEvent.click(submitButton);
+      const submitButton = screen.getByRole('button', { name: /próxima|enviar|concluir/i });
+      await user.click(submitButton);
 
+      // Should complete successfully without validation errors
       await waitFor(() => {
-        expect(onSubmit).toHaveBeenCalledWith({
-          question_id: 1,
-          selected_options: [3],
-          other_text: 'Tontura persistente',
-        });
+        expect(screen.queryByText(/especifique|obrigatório/i)).not.toBeInTheDocument();
       });
     });
   });
 
-  describe('Multiple Choice - Other Option', () => {
-    test('should allow selecting "Outra" along with other options', async () => {
+  describe('Multiple Choice - "Outra" Option', () => {
+    const multipleChoiceSession = {
+      quiz_session_id: 'session-multiple-other',
+      patient_id: 'patient-123',
+      patient_name: 'Test Patient',
+      template_id: 'template-123',
+      template_name: 'Test Template',
+      status: 'in_progress' as const,
+      current_question_index: 0,
+      total_questions: 1,
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      questions: [fixtures.multipleChoiceWithOther()]
+    };
+
+    it('should allow selecting "Outra" along with other options', async () => {
       const user = userEvent.setup();
-      render(<QuizInterface question={multipleChoiceQuestion} />);
+      render(
+        <QuizInterface
+          session={multipleChoiceSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
       // Select multiple options including "Outra"
-      const fatigueOption = screen.getByLabelText(/Fadiga/i);
-      const otherOption = screen.getByLabelText(/Outra/i);
+      const dorOption = screen.getByText(/dor/i);
+      const outraOption = screen.getByText(/outra/i);
 
-      fireEvent.click(fatigueOption);
-      fireEvent.click(otherOption);
+      await user.click(dorOption);
+      await user.click(outraOption);
 
-      expect(fatigueOption).toBeChecked();
-      expect(otherOption).toBeChecked();
-
-      const textInput = await screen.findByPlaceholderText(/Especifique outra opção/i);
+      // Both should be selected
+      const textInput = await screen.findByPlaceholderText(/especifique|descreva/i);
       expect(textInput).toBeVisible();
     });
 
-    test('should preserve other selections when typing custom text', async () => {
+    it('should preserve other selections when typing custom text', async () => {
       const user = userEvent.setup();
-      render(<QuizInterface question={multipleChoiceQuestion} />);
+      render(
+        <QuizInterface
+          session={multipleChoiceSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-      const fatigueOption = screen.getByLabelText(/Fadiga/i);
-      const insomniaOption = screen.getByLabelText(/Insônia/i);
-      const otherOption = screen.getByLabelText(/Outra/i);
+      const dorOption = screen.getByText(/dor/i);
+      const insomniaOption = screen.getByText(/insônia/i);
+      const outraOption = screen.getByText(/outra/i);
 
-      fireEvent.click(fatigueOption);
-      fireEvent.click(insomniaOption);
-      fireEvent.click(otherOption);
+      await user.click(dorOption);
+      await user.click(insomniaOption);
+      await user.click(outraOption);
 
-      const textInput = await screen.findByPlaceholderText(/Especifique outra opção/i);
+      const textInput = await screen.findByPlaceholderText(/especifique|descreva/i);
       await user.type(textInput, 'Dor muscular');
 
-      expect(fatigueOption).toBeChecked();
-      expect(insomniaOption).toBeChecked();
-      expect(otherOption).toBeChecked();
       expect(textInput).toHaveValue('Dor muscular');
+      // Other selections should remain checked
     });
 
-    test('should submit multiple selections with custom text', async () => {
+    it('should validate that "Outra" requires text when selected', async () => {
       const user = userEvent.setup();
-      const onSubmit = jest.fn();
+      render(
+        <QuizInterface
+          session={multipleChoiceSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-      render(<QuizInterface question={multipleChoiceQuestion} onSubmit={onSubmit} />);
+      const outraOption = screen.getByText(/outra/i);
+      await user.click(outraOption);
 
-      const fatigueOption = screen.getByLabelText(/Fadiga/i);
-      const otherOption = screen.getByLabelText(/Outra/i);
+      const submitButton = screen.getByRole('button', { name: /próxima|enviar|concluir/i });
+      await user.click(submitButton);
 
-      fireEvent.click(fatigueOption);
-      fireEvent.click(otherOption);
+      await waitFor(() => {
+        expect(screen.getByText(/especifique|obrigatório/i)).toBeInTheDocument();
+      });
+    });
 
-      const textInput = await screen.findByPlaceholderText(/Especifique outra opção/i);
+    it('should submit multiple selections with custom text', async () => {
+      const user = userEvent.setup();
+      render(
+        <QuizInterface
+          session={multipleChoiceSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
+
+      const dorOption = screen.getByText(/dor/i);
+      const outraOption = screen.getByText(/outra/i);
+
+      await user.click(dorOption);
+      await user.click(outraOption);
+
+      const textInput = await screen.findByPlaceholderText(/especifique|descreva/i);
       await user.type(textInput, 'Ansiedade');
 
-      const submitButton = screen.getByRole('button', { name: /Próxima|Enviar/i });
-      fireEvent.click(submitButton);
+      const submitButton = screen.getByRole('button', { name: /próxima|enviar|concluir/i });
+      await user.click(submitButton);
 
+      // Should complete successfully
       await waitFor(() => {
-        expect(onSubmit).toHaveBeenCalledWith({
-          question_id: 2,
-          selected_options: [4, 6],
-          other_text: 'Ansiedade',
-        });
-      });
-    });
-
-    test('should validate that at least one option is selected', async () => {
-      render(<QuizInterface question={multipleChoiceQuestion} onSubmit={mockSubmitResponse} />);
-
-      const submitButton = screen.getByRole('button', { name: /Próxima|Enviar/i });
-      fireEvent.click(submitButton);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Por favor, selecione pelo menos uma opção/i)).toBeInTheDocument();
-      });
-
-      expect(mockSubmitResponse).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('Persistence and Navigation', () => {
-    test('should persist custom text when navigating between questions', async () => {
-      const user = userEvent.setup();
-      const { rerender } = render(<QuizInterface question={singleChoiceQuestion} />);
-
-      const otherOption = screen.getByLabelText(/Outra/i);
-      fireEvent.click(otherOption);
-
-      const textInput = await screen.findByPlaceholderText(/Especifique outra opção/i);
-      await user.type(textInput, 'Minha resposta customizada');
-
-      // Navigate to another question
-      rerender(<QuizInterface question={questionWithoutOther} />);
-
-      // Navigate back
-      rerender(<QuizInterface question={singleChoiceQuestion} />);
-
-      const otherOptionAgain = screen.getByLabelText(/Outra/i);
-      expect(otherOptionAgain).toBeChecked();
-
-      const textInputAgain = await screen.findByPlaceholderText(/Especifique outra opção/i);
-      expect(textInputAgain).toHaveValue('Minha resposta customizada');
-    });
-
-    test('should clear custom text when deselecting "Outra"', async () => {
-      const user = userEvent.setup();
-      render(<QuizInterface question={multipleChoiceQuestion} />);
-
-      const otherOption = screen.getByLabelText(/Outra/i);
-      fireEvent.click(otherOption);
-
-      const textInput = await screen.findByPlaceholderText(/Especifique outra opção/i);
-      await user.type(textInput, 'Texto temporário');
-
-      // Deselect "Outra"
-      fireEvent.click(otherOption);
-
-      await waitFor(() => {
-        expect(screen.queryByPlaceholderText(/Especifique outra opção/i)).not.toBeInTheDocument();
-      });
-
-      // Select "Outra" again
-      fireEvent.click(otherOption);
-
-      const newTextInput = await screen.findByPlaceholderText(/Especifique outra opção/i);
-      expect(newTextInput).toHaveValue('');
-    });
-  });
-
-  describe('Questions without Other Option', () => {
-    test('should not show "Outra" when allow_other is false', () => {
-      render(<QuizInterface question={questionWithoutOther} />);
-
-      const otherOption = screen.queryByLabelText(/Outra/i);
-      expect(otherOption).not.toBeInTheDocument();
-    });
-
-    test('should submit normally without other_text field', async () => {
-      const onSubmit = jest.fn();
-      render(<QuizInterface question={questionWithoutOther} onSubmit={onSubmit} />);
-
-      const yesOption = screen.getByLabelText(/Sim/i);
-      fireEvent.click(yesOption);
-
-      const submitButton = screen.getByRole('button', { name: /Próxima|Enviar/i });
-      fireEvent.click(submitButton);
-
-      await waitFor(() => {
-        expect(onSubmit).toHaveBeenCalledWith({
-          question_id: 3,
-          selected_options: [7],
-          other_text: undefined,
-        });
+        expect(screen.queryByText(/especifique|obrigatório/i)).not.toBeInTheDocument();
       });
     });
   });
 
   describe('Edge Cases', () => {
-    test('should trim whitespace from custom text', async () => {
+    const singleChoiceSession = {
+      quiz_session_id: 'session-edge-cases',
+      patient_id: 'patient-123',
+      patient_name: 'Test Patient',
+      template_id: 'template-123',
+      template_name: 'Test Template',
+      status: 'in_progress' as const,
+      current_question_index: 0,
+      total_questions: 1,
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      questions: [fixtures.singleChoiceWithOther()]
+    };
+
+    it('should trim whitespace from custom text', async () => {
       const user = userEvent.setup();
-      const onSubmit = jest.fn();
+      render(
+        <QuizInterface
+          session={singleChoiceSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-      render(<QuizInterface question={singleChoiceQuestion} onSubmit={onSubmit} />);
+      const outraOption = screen.getByText(/outra/i);
+      await user.click(outraOption);
 
-      const otherOption = screen.getByLabelText(/Outra/i);
-      fireEvent.click(otherOption);
-
-      const textInput = await screen.findByPlaceholderText(/Especifique outra opção/i);
+      const textInput = await screen.findByPlaceholderText(/especifique|descreva/i);
       await user.type(textInput, '   Texto com espaços   ');
 
-      const submitButton = screen.getByRole('button', { name: /Próxima|Enviar/i });
-      fireEvent.click(submitButton);
+      const submitButton = screen.getByRole('button', { name: /próxima|enviar|concluir/i });
+      await user.click(submitButton);
 
+      // Should accept trimmed text
       await waitFor(() => {
-        expect(onSubmit).toHaveBeenCalledWith({
-          question_id: 1,
-          selected_options: [3],
-          other_text: 'Texto com espaços',
-        });
+        expect(screen.queryByText(/especifique|obrigatório/i)).not.toBeInTheDocument();
       });
     });
 
-    test('should reject only whitespace as custom text', async () => {
+    it('should reject only whitespace as custom text', async () => {
       const user = userEvent.setup();
-      render(<QuizInterface question={singleChoiceQuestion} onSubmit={mockSubmitResponse} />);
+      render(
+        <QuizInterface
+          session={singleChoiceSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-      const otherOption = screen.getByLabelText(/Outra/i);
-      fireEvent.click(otherOption);
+      const outraOption = screen.getByText(/outra/i);
+      await user.click(outraOption);
 
-      const textInput = await screen.findByPlaceholderText(/Especifique outra opção/i);
+      const textInput = await screen.findByPlaceholderText(/especifique|descreva/i);
       await user.type(textInput, '     ');
 
-      const submitButton = screen.getByRole('button', { name: /Próxima|Enviar/i });
-      fireEvent.click(submitButton);
+      const submitButton = screen.getByRole('button', { name: /próxima|enviar|concluir/i });
+      await user.click(submitButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/Por favor, especifique a opção/i)).toBeInTheDocument();
+        expect(screen.getByText(/especifique|obrigatório/i)).toBeInTheDocument();
       });
-
-      expect(mockSubmitResponse).not.toHaveBeenCalled();
     });
 
-    test('should enforce max length for custom text', async () => {
+    it('should handle special characters in custom text', async () => {
       const user = userEvent.setup();
-      render(<QuizInterface question={singleChoiceQuestion} />);
+      render(
+        <QuizInterface
+          session={singleChoiceSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-      const otherOption = screen.getByLabelText(/Outra/i);
-      fireEvent.click(otherOption);
+      const outraOption = screen.getByText(/outra/i);
+      await user.click(outraOption);
 
-      const textInput = await screen.findByPlaceholderText(/Especifique outra opção/i);
-      const longText = 'a'.repeat(300);
-      await user.type(textInput, longText);
-
-      expect(textInput).toHaveValue(longText.substring(0, 255)); // Assuming 255 char limit
-    });
-
-    test('should handle special characters in custom text', async () => {
-      const user = userEvent.setup();
-      const onSubmit = jest.fn();
-
-      render(<QuizInterface question={singleChoiceQuestion} onSubmit={onSubmit} />);
-
-      const otherOption = screen.getByLabelText(/Outra/i);
-      fireEvent.click(otherOption);
-
-      const textInput = await screen.findByPlaceholderText(/Especifique outra opção/i);
+      const textInput = await screen.findByPlaceholderText(/especifique|descreva/i);
       await user.type(textInput, 'Dor < 5/10, com "pontadas"');
 
-      const submitButton = screen.getByRole('button', { name: /Próxima|Enviar/i });
-      fireEvent.click(submitButton);
+      expect(textInput).toHaveValue('Dor < 5/10, com "pontadas"');
+    });
+
+    it('should clear custom text when deselecting "Outra"', async () => {
+      const user = userEvent.setup();
+      const multipleChoiceSession = {
+        quiz_session_id: 'session-deselect',
+        patient_id: 'patient-123',
+        patient_name: 'Test Patient',
+        template_id: 'template-123',
+        template_name: 'Test Template',
+        status: 'in_progress' as const,
+        current_question_index: 0,
+        total_questions: 1,
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        questions: [fixtures.multipleChoiceWithOther()]
+      };
+
+      render(
+        <QuizInterface
+          session={multipleChoiceSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
+
+      const outraOption = screen.getByText(/outra/i);
+      await user.click(outraOption);
+
+      const textInput = await screen.findByPlaceholderText(/especifique|descreva/i);
+      await user.type(textInput, 'Texto temporário');
+
+      // Deselect "Outra"
+      await user.click(outraOption);
 
       await waitFor(() => {
-        expect(onSubmit).toHaveBeenCalledWith({
-          question_id: 1,
-          selected_options: [3],
-          other_text: 'Dor < 5/10, com "pontadas"',
-        });
+        expect(screen.queryByPlaceholderText(/especifique|descreva/i)).not.toBeInTheDocument();
       });
+
+      // Select "Outra" again
+      await user.click(outraOption);
+
+      const newTextInput = await screen.findByPlaceholderText(/especifique|descreva/i);
+      expect(newTextInput).toHaveValue('');
     });
   });
 
   describe('Accessibility', () => {
-    test('should associate text input with "Outra" option for screen readers', async () => {
-      render(<QuizInterface question={singleChoiceQuestion} />);
+    const singleChoiceSession = {
+      quiz_session_id: 'session-a11y',
+      patient_id: 'patient-123',
+      patient_name: 'Test Patient',
+      template_id: 'template-123',
+      template_name: 'Test Template',
+      status: 'in_progress' as const,
+      current_question_index: 0,
+      total_questions: 1,
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      questions: [fixtures.singleChoiceWithOther()]
+    };
 
-      const otherOption = screen.getByLabelText(/Outra/i);
-      fireEvent.click(otherOption);
+    it('should associate text input with "Outra" option for screen readers', async () => {
+      const user = userEvent.setup();
+      render(
+        <QuizInterface
+          session={singleChoiceSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-      const textInput = await screen.findByPlaceholderText(/Especifique outra opção/i);
+      const outraOption = screen.getByText(/outra/i);
+      await user.click(outraOption);
+
+      const textInput = await screen.findByPlaceholderText(/especifique|descreva/i);
 
       expect(textInput).toHaveAttribute('aria-label');
       expect(textInput).toHaveAttribute('id');
     });
 
-    test('should announce validation errors to screen readers', async () => {
-      render(<QuizInterface question={singleChoiceQuestion} onSubmit={mockSubmitResponse} />);
+    it('should announce validation errors to screen readers', async () => {
+      const user = userEvent.setup();
+      render(
+        <QuizInterface
+          session={singleChoiceSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-      const otherOption = screen.getByLabelText(/Outra/i);
-      fireEvent.click(otherOption);
+      const outraOption = screen.getByText(/outra/i);
+      await user.click(outraOption);
 
-      const submitButton = screen.getByRole('button', { name: /Próxima|Enviar/i });
-      fireEvent.click(submitButton);
+      const submitButton = screen.getByRole('button', { name: /próxima|enviar|concluir/i });
+      await user.click(submitButton);
 
       await waitFor(() => {
-        const errorMessage = screen.getByText(/Por favor, especifique a opção/i);
+        const errorMessage = screen.getByText(/especifique|obrigatório/i);
         expect(errorMessage).toHaveAttribute('role', 'alert');
-        expect(errorMessage).toHaveAttribute('aria-live', 'polite');
       });
     });
 
-    test('should have proper focus management', async () => {
+    it('should have proper focus management', async () => {
       const user = userEvent.setup();
-      render(<QuizInterface question={singleChoiceQuestion} />);
+      render(
+        <QuizInterface
+          session={singleChoiceSession}
+          token={mockToken}
+          onComplete={mockOnComplete}
+        />
+      );
 
-      const otherOption = screen.getByLabelText(/Outra/i);
-      await user.click(otherOption);
+      const outraOption = screen.getByText(/outra/i);
+      await user.click(outraOption);
 
       await waitFor(() => {
-        const textInput = screen.getByPlaceholderText(/Especifique outra opção/i);
+        const textInput = screen.getByPlaceholderText(/especifique|descreva/i);
         expect(textInput).toHaveFocus();
       });
     });

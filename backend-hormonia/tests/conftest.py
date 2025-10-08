@@ -2,21 +2,40 @@
 Test configuration and fixtures for backend tests.
 
 Provides common fixtures for database testing, authentication,
-and RLS context setup.
+session management, and security testing.
 """
 
 import pytest
 import asyncio
-from typing import AsyncGenerator, Dict
+import redis
+from unittest.mock import Mock, AsyncMock, patch
+from typing import AsyncGenerator, Dict, Any
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
+from fastapi.testclient import TestClient
 import httpx
+import json
+import os
+import tempfile
+from datetime import datetime, timedelta
 
 from app.config import settings
 from app.core.database import Base
 from tests.helpers.jwt_helper import jwt_helper
+
+# Import session service if available
+try:
+    from app.services.session_service import SessionService
+except ImportError:
+    SessionService = None
+
+# Import main app if available
+try:
+    from app.main import app
+except ImportError:
+    app = None
 
 
 # Event loop fixture for pytest-asyncio
@@ -400,3 +419,242 @@ def empty_db(db_session):
     yield db_session
 
     # Cleanup happens automatically via session rollback
+
+
+# ============================================================================
+# SESSION MANAGEMENT TESTING FIXTURES
+# ============================================================================
+
+@pytest.fixture
+def mock_redis():
+    """Mock Redis client for testing."""
+    mock_redis = Mock()
+
+    # Mock Redis methods
+    mock_redis.get = Mock(return_value=None)
+    mock_redis.set = Mock(return_value=True)
+    mock_redis.delete = Mock(return_value=1)
+    mock_redis.exists = Mock(return_value=0)
+    mock_redis.expire = Mock(return_value=True)
+    mock_redis.ttl = Mock(return_value=3600)
+    mock_redis.flushdb = Mock(return_value=True)
+
+    # Mock pipeline
+    mock_pipeline = Mock()
+    mock_pipeline.set = Mock(return_value=mock_pipeline)
+    mock_pipeline.expire = Mock(return_value=mock_pipeline)
+    mock_pipeline.execute = Mock(return_value=[True, True])
+    mock_redis.pipeline = Mock(return_value=mock_pipeline)
+
+    return mock_redis
+
+
+@pytest.fixture
+def session_service(mock_redis):
+    """Session service with mocked Redis."""
+    if SessionService is None:
+        # Create mock session service if not available
+        mock_service = Mock()
+        mock_service.create_session = AsyncMock(return_value="test-session-123")
+        mock_service.validate_session = AsyncMock(return_value=True)
+        mock_service.get_session = AsyncMock(return_value={"user_id": "test-user"})
+        mock_service.delete_session = AsyncMock(return_value=True)
+        mock_service.cleanup_expired_sessions = AsyncMock(return_value=5)
+        return mock_service
+
+    with patch('app.services.session_service.redis_client', mock_redis):
+        service = SessionService()
+        yield service
+
+
+@pytest.fixture
+def test_client():
+    """FastAPI test client."""
+    if app is None:
+        # Mock client if app not available
+        return Mock()
+
+    with TestClient(app) as client:
+        yield client
+
+
+@pytest.fixture
+def sample_user_data():
+    """Sample user data for testing."""
+    return {
+        "id": "test-user-123",
+        "email": "test@example.com",
+        "name": "Test User",
+        "role": "user",
+        "is_active": True,
+        "created_at": datetime.utcnow().isoformat()
+    }
+
+
+@pytest.fixture
+def sample_session_data(sample_user_data):
+    """Sample session data for testing."""
+    return {
+        "session_id": "test-session-123",
+        "user_id": sample_user_data["id"],
+        "user_data": sample_user_data,
+        "created_at": datetime.utcnow().isoformat(),
+        "last_accessed": datetime.utcnow().isoformat(),
+        "expires_at": (datetime.utcnow() + timedelta(hours=24)).isoformat(),
+        "csrf_token": "test-csrf-token-123",
+        "ip_address": "127.0.0.1",
+        "user_agent": "test-agent"
+    }
+
+
+@pytest.fixture
+def mock_firebase_auth():
+    """Mock Firebase authentication."""
+    with patch('firebase_admin.auth') as mock_auth:
+        mock_auth.verify_id_token = Mock(return_value={
+            "uid": "firebase-user-123",
+            "email": "test@example.com",
+            "email_verified": True,
+            "name": "Test User"
+        })
+        mock_auth.create_custom_token = Mock(return_value=b"custom-token")
+        mock_auth.get_user = Mock(return_value=Mock(
+            uid="firebase-user-123",
+            email="test@example.com",
+            display_name="Test User"
+        ))
+        yield mock_auth
+
+
+@pytest.fixture
+def rate_limit_storage():
+    """In-memory storage for rate limiting tests."""
+    return {}
+
+
+@pytest.fixture
+def mock_rate_limiter(rate_limit_storage):
+    """Mock rate limiter."""
+    class MockRateLimiter:
+        def __init__(self, storage):
+            self.storage = storage
+
+        def is_allowed(self, key: str, limit: int, window: int) -> bool:
+            now = datetime.utcnow().timestamp()
+            if key not in self.storage:
+                self.storage[key] = []
+
+            # Remove old entries
+            self.storage[key] = [
+                timestamp for timestamp in self.storage[key]
+                if now - timestamp < window
+            ]
+
+            if len(self.storage[key]) >= limit:
+                return False
+
+            self.storage[key].append(now)
+            return True
+
+        def reset(self, key: str):
+            if key in self.storage:
+                del self.storage[key]
+
+    return MockRateLimiter(rate_limit_storage)
+
+
+@pytest.fixture
+def security_test_payloads():
+    """Common security test payloads."""
+    return {
+        "sql_injection": [
+            "'; DROP TABLE users; --",
+            "' OR '1'='1",
+            "1; DELETE FROM sessions WHERE 1=1; --",
+            "admin'--",
+            "' OR 1=1#"
+        ],
+        "xss_payloads": [
+            "<script>alert('XSS')</script>",
+            "javascript:alert('XSS')",
+            "<img src=x onerror=alert('XSS')>",
+            "<svg onload=alert('XSS')>",
+            "';alert('XSS');//"
+        ],
+        "csrf_tokens": [
+            "",
+            "invalid-token",
+            "token-with-wrong-format",
+            "expired-token-123",
+            None
+        ],
+        "session_ids": [
+            "",
+            "invalid-session",
+            "../../etc/passwd",
+            "../admin",
+            None
+        ]
+    }
+
+
+@pytest.fixture
+def performance_timer():
+    """Timer for performance testing."""
+    class Timer:
+        def __init__(self):
+            self.start_time = None
+            self.end_time = None
+
+        def start(self):
+            self.start_time = datetime.utcnow()
+
+        def stop(self):
+            self.end_time = datetime.utcnow()
+            return (self.end_time - self.start_time).total_seconds()
+
+        def elapsed(self):
+            if self.start_time and self.end_time:
+                return (self.end_time - self.start_time).total_seconds()
+            return None
+
+    return Timer()
+
+
+# Pytest configuration
+def pytest_configure(config):
+    """Configure pytest with custom markers."""
+    config.addinivalue_line(
+        "markers", "security: mark test as security-related"
+    )
+    config.addinivalue_line(
+        "markers", "performance: mark test as performance-related"
+    )
+    config.addinivalue_line(
+        "markers", "integration: mark test as integration test"
+    )
+    config.addinivalue_line(
+        "markers", "unit: mark test as unit test"
+    )
+
+
+# Custom assertions
+def assert_response_time(response_time: float, max_time: float = 1.0):
+    """Assert response time is within acceptable limits."""
+    assert response_time <= max_time, f"Response time {response_time}s exceeds maximum {max_time}s"
+
+
+def assert_no_sql_injection(response_data: Any):
+    """Assert response doesn't contain SQL injection indicators."""
+    response_str = str(response_data).lower()
+    sql_keywords = ['drop', 'delete', 'insert', 'update', 'select', 'union', 'or 1=1']
+    for keyword in sql_keywords:
+        assert keyword not in response_str, f"Potential SQL injection detected: {keyword}"
+
+
+def assert_no_xss(response_data: Any):
+    """Assert response doesn't contain XSS indicators."""
+    response_str = str(response_data)
+    xss_patterns = ['<script', 'javascript:', 'onerror=', 'onload=']
+    for pattern in xss_patterns:
+        assert pattern not in response_str, f"Potential XSS detected: {pattern}"

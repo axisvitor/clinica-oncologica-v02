@@ -23,11 +23,33 @@ def setup_monitoring(app: FastAPI) -> None:
     - Database monitoring for query performance
     - Business metrics for healthcare KPIs
     - Error tracking and alerting
+    - Sentry error and performance monitoring
 
     Args:
         app: FastAPI application instance
     """
     logger.info("Setting up monitoring systems...")
+
+    # Initialize Sentry monitoring first
+    try:
+        from app.monitoring.sentry_config import SentryConfig, SentryMiddleware
+
+        # Initialize Sentry SDK
+        SentryConfig.init_sentry()
+
+        # Add Sentry middleware
+        app.add_middleware(SentryMiddleware)
+
+        # Store Sentry config in app state
+        app.state.sentry_config = SentryConfig
+
+        logger.info("✓ Sentry monitoring initialized")
+    except ImportError as e:
+        logger.warning(f"Sentry components not available: {e}")
+        logger.info("Continuing without Sentry monitoring")
+    except Exception as e:
+        logger.error(f"Failed to setup Sentry: {e}")
+        logger.info("Continuing without Sentry monitoring")
 
     try:
         # Import monitoring components

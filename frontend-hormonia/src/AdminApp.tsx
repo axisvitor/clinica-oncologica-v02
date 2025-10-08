@@ -4,7 +4,7 @@ import { Toaster } from './components/ui/toaster'
 import { AuthProvider } from './contexts/AuthContext'
 import { AdminAuthProvider } from './contexts/AdminAuthContext'
 import AdminRoutes from './routes/AdminRoutes'
-import ErrorBoundary from './components/ErrorBoundary'
+import { ErrorBoundary } from './components/error/ErrorBoundary'
 
 // Create a query client for React Query
 const queryClient = new QueryClient({

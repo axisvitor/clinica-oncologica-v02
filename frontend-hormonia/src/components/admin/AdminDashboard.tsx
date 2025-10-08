@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import { Outlet, Navigate, useLocation } from 'react-router-dom'
 import {
   BarChart,
@@ -15,7 +15,8 @@ import {
   Line,
   Area,
   AreaChart
-} from 'recharts'
+} from '@/components/charts/LazyRechartsComponents'
+import { ChartSkeleton } from '@/components/ui/chart-skeleton'
 import {
   Shield,
   Users,
@@ -346,6 +347,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
                     <CardDescription>Failed logins and blocked IPs over time</CardDescription>
                   </CardHeader>
                   <CardContent>
+                    <Suspense fallback={<ChartSkeleton height="200px" />}>
                     <ResponsiveContainer width="100%" height={200}>
                       <LineChart data={securityTrendData}>
                         <CartesianGrid strokeDasharray="3 3" />
@@ -373,6 +375,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
                         />
                       </LineChart>
                     </ResponsiveContainer>
+                    </Suspense>
                   </CardContent>
                 </Card>
               </div>
@@ -447,6 +450,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
                     <CardDescription>Current system utilization</CardDescription>
                   </CardHeader>
                   <CardContent>
+                    <Suspense fallback={<ChartSkeleton height="250px" />}>
                     <ResponsiveContainer width="100%" height={250}>
                       <PieChart>
                         <Pie
@@ -464,6 +468,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
                         <Tooltip formatter={(value) => `${value}%`} />
                       </PieChart>
                     </ResponsiveContainer>
+                    </Suspense>
                   </CardContent>
                 </Card>
 

@@ -4,11 +4,12 @@
  * Visualizes patient engagement metrics including response rates,
  * active users, and engagement trends over time.
  */
-import React from 'react';
+import React, { Suspense } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell
-} from 'recharts';
+} from '@/components/charts/LazyRechartsComponents';
+import { ChartSkeleton } from '@/components/ui/chart-skeleton';
 
 interface EngagementData {
   total_patients: number;
@@ -82,6 +83,7 @@ export const EngagementChart: React.FC<EngagementChartProps> = ({
     return (
       <div className="space-y-4">
         <div className="h-64">
+          <Suspense fallback={<ChartSkeleton />}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={trendData}>
               <defs>
@@ -120,6 +122,7 @@ export const EngagementChart: React.FC<EngagementChartProps> = ({
               />
             </AreaChart>
           </ResponsiveContainer>
+          </Suspense>
         </div>
 
         <div className="grid grid-cols-3 gap-4 text-center">
@@ -147,6 +150,7 @@ export const EngagementChart: React.FC<EngagementChartProps> = ({
       <div className="space-y-2">
         <h4 className="font-semibold text-lg">Tendência de Engajamento</h4>
         <div className="h-80">
+          <Suspense fallback={<ChartSkeleton />}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={trendData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
@@ -181,6 +185,7 @@ export const EngagementChart: React.FC<EngagementChartProps> = ({
               />
             </LineChart>
           </ResponsiveContainer>
+          </Suspense>
         </div>
       </div>
 
@@ -189,7 +194,8 @@ export const EngagementChart: React.FC<EngagementChartProps> = ({
         <div className="space-y-2">
           <h4 className="font-semibold text-lg">Atividade de Usuários</h4>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+            <Suspense fallback={<ChartSkeleton />}>
+          <ResponsiveContainer width="100%" height="100%">
               <BarChart data={userActivityData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis
@@ -216,13 +222,15 @@ export const EngagementChart: React.FC<EngagementChartProps> = ({
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </Suspense>
           </div>
         </div>
 
         <div className="space-y-2">
           <h4 className="font-semibold text-lg">Distribuição de Pacientes</h4>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+            <Suspense fallback={<ChartSkeleton />}>
+          <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={engagementBreakdown}
@@ -243,6 +251,7 @@ export const EngagementChart: React.FC<EngagementChartProps> = ({
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
+          </Suspense>
           </div>
         </div>
       </div>
@@ -251,6 +260,7 @@ export const EngagementChart: React.FC<EngagementChartProps> = ({
       <div className="space-y-2">
         <h4 className="font-semibold text-lg">Métricas de Resposta</h4>
         <div className="h-64">
+          <Suspense fallback={<ChartSkeleton />}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={responseMetrics}
@@ -288,6 +298,7 @@ export const EngagementChart: React.FC<EngagementChartProps> = ({
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          </Suspense>
         </div>
       </div>
 

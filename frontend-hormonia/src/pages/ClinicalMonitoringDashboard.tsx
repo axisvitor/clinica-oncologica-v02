@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import {
   Card,
   CardContent,
@@ -26,7 +26,8 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
-} from 'recharts';
+} from '@/components/charts/LazyRechartsComponents';
+import { ChartSkeleton } from '@/components/ui/chart-skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -341,6 +342,7 @@ const ClinicalMonitoringDashboard: React.FC = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
+              <Suspense fallback={<ChartSkeleton height="300px" />}>
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={adherenceData}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -365,6 +367,7 @@ const ClinicalMonitoringDashboard: React.FC = () => {
                   />
                 </LineChart>
               </ResponsiveContainer>
+              </Suspense>
             </CardContent>
           </Card>
         </TabsContent>
@@ -377,6 +380,7 @@ const ClinicalMonitoringDashboard: React.FC = () => {
                 <CardTitle>Distribuição de Sentimento</CardTitle>
               </CardHeader>
               <CardContent>
+                <Suspense fallback={<ChartSkeleton height="300px" />}>
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
@@ -396,6 +400,7 @@ const ClinicalMonitoringDashboard: React.FC = () => {
                     <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
+                </Suspense>
               </CardContent>
             </Card>
 
@@ -404,6 +409,7 @@ const ClinicalMonitoringDashboard: React.FC = () => {
                 <CardTitle>Tendência de Sentimento</CardTitle>
               </CardHeader>
               <CardContent>
+                <Suspense fallback={<ChartSkeleton height="300px" />}>
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={adherenceData}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -418,6 +424,7 @@ const ClinicalMonitoringDashboard: React.FC = () => {
                     />
                   </LineChart>
                 </ResponsiveContainer>
+                </Suspense>
               </CardContent>
             </Card>
           </div>
@@ -481,6 +488,7 @@ const ClinicalMonitoringDashboard: React.FC = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
+              <Suspense fallback={<ChartSkeleton height="400px" />}>
               <ResponsiveContainer width="100%" height={400}>
                 {/* PLACEHOLDER - Aguardando integração com useAdherenceData */}
                 <RadarChart data={[
@@ -497,6 +505,7 @@ const ClinicalMonitoringDashboard: React.FC = () => {
                   <Radar name="Engajamento" dataKey="value" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.6} />
                 </RadarChart>
               </ResponsiveContainer>
+              </Suspense>
             </CardContent>
           </Card>
         </TabsContent>

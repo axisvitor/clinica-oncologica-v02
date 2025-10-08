@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import QuizInterface from "@/components/quiz-interface"
-import { quizAPI, getTokenFromURL, isTokenExpired } from "@/lib/api"
+import { secureCookieAuth, extractTokenFromURL, isTokenExpired } from "@/lib/auth-utils"
 import type { QuizSession, QuizError } from "@/types/quiz"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -12,7 +12,6 @@ export default function Home() {
   const [quizSession, setQuizSession] = useState<QuizSession | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<QuizError | null>(null)
-  const [token, setToken] = useState<string | null>(null)
 
   useEffect(() => {
     initializeQuiz()
@@ -22,35 +21,34 @@ export default function Home() {
     setIsLoading(true)
     setError(null)
 
-    // Get token from URL or localStorage
-    let urlToken = getTokenFromURL()
-    if (!urlToken && typeof window !== 'undefined') {
-      // Try to get token from localStorage (for token rotation)
-      urlToken = localStorage.getItem('quiz_token')
-    }
-
-    if (!urlToken) {
-      setError({
-        detail: "Token de acesso não encontrado. Por favor, use o link enviado para você.",
-        status: 400
-      })
-      setIsLoading(false)
-      return
-    }
-
-    setToken(urlToken)
-
     try {
-      // Access quiz with token
-      const session = await quizAPI.accessQuiz(urlToken)
-
-      // HANDLE TOKEN ROTATION from initial access
-      if (session.new_token) {
-        setToken(session.new_token)
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('quiz_token', session.new_token)
-        }
+      // First check if there's already a valid session
+      const hasValidSession = await secureCookieAuth.checkSession()
+      if (hasValidSession) {
+        // Session exists, try to get session data
+        // This would require an endpoint to get current session data
+        setError({
+          detail: "Já existe uma sessão ativa. Recarregue a página se necessário.",
+          status: 200
+        })
+        setIsLoading(false)
+        return
       }
+
+      // Get token from URL and clean it immediately
+      const urlToken = extractTokenFromURL()
+
+      if (!urlToken) {
+        setError({
+          detail: "Token de acesso não encontrado. Por favor, use o link enviado para você.",
+          status: 400
+        })
+        setIsLoading(false)
+        return
+      }
+
+      // Initialize secure session with token
+      const session = await secureCookieAuth.initializeSession(urlToken)
 
       // Check if token is expired
       if (isTokenExpired(session.expires_at)) {
@@ -124,19 +122,16 @@ export default function Home() {
   }
 
   // Success state - show quiz
-  if (quizSession && token) {
+  if (quizSession) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20">
         <QuizInterface
           session={quizSession}
-          token={token}
           onComplete={() => {
             // Quiz completed - could redirect or show completion message
             console.log("Quiz completed successfully!")
-          }}
-          onTokenUpdate={(newToken) => {
-            // Update parent token state when rotation occurs
-            setToken(newToken)
+            // Clear session on completion
+            secureCookieAuth.clearSession()
           }}
         />
       </main>

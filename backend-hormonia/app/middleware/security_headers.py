@@ -34,7 +34,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         enable_hsts: bool = True,
         hsts_max_age: int = 31536000,  # 1 year
         enable_csp: bool = True,
-        csp_policy: str = "default-src 'self'",
+        csp_policy: str = None,
         enable_frame_options: bool = True,
         frame_options: str = "DENY"
     ):
@@ -42,9 +42,38 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         self.enable_hsts = enable_hsts
         self.hsts_max_age = hsts_max_age
         self.enable_csp = enable_csp
-        self.csp_policy = csp_policy
+        # Enhanced CSP policy with comprehensive directives
+        self.csp_policy = csp_policy or self._get_default_csp_policy()
         self.enable_frame_options = enable_frame_options
         self.frame_options = frame_options
+
+    def _get_default_csp_policy(self) -> str:
+        """Get comprehensive default CSP policy."""
+        import os
+        env = os.getenv("ENVIRONMENT", "development").lower()
+
+        # Base CSP directives for production
+        csp_directives = [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+            "font-src 'self' https://fonts.gstatic.com data:",
+            "img-src 'self' data: https: blob:",
+            "connect-src 'self' https://api.sentry.io https://*.supabase.co wss://*.supabase.co",
+            "frame-src 'none'",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+            "frame-ancestors 'none'",
+            "upgrade-insecure-requests"
+        ]
+
+        # Add development-specific directives
+        if env in ["development", "dev"]:
+            csp_directives[1] = "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: ws://localhost:* http://localhost:*"
+            csp_directives[5] = "connect-src 'self' https: ws://localhost:* http://localhost:* wss://*.supabase.co"
+
+        return "; ".join(csp_directives)
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Add security headers to response."""
@@ -151,7 +180,7 @@ def setup_security_middleware(app: ASGIApp, config: dict = None) -> None:
         enable_hsts=config.get("enable_hsts", True),
         hsts_max_age=config.get("hsts_max_age", 31536000),
         enable_csp=config.get("enable_csp", True),
-        csp_policy=config.get("csp_policy", "default-src 'self'"),
+        csp_policy=config.get("csp_policy", None),  # Will use enhanced default
         enable_frame_options=config.get("enable_frame_options", True),
         frame_options=config.get("frame_options", "DENY")
     )

@@ -70,7 +70,7 @@ export function useMetricsWebSocket({
   maxReconnectAttempts = 10,
   heartbeatInterval = 30000 // 30 seconds
 }: UseMetricsWebSocketOptions = {}): UseMetricsWebSocketReturn {
-  const { user, session } = useAuth()
+  const { user, session, getFirebaseToken } = useAuth()
 
   const [isConnected, setIsConnected] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
@@ -199,14 +199,14 @@ export function useMetricsWebSocket({
   /**
    * Connect to WebSocket server
    */
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     // Don't connect if already connected or connecting
     if (ws.current?.readyState === WebSocket.OPEN || isConnecting) {
       return
     }
 
-    // [P0 FIX] Use Firebase token from localStorage
-    const firebaseToken = localStorage.getItem('firebase_token')
+    // [P0 FIX] Use Firebase token from AuthContext (in-memory via Firebase SDK)
+    const firebaseToken = await getFirebaseToken()
 
     if (!firebaseToken) {
       logger.error('Cannot connect: No Firebase token available')
@@ -246,7 +246,7 @@ export function useMetricsWebSocket({
       setError('Falha ao conectar ao servidor')
       setIsConnecting(false)
     }
-  }, [isConnecting, handleOpen, handleMessage, handleError, handleClose])
+  }, [isConnecting, getFirebaseToken, handleOpen, handleMessage, handleError, handleClose])
 
   /**
    * Disconnect from WebSocket server
@@ -315,14 +315,16 @@ export function useMetricsWebSocket({
    * React to token refresh - reconnect with new token
    */
   useEffect(() => {
-    const firebaseToken = localStorage.getItem('firebase_token')
+    (async () => {
+      const firebaseToken = await getFirebaseToken()
 
-    if (firebaseToken && isConnected) {
-      logger.info('Token refreshed, reconnecting WebSocket')
-      disconnect()
-      setTimeout(() => connect(), 1000) // Reconnect after 1 second
-    }
-  }, [session?.access_token])
+      if (firebaseToken && isConnected) {
+        logger.info('Token refreshed, reconnecting WebSocket')
+        disconnect()
+        setTimeout(() => connect(), 1000) // Reconnect after 1 second
+      }
+    })()
+  }, [session?.access_token, getFirebaseToken, isConnected, disconnect, connect])
 
   return {
     isConnected,

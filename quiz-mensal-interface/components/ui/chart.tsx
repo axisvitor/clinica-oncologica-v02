@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import * as RechartsPrimitive from 'recharts'
+import DOMPurify from 'isomorphic-dompurify'
 
 import { cn } from '@/lib/utils'
 
@@ -78,12 +79,10 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     return null
   }
 
-  return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: Object.entries(THEMES)
-          .map(
-            ([theme, prefix]) => `
+  // Generate CSS with sanitized values to prevent XSS attacks
+  const generatedCSS = Object.entries(THEMES)
+    .map(
+      ([theme, prefix]) => `
 ${prefix} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
@@ -95,8 +94,24 @@ ${colorConfig
   .join('\n')}
 }
 `,
-          )
-          .join('\n'),
+    )
+    .join('\n')
+
+  // SECURITY: Sanitize CSS before injection to prevent XSS via CSS injection
+  // Even though ChartConfig is developer-defined, it could be:
+  // - Loaded from database (admin theme customization)
+  // - Compromised via malicious npm package
+  // - Part of future user theme customization features
+  const sanitizedCSS = DOMPurify.sanitize(generatedCSS, {
+    ALLOWED_TAGS: [], // No HTML tags allowed in CSS
+    ALLOWED_ATTR: [], // No attributes allowed
+    KEEP_CONTENT: true, // Keep text content (CSS rules)
+  })
+
+  return (
+    <style
+      dangerouslySetInnerHTML={{
+        __html: sanitizedCSS,
       }}
     />
   )

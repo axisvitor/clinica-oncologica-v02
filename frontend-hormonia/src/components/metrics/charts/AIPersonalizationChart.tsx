@@ -4,12 +4,13 @@
  * Visualizes AI personalization metrics including effectiveness rates,
  * safety interventions, and quality scores for healthcare communication.
  */
-import React from 'react';
+import React, { Suspense } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, RadialBarChart, RadialBar,
   ComposedChart, ScatterChart, Scatter, Cell
-} from 'recharts';
+} from '@/components/charts/LazyRechartsComponents';
+import { ChartSkeleton } from '@/components/ui/chart-skeleton';
 
 interface AIPersonalizationData {
   total_messages_processed: number;
@@ -87,6 +88,7 @@ export const AIPersonalizationChart: React.FC<AIPersonalizationChartProps> = ({
     return (
       <div className="space-y-4">
         <div className="h-64">
+          <Suspense fallback={<ChartSkeleton />}>
           <ResponsiveContainer width="100%" height="100%">
             <RadialBarChart
               cx="50%"
@@ -115,6 +117,7 @@ export const AIPersonalizationChart: React.FC<AIPersonalizationChartProps> = ({
               />
             </RadialBarChart>
           </ResponsiveContainer>
+          </Suspense>
         </div>
 
         <div className="grid grid-cols-3 gap-4 text-center">
@@ -142,6 +145,7 @@ export const AIPersonalizationChart: React.FC<AIPersonalizationChartProps> = ({
       <div className="space-y-2">
         <h4 className="font-semibold text-lg">Performance da IA</h4>
         <div className="h-80">
+          <Suspense fallback={<ChartSkeleton />}>
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
               data={performanceOverview}
@@ -184,6 +188,7 @@ export const AIPersonalizationChart: React.FC<AIPersonalizationChartProps> = ({
               />
             </ComposedChart>
           </ResponsiveContainer>
+          </Suspense>
         </div>
       </div>
 
@@ -192,7 +197,8 @@ export const AIPersonalizationChart: React.FC<AIPersonalizationChartProps> = ({
         <div className="space-y-2">
           <h4 className="font-semibold text-lg">Processamento de Mensagens</h4>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+            <Suspense fallback={<ChartSkeleton />}>
+          <ResponsiveContainer width="100%" height="100%">
               <BarChart data={processingData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis
@@ -219,13 +225,15 @@ export const AIPersonalizationChart: React.FC<AIPersonalizationChartProps> = ({
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </Suspense>
           </div>
         </div>
 
         <div className="space-y-2">
           <h4 className="font-semibold text-lg">Segurança e Intervenções</h4>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+            <Suspense fallback={<ChartSkeleton />}>
+          <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={safetyData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis
@@ -254,6 +262,7 @@ export const AIPersonalizationChart: React.FC<AIPersonalizationChartProps> = ({
                 />
               </AreaChart>
             </ResponsiveContainer>
+          </Suspense>
           </div>
         </div>
       </div>
@@ -262,6 +271,7 @@ export const AIPersonalizationChart: React.FC<AIPersonalizationChartProps> = ({
       <div className="space-y-2">
         <h4 className="font-semibold text-lg">Impacto da Personalização</h4>
         <div className="h-64">
+          <Suspense fallback={<ChartSkeleton />}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={impactMetrics}
@@ -298,6 +308,7 @@ export const AIPersonalizationChart: React.FC<AIPersonalizationChartProps> = ({
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          </Suspense>
         </div>
       </div>
 
@@ -305,6 +316,7 @@ export const AIPersonalizationChart: React.FC<AIPersonalizationChartProps> = ({
       <div className="space-y-2">
         <h4 className="font-semibold text-lg">Comparação de Scores</h4>
         <div className="h-80">
+          <Suspense fallback={<ChartSkeleton />}>
           <ResponsiveContainer width="100%" height="100%">
             <RadialBarChart
               cx="50%"
@@ -339,6 +351,7 @@ export const AIPersonalizationChart: React.FC<AIPersonalizationChartProps> = ({
               />
             </RadialBarChart>
           </ResponsiveContainer>
+          </Suspense>
         </div>
       </div>
 

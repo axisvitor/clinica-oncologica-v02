@@ -93,8 +93,9 @@ export async function loginUser(
 
     logger.log('Backend session created (httpOnly cookie set)')
 
-    // Step 4: Store only Firebase token (session_id is in secure cookie)
-    localStorage.setItem('firebase_token', firebaseToken)
+    // Step 4: Firebase token stored in memory via Firebase Auth SDK
+    // Session ID stored securely in httpOnly cookie (not accessible to JavaScript)
+    // NO localStorage usage - prevents XSS token theft
 
     // Step 5: NOW safe to call auth.me() (cookie sent automatically)
     apiClient.setAuthToken(firebaseToken)
@@ -116,7 +117,7 @@ export async function loginUser(
   } catch (error) {
     logger.error('Login failed:', error)
     // Clear any partial session data (cookie cleared by backend on error)
-    localStorage.removeItem('firebase_token')
+    // Firebase Auth SDK automatically clears in-memory token
     throw error
   }
 }
@@ -152,8 +153,8 @@ export async function logoutUser(): Promise<void> {
       logger.warn('Backend logout request failed, continuing with cleanup:', error)
     }
 
-    // Clear local storage (session_id no longer stored here)
-    localStorage.removeItem('firebase_token')
+    // Local storage NO LONGER USED (session cleared via httpOnly cookie by backend)
+    // Firebase Auth SDK automatically clears in-memory token
 
     // Clear token refresh interval
     if (tokenRefreshInterval) {
@@ -168,7 +169,7 @@ export async function logoutUser(): Promise<void> {
   } catch (error) {
     logger.error('Logout failed:', error)
     // Force cleanup even if logout fails (cookie already cleared by backend)
-    localStorage.removeItem('firebase_token')
+    // Firebase Auth SDK automatically clears in-memory token
     if (tokenRefreshInterval) {
       clearInterval(tokenRefreshInterval)
       tokenRefreshInterval = null
@@ -185,13 +186,15 @@ export async function logoutAllDevices(): Promise<{ sessions_deleted: number }> 
   try {
     logger.log('Logging out from all devices')
 
-    const firebaseToken = localStorage.getItem('firebase_token')
-
-    if (!firebaseToken) {
-      logger.warn('No Firebase token found, performing local logout only')
+    // Get Firebase token from Firebase Auth SDK (in-memory)
+    const currentUser = await firebaseAuth.getCurrentUser()
+    if (!currentUser) {
+      logger.warn('No Firebase user found, performing local logout only')
       await logoutUser()
       return { sessions_deleted: 1 }
     }
+
+    const firebaseToken = await currentUser.getIdToken()
 
     try {
       // Call backend logout-all endpoint (invalidates all Redis sessions for user)
@@ -211,8 +214,8 @@ export async function logoutAllDevices(): Promise<{ sessions_deleted: number }> 
         const logoutData = await response.json()
         logger.log(`All sessions invalidated: ${logoutData.sessions_deleted} sessions deleted`)
 
-        // Clear local storage (session_id no longer stored here)
-        localStorage.removeItem('firebase_token')
+        // Local storage NO LONGER USED
+        // Session cleared via httpOnly cookie by backend
 
         // Clear token refresh interval
         if (tokenRefreshInterval) {
@@ -246,28 +249,23 @@ export async function logoutAllDevices(): Promise<{ sessions_deleted: number }> 
  */
 export async function getCurrentUser(): Promise<User | null> {
   try {
-    const firebaseToken = localStorage.getItem('firebase_token')
-
-    if (!firebaseToken) {
-      logger.log('No active session found')
-      return null
-    }
-
-    // Check Firebase auth state
+    // Check Firebase auth state (Firebase Auth SDK manages token in-memory)
     const firebaseUser = await firebaseAuth.getCurrentUser()
     if (!firebaseUser) {
-      logger.log('No Firebase user, clearing session')
-      localStorage.removeItem('firebase_token')
+      logger.log('No Firebase user, session cleared')
       return null
     }
 
-    // Validate with backend (cookie sent automatically)
+    // Get current Firebase ID token (in-memory from SDK)
+    const firebaseToken = await firebaseUser.getIdToken()
+
+    // Validate with backend (httpOnly cookie sent automatically)
     apiClient.setAuthToken(firebaseToken)
     const response = await apiClient.auth.me()
 
     if (!response || !response.data) {
       logger.log('Backend session invalid, clearing')
-      localStorage.removeItem('firebase_token')
+      // Firebase Auth SDK will handle token cleanup
       return null
     }
 
@@ -277,7 +275,7 @@ export async function getCurrentUser(): Promise<User | null> {
     }
   } catch (error) {
     logger.error('Get current user failed:', error)
-    localStorage.removeItem('firebase_token')
+    // Firebase Auth SDK will handle token cleanup
     return null
   }
 }
@@ -323,13 +321,10 @@ export function setupTokenRefresh(): void {
         return
       }
 
-      // Force token refresh
+      // Force token refresh (Firebase SDK stores in-memory)
       const newToken = await firebaseUser.getIdToken(true)
 
-      // Update stored token
-      localStorage.setItem('firebase_token', newToken)
-
-      // Update API client
+      // Update API client with refreshed token
       apiClient.setAuthToken(newToken)
 
       logger.log('Token refreshed successfully')

@@ -1,14 +1,15 @@
-import React from 'react'
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import React, { Suspense } from 'react'
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   Legend
-} from 'recharts'
+} from '@/components/charts/LazyRechartsComponents'
+import { ChartSkeleton } from '@/components/ui/chart-skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface ChartData {
@@ -77,6 +78,7 @@ export function EngagementChart({ data }: EngagementChartProps) {
       </CardHeader>
       <CardContent>
         <div className="h-[300px]">
+          <Suspense fallback={<ChartSkeleton height="300px" />}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -127,6 +129,7 @@ export function EngagementChart({ data }: EngagementChartProps) {
               />
             </LineChart>
           </ResponsiveContainer>
+          </Suspense>
         </div>
       </CardContent>
     </Card>

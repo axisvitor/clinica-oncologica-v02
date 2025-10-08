@@ -11,41 +11,33 @@ import { Label } from "@/components/ui/label"
 import { CheckCircle, Circle, ArrowRight, ArrowLeft, Send, Loader2 } from "lucide-react"
 import Image from "next/image"
 import type { QuizSession, QuestionType, QuizQuestion, SingleAnswer, MultipleAnswer, OtherAnswer } from "@/types/quiz"
-import { quizAPI } from "@/lib/api"
+import { useQuizState } from "@/hooks/quiz/useQuizState"
 import { useToast } from "@/hooks/use-toast"
 
 interface QuizInterfaceProps {
   session: QuizSession
-  token: string
   onComplete?: () => void
-  onTokenUpdate?: (newToken: string) => void  // NEW: For token rotation
 }
 
-export default function QuizInterface({ session, token, onComplete, onTokenUpdate }: QuizInterfaceProps) {
+export default function QuizInterface({ session, onComplete }: QuizInterfaceProps) {
   const { toast } = useToast()
-  const [currentToken, setCurrentToken] = useState(token)  // Track token locally
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(session.current_question_index)
-  const [selectedAnswer, setSelectedAnswer] = useState<SingleAnswer | MultipleAnswer | null>(null)
-  const [answers, setAnswers] = useState<Map<string, SingleAnswer | MultipleAnswer>>(new Map())
-  const [otherTexts, setOtherTexts] = useState<Map<string, string>>(new Map())
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isCompleted, setIsCompleted] = useState(false)
-
-  // Sync currentToken with prop token changes (for rotation)
-  useEffect(() => {
-    if (token && token !== currentToken) {
-      setCurrentToken(token)
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('quiz_token', token)
-      }
-      console.log('Token updated from parent:', token)
-    }
-  }, [token, currentToken])
-
-  const currentQuestion = session.questions[currentQuestionIndex]
-  const totalQuestions = session.total_questions
-  const progress = ((currentQuestionIndex + 1) / totalQuestions) * 100
-  const isLastQuestion = currentQuestionIndex === totalQuestions - 1
+  const {
+    currentQuestionIndex,
+    selectedAnswer,
+    answers,
+    otherTexts,
+    isSubmitting,
+    isCompleted,
+    currentQuestion,
+    totalQuestions,
+    progress,
+    isLastQuestion,
+    setCurrentQuestionIndex,
+    setSelectedAnswer,
+    setAnswers,
+    setOtherTexts,
+    handleSubmitAnswer
+  } = useQuizState({ session, onComplete })
 
   // Reset selected answer when question changes
   useEffect(() => {
@@ -70,7 +62,7 @@ export default function QuizInterface({ session, token, onComplete, onTokenUpdat
     }
   }
 
-  const handleSubmitAnswer = async () => {
+  const handleAnswerSubmit = async () => {
     if (!selectedAnswer) {
       toast({
         title: "Resposta obrigatória",
@@ -92,8 +84,6 @@ export default function QuizInterface({ session, token, onComplete, onTokenUpdat
       }
     }
 
-    setIsSubmitting(true)
-
     try {
       // Prepare the answer value and other_text
       let answerValue: string | string[]
@@ -112,23 +102,12 @@ export default function QuizInterface({ session, token, onComplete, onTokenUpdat
         answerValue = selectedAnswer as string | string[]
       }
 
-      // Submit answer to backend
-      const response = await quizAPI.submitAnswer(
-        currentToken,  // Use current token
+      // Submit answer using secure authentication
+      await handleSubmitAnswer(
         currentQuestion.id,
         answerValue,
         { question_index: currentQuestionIndex, other_text: otherText }
       )
-
-      // HANDLE TOKEN ROTATION
-      if (response.new_token) {
-        setCurrentToken(response.new_token)
-        onTokenUpdate?.(response.new_token)  // Notify parent component
-        // Persist to localStorage if available
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('quiz_token', response.new_token)
-        }
-      }
 
       // Save answer locally
       setAnswers(new Map(answers.set(currentQuestion.id, selectedAnswer)))
@@ -140,15 +119,6 @@ export default function QuizInterface({ session, token, onComplete, onTokenUpdat
           : "Sua resposta foi registrada.",
       })
 
-      // Move to next question or complete
-      if (isLastQuestion) {
-        setIsCompleted(true)
-        onComplete?.()
-      } else {
-        setCurrentQuestionIndex(prev => prev + 1)
-        setSelectedAnswer(null)
-      }
-
     } catch (error) {
       console.error("Error submitting answer:", error)
       toast({
@@ -156,8 +126,6 @@ export default function QuizInterface({ session, token, onComplete, onTokenUpdat
         description: error instanceof Error ? error.message : "Tente novamente em alguns instantes.",
         variant: "destructive"
       })
-    } finally {
-      setIsSubmitting(false)
     }
   }
 
@@ -499,7 +467,7 @@ export default function QuizInterface({ session, token, onComplete, onTokenUpdat
             )}
 
             <Button
-              onClick={handleSubmitAnswer}
+              onClick={handleAnswerSubmit}
               disabled={!selectedAnswer || isSubmitting}
               className="flex-1"
             >

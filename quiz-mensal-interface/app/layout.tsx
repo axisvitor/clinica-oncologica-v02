@@ -3,6 +3,7 @@ import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
 import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from '@/components/ui/toaster'
+import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -19,9 +20,11 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
-        {children}
-        <Toaster />
-        <Analytics />
+        <ErrorBoundary>
+          {children}
+          <Toaster />
+          <Analytics />
+        </ErrorBoundary>
       </body>
     </html>
   )

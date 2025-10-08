@@ -4,12 +4,13 @@
  * Visualizes system performance metrics including CPU, memory, disk usage,
  * response times, and overall system health indicators.
  */
-import React from 'react';
+import React, { Suspense } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, RadialBarChart, RadialBar,
   ComposedChart, ScatterChart, Scatter, Cell
-} from 'recharts';
+} from '@/components/charts/LazyRechartsComponents';
+import { ChartSkeleton } from '@/components/ui/chart-skeleton';
 
 interface SystemHealthData {
   cpu_usage: number;
@@ -126,6 +127,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
     return (
       <div className="space-y-4">
         <div className="h-64">
+          <Suspense fallback={<ChartSkeleton />}>
           <ResponsiveContainer width="100%" height="100%">
             <RadialBarChart
               cx="50%"
@@ -154,6 +156,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
               />
             </RadialBarChart>
           </ResponsiveContainer>
+          </Suspense>
         </div>
 
         <div className="grid grid-cols-3 gap-4 text-center">
@@ -181,6 +184,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
       <div className="text-center space-y-2">
         <h4 className="font-semibold text-lg">Score de Saúde do Sistema</h4>
         <div className="h-40">
+          <Suspense fallback={<ChartSkeleton />}>
           <ResponsiveContainer width="100%" height="100%">
             <RadialBarChart
               cx="50%"
@@ -204,6 +208,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
               />
             </RadialBarChart>
           </ResponsiveContainer>
+          </Suspense>
         </div>
       </div>
 
@@ -211,6 +216,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
       <div className="space-y-2">
         <h4 className="font-semibold text-lg">Uso de Recursos</h4>
         <div className="h-80">
+          <Suspense fallback={<ChartSkeleton />}>
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
               data={resourceUsageData}
@@ -265,6 +271,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
               <Legend />
             </ComposedChart>
           </ResponsiveContainer>
+          </Suspense>
         </div>
       </div>
 
@@ -272,6 +279,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
       <div className="space-y-2">
         <h4 className="font-semibold text-lg">Métricas de Performance</h4>
         <div className="h-64">
+          <Suspense fallback={<ChartSkeleton />}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={performanceMetrics}
@@ -308,6 +316,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          </Suspense>
         </div>
       </div>
 
@@ -323,7 +332,8 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
             </div>
 
             <div className="h-32">
-              <ResponsiveContainer width="100%" height="100%">
+              <Suspense fallback={<ChartSkeleton />}>
+          <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={[{ usage: resource.usage, max: 100 }]}>
                   <defs>
                     <linearGradient id={`color${index}`} x1="0" y1="0" x2="0" y2="1">
@@ -342,6 +352,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
                   />
                 </AreaChart>
               </ResponsiveContainer>
+          </Suspense>
             </div>
 
             <div className="mt-3 space-y-1 text-xs text-gray-600">

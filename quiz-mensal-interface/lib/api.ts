@@ -198,6 +198,7 @@ export class QuizAPI {
           `${this.baseURL}/access`,
           {
             method: "POST",
+            credentials: 'include',
             headers: {
               "Content-Type": "application/json",
             },
@@ -279,6 +280,7 @@ export class QuizAPI {
           `${this.baseURL}/submit`,
           {
             method: "POST",
+            credentials: 'include',
             headers: {
               "Content-Type": "application/json",
             },
@@ -349,6 +351,7 @@ export class QuizAPI {
         `${this.baseURL}/health`,
         {
           method: "GET",
+          credentials: 'include',
         },
         timeout
       )
@@ -378,13 +381,12 @@ export class QuizAPI {
 // Export singleton instance
 export const quizAPI = new QuizAPI()
 
-// Helper function to extract token from URL
-export function getTokenFromURL(): string | null {
-  if (typeof window === "undefined") return null
-
-  const params = new URLSearchParams(window.location.search)
-  return params.get("token")
-}
+// SECURITY FIX: Enhanced secure authentication implementation
+// Tokens are now securely managed via:
+// 1. httpOnly cookies (server-side session storage)
+// 2. CSRF token protection for all form submissions
+// 3. Credentials included in all API calls for cookie authentication
+// 4. Removed localStorage usage to prevent XSS token theft
 
 // Helper function to check if token is expired
 export function isTokenExpired(expiresAt: string): boolean {

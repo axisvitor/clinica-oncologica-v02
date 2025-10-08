@@ -23,7 +23,7 @@ interface AuthContextType {
   hasPermission: (permission: string) => boolean
   hasRole: (role: string) => boolean
   // WebSocket helpers
-  getFirebaseToken: () => string | null
+  getFirebaseToken: () => Promise<string | null>
   refreshToken: () => Promise<void>
 }
 
@@ -264,14 +264,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // loginResponse.session_id is just a placeholder ('cookie')
         // Actual session validation happens server-side via cookie
 
+        // Get Firebase token from Firebase Auth SDK (in-memory)
+        const currentFirebaseUser = await firebaseAuth.getCurrentUser()
+        const firebaseToken = currentFirebaseUser ? await currentFirebaseUser.getIdToken() : ''
+
         setUser(loginResponse.user)
         setSession({
-          access_token: localStorage.getItem('firebase_token') || '',
+          access_token: firebaseToken,
           session_id: loginResponse.session_id // 'cookie' placeholder
         })
 
         // Connect WebSocket with Firebase token
-        const firebaseToken = localStorage.getItem('firebase_token')
         if (firebaseToken) {
           wsManager.connect(firebaseToken)
         }
@@ -283,7 +286,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       apiClient.setAuthToken(null)
 
       // Ensure cleanup on error (cookie cleared by backend)
-      localStorage.removeItem('firebase_token')
+      // Firebase Auth SDK automatically clears in-memory token
 
       throw error
     } finally {
@@ -353,7 +356,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       apiClient.setAuthToken(null)
       setUser(null)
       setSession(null)
-      localStorage.removeItem('firebase_token')
+      // Firebase Auth SDK automatically clears in-memory token
       wsManager.disconnect()
 
       throw error
@@ -361,11 +364,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [])
 
   /**
-   * Get current Firebase token from localStorage
+   * Get current Firebase token from Firebase Auth SDK (in-memory)
    * Used by WebSocket connections and direct API calls
+   * SECURITY: No localStorage usage - token managed by Firebase SDK
    */
-  const getFirebaseToken = useCallback((): string | null => {
-    return localStorage.getItem('firebase_token')
+  const getFirebaseToken = useCallback(async (): Promise<string | null> => {
+    try {
+      const currentUser = await firebaseAuth.getCurrentUser()
+      if (!currentUser) return null
+      return await currentUser.getIdToken()
+    } catch (error) {
+      logger.error('Failed to get Firebase token:', error)
+      return null
+    }
   }, [])
 
   /**
@@ -377,7 +388,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const currentUser = await firebaseAuth.getCurrentUser()
       if (currentUser) {
         const newToken = await currentUser.getIdToken(true) // force refresh
-        localStorage.setItem('firebase_token', newToken)
+        // Token automatically updated in Firebase Auth SDK (in-memory)
         apiClient.setAuthToken(newToken)
         logger.info('Firebase token refreshed successfully')
       }

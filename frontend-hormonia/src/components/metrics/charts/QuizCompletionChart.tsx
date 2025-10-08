@@ -4,12 +4,13 @@
  * Visualizes quiz performance metrics including completion rates,
  * time analytics, and quiz type performance.
  */
-import React from 'react';
+import React, { Suspense } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   ComposedChart
-} from 'recharts';
+} from '@/components/charts/LazyRechartsComponents';
+import { ChartSkeleton } from '@/components/ui/chart-skeleton';
 
 interface QuizData {
   total_quizzes_sent: number;
@@ -76,6 +77,7 @@ export const QuizCompletionChart: React.FC<QuizCompletionChartProps> = ({
     return (
       <div className="space-y-4">
         <div className="h-64">
+          <Suspense fallback={<ChartSkeleton height="100%" />}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={trendData}>
               <defs>
@@ -114,6 +116,7 @@ export const QuizCompletionChart: React.FC<QuizCompletionChartProps> = ({
               />
             </AreaChart>
           </ResponsiveContainer>
+          </Suspense>
         </div>
 
         <div className="grid grid-cols-3 gap-4 text-center">
@@ -141,6 +144,7 @@ export const QuizCompletionChart: React.FC<QuizCompletionChartProps> = ({
       <div className="space-y-2">
         <h4 className="font-semibold text-lg">Tendência de Conclusão de Quizzes</h4>
         <div className="h-80">
+          <Suspense fallback={<ChartSkeleton />}>
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={trendData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
@@ -183,6 +187,7 @@ export const QuizCompletionChart: React.FC<QuizCompletionChartProps> = ({
               />
             </ComposedChart>
           </ResponsiveContainer>
+          </Suspense>
         </div>
       </div>
 
@@ -190,6 +195,7 @@ export const QuizCompletionChart: React.FC<QuizCompletionChartProps> = ({
       <div className="space-y-2">
         <h4 className="font-semibold text-lg">Performance por Tipo de Quiz</h4>
         <div className="h-64">
+          <Suspense fallback={<ChartSkeleton />}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={quizTypeData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
@@ -221,6 +227,7 @@ export const QuizCompletionChart: React.FC<QuizCompletionChartProps> = ({
               <Bar dataKey="completed" fill="#10B981" name="Completados" radius={[2, 2, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+          </Suspense>
         </div>
       </div>
 
@@ -229,7 +236,8 @@ export const QuizCompletionChart: React.FC<QuizCompletionChartProps> = ({
         <div className="space-y-2">
           <h4 className="font-semibold text-lg">Status dos Quizzes Mensais</h4>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+            <Suspense fallback={<ChartSkeleton />}>
+          <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={monthlyQuizBreakdown}
@@ -250,13 +258,15 @@ export const QuizCompletionChart: React.FC<QuizCompletionChartProps> = ({
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
+          </Suspense>
           </div>
         </div>
 
         <div className="space-y-2">
           <h4 className="font-semibold text-lg">Status Geral de Conclusão</h4>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+            <Suspense fallback={<ChartSkeleton />}>
+          <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={completionStatusData}
@@ -277,6 +287,7 @@ export const QuizCompletionChart: React.FC<QuizCompletionChartProps> = ({
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
+          </Suspense>
           </div>
         </div>
       </div>
@@ -285,6 +296,7 @@ export const QuizCompletionChart: React.FC<QuizCompletionChartProps> = ({
       <div className="space-y-2">
         <h4 className="font-semibold text-lg">Taxa de Conclusão por Tipo</h4>
         <div className="h-64">
+          <Suspense fallback={<ChartSkeleton />}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={quizTypeData}
@@ -319,6 +331,7 @@ export const QuizCompletionChart: React.FC<QuizCompletionChartProps> = ({
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          </Suspense>
         </div>
       </div>
 

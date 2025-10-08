@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, Suspense } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Calendar, TrendingUp, Users, MessageSquare, Activity, Download, RefreshCw, ChartBar as BarChart3, ListFilter as Filter, ArrowUp, ArrowDown } from 'lucide-react'
 import {
@@ -17,7 +17,8 @@ import {
   PieChart,
   Pie,
   Cell
-} from 'recharts'
+} from '@/components/charts/LazyRechartsComponents'
+import { ChartSkeleton } from '@/components/ui/chart-skeleton'
 import { apiClient } from '../lib/api-client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -300,6 +301,7 @@ export function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
+              <Suspense fallback={<ChartSkeleton height="300px" />}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={engagementTrendData}>
                   <defs>
@@ -335,6 +337,7 @@ export function AnalyticsPage() {
                   />
                 </AreaChart>
               </ResponsiveContainer>
+              </Suspense>
             </div>
           </CardContent>
         </Card>
@@ -404,6 +407,7 @@ export function AnalyticsPage() {
                   </span>
                 </div>
                 <div className="h-[300px] flex items-center justify-center">
+                  <Suspense fallback={<ChartSkeleton height="300px" />}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -438,6 +442,7 @@ export function AnalyticsPage() {
                       />
                     </PieChart>
                   </ResponsiveContainer>
+                  </Suspense>
                 </div>
                 <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3">
                   {treatmentDistribution.distribution.map((item, idx: number) => (
@@ -473,6 +478,7 @@ export function AnalyticsPage() {
         </CardHeader>
         <CardContent>
           <div className="h-[400px]">
+            <Suspense fallback={<ChartSkeleton height="400px" />}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={engagementTrendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -490,6 +496,7 @@ export function AnalyticsPage() {
                 />
               </LineChart>
             </ResponsiveContainer>
+            </Suspense>
           </div>
         </CardContent>
       </Card>
