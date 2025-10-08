@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getSessionData } from '../initialize-session/route'
+import { getSessionData } from '@/lib/quiz-session'
 
 /**
  * Check session status
