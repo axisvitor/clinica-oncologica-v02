@@ -10,10 +10,9 @@ from typing import Optional
 from datetime import timedelta
 
 from app.utils.security import verify_password, create_access_token
-from app.services.session_service import create_session_service, SessionService
 from app.models.user import User
-from app.core.database import get_db
-from sqlalchemy.orm import Session
+from app.services import ServiceProvider
+from app.dependencies.auth_dependencies import _get_service_provider
 
 router = APIRouter(prefix="/api/quiz/auth", tags=["Quiz Authentication"])
 security = HTTPBearer(auto_error=False)
@@ -40,8 +39,7 @@ class LogoutResponse(BaseModel):
 async def quiz_login(
     request: LoginRequest,
     response: Response,
-    db: Session = Depends(get_db),
-    session_service: SessionService = Depends(create_session_service)
+    services: ServiceProvider = Depends(_get_service_provider)
 ):
     """
     Quiz login with httpOnly cookie session
@@ -56,14 +54,13 @@ async def quiz_login(
     Args:
         request: Login credentials
         response: FastAPI response to set cookies
-        db: Database session
-        session_service: Session management service
+        services: Service provider with db and session_service
 
     Returns:
         LoginResponse with user info (NO TOKEN)
     """
     # Verify credentials
-    user = db.query(User).filter(User.email == request.email).first()
+    user = services.db.query(User).filter(User.email == request.email).first()
 
     if not user or not verify_password(request.password, user.hashed_password):
         raise HTTPException(
@@ -78,7 +75,7 @@ async def quiz_login(
         )
 
     # Create session
-    session_id = session_service.create_session(
+    session_id = services.session_service.create_session(
         user_id=str(user.id),
         metadata={
             "email": user.email,
@@ -117,7 +114,7 @@ async def quiz_login(
 async def quiz_logout(
     response: Response,
     quiz_session: Optional[str] = Cookie(None),
-    session_service: SessionService = Depends(create_session_service)
+    services: ServiceProvider = Depends(_get_service_provider)
 ):
     """
     Quiz logout - Clear session and cookie
@@ -125,13 +122,13 @@ async def quiz_logout(
     Args:
         response: FastAPI response
         quiz_session: Session ID from cookie
-        session_service: Session management service
+        services: Service provider
 
     Returns:
         LogoutResponse
     """
     if quiz_session:
-        session_service.delete_session(quiz_session)
+        services.session_service.delete_session(quiz_session)
 
     # Clear cookie
     response.delete_cookie(
@@ -149,16 +146,14 @@ async def quiz_logout(
 @router.get("/me")
 async def get_current_quiz_user(
     quiz_session: Optional[str] = Cookie(None),
-    session_service: SessionService = Depends(create_session_service),
-    db: Session = Depends(get_db)
+    services: ServiceProvider = Depends(_get_service_provider)
 ):
     """
     Get current authenticated user from cookie session
 
     Args:
         quiz_session: Session ID from httpOnly cookie
-        session_service: Session management service
-        db: Database session
+        services: Service provider
 
     Returns:
         User information
@@ -173,7 +168,7 @@ async def get_current_quiz_user(
         )
 
     # Get user_id from session
-    user_id = session_service.get_user_id(quiz_session)
+    user_id = services.session_service.get_user_id(quiz_session)
 
     if not user_id:
         raise HTTPException(
@@ -182,10 +177,10 @@ async def get_current_quiz_user(
         )
 
     # Refresh session if needed
-    session_service.refresh_session(quiz_session)
+    services.session_service.refresh_session(quiz_session)
 
     # Get user from database
-    user = db.query(User).filter(User.id == user_id).first()
+    user = services.db.query(User).filter(User.id == user_id).first()
 
     if not user or not user.is_active:
         raise HTTPException(
@@ -205,14 +200,14 @@ async def get_current_quiz_user(
 @router.post("/refresh")
 async def refresh_quiz_session(
     quiz_session: Optional[str] = Cookie(None),
-    session_service: SessionService = Depends(create_session_service)
+    services: ServiceProvider = Depends(_get_service_provider)
 ):
     """
     Manually refresh session TTL
 
     Args:
         quiz_session: Session ID from cookie
-        session_service: Session management service
+        services: Service provider
 
     Returns:
         Success message
@@ -223,7 +218,7 @@ async def refresh_quiz_session(
             detail="Not authenticated"
         )
 
-    refreshed = session_service.refresh_session(quiz_session)
+    refreshed = services.session_service.refresh_session(quiz_session)
 
     if not refreshed:
         raise HTTPException(
