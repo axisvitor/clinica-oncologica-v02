@@ -11,10 +11,20 @@ import json
 
 class Settings(BaseSettings):
     """Application settings with AWS RDS PostgreSQL integration."""
-    
+
     # Application
     DEBUG: bool = Field(default=True, description="Debug mode")
     ENVIRONMENT: str = Field(default="development", description="Environment name")
+
+    @field_validator('DEBUG', mode='before')
+    @classmethod
+    def parse_debug(cls, v):
+        """Parse DEBUG from string to boolean (Railway sends 'false' as string)."""
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            return v.lower() not in ('false', '0', 'no', 'off', '')
+        return bool(v)
     SECRET_KEY: str = Field(..., description="Secret key for JWT signing")
     JWT_SECRET_KEY: Optional[str] = Field(default=None, description="JWT secret key (fallback to SECRET_KEY if not set)")
     ENCRYPTION_KEY: Optional[str] = Field(default=None, description="Encryption key for sensitive data")
@@ -26,6 +36,16 @@ class Settings(BaseSettings):
     # Security: Session and Cookie Configuration
     SESSION_COOKIE_SECURE: bool = Field(default=False, description="Require HTTPS for session cookies")
     SECURE_SSL_REDIRECT: bool = Field(default=False, description="Force HTTPS redirect")
+
+    @field_validator('SESSION_COOKIE_SECURE', 'SECURE_SSL_REDIRECT', mode='before')
+    @classmethod
+    def parse_bool_fields(cls, v):
+        """Parse boolean fields from string (Railway/env vars send as strings)."""
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            return v.lower() not in ('false', '0', 'no', 'off', '')
+        return bool(v)
 
     # Security: CSRF Protection
     CSRF_SECRET_KEY: Optional[str] = Field(
