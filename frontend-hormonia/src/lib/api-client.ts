@@ -94,6 +94,22 @@ class ApiClient {
       logger.warn('Attempted to set empty base URL')
       return
     }
+
+    // SECURITY: Block HTTP URLs in production to prevent mixed-content errors
+    if (url.startsWith('http://') && typeof window !== 'undefined') {
+      const isProduction = window.location.protocol === 'https:' ||
+                          window.location.hostname !== 'localhost'
+
+      if (isProduction) {
+        logger.error('🚨 SECURITY: Blocked HTTP URL in production:', url)
+        logger.error('   Using HTTPS instead to prevent mixed-content blocking')
+
+        // Force HTTPS by replacing protocol
+        url = url.replace('http://', 'https://')
+        logger.log('   Corrected URL:', url)
+      }
+    }
+
     logger.log('Setting base URL:', url)
     this.baseURL = url
     this.initialized = true
@@ -393,6 +409,43 @@ class ApiClient {
 
     refresh: async (_refreshToken: string) => {
       throw new ApiError(410, { message: 'Local token refresh is disabled. Firebase handles session refresh automatically.' }, 'Local token refresh is disabled. Firebase handles session refresh automatically.')
+    },
+
+    /**
+     * Create backend session with Firebase token
+     * SECURITY: Session ID stored in httpOnly cookie (automatic)
+     */
+    createSession: async (firebaseToken: string, deviceInfo?: Record<string, any>) => {
+      // Use trailing slash to avoid 307 redirect
+      const response = await this.request<{
+        status: string;
+        user: {
+          id: string;
+          email: string;
+          full_name: string;
+          role: string;
+          is_active: boolean;
+          permissions: string[];
+          created_at: string;
+        };
+        session_id?: string; // Optional - may be in cookie only
+      }>('/api/v1/session/', {
+        method: 'POST',
+        credentials: 'include', // CRITICAL: Send/receive cookies
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.csrfToken ? { 'X-CSRF-Token': this.csrfToken } : {})
+        },
+        body: JSON.stringify({
+          firebase_token: firebaseToken,
+          device_info: deviceInfo || {
+            user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+            timestamp: new Date().toISOString()
+          }
+        })
+      });
+
+      return response;
     },
 
     me: async () => {

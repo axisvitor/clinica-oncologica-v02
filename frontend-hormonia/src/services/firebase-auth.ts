@@ -46,6 +46,33 @@ export async function loginUser(
   try {
     logger.log('Attempting Firebase login:', email)
 
+    // VALIDATION: Check API base URL before starting login flow
+    const baseURL = apiClient.getBaseURL()
+    if (!baseURL) {
+      throw new Error('API not initialized. Please refresh the page and try again.')
+    }
+
+    // SECURITY: Ensure HTTPS in production
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+      if (baseURL.startsWith('http://')) {
+        logger.error('🚨 CRITICAL: HTTP detected in HTTPS page')
+        throw new Error('Security error: Cannot connect to insecure backend from secure page. Please contact support.')
+      }
+    }
+
+    // VALIDATION: Ensure CSRF token is available
+    if (!apiClient.getCsrfToken()) {
+      logger.warn('CSRF token not available, attempting to fetch...')
+      try {
+        await apiClient.fetchCsrfToken()
+      } catch (error) {
+        logger.error('Failed to fetch CSRF token:', error)
+        throw new Error('Security validation failed. Please refresh the page and try again.')
+      }
+    }
+
+    logger.log('Pre-login validations passed')
+
     // Step 1: Sign in with Firebase
     const result = await firebaseAuth.signInWithPassword({ email, password })
 
@@ -59,39 +86,36 @@ export async function loginUser(
     const firebaseToken = await result.user.getIdToken()
     logger.log('Firebase token obtained')
 
-    // Step 3: Create backend session via /api/v1/session endpoint
+    // Step 3: Create backend session via apiClient (uses /api/v1/session/ with trailing slash)
     // SECURITY FIX: Session ID is now stored in httpOnly cookie (automatic)
-    const csrfToken = apiClient.getCsrfToken()
-    const sessionResponse = await fetch(`${apiClient.getBaseURL()}/api/v1/session`, {
-      method: 'POST',
-      credentials: 'include',  // CRITICAL: Send/receive cookies
-      headers: {
-        'Content-Type': 'application/json',
-        ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
-      },
-      body: JSON.stringify({
-        firebase_token: firebaseToken,
-        device_info: {
-          user_agent: navigator.userAgent,
-          timestamp: new Date().toISOString()
-        }
+    try {
+      const sessionData = await apiClient.auth.createSession(firebaseToken, {
+        user_agent: navigator.userAgent,
+        timestamp: new Date().toISOString()
       })
-    })
 
-    if (!sessionResponse.ok) {
-      const errorData = await sessionResponse.json().catch(() => ({}))
-      throw new Error(errorData.detail || 'Failed to create backend session')
+      // SECURITY: session_id is now in httpOnly cookie (not in response body)
+      // Browser handles cookie storage automatically
+      if (sessionData.status !== 'authenticated') {
+        throw new Error('Session creation failed - invalid status')
+      }
+
+      logger.log('Backend session created (httpOnly cookie set)')
+    } catch (error) {
+      logger.error('Session creation failed:', error)
+
+      // Provide helpful error message
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          throw new Error('Cannot connect to server. Please check your internet connection and try again.')
+        }
+        if (error.message.includes('blocked') || error.message.includes('CORS')) {
+          throw new Error('Security error: Connection blocked. Please contact support.')
+        }
+      }
+
+      throw error
     }
-
-    const sessionData = await sessionResponse.json()
-
-    // SECURITY: session_id is now in httpOnly cookie (not in response body)
-    // Browser handles cookie storage automatically
-    if (sessionData.status !== 'authenticated') {
-      throw new Error('Session creation failed - invalid status')
-    }
-
-    logger.log('Backend session created (httpOnly cookie set)')
 
     // Step 4: Firebase token stored in memory via Firebase Auth SDK
     // Session ID stored securely in httpOnly cookie (not accessible to JavaScript)
