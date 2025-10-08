@@ -56,7 +56,21 @@
       "Bash(python3.11 -m pytest tests/test_message_scheduler_signature_fix.py -v --tb=short)",
       "Bash(railway run:*)",
       "Bash(timeout 90 railway logs --service backend)",
-      "Bash(claude mcp add:*)"
+      "Bash(claude mcp add:*)",
+      "Bash(claude mcp:*)",
+      "Bash($env:PATH = \"C:\\Users\\joaov\\.local\\bin;$env:PATH\")",
+      "Bash(uv:*)",
+      "Bash(uvx:*)",
+      "Read(//c/Users/joaov/**)",
+      "Bash(bash:*)",
+      "Bash(timeout 60 railway logs --service backend)",
+      "Bash(npm install:*)",
+      "Bash(timeout 120 npm run build)",
+      "Bash(exit 0)",
+      "Bash(npm run test:coverage:*)",
+      "Bash([ -f .env ])",
+      "Bash([ -f .gitignore ])",
+      "Bash(pnpm install:*)"
     ],
     "deny": []
   }

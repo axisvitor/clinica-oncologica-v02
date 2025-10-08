@@ -50,6 +50,14 @@ env/
 .env
 .env.local
 .env.*.local
+.env.production
+.env.staging
+*.env
+!.env.example
+!.env.*.example
+!.env.sentry.example
+.env.local
+.env.*.local
 *.pem
 *.key
 

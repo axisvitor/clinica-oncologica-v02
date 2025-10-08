@@ -1,4 +1,0 @@
-ANALYSIS: Network Configuration Review
-Frontend Timeout: 30000ms (30s)
-Backend DB Timeout: 30s (statement_timeout=30000)
-Backend Redis Timeout: 30s (REDIS_SOCKET_TIMEOUT=30.0)
