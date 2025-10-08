@@ -5,17 +5,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { validateCSRF } from '@/lib/csrf'
+import { storeSession } from '@/lib/quiz-session'
 import { quizAPI } from '@/lib/api'
-
-// Simple in-memory store for session data (in production, use Redis or database)
-const sessions = new Map<string, {
-  token: string
-  sessionData: any
-  expires: number
-}>()
-
-// Session expiry time (4 hours - matches quiz expiry)
-const SESSION_EXPIRY = 4 * 60 * 60 * 1000
 
 /**
  * Initialize secure session with quiz token
@@ -46,17 +37,13 @@ export async function POST(request: NextRequest) {
 
     // Generate secure session ID
     const sessionId = require('crypto').randomBytes(32).toString('hex')
-    const expires = Date.now() + SESSION_EXPIRY
 
     // Store session data
-    sessions.set(sessionId, {
-      token: session.new_token || token, // Use rotated token if available
-      sessionData: session,
-      expires
-    })
-
-    // Clean up expired sessions
-    cleanupExpiredSessions()
+    storeSession(
+      sessionId,
+      session.new_token || token, // Use rotated token if available
+      session
+    )
 
     // Create response
     const response = NextResponse.json({
@@ -64,12 +51,12 @@ export async function POST(request: NextRequest) {
       message: 'Session initialized successfully'
     })
 
-    // Set secure httpOnly cookie
+    // Set secure httpOnly cookie (4 hours)
     response.cookies.set('quiz-session', sessionId, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: SESSION_EXPIRY / 1000,
+      maxAge: 4 * 60 * 60, // 4 hours in seconds
       path: '/'
     })
 
@@ -88,70 +75,5 @@ export async function POST(request: NextRequest) {
       { error: 'Failed to initialize session' },
       { status: 500 }
     )
-  }
-}
-
-/**
- * Get session data from cookie
- */
-export function getSessionData(request: NextRequest) {
-  try {
-    const sessionId = request.cookies.get('quiz-session')?.value
-    if (!sessionId) {
-      return null
-    }
-
-    const sessionData = sessions.get(sessionId)
-    if (!sessionData) {
-      return null
-    }
-
-    // Check if session is expired
-    if (Date.now() > sessionData.expires) {
-      sessions.delete(sessionId)
-      return null
-    }
-
-    return sessionData
-  } catch (error) {
-    console.error('Session data retrieval error:', error)
-    return null
-  }
-}
-
-/**
- * Update session token (for token rotation)
- */
-export function updateSessionToken(request: NextRequest, newToken: string) {
-  try {
-    const sessionId = request.cookies.get('quiz-session')?.value
-    if (!sessionId) {
-      return false
-    }
-
-    const sessionData = sessions.get(sessionId)
-    if (!sessionData) {
-      return false
-    }
-
-    // Update token
-    sessionData.token = newToken
-    sessions.set(sessionId, sessionData)
-    return true
-  } catch (error) {
-    console.error('Session token update error:', error)
-    return false
-  }
-}
-
-/**
- * Clean up expired sessions to prevent memory leaks
- */
-function cleanupExpiredSessions() {
-  const now = Date.now()
-  for (const [sessionId, sessionData] of sessions.entries()) {
-    if (now > sessionData.expires) {
-      sessions.delete(sessionId)
-    }
   }
 }

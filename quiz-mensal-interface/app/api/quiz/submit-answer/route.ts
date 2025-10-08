@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { validateCSRF } from '@/lib/csrf'
-import { getSessionData, updateSessionToken } from '../initialize-session/route'
+import { getSessionData, updateSessionToken } from '@/lib/quiz-session'
 import { quizAPI } from '@/lib/api'
 
 /**
