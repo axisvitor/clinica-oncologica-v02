@@ -332,6 +332,7 @@ async def get_current_user(
 
         stmt = select(User).where(User.firebase_uid == firebase_uid)
         result = await services.db.execute(stmt)
+        # FIX: ChunkedIteratorResult needs to be awaited properly
         user = result.scalar_one_or_none()
 
         if user:

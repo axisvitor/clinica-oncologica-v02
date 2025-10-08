@@ -149,7 +149,9 @@ def create_application(
                 "expires_in": 3600,  # 1 hour
                 "usage": "Include this token in X-CSRF-Token header for POST/PUT/DELETE requests"
             })
-            csrf_protect.set_csrf_cookie(response)
+            # FIX: Use the wrapper function from csrf middleware which handles both params
+            from app.middleware.csrf import set_csrf_cookie as set_csrf_cookie_helper
+            set_csrf_cookie_helper(request, response)
             return response
 
         app.state.csrf_protect = csrf_protect

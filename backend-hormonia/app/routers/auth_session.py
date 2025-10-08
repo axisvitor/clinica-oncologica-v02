@@ -18,7 +18,7 @@ Performance:
 - Full request (warm): ~5ms (95-98% cache hit rate)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Header, status
+from fastapi import APIRouter, Depends, HTTPException, Header, status, Cookie, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
