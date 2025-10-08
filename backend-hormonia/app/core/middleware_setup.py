@@ -107,9 +107,10 @@ def setup_middleware(app: FastAPI) -> None:
         app.add_middleware(
             CORSMiddleware,
             allow_origins=cors_origins,
-            allow_credentials=False,
+            allow_credentials=True,  # ✅ CRITICAL: Required for httpOnly cookies and credentials
             allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-            allow_headers=["Authorization", "Content-Type"],
+            allow_headers=["*"],  # Allow all headers for flexibility
+            expose_headers=["*"],  # Expose all headers to frontend
             max_age=86400
         )
     else:
@@ -120,9 +121,10 @@ def setup_middleware(app: FastAPI) -> None:
         app.add_middleware(
             CORSMiddleware,
             allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
-            allow_credentials=False,
+            allow_credentials=True,  # ✅ CRITICAL: Required for httpOnly cookies and credentials
             allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-            allow_headers=["Authorization", "Content-Type"],
+            allow_headers=["*"],  # Allow all headers for flexibility
+            expose_headers=["*"],  # Expose all headers to frontend
             max_age=86400
         )
 
