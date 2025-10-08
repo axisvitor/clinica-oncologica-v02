@@ -38,7 +38,8 @@ def register_routers(app: FastAPI) -> None:
             platform_sync, template_management, template_versioning, monthly_quiz, monthly_quiz_public, ai, metrics, debug, config, admin_users, admin_roles,
             health_rls, upload, medico, physician  # RLS endpoints, upload, medico dashboard, and physician endpoints
         )
-        from app.routers import quiz_auth, auth_session  # Quiz httpOnly cookie auth + Session-based auth
+        from app.routers.quiz_auth import router as quiz_auth
+        from app.routers.auth_session import router as auth_session
         logger.info("✓ All router imports successful")
     except Exception as e:
         import traceback
@@ -62,7 +63,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 
     # Session-based authentication (Firebase + Redis)
-    app.include_router(auth_session.router, prefix="/api/v1", tags=["Session Authentication"])
+    app.include_router(auth_session, prefix="/api/v1", tags=["Session Authentication"])
     logger.info("✓ Session authentication endpoints registered")
 
     # Medico (Doctor) dashboard and stats endpoints
@@ -93,7 +94,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(monthly_quiz_public.router, prefix="/api/v1/monthly-quiz-public", tags=["Monthly Quiz Public"])
 
     # Quiz httpOnly cookie authentication (P0 Security Fix - CVSS 8.1 resolved)
-    app.include_router(quiz_auth.router, tags=["Quiz Authentication"])
+    app.include_router(quiz_auth, tags=["Quiz Authentication"])
     logger.info("✓ Quiz authentication endpoints registered (httpOnly cookies)")
 
     app.include_router(ai.router, prefix="/api/v1", tags=["AI Services"])
