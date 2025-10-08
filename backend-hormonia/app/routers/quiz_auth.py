@@ -60,7 +60,7 @@ async def quiz_login(
         LoginResponse with user info (NO TOKEN)
     """
     # Verify credentials
-    user = services.db.query(User).filter(User.email == request.email).first()
+    user = services.db.query(User).filter(User.email.ilike(request.email)).first()
 
     if not user or not verify_password(request.password, user.hashed_password):
         raise HTTPException(
