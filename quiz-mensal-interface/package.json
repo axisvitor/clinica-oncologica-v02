@@ -111,7 +111,12 @@
           "useESM": true
         }
       ],
-      "^.+\\.m?js$": "babel-jest"
+      "^.+\\.m?js$": [
+        "babel-jest",
+        {
+          "configFile": "./tests/babel.config.js"
+        }
+      ]
     },
     "extensionsToTreatAsEsm": [
       ".ts",
