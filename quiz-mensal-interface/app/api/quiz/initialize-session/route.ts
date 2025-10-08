@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { validateCSRF } from '../../csrf-token/route'
+import { validateCSRF } from '@/lib/csrf'
 import { quizAPI } from '@/lib/api'
 
 // Simple in-memory store for session data (in production, use Redis or database)
