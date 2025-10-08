@@ -178,7 +178,10 @@ def set_csrf_cookie(request: Request, response):
             return {"message": "logged in"}
     """
     try:
-        csrf_protect.set_csrf_cookie(response)
+        # Generate signed token first (required by fastapi-csrf-protect >= 0.3.0)
+        signed_token = csrf_protect.generate_csrf()
+        # Pass both token and response to set_csrf_cookie
+        csrf_protect.set_csrf_cookie(signed_token, response)
         logger.debug("CSRF cookie set successfully")
     except Exception as e:
         logger.error(f"Failed to set CSRF cookie: {str(e)}")

@@ -199,7 +199,8 @@ async def get_current_user_from_session(
             from sqlalchemy import select
 
             stmt = select(User).where(User.firebase_uid == firebase_uid)
-            result = await services.db.execute(stmt)
+            # FIX: Remove await - services.db is synchronous Session, not AsyncSession
+            result = services.db.execute(stmt)
             user = result.scalar_one_or_none()
 
             if not user:
@@ -331,8 +332,9 @@ async def get_current_user(
         from sqlalchemy import select
 
         stmt = select(User).where(User.firebase_uid == firebase_uid)
-        result = await services.db.execute(stmt)
-        # FIX: ChunkedIteratorResult needs to be awaited properly
+        # FIX: Remove await - services.db is synchronous Session, not AsyncSession
+        # ChunkedIteratorResult is returned by sync session.execute(), not async
+        result = services.db.execute(stmt)
         user = result.scalar_one_or_none()
 
         if user:

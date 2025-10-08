@@ -318,7 +318,8 @@ def _setup_global_exception_handler(app: FastAPI) -> None:
         # Track error (thread-safe) if error tracking is enabled
         if getattr(app.state, 'error_tracking_enabled', True):
             try:
-                await track_error(exc, request)
+                # FIX: track_error is synchronous, not async - remove await
+                track_error(exc, request)
             except Exception as tracking_error:
                 logger.error(f"Error tracking failed: {tracking_error}")
 
