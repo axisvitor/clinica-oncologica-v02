@@ -10,7 +10,7 @@ from typing import Optional
 from datetime import timedelta
 
 from app.utils.security import verify_password, create_access_token
-from app.services.session_service import get_session_service, SessionService
+from app.services.session_service import create_session_service, SessionService
 from app.models.user import User
 from app.core.database import get_db
 from sqlalchemy.orm import Session
@@ -41,7 +41,7 @@ async def quiz_login(
     request: LoginRequest,
     response: Response,
     db: Session = Depends(get_db),
-    session_service: SessionService = Depends(get_session_service)
+    session_service: SessionService = Depends(create_session_service)
 ):
     """
     Quiz login with httpOnly cookie session
@@ -117,7 +117,7 @@ async def quiz_login(
 async def quiz_logout(
     response: Response,
     quiz_session: Optional[str] = Cookie(None),
-    session_service: SessionService = Depends(get_session_service)
+    session_service: SessionService = Depends(create_session_service)
 ):
     """
     Quiz logout - Clear session and cookie
@@ -149,7 +149,7 @@ async def quiz_logout(
 @router.get("/me")
 async def get_current_quiz_user(
     quiz_session: Optional[str] = Cookie(None),
-    session_service: SessionService = Depends(get_session_service),
+    session_service: SessionService = Depends(create_session_service),
     db: Session = Depends(get_db)
 ):
     """
@@ -205,7 +205,7 @@ async def get_current_quiz_user(
 @router.post("/refresh")
 async def refresh_quiz_session(
     quiz_session: Optional[str] = Cookie(None),
-    session_service: SessionService = Depends(get_session_service)
+    session_service: SessionService = Depends(create_session_service)
 ):
     """
     Manually refresh session TTL
