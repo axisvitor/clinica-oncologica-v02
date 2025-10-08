@@ -9,7 +9,7 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import timedelta
 
-from app.core.security import verify_password, create_access_token
+from app.utils.security import verify_password, create_access_token
 from app.services.session_service import get_session_service, SessionService
 from app.models.user import User
 from app.core.database import get_db
