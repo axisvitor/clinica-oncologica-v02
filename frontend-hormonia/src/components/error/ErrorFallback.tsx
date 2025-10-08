@@ -1,7 +1,7 @@
 import React, { ErrorInfo } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 
-interface ErrorFallbackProps {
+export interface ErrorFallbackProps {
   error: Error | null;
   errorInfo: ErrorInfo | null;
   onReset: () => void;
@@ -16,7 +16,7 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
   errorInfo,
   onReset,
 }) => {
-  const isDevelopment = process.env.NODE_ENV === 'development';
+  const isDevelopment = import.meta.env['MODE'] === 'development';
 
   const handleGoHome = (): void => {
     window.location.href = '/';
