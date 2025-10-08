@@ -6,8 +6,6 @@
  */
 
 import React, { Component, ReactNode, ErrorInfo } from 'react';
-import { ErrorBoundary as SentryErrorBoundary } from '@sentry/nextjs';
-import { QuizSentryMonitoring } from '../../lib/monitoring/sentry';
 
 interface QuizErrorBoundaryState {
   hasError: boolean;
