@@ -155,6 +155,3 @@ function cleanupExpiredSessions() {
     }
   }
 }
-
-// Export helper functions
-export { getSessionData, updateSessionToken }
