@@ -2,6 +2,7 @@
 
 from .auth_dependencies import (
     get_current_user,
+    get_current_user_manager,
     get_current_active_user,
     get_optional_user,
     get_admin_user,
@@ -143,6 +144,7 @@ def get_thread_safe_service_provider() -> Generator:
 __all__ = [
     # Auth dependencies
     "get_current_user",
+    "get_current_user_manager",
     "get_current_active_user",
     "get_optional_user",
     "get_admin_user",
