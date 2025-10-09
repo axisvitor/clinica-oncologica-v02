@@ -5,8 +5,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: hormonia-redis
-    # ports:
-    #   - "6379:6379"  # Expose only via internal network
+    ports:
+      - "6379:6379"
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123}
@@ -15,6 +15,23 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: hormonia-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: testdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d testdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Celery worker
   celery-worker:
@@ -25,7 +42,9 @@ services:
       - .:/app
     depends_on:
       - redis
+      - postgres
     environment:
+      - DATABASE_URL=postgresql+psycopg://test:test@postgres:5432/testdb
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-redis123}@redis:6379/0
       - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-redis123}@redis:6379/0
     env_file:
@@ -40,7 +59,9 @@ services:
       - .:/app
     depends_on:
       - redis
+      - postgres
     environment:
+      - DATABASE_URL=postgresql+psycopg://test:test@postgres:5432/testdb
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-redis123}@redis:6379/0
       - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-redis123}@redis:6379/0
     env_file:
@@ -57,7 +78,9 @@ services:
       - .:/app
     depends_on:
       - redis
+      - postgres
     environment:
+      - DATABASE_URL=postgresql+psycopg://test:test@postgres:5432/testdb
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-redis123}@redis:6379/0
       - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-redis123}@redis:6379/0
     env_file:
@@ -65,3 +88,4 @@ services:
 
 volumes:
   redis_data:
+  postgres_data:

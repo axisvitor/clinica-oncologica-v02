@@ -430,16 +430,9 @@ class PatientIntegrityService:
     async def _check_duplicate_cpf(self, cpf: str) -> Optional[Patient]:
         """Check for existing patient with same CPF"""
         try:
-            from sqlalchemy import text
-            # FIX: Use direct 'cpf' column instead of non-existent 'metadata' column
-            result = self.db.execute(
-                text("SELECT * FROM patients WHERE cpf = :cpf"),
-                {"cpf": cpf}
-            ).first()
-
-            if result:
-                return self.repository.get_by_id(result.id)
-            return None
+            # FIX: Use SQLAlchemy ORM query against the dedicated 'cpf' column
+            existing_patient = self.db.query(Patient).filter(Patient.cpf == cpf).first()
+            return existing_patient
         except Exception as e:
             logger.error(f"CPF duplicate check failed: {e}")
             return None
