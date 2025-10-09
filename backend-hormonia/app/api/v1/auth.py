@@ -334,8 +334,14 @@ async def patch_user_preferences(
         else:
             current_prefs = {}
 
-        # Apply updates
-        current_prefs.update(updates)
+        # Filter incoming updates to only include fields defined in UserPreferences
+        valid_fields = set(UserPreferences.model_fields.keys())
+        filtered_updates = {
+            key: value for key, value in updates.items() if key in valid_fields
+        }
+
+        # Apply filtered updates
+        current_prefs.update(filtered_updates)
 
         # Validate updated preferences
         user_prefs = UserPreferences(**current_prefs)
