@@ -8,7 +8,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm, HT
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from app.dependencies import get_thread_safe_db as get_db, get_current_user, get_auth_service
+from app.dependencies import get_thread_safe_db as get_db, get_current_user_manager, get_auth_service
 from app.services.auth import AuthService
 from app.schemas.auth import LoginResponse, RefreshTokenRequest, UserResponse, LoginRequest
 from app.schemas.common import SuccessResponse
@@ -156,7 +156,7 @@ async def refresh_token(
     }
 )
 async def logout(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_manager),
     auth_service: AuthService = Depends(get_auth_service),
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ) -> dict[str, str]:
@@ -217,7 +217,7 @@ async def logout(
         }
     }
 )
-async def get_current_user_profile(current_user: User = Depends(get_current_user)) -> UserResponse:
+async def get_current_user_profile(current_user: User = Depends(get_current_user_manager)) -> UserResponse:
     """
     Get current user profile.
 
@@ -237,7 +237,7 @@ async def get_current_user_profile(current_user: User = Depends(get_current_user
     description="Get preferences for the current authenticated user"
 )
 async def get_user_preferences(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_manager),
     db: Session = Depends(get_db)
 ) -> UserPreferencesResponse:
     """
@@ -277,7 +277,7 @@ async def get_user_preferences(
 )
 async def update_user_preferences(
     preferences: UserPreferences,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_manager),
     db: Session = Depends(get_db)
 ) -> UserPreferencesResponse:
     """
@@ -319,7 +319,7 @@ async def update_user_preferences(
 )
 async def patch_user_preferences(
     updates: Dict[str, Any],
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_manager),
     db: Session = Depends(get_db)
 ) -> UserPreferencesResponse:
     """
@@ -377,7 +377,7 @@ async def patch_user_preferences(
     description="Reset user preferences to defaults"
 )
 async def reset_user_preferences(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_manager),
     db: Session = Depends(get_db)
 ) -> SuccessResponse:
     """
@@ -418,7 +418,7 @@ async def reset_user_preferences(
     description="Get notifications for the current authenticated user"
 )
 async def get_notifications(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_manager),
     db: Session = Depends(get_db),
     limit: int = Query(default=10, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
@@ -462,7 +462,7 @@ async def get_notifications(
 )
 async def mark_notification_as_read(
     notification_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_manager),
     db: Session = Depends(get_db)
 ) -> SuccessResponse:
     """
@@ -492,7 +492,7 @@ async def mark_notification_as_read(
     description="Mark all notifications as read for the current user"
 )
 async def mark_all_notifications_as_read(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_manager),
     db: Session = Depends(get_db)
 ) -> SuccessResponse:
     """
@@ -523,7 +523,7 @@ async def mark_all_notifications_as_read(
 )
 async def delete_notification(
     notification_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_manager),
     db: Session = Depends(get_db)
 ) -> SuccessResponse:
     """
@@ -581,7 +581,7 @@ class PasswordChangeRequest(BaseModel):
 async def update_profile(
     request: Request,
     profile_data: ProfileUpdateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_manager),
     db: Session = Depends(get_db)
 ) -> ProfileUpdateResponse:
     """
@@ -655,7 +655,7 @@ async def update_profile(
 async def upload_avatar(
     request: Request,
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_manager),
     db: Session = Depends(get_db)
 ):
     """
@@ -680,7 +680,7 @@ async def upload_avatar(
 async def change_password(
     request: Request,
     password_data: PasswordChangeRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_manager),
     db: Session = Depends(get_db)
 ) -> SuccessResponse:
     """
