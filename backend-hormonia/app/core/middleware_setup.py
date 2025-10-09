@@ -100,17 +100,22 @@ def setup_middleware(app: FastAPI) -> None:
     is_production = settings.ENVIRONMENT.lower() == "production"
 
     if is_production:
-        # Production: use explicit domains only
-        logger.info(f"CORS Production Mode: {len(cors_origins)} allowed origins")
-        logger.info(f"Allowed origins: {cors_origins}")
+        # Production: Allow all subdomains from Railway and any explicitly configured origins.
+        # This is more flexible for preview environments on Railway.
+        railway_wildcard = "https://*.up.railway.app"
+        # Combine explicitly configured origins with the railway wildcard
+        allowed_origins = list(set(cors_origins + [railway_wildcard]))
+
+        logger.info(f"CORS Production Mode: {len(allowed_origins)} allowed origin patterns")
+        logger.info(f"Allowed origins: {allowed_origins}")
 
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=cors_origins,
-            allow_credentials=True,  # ✅ CRITICAL: Required for httpOnly cookies and credentials
+            allow_origins=allowed_origins,
+            allow_credentials=True,
             allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-            allow_headers=["*"],  # Allow all headers for flexibility
-            expose_headers=["*"],  # Expose all headers to frontend
+            allow_headers=["*"],
+            expose_headers=["*"],
             max_age=86400
         )
     else:
