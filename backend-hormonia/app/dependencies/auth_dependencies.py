@@ -6,7 +6,7 @@ Dual authentication system:
 
 All Supabase fallback code has been removed.
 """
-from fastapi import Depends, HTTPException, status, Header
+from fastapi import Depends, HTTPException, status, Header, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, Dict, List, Any
 import logging
@@ -251,6 +251,56 @@ async def get_current_user_from_session(
             headers={"WWW-Authenticate": "Session"}
         )
 
+async def get_user_by_firebase_uid(firebase_uid: str, services: ServiceProvider) -> Optional[User]:
+    """
+    Get user from database by firebase_uid.
+    """
+    from app.models.user import User
+    from sqlalchemy import select
+
+    stmt = select(User).where(User.firebase_uid == firebase_uid)
+    result = services.db.execute(stmt)
+    user = result.scalar_one_or_none()
+    return user
+
+async def get_current_user_manager(
+    request: Request,
+    services: ServiceProvider = Depends(_get_service_provider),
+    redis_cache: 'FirebaseRedisCache' = Depends(get_redis_cache),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+) -> User:
+    """
+    Get current authenticated user by validating Redis session or Firebase token.
+    """
+    session_id = request.headers.get("X-Session-ID")
+    if session_id:
+        try:
+            user_data = await get_current_user_from_session(session_id, services, redis_cache)
+            if not user_data:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session")
+
+            user = await get_user_by_firebase_uid(user_data["firebase_uid"], services)
+            if not user:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+            return user
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Session validation failed: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session validation failed")
+
+    if credentials:
+        try:
+            return await get_current_user(credentials, services)
+        except HTTPException:
+            raise
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Not authenticated",
+        headers={"WWW-Authenticate": "Bearer or X-Session-ID"},
+    )
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     services: ServiceProvider = Depends(_get_service_provider)
