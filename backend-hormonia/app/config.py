@@ -119,15 +119,6 @@ class Settings(BaseSettings):
     )
 
 
-    # File Upload Settings
-    UPLOAD_DIR: str = Field(
-        default="uploads",
-        description="Directory for uploaded files (relative or absolute path)"
-    )
-    MAX_UPLOAD_SIZE: int = Field(
-        default=10 * 1024 * 1024,  # 10MB
-        description="Maximum file upload size in bytes"
-    )
     
     # Database (AWS RDS PostgreSQL)
     DATABASE_URL: str = Field(..., description="AWS RDS PostgreSQL connection string")
