@@ -12,6 +12,7 @@ export default function Home() {
   const [quizSession, setQuizSession] = useState<QuizSession | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<QuizError | null>(null)
+  const [authToken, setAuthToken] = useState<string | null>(null)
 
   useEffect(() => {
     initializeQuiz()
@@ -35,20 +36,27 @@ export default function Home() {
         return
       }
 
-      // Get token from URL and clean it immediately
-      const urlToken = extractTokenFromURL()
+      // Logic to get token from state or URL
+      let currentAuthToken = authToken
+      if (!currentAuthToken) {
+        const tokenFromUrl = extractTokenFromURL()
+        if (tokenFromUrl) {
+          setAuthToken(tokenFromUrl) // Save for retries
+          currentAuthToken = tokenFromUrl
+        }
+      }
 
-      if (!urlToken) {
+      if (!currentAuthToken) {
         setError({
           detail: "Token de acesso não encontrado. Por favor, use o link enviado para você.",
-          status: 400
+          status: 400,
         })
         setIsLoading(false)
         return
       }
 
       // Initialize secure session with token
-      const session = await secureCookieAuth.initializeSession(urlToken)
+      const session = await secureCookieAuth.initializeSession(currentAuthToken)
 
       // Check if token is expired
       if (isTokenExpired(session.expires_at)) {
