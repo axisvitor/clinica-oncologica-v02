@@ -23,16 +23,98 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 import logging
-import uuid
+import secrets
 from datetime import datetime
 
 from app.models.user import User
 from app.services import ServiceProvider
+from app.services.audit_log import AuditLogService
 from app.dependencies.auth_dependencies import _firebase_service, _get_service_provider
+from app.middleware.csrf import validate_csrf_token
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/session", tags=["Session Authentication"])
 security = HTTPBearer()
+
+
+# =============================================================================
+# SECURITY UTILITIES
+# =============================================================================
+
+def generate_session_id() -> str:
+    """
+    Generate cryptographically secure session ID with 256-bit entropy.
+
+    Uses secrets.token_urlsafe(32) which generates:
+    - 32 bytes = 256 bits of entropy
+    - URL-safe base64 encoding (43 characters)
+    - Cryptographically strong random number generator
+
+    This prevents session fixation attacks by ensuring:
+    1. Unpredictable session IDs
+    2. High entropy (2^256 possible values)
+    3. No timing attacks possible
+
+    Returns:
+        str: URL-safe session ID with 256-bit entropy
+    """
+    return secrets.token_urlsafe(32)
+
+
+async def regenerate_session(
+    firebase_cache,
+    old_session_id: Optional[str],
+    user_id: str,
+    firebase_uid: str,
+    metadata: Dict[str, Any]
+) -> str:
+    """
+    Regenerate session ID after authentication to prevent session fixation.
+
+    Session fixation attack scenario:
+    1. Attacker gets a valid session ID
+    2. Attacker tricks user into authenticating with that session ID
+    3. Attacker uses the same session ID to access user's account
+
+    Defense: Always generate NEW session ID after successful authentication.
+
+    Args:
+        firebase_cache: Redis cache manager
+        old_session_id: Session ID before authentication (if any)
+        user_id: Database user ID
+        firebase_uid: Firebase UID
+        metadata: Session metadata
+
+    Returns:
+        str: New session ID with 256-bit entropy
+    """
+    # Generate new session ID with 256-bit entropy
+    new_session_id = generate_session_id()
+
+    # Invalidate old session if it exists
+    if old_session_id:
+        try:
+            await firebase_cache.invalidate_session(old_session_id)
+            logger.info(f"Invalidated old session: {old_session_id[:8]}... during regeneration")
+        except Exception as e:
+            logger.warning(f"Failed to invalidate old session: {str(e)}")
+
+    # Create new session
+    success = await firebase_cache.create_session(
+        session_id=new_session_id,
+        user_id=user_id,
+        firebase_uid=firebase_uid,
+        metadata=metadata
+    )
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to regenerate session"
+        )
+
+    logger.info(f"✅ Session regenerated: {new_session_id[:8]}... for user {user_id}")
+    return new_session_id
 
 
 # =============================================================================
@@ -88,7 +170,7 @@ class CacheStatsResponse(BaseModel):
     "/",
     response_model=SessionResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[]  # CSRF protection will be added after testing
+    dependencies=[Depends(validate_csrf_token)]
 )
 async def create_session(
     request: SessionCreateRequest,
@@ -131,7 +213,16 @@ async def create_session(
 
     try:
         # Validate Firebase token (200ms)
-        user_data = await _firebase_service.verify_token(request.firebase_token)
+        try:
+            user_data = await _firebase_service.verify_token(request.firebase_token)
+        except Exception as e:
+            logger.error(f"Firebase token verification failed: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Invalid Firebase token: {str(e)}",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+
         firebase_uid = user_data["uid"]
         email = user_data.get("email")
 
@@ -176,9 +267,6 @@ async def create_session(
         redis_client = redis_manager.get_compatible_client("sync")
         firebase_cache = FirebaseRedisCache(redis_client)
 
-        # Generate session ID
-        session_id = str(uuid.uuid4())
-
         # Session metadata
         metadata = {
             "email": user.email,
@@ -186,20 +274,16 @@ async def create_session(
             **(request.device_info or {})
         }
 
-        # Create session (24 hours TTL by default)
-        success = await firebase_cache.create_session(
-            session_id=session_id,
+        # SECURITY: Regenerate session ID after authentication to prevent session fixation
+        # In this endpoint, there's no old session (new login), but we use regenerate_session
+        # for consistency and to ensure 256-bit entropy
+        session_id = await regenerate_session(
+            firebase_cache=firebase_cache,
+            old_session_id=None,  # No old session for new login
             user_id=str(user.id),
             firebase_uid=firebase_uid,
             metadata=metadata
         )
-
-        if not success:
-            logger.error(f"Failed to create Redis session for {email}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create session in Redis"
-            )
 
         # Also cache user object (Layer 2)
         user_dict = {
@@ -219,6 +303,20 @@ async def create_session(
         expires_at = datetime.utcnow() + timedelta(seconds=ttl)
 
         logger.info(f"✅ Session created: {session_id[:8]}... for {email}")
+
+        # Log audit event
+        try:
+            audit_service = AuditLogService(services.db)
+            from fastapi import Request
+            # Create mock request with headers for audit logging
+            class MockRequest:
+                def __init__(self):
+                    self.headers = {}
+                    self.client = None
+            mock_request = MockRequest()
+            audit_service.log_session_created(user, session_id, request=mock_request, metadata=metadata)
+        except Exception as audit_error:
+            logger.warning(f"Failed to log audit event: {audit_error}")
 
         # SECURITY FIX: Set httpOnly cookie instead of returning session_id in JSON
         # This prevents XSS attacks from stealing session credentials
@@ -331,7 +429,7 @@ async def validate_session(
 @router.delete(
     "/logout",
     response_model=LogoutResponse,
-    dependencies=[]  # CSRF protection will be added after testing
+    dependencies=[Depends(validate_csrf_token)]
 )
 async def logout_session(
     response: Response,
@@ -370,8 +468,26 @@ async def logout_session(
         redis_client = redis_manager.get_compatible_client("sync")
         firebase_cache = FirebaseRedisCache(redis_client)
 
+        # Get session data before deletion for audit log
+        session_data = await firebase_cache.get_session(final_session_id)
+        user_id = session_data.get("user_id") if session_data else None
+
         # Delete session from Redis
         deleted = await firebase_cache.invalidate_session(final_session_id)
+
+        # Log audit event
+        if user_id:
+            try:
+                audit_service = AuditLogService(services.db)
+                from fastapi import Request
+                class MockRequest:
+                    def __init__(self):
+                        self.headers = {}
+                        self.client = None
+                mock_request = MockRequest()
+                audit_service.log_session_invalidated(user_id, final_session_id, reason="logout", request=mock_request)
+            except Exception as audit_error:
+                logger.warning(f"Failed to log audit event: {audit_error}")
 
         # SECURITY: Clear httpOnly cookie regardless of Redis result
         response.delete_cookie(
@@ -407,7 +523,7 @@ async def logout_session(
 @router.delete(
     "/logout-all",
     response_model=LogoutResponse,
-    dependencies=[]  # CSRF protection will be added after testing
+    dependencies=[Depends(validate_csrf_token)]
 )
 async def logout_all_sessions(
     credentials: HTTPAuthorizationCredentials = Depends(security),
