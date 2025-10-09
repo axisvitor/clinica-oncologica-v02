@@ -166,6 +166,7 @@ async def get_current_user_from_session(
         HTTPException 401: Invalid or expired session
         HTTPException 403: User account is inactive
     """
+    logger.info(f"Attempting to authenticate user from session ID: {session_id[:8]}...")
     try:
 
         # Layer 1: Get session from Redis (~2-5ms)
@@ -199,7 +200,6 @@ async def get_current_user_from_session(
             from sqlalchemy import select
 
             stmt = select(User).where(User.firebase_uid == firebase_uid)
-            # FIX: Remove await - services.db is synchronous Session, not AsyncSession
             result = services.db.execute(stmt)
             user = result.scalar_one_or_none()
 
@@ -284,11 +284,13 @@ async def get_current_user(
     """
     # Check if Firebase is configured
     if _firebase_service is None:
+        logger.critical("Firebase authentication service is not initialized.")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Firebase authentication is not configured"
         )
 
+    logger.info("Starting Firebase token verification process.")
     try:
         # Initialize 3-layer Redis cache
         from app.core.redis_manager import FirebaseRedisCache, get_redis_manager
@@ -297,6 +299,7 @@ async def get_current_user(
         firebase_cache = FirebaseRedisCache(redis_client)
 
         id_token = credentials.credentials
+        logger.debug(f"Received token: {id_token[:30]}...")
 
         # === LAYER 1: TOKEN VALIDATION CACHE (5ms on hit, 200ms on miss) ===
         cached_token = firebase_cache.get_cached_token(id_token)
@@ -308,8 +311,13 @@ async def get_current_user(
         else:
             # MISS: Validate with Firebase Admin SDK (200ms)
             logger.debug("❌ Token cache MISS - validating with Firebase")
-            user_data = await _firebase_service.verify_token(id_token)
-            firebase_uid = user_data["uid"]
+            try:
+                user_data = await _firebase_service.verify_token(id_token)
+                firebase_uid = user_data["uid"]
+                logger.info(f"Firebase token verified for UID: {firebase_uid}")
+            except Exception as e:
+                logger.error(f"Firebase token verification failed: {e}", exc_info=True)
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Firebase token")
 
             # Cache validated token (1 hour TTL)
             firebase_cache.cache_validated_token(id_token, user_data)
@@ -332,14 +340,12 @@ async def get_current_user(
         from sqlalchemy import select
 
         stmt = select(User).where(User.firebase_uid == firebase_uid)
-        # FIX: Remove await - services.db is synchronous Session, not AsyncSession
-        # ChunkedIteratorResult is returned by sync session.execute(), not async
         result = services.db.execute(stmt)
         user = result.scalar_one_or_none()
 
         if user:
             # User exists - cache and return
-            logger.debug(f"User found in database: {user.email}")
+            logger.info(f"User found in database: {user.email} ({user.id})")
 
             # Cache user for 2 hours
             user_dict = {
