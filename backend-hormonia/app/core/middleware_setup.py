@@ -93,46 +93,17 @@ def setup_middleware(app: FastAPI) -> None:
     )
     logger.info("Enhanced compression middleware added")
     
-    # CORS middleware - Dynamic configuration (domain-only in prod, regex in dev)
+    # CORS middleware - Disabled as per user request
     from fastapi.middleware.cors import CORSMiddleware
 
-    cors_origins = settings.get_cors_origins()
-    is_production = settings.ENVIRONMENT.lower() == "production"
+    logger.warning("CORS restrictions are disabled. Allowing all origins.")
 
-    if is_production:
-        # Production: Allow all subdomains from Railway and any explicitly configured origins.
-        # This is more flexible for preview environments on Railway.
-        railway_wildcard = "https://*.up.railway.app"
-        # Combine explicitly configured origins with the railway wildcard
-        allowed_origins = list(set(cors_origins + [railway_wildcard]))
-
-        logger.info(f"CORS Production Mode: {len(allowed_origins)} allowed origin patterns")
-        logger.info(f"Allowed origins: {allowed_origins}")
-
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=allowed_origins,
-            allow_credentials=True,
-            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-            allow_headers=["*"],
-            expose_headers=["*"],
-            max_age=86400
-        )
-    else:
-        # Development: use regex for localhost/127.0.0.1 with any port
-        logger.info("CORS Development Mode: Using regex for localhost (any port)")
-        logger.info("Allowed pattern: http(s)://localhost:* and http(s)://127.0.0.1:*")
-
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
-            allow_credentials=True,  # ✅ CRITICAL: Required for httpOnly cookies and credentials
-            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-            allow_headers=["*"],  # Allow all headers for flexibility
-            expose_headers=["*"],  # Expose all headers to frontend
-            max_age=86400
-        )
-
-    logger.info("Dynamic CORS middleware configured successfully")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     
     logger.info("All middleware configured successfully")
