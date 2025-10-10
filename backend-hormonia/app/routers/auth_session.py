@@ -34,6 +34,7 @@ from app.dependencies.auth_dependencies import _firebase_service, _get_service_p
 from app.dependencies.simple_service_provider import get_simple_service_provider
 from app.database import get_db
 from app.middleware.csrf import validate_csrf_token
+from app.middleware.custom_csrf import validate_custom_csrf
 from app.utils.rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
