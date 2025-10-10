@@ -1,7 +1,7 @@
 """Add delivery status tracking to messages
 
 Revision ID: 20251009_235900
-Revises: 20251009_230000
+Revises: 20251009_235500
 Create Date: 2025-10-09 23:59:00.000000
 
 """
@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '20251009_235900'
-down_revision = '20251009_230000'
+down_revision = '20251009_235500'
 branch_labels = None
 depends_on = None
 
