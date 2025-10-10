@@ -83,7 +83,8 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git merge:*)",
-      "Bash(where npm)"
+      "Bash(where npm)",
+      "Bash(alembic current:*)"
     ],
     "deny": []
   }

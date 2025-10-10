@@ -32,8 +32,9 @@ class UserSyncLog(BaseModel):
     success = Column(Boolean, nullable=False)
     error_message = Column(Text, nullable=True)
 
-    # Timestamp
+    # Timestamps
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now(), index=True)
 
     def __repr__(self):
         return f"<UserSyncLog(firebase_uid='{self.firebase_uid}', operation='{self.operation}', success={self.success})>"

@@ -2,7 +2,7 @@
 SQLAlchemy models for Hormonia Backend System.
 """
 from app.models.base import BaseModel
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, AuthProvider
 from app.models.patient import Patient, FlowState
 from app.models.message import Message, MessageDirection, MessageType, MessageStatus
 from app.models.message_events import MessageStatusEvent, EvolutionWebhookEvent
@@ -30,6 +30,7 @@ from app.models.physician import (
 )
 # Audit logging models
 from app.models.audit_log import AuditLog, AuditEventType
+from app.models.user_sync_log import UserSyncLog
 
 # Sprint 1: Eager loading optimization models (P1-2)
 from app.models.treatment import Treatment, TreatmentStatus, TreatmentType
@@ -42,6 +43,7 @@ from app.models.consent import Consent, ConsentType, ConsentStatus
 # Sprint 2: Webhook idempotency (P6)
 # Import as WebhookEvent to replace old message_events.WebhookEvent
 from app.models.webhook_event import WebhookEvent
+from app.models.failed_message import FailedMessage, FailureReason, DLQStatus
 
 __all__ = [
     # Base
@@ -50,6 +52,7 @@ __all__ = [
     # User models
     "User",
     "UserRole",
+    "AuthProvider",
 
     # Patient models
     "Patient",
@@ -105,6 +108,7 @@ __all__ = [
     # Audit logging models
     "AuditLog",
     "AuditEventType",
+    "UserSyncLog",
 
     # Sprint 1: Eager loading optimization models (P1-2)
     "Treatment",
@@ -123,4 +127,7 @@ __all__ = [
     "ConsentStatus",
 
     # Sprint 2: Webhook idempotency (P6) - WebhookEvent exported above
+    "FailedMessage",
+    "FailureReason",
+    "DLQStatus",
 ]
