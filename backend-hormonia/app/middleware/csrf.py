@@ -252,28 +252,24 @@ async def validate_csrf_token(request: Request):
             return {"message": "protected"}
     """
     try:
+        await csrf_protect.validate_csrf(request)
+        logger.debug(f"CSRF validation successful for {request.url.path}")
+    except CsrfProtectError as e:
         # PRODUCTION WORKAROUND: For cross-domain Railway deployment
-        # Check if we have X-CSRF-Token header but missing cookie
+        # If standard validation fails, try header-only validation
         csrf_header = request.headers.get("X-CSRF-Token")
         csrf_cookie = request.cookies.get("fastapi-csrf-token")
         
-        if csrf_header and not csrf_cookie:
-            # Cross-domain scenario: validate header token manually
+        if csrf_header and not csrf_cookie and "Missing Cookie" in str(e):
+            # Cross-domain scenario: accept valid header token format
             logger.debug(f"CSRF validation using header-only mode for {request.url.path}")
             
-            # Simple validation: check if token format is correct (JWT-like)
-            if len(csrf_header) > 50 and '.' in csrf_header:
+            # Simple validation: check if token format is correct (base64-like with dots)
+            if len(csrf_header) > 50 and '.' in csrf_header and csrf_header.count('.') >= 1:
                 logger.debug(f"CSRF validation successful (header-only) for {request.url.path}")
                 return  # Accept the token
-            else:
-                logger.warning(f"CSRF token format invalid for {request.url.path}")
-                raise CsrfProtectError("Invalid CSRF token format")
         
-        # Standard validation with cookie
-        await csrf_protect.validate_csrf(request)
-        logger.debug(f"CSRF validation successful for {request.url.path}")
-        
-    except CsrfProtectError as e:
+        # If workaround doesn't apply, raise the original error
         logger.warning(
             f"CSRF validation failed for {request.url.path}: {str(e)}",
             extra={

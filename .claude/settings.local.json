@@ -84,7 +84,9 @@
       "Bash(git commit:*)",
       "Bash(git merge:*)",
       "Bash(where npm)",
-      "Bash(alembic current:*)"
+      "Bash(alembic current:*)",
+      "Bash(where pytest)",
+      "Bash(Select-Object -Last 30)"
     ],
     "deny": []
   }

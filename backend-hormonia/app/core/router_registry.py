@@ -66,6 +66,14 @@ def register_routers(app: FastAPI) -> None:
     # Session-based authentication (Firebase + Redis)
     app.include_router(auth_session, prefix="/api/v1", tags=["Session Authentication"])
     logger.info("✓ Session authentication endpoints registered")
+    
+    # Test endpoint for debugging
+    try:
+        from app.routers.test_endpoint import router as test_router
+        app.include_router(test_router, prefix="/api/v1", tags=["Test"])
+        logger.info("✓ Test endpoints registered")
+    except ImportError:
+        logger.warning("Test endpoints not available")
 
     # Medico (Doctor) dashboard and stats endpoints
     app.include_router(medico.router, prefix="/api/v1", tags=["Medico"])

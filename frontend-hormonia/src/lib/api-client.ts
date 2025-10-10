@@ -174,15 +174,8 @@ class ApiClient {
             throw new Error('Invalid CSRF token format received from server')
           }
           
-          // WORKAROUND: Since backend has token sync issue, try to extract from cookie
-          // The cookie contains the actual token that will be validated
-          const cookieToken = this.extractCsrfTokenFromCookie()
-          if (cookieToken) {
-            logger.debug('[ApiClient] Using CSRF token from cookie instead of JSON response')
-            this.csrfToken = cookieToken
-          } else {
-            this.csrfToken = csrfToken
-          }
+          // Use the token from JSON response (now fixed in backend)
+          this.csrfToken = csrfToken
           
           logger.debug('[ApiClient] CSRF token fetched successfully')
         } else {
