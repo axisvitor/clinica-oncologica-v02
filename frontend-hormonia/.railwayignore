@@ -1,0 +1,5 @@
+# Force clean build - ignore cache directories
+node_modules/.vite/
+dist/
+.vite/
+*.log
