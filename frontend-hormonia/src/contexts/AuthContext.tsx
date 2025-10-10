@@ -263,26 +263,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
           logger.error('Failed to set persistence, continuing with default:', error)
         }
 
-        // Fetch fresh CSRF token before creating backend session
-        try {
-          await apiClient.fetchCsrfToken()
-          logger.log('CSRF token refreshed before login')
-        } catch (error) {
-          logger.warn('Failed to refresh CSRF token before login:', error)
-        }
-
         // Use new firebase-auth service with session management
+        // Note: CSRF token fetch is handled inside loginUser()
         const loginResponse = await firebaseAuthService.loginUser(email, password)
 
         logger.log('Firebase login successful (session in httpOnly cookie)')
-
-        // Refresh CSRF token after session creation
-        try {
-          await apiClient.fetchCsrfToken()
-          logger.log('CSRF token refreshed after login')
-        } catch (error) {
-          logger.warn('Failed to refresh CSRF token after login:', error)
-        }
 
         // SECURITY: session_id is now in httpOnly cookie (not exposed to JavaScript)
         // loginResponse.session_id is just a placeholder ('cookie')
