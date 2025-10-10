@@ -105,6 +105,11 @@ def test_engine():
     engine = create_engine(
         database_url,
         pool_pre_ping=True,
+        pool_recycle=3600,
+        connect_args={
+            "connect_timeout": 5,  # 5 second timeout to prevent hanging
+            "options": "-c statement_timeout=30000"  # 30 second query timeout
+        },
         echo=False  # Set to True for SQL debugging
     )
 
@@ -134,8 +139,10 @@ async def async_test_engine():
         echo=False,
         poolclass=NullPool,  # Disable connection pooling for tests
         connect_args={
+            "timeout": 5,  # 5 second timeout to prevent hanging
             "server_settings": {
-                "jit": "off"  # Disable JIT for faster tests
+                "jit": "off",  # Disable JIT for faster tests
+                "statement_timeout": "30000"  # 30 second query timeout
             },
             "statement_cache_size": 0  # Disable prepared statements for direct connection
         }
@@ -271,12 +278,19 @@ def test_admin_firebase_uid():
 
 
 # Cleanup fixture
-@pytest.fixture(autouse=True)
+@pytest.fixture  # FIXED: Removed autouse=True to prevent pytest hanging
 def cleanup_after_test(db_session):
     """
-    Automatically cleanup after each test.
+    Cleanup after test - NO LONGER AUTOUSE.
 
-    Runs after every test to ensure clean state.
+    Must be explicitly requested by tests that need cleanup:
+        @pytest.mark.usefixtures("cleanup_after_test")
+
+    This prevents forcing database connection for all tests.
+
+    The autouse=True was causing pytest to hang during test collection
+    because it forced db_session initialization for ALL tests, even those
+    that don't need database access.
     """
     yield
 
