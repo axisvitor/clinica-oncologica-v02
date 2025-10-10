@@ -14,6 +14,7 @@ import logging
 from app.models.user import User, UserRole
 from app.services import ServiceProvider
 from app.config import settings
+from app.core.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 security = HTTPBearer()
@@ -135,6 +136,22 @@ async def verify_firebase_token(id_token: str) -> Optional[Dict[str, Any]]:
         )
 
 
+import asyncio
+
+
+def _get_user_from_db(firebase_uid: str) -> Optional[User]:
+    """
+    Synchronous function to fetch a user from the database in a thread-safe manner.
+    Creates its own database session to avoid sharing sessions across threads.
+    """
+    with SessionLocal() as db:
+        from app.models.user import User
+        from sqlalchemy import select
+        stmt = select(User).where(User.firebase_uid == firebase_uid)
+        result = db.execute(stmt)
+        return result.scalar_one_or_none()
+
+
 async def get_current_user_from_session(
     session_id: str = Cookie(None, alias="session_id"),
     x_session_id: str = Header(None, alias="X-Session-ID"),
@@ -203,13 +220,7 @@ async def get_current_user_from_session(
             # Cache miss: Query PostgreSQL and cache result
             logger.info(f"Cache miss for user: {firebase_uid[:8]}... Querying database.")
 
-            from app.models.user import User
-            from sqlalchemy import select
-
-            stmt = select(User).where(User.firebase_uid == firebase_uid)
-            # FIX: Remove await - services.db is synchronous Session, not AsyncSession
-            result = services.db.execute(stmt)
-            user = result.scalar_one_or_none()
+            user = await asyncio.to_thread(_get_user_from_db, firebase_uid)
 
             if not user:
                 logger.error(f"User not found in database: {firebase_uid[:8]}...")
