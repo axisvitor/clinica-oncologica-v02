@@ -63,15 +63,19 @@ export async function loginUser(
       }
     }
 
-    // VALIDATION: Ensure CSRF token is available
-    if (!apiClient.getCsrfToken()) {
-      logger.warn('CSRF token not available, attempting to fetch...')
-      try {
-        await apiClient.fetchCsrfToken()
-      } catch (error) {
-        logger.error('Failed to fetch CSRF token:', error)
-        throw new Error('Security validation failed. Please refresh the page and try again.')
+    // VALIDATION: ALWAYS fetch fresh CSRF token before login
+    // This ensures we have the latest token and prevents concurrent fetch issues
+    logger.log('Fetching fresh CSRF token for login...')
+    try {
+      await apiClient.fetchCsrfToken()
+      const csrfToken = apiClient.getCsrfToken()
+      if (!csrfToken) {
+        throw new Error('CSRF token not available after fetch')
       }
+      logger.log('Fresh CSRF token obtained:', csrfToken.substring(0, 16) + '...')
+    } catch (error) {
+      logger.error('Failed to fetch CSRF token:', error)
+      throw new Error('Security validation failed. Please refresh the page and try again.')
     }
 
     logger.log('Pre-login validations passed')
