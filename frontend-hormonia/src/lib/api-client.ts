@@ -162,7 +162,28 @@ class ApiClient {
 
         if (response.ok) {
           const data = await response.json()
-          this.csrfToken = data.csrf_token
+          let csrfToken = data.csrf_token
+          
+          // FIX: Backend returns CSRF token as array [token_id, signed_token]
+          // We need the signed token (second element) for validation
+          if (Array.isArray(csrfToken) && csrfToken.length >= 2) {
+            csrfToken = csrfToken[1] // Use the signed token
+            logger.debug('[ApiClient] CSRF token extracted from array format')
+          } else if (typeof csrfToken !== 'string') {
+            logger.error('[ApiClient] Unexpected CSRF token format:', typeof csrfToken, csrfToken)
+            throw new Error('Invalid CSRF token format received from server')
+          }
+          
+          // WORKAROUND: Since backend has token sync issue, try to extract from cookie
+          // The cookie contains the actual token that will be validated
+          const cookieToken = this.extractCsrfTokenFromCookie()
+          if (cookieToken) {
+            logger.debug('[ApiClient] Using CSRF token from cookie instead of JSON response')
+            this.csrfToken = cookieToken
+          } else {
+            this.csrfToken = csrfToken
+          }
+          
           logger.debug('[ApiClient] CSRF token fetched successfully')
         } else {
           logger.warn('[ApiClient] Failed to fetch CSRF token:', response.status)
@@ -185,6 +206,43 @@ class ApiClient {
    */
   getCsrfToken(): string | null {
     return this.csrfToken
+  }
+
+  /**
+   * Extract CSRF token from cookie (workaround for backend sync issue)
+   */
+  private extractCsrfTokenFromCookie(): string | null {
+    if (typeof document === 'undefined') return null
+    
+    try {
+      const cookies = document.cookie.split(';')
+      const csrfCookie = cookies.find(cookie => 
+        cookie.trim().startsWith('fastapi-csrf-token=')
+      )
+      
+      if (!csrfCookie) return null
+      
+      const cookieValue = csrfCookie.split('=')[1]
+      if (!cookieValue) return null
+      
+      // Decode the cookie value
+      const decodedValue = decodeURIComponent(cookieValue)
+      
+      // Remove quotes if present
+      const cleanValue = decodedValue.replace(/^"(.*)"$/, '$1')
+      
+      // Parse the tuple format: ('token_id', 'signed_token')
+      const tupleMatch = cleanValue.match(/\('([^']+)'.*?'([^']+)'\)/)
+      if (tupleMatch && tupleMatch[2]) {
+        logger.debug('[ApiClient] Extracted CSRF token from cookie')
+        return tupleMatch[2] // Return the signed token
+      }
+      
+      return null
+    } catch (error) {
+      logger.error('[ApiClient] Error extracting CSRF token from cookie:', error)
+      return null
+    }
   }
 
   setSupabaseToken(session: any) {

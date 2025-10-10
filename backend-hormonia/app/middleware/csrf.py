@@ -159,7 +159,7 @@ def create_csrf_protect() -> CsrfProtect:
 csrf_protect = create_csrf_protect()
 
 
-def set_csrf_cookie(request: Request, response):
+def set_csrf_cookie(request: Request, response, token: str = None):
     """
     Set CSRF cookie in response.
 
@@ -169,6 +169,7 @@ def set_csrf_cookie(request: Request, response):
     Args:
         request: FastAPI request object
         response: FastAPI response object to set cookie on
+        token: Optional pre-generated token to use (if None, generates new one)
 
     Example:
         @router.post("/login")
@@ -178,10 +179,15 @@ def set_csrf_cookie(request: Request, response):
             return {"message": "logged in"}
     """
     try:
-        # Generate signed token first (required by fastapi-csrf-protect >= 0.3.0)
-        signed_token = csrf_protect.generate_csrf()
-        # Pass both token and response to set_csrf_cookie
-        csrf_protect.set_csrf_cookie(signed_token, response)
+        if token is None:
+            # Generate new token if none provided
+            token = csrf_protect.generate_csrf(request)
+            # Handle array format if returned
+            if isinstance(token, (list, tuple)) and len(token) >= 2:
+                token = token[1]  # Use signed token
+        
+        # Set the cookie with the token
+        csrf_protect.set_csrf_cookie(token, response)
         logger.debug("CSRF cookie set successfully")
     except Exception as e:
         logger.error(f"Failed to set CSRF cookie: {str(e)}")
@@ -207,7 +213,17 @@ def get_csrf_token(request: Request) -> str:
     try:
         # Generate token from request context
         token = csrf_protect.generate_csrf(request)
-        return token
+        
+        # FIX: fastapi-csrf-protect sometimes returns a tuple/list [token_id, signed_token]
+        # We need the signed token (second element) for validation
+        if isinstance(token, (list, tuple)) and len(token) >= 2:
+            return token[1]  # Return the signed token
+        elif isinstance(token, str):
+            return token
+        else:
+            logger.error(f"Unexpected CSRF token format: {type(token)} - {token}")
+            raise ValueError(f"Invalid CSRF token format: {type(token)}")
+            
     except Exception as e:
         logger.error(f"Failed to generate CSRF token: {str(e)}")
         raise
