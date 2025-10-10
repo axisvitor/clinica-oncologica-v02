@@ -10,18 +10,18 @@ import {
   CheckCircle
 } from 'lucide-react'
 import { apiClient } from '../../lib/api-client'
-import { useAdminAuth } from '../../contexts/AdminAuthContext'
+import { useAuth } from '../../contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LoadingSpinner } from '../ui/loading-spinner'
 
 export function QuickStats() {
-  const { state } = useAdminAuth()
+  const { user, isLoading: authLoading } = useAuth()
 
   const { data: metrics, isLoading } = useQuery({
     queryKey: ['dashboard-metrics'],
     queryFn: () => apiClient.analytics.dashboard(),
-    enabled: state.isAuthenticated && !state.isLoading, // Only run when authenticated
+    enabled: !!user && !authLoading, // Only run when authenticated
     refetchInterval: 60000 // Refresh every minute
   })
 
