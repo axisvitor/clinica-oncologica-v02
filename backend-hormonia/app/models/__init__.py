@@ -5,7 +5,7 @@ from app.models.base import BaseModel
 from app.models.user import User, UserRole
 from app.models.patient import Patient, FlowState
 from app.models.message import Message, MessageDirection, MessageType, MessageStatus
-from app.models.message_events import MessageStatusEvent
+from app.models.message_events import MessageStatusEvent, EvolutionWebhookEvent
 from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion
 from app.models.quiz import QuizTemplate, QuizResponse
 from app.models.report import MedicalReport
@@ -61,7 +61,8 @@ __all__ = [
     "MessageType",
     "MessageStatus",
     "MessageStatusEvent",
-    "WebhookEvent",  # Re-exported from webhook_event.py as IdempotentWebhookEvent
+    "EvolutionWebhookEvent",  # Evolution API webhook debugging
+    "WebhookEvent",  # Idempotency tracking from webhook_event.py
 
     # Flow models
     "PatientFlowState",
