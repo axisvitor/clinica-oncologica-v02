@@ -80,6 +80,7 @@ class ApiClient {
   private authToken: string | null = null
   private initialized: boolean = false
   private csrfToken: string | null = null
+  private csrfTokenPromise: Promise<void> | null = null // Prevent concurrent fetches
 
   constructor(baseURL: string) {
     this.baseURL = baseURL
@@ -138,25 +139,45 @@ class ApiClient {
   }
 
   /**
-   * Fetch CSRF token from backend
+   * Fetch CSRF token from backend with request deduplication
    * Called on app initialization and after session creation
+   *
+   * PERFORMANCE: Multiple concurrent calls will share the same Promise
+   * to prevent race conditions and duplicate network requests
    */
   async fetchCsrfToken(): Promise<void> {
-    try {
-      const response = await fetch(`${this.baseURL}/api/v1/csrf-token`, {
-        credentials: 'include' // Include cookies
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        this.csrfToken = data.csrf_token
-        logger.debug('[ApiClient] CSRF token fetched successfully')
-      } else {
-        logger.warn('[ApiClient] Failed to fetch CSRF token:', response.status)
-      }
-    } catch (error) {
-      logger.error('[ApiClient] Error fetching CSRF token:', error)
+    // If there's already a fetch in progress, return that Promise
+    if (this.csrfTokenPromise) {
+      logger.debug('[ApiClient] CSRF token fetch already in progress, waiting...')
+      return this.csrfTokenPromise
     }
+
+    // Create new fetch Promise and cache it
+    this.csrfTokenPromise = (async () => {
+      try {
+        logger.debug('[ApiClient] Initiating CSRF token fetch...')
+        const response = await fetch(`${this.baseURL}/api/v1/csrf-token`, {
+          credentials: 'include' // Include cookies
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          this.csrfToken = data.csrf_token
+          logger.debug('[ApiClient] CSRF token fetched successfully')
+        } else {
+          logger.warn('[ApiClient] Failed to fetch CSRF token:', response.status)
+        }
+      } catch (error) {
+        logger.error('[ApiClient] Error fetching CSRF token:', error)
+        throw error
+      } finally {
+        // Clear the promise after completion (success or failure)
+        // to allow future fetches
+        this.csrfTokenPromise = null
+      }
+    })()
+
+    return this.csrfTokenPromise
   }
 
   /**
