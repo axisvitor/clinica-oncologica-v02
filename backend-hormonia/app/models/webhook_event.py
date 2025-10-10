@@ -17,9 +17,12 @@ class WebhookEvent(Base):
 
     Prevents duplicate webhook processing by storing event IDs and detecting
     replays within the idempotency window (24 hours).
+
+    Note: Uses table 'webhook_idempotency' to avoid conflict with the existing
+    'webhook_events' table (created in migration 019) which stores full event history.
     """
 
-    __tablename__ = "webhook_events"
+    __tablename__ = "webhook_idempotency"
 
     # Primary key - webhook event ID (from provider)
     event_id = Column(
@@ -96,10 +99,10 @@ class WebhookEvent(Base):
 
     # Indexes for efficient queries
     __table_args__ = (
-        Index('idx_webhook_events_provider_type', 'provider', 'event_type'),
-        Index('idx_webhook_events_expires_at', 'expires_at'),
-        Index('idx_webhook_events_received_at', 'received_at'),
-        Index('idx_webhook_events_status', 'status'),
+        Index('idx_webhook_idempotency_provider_type', 'provider', 'event_type'),
+        Index('idx_webhook_idempotency_expires_at', 'expires_at'),
+        Index('idx_webhook_idempotency_received_at', 'received_at'),
+        Index('idx_webhook_idempotency_status', 'status'),
     )
 
     @classmethod
