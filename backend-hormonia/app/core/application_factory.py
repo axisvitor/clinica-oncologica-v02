@@ -129,34 +129,38 @@ def create_application(
                 }
             )
 
-        # Add CSRF token endpoint
+        # Add CSRF token endpoint with custom implementation
         @app.get("/api/v1/csrf-token", tags=["Authentication"])
         async def get_csrf_token_endpoint(request: Request):
             """
             Get CSRF token for session-based authentication.
 
-            Returns CSRF token in response body and sets secure cookie.
+            Returns CSRF token in response body for cross-domain compatibility.
             Frontend must include this token in X-CSRF-Token header for
             state-changing requests (POST, PUT, DELETE) to session endpoints.
 
             Returns:
                 dict: CSRF token and expiration information
             """
-            from fastapi.responses import JSONResponse
-            
-            # Generate token once and use it for both JSON and cookie
-            token = get_csrf_token(request)
-            
-            response = JSONResponse(content={
-                "csrf_token": token,
-                "expires_in": 3600,  # 1 hour
-                "usage": "Include this token in X-CSRF-Token header for POST/PUT/DELETE requests"
-            })
-            
-            # Set cookie with the same token used in JSON response
-            from app.middleware.csrf import set_csrf_cookie as set_csrf_cookie_helper
-            set_csrf_cookie_helper(request, response, token)
-            return response
+            # PRODUCTION FIX: Use custom CSRF implementation for cross-domain compatibility
+            try:
+                from app.middleware.custom_csrf import create_csrf_token_response
+                return create_csrf_token_response()
+            except ImportError:
+                # Fallback to original implementation
+                from fastapi.responses import JSONResponse
+                token = get_csrf_token(request)
+                
+                response = JSONResponse(content={
+                    "csrf_token": token,
+                    "expires_in": 3600,  # 1 hour
+                    "usage": "Include this token in X-CSRF-Token header for POST/PUT/DELETE requests"
+                })
+                
+                # Set cookie with the same token used in JSON response
+                from app.middleware.csrf import set_csrf_cookie as set_csrf_cookie_helper
+                set_csrf_cookie_helper(request, response, token)
+                return response
 
         app.state.csrf_protect = csrf_protect
         logger.info("✓ CSRF protection configured")

@@ -31,6 +31,7 @@ from app.services import ServiceProvider
 from app.services.audit_log import AuditLogService
 from app.dependencies.auth_dependencies import _firebase_service, _get_service_provider
 from app.middleware.csrf import validate_csrf_token
+from app.middleware.custom_csrf import validate_custom_csrf
 from app.utils.rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
@@ -171,7 +172,7 @@ class CacheStatsResponse(BaseModel):
     "/",
     response_model=SessionResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(validate_csrf_token)]
+    dependencies=[Depends(validate_custom_csrf)]
 )
 @limiter.limit("20/minute")  # Rate limit: 20 session creations per minute per IP
 async def create_session(
