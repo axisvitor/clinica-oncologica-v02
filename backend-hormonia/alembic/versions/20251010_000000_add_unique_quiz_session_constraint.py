@@ -1,8 +1,8 @@
 """add unique constraint for quiz sessions to prevent concurrent creation
 
-Revision ID: 20251009_235900
-Revises: 20251009_230000
-Create Date: 2025-10-09 23:59:00
+Revision ID: 20251010_000000
+Revises: 20251009_235900
+Create Date: 2025-10-10 00:00:00
 
 Sprint 2 - P8: Prevent Concurrent Quiz Session Creation
 
@@ -21,8 +21,8 @@ from sqlalchemy.dialects.postgresql import UUID
 
 
 # revision identifiers, used by Alembic.
-revision = '20251009_235900'
-down_revision = '20251009_230000'
+revision = '20251010_000000'
+down_revision = '20251009_235900'
 branch_labels = None
 depends_on = None
 

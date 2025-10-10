@@ -167,7 +167,7 @@ def upgrade() -> None:
                 WHEN 'numeric' THEN
                     -- Check if response is numeric
                     IF NOT (NEW.response_value ? 'value' AND
-                            NEW.response_value->>'value' ~ '^[0-9]+(\.[0-9]+)?$') THEN
+                            NEW.response_value->>'value' ~ '^[0-9]+(\\.[0-9]+)?$') THEN
                         RAISE EXCEPTION 'Invalid numeric response';
                     END IF;
 
