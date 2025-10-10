@@ -32,8 +32,8 @@ interface EnvironmentCheck {
   description: string
   status: 'pending' | 'checking' | 'success' | 'warning' | 'error'
   required: boolean
-  value?: string
-  error?: string
+  value?: string | undefined
+  error?: string | undefined
   category: 'api' | 'database' | 'services' | 'security'
 }
 
@@ -302,10 +302,11 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
   }
 
   const categorizedChecks = checks.reduce((acc, check) => {
-    if (!acc[check.category]) {
-      acc[check.category] = []
+    const category = check.category
+    if (!acc[category]) {
+      acc[category] = []
     }
-    acc[check.category].push(check)
+    acc[category]?.push(check)
     return acc
   }, {} as Record<string, EnvironmentCheck[]>)
 

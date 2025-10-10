@@ -419,8 +419,8 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       id="enableNotifications"
-                      checked={watchedValues.enableNotifications}
-                      onCheckedChange={(checked) => setValue('enableNotifications', checked as boolean)}
+                      checked={watchedValues.enableNotifications ?? false}
+                      onCheckedChange={(checked) => setValue('enableNotifications', checked === true)}
                     />
                     <Label htmlFor="enableNotifications" className="text-sm">
                       Habilitar notificações por email e WhatsApp
@@ -430,8 +430,8 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
                   <div className="flex items-start space-x-2">
                     <Checkbox
                       id="acceptTerms"
-                      checked={watchedValues.acceptTerms}
-                      onCheckedChange={(checked) => setValue('acceptTerms', checked as boolean)}
+                      checked={watchedValues.acceptTerms ?? false}
+                      onCheckedChange={(checked) => setValue('acceptTerms', checked === true)}
                       className={errors.acceptTerms ? 'border-red-500' : ''}
                     />
                     <Label htmlFor="acceptTerms" className="text-sm leading-relaxed">

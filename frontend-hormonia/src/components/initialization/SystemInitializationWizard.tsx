@@ -24,7 +24,7 @@ interface InitializationStep {
   component: React.ComponentType<{ onComplete: () => void; onError: (error: string) => void }>
   required: boolean
   status: 'pending' | 'running' | 'completed' | 'error' | 'skipped'
-  error?: string
+  error?: string | undefined
 }
 
 interface SystemInitializationWizardProps {
@@ -123,6 +123,8 @@ export function SystemInitializationWizard({
 
   const handleStepComplete = () => {
     const currentStepData = initializationSteps[currentStep]
+    if (!currentStepData) return
+
     updateStepStatus(currentStepData.id, 'completed')
 
     logger.log(`Step '${currentStepData.id}' completed`)
@@ -131,7 +133,10 @@ export function SystemInitializationWizard({
     const nextStepIndex = currentStep + 1
     if (nextStepIndex < initializationSteps.length) {
       setCurrentStep(nextStepIndex)
-      updateStepStatus(initializationSteps[nextStepIndex].id, 'running')
+      const nextStep = initializationSteps[nextStepIndex]
+      if (nextStep) {
+        updateStepStatus(nextStep.id, 'running')
+      }
     } else {
       // All steps completed
       handleInitializationComplete()
@@ -140,6 +145,8 @@ export function SystemInitializationWizard({
 
   const handleStepError = (error: string) => {
     const currentStepData = initializationSteps[currentStep]
+    if (!currentStepData) return
+
     updateStepStatus(currentStepData.id, 'error', error)
 
     logger.error(`Step '${currentStepData.id}' failed:`, error)
@@ -153,6 +160,8 @@ export function SystemInitializationWizard({
 
   const handleSkipStep = () => {
     const currentStepData = initializationSteps[currentStep]
+    if (!currentStepData) return
+
     if (!currentStepData.required) {
       updateStepStatus(currentStepData.id, 'skipped')
       handleStepComplete()
@@ -161,6 +170,8 @@ export function SystemInitializationWizard({
 
   const handleRetryStep = () => {
     const currentStepData = initializationSteps[currentStep]
+    if (!currentStepData) return
+
     updateStepStatus(currentStepData.id, 'running')
     logger.log(`Retrying step '${currentStepData.id}'`)
   }

@@ -10,6 +10,7 @@ import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, RadialBarChart, RadialBar,
   ComposedChart, ScatterChart, Scatter, Cell
 } from '@/components/charts/LazyRechartsComponents';
+import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import { ChartSkeleton } from '@/components/ui/chart-skeleton';
 
 interface AIPersonalizationData {
@@ -113,7 +114,7 @@ export const AIPersonalizationChart: React.FC<AIPersonalizationChartProps> = ({
                 align="right"
               />
               <Tooltip
-                formatter={(value: number) => [`${value.toFixed(1)}%`, 'Score']}
+                formatter={(value: ValueType) => [`${Number(value).toFixed(1)}%`, 'Score']}
               />
             </RadialBarChart>
           </ResponsiveContainer>
@@ -171,7 +172,7 @@ export const AIPersonalizationChart: React.FC<AIPersonalizationChartProps> = ({
                   border: '1px solid #E5E7EB',
                   borderRadius: '8px'
                 }}
-                formatter={(value: number) => [`${value.toFixed(1)}%`, 'Score']}
+                formatter={(value: ValueType) => [`${Number(value).toFixed(1)}%`, 'Score']}
               />
               <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                 {performanceOverview.map((entry, index) => (
@@ -216,7 +217,7 @@ export const AIPersonalizationChart: React.FC<AIPersonalizationChartProps> = ({
                     border: '1px solid #E5E7EB',
                     borderRadius: '8px'
                   }}
-                  formatter={(value: number) => [value, 'Mensagens']}
+                  formatter={(value: ValueType) => [value, 'Mensagens']}
                 />
                 <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                   {processingData.map((entry, index) => (
@@ -251,7 +252,7 @@ export const AIPersonalizationChart: React.FC<AIPersonalizationChartProps> = ({
                     border: '1px solid #E5E7EB',
                     borderRadius: '8px'
                   }}
-                  formatter={(value: number) => [value, 'Mensagens']}
+                  formatter={(value: ValueType) => [value, 'Mensagens']}
                 />
                 <Area
                   type="monotone"
@@ -296,10 +297,10 @@ export const AIPersonalizationChart: React.FC<AIPersonalizationChartProps> = ({
                   border: '1px solid #E5E7EB',
                   borderRadius: '8px'
                 }}
-                formatter={(value: number, name: string, props: any) => [
-                  props.payload.displayValue,
-                  props.payload.metric
-                ]}
+                formatter={(value: ValueType, name: NameType, item) => {
+                  const payload = item.payload as { displayValue: string; metric: string };
+                  return [payload.displayValue, payload.metric];
+                }}
               />
               <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                 {impactMetrics.map((entry, index) => (
@@ -342,7 +343,7 @@ export const AIPersonalizationChart: React.FC<AIPersonalizationChartProps> = ({
                 wrapperStyle={{ fontSize: '14px' }}
               />
               <Tooltip
-                formatter={(value: number) => [`${value.toFixed(1)}%`, 'Score']}
+                formatter={(value: ValueType) => [`${Number(value).toFixed(1)}%`, 'Score']}
                 contentStyle={{
                   backgroundColor: '#FFFFFF',
                   border: '1px solid #E5E7EB',

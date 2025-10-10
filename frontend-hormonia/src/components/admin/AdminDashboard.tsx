@@ -16,6 +16,7 @@ import {
   Area,
   AreaChart
 } from '@/components/charts/LazyRechartsComponents'
+import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent'
 import { ChartSkeleton } from '@/components/ui/chart-skeleton'
 import {
   Shield,
@@ -357,7 +358,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
                         />
                         <YAxis />
                         <Tooltip
-                          labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                          labelFormatter={(date: string) => new Date(date).toLocaleDateString()}
                         />
                         <Line
                           type="monotone"
@@ -465,7 +466,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(value) => `${value}%`} />
+                        <Tooltip formatter={(value: ValueType) => `${value}%`} />
                       </PieChart>
                     </ResponsiveContainer>
                     </Suspense>

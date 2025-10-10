@@ -18,6 +18,8 @@ import {
   Pie,
   Cell
 } from '@/components/charts/LazyRechartsComponents'
+import type { TooltipProps } from 'recharts'
+import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent'
 import { ChartSkeleton } from '@/components/ui/chart-skeleton'
 import { apiClient } from '../lib/api-client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -105,20 +107,20 @@ export function AnalyticsPage() {
     return ((current - previous) / previous * 100).toFixed(1)
   }
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: TooltipProps<ValueType, NameType>) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-xl">
           <p className="font-semibold text-gray-900 mb-3 text-sm">{label}</p>
           <div className="space-y-2">
-            {payload.map((entry: any, index: number) => (
+            {payload.map((entry, index: number) => (
               <div key={index} className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }} />
                   <span className="text-sm text-gray-600">{entry.name}</span>
                 </div>
                 <span className="font-medium text-sm" style={{ color: entry.color }}>
-                  {entry.value.toLocaleString('pt-BR')}
+                  {Number(entry.value).toLocaleString('pt-BR')}
                   {entry.dataKey === 'response_rate' && '%'}
                 </span>
               </div>
@@ -415,7 +417,7 @@ export function AnalyticsPage() {
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={({ percentage }) => `${percentage.toFixed(1)}%`}
+                        label={({ percentage }: { percentage: number }) => `${percentage.toFixed(1)}%`}
                         outerRadius={90}
                         innerRadius={50}
                         fill="#8884d8"
@@ -427,13 +429,14 @@ export function AnalyticsPage() {
                         ))}
                       </Pie>
                       <Tooltip
-                        content={({ active, payload }: any) => {
+                        content={({ active, payload }: TooltipProps<ValueType, NameType>) => {
                           if (active && payload && payload.length && payload[0]) {
+                            const data = payload[0].payload as { treatment_type: string; percentage: number };
                             return (
                               <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-                                <p className="font-medium text-sm">{payload[0].payload.treatment_type}</p>
+                                <p className="font-medium text-sm">{data.treatment_type}</p>
                                 <p className="text-sm text-gray-600">{payload[0].value} pacientes</p>
-                                <p className="text-sm text-gray-500">{payload[0].payload.percentage.toFixed(1)}%</p>
+                                <p className="text-sm text-gray-500">{data.percentage.toFixed(1)}%</p>
                               </div>
                             )
                           }

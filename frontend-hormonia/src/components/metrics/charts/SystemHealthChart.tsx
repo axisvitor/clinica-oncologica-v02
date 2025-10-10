@@ -10,6 +10,7 @@ import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, RadialBarChart, RadialBar,
   ComposedChart, ScatterChart, Scatter, Cell
 } from '@/components/charts/LazyRechartsComponents';
+import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import { ChartSkeleton } from '@/components/ui/chart-skeleton';
 
 interface SystemHealthData {
@@ -152,7 +153,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
                 align="right"
               />
               <Tooltip
-                formatter={(value: number) => [`${value.toFixed(1)}%`, 'Uso']}
+                formatter={(value: ValueType) => [`${Number(value).toFixed(1)}%`, 'Uso']}
               />
             </RadialBarChart>
           </ResponsiveContainer>
@@ -240,10 +241,10 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
                   border: '1px solid #E5E7EB',
                   borderRadius: '8px'
                 }}
-                formatter={(value: number, name: string, props: any) => [
-                  `${value.toFixed(1)}%`,
-                  `Uso de ${props.payload.resource}`
-                ]}
+                formatter={(value: ValueType, name: NameType, item) => {
+                  const payload = item.payload as { resource: string };
+                  return [`${Number(value).toFixed(1)}%`, `Uso de ${payload.resource}`];
+                }}
               />
               <Bar dataKey="usage" radius={[4, 4, 0, 0]}>
                 {resourceUsageData.map((entry, index) => (
@@ -304,10 +305,13 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
                   border: '1px solid #E5E7EB',
                   borderRadius: '8px'
                 }}
-                formatter={(value: number, name: string, props: any) => [
-                  `${value.toFixed(props.payload.unit === 'ms' ? 0 : 2)}${props.payload.unit}`,
-                  props.payload.metric
-                ]}
+                formatter={(value: ValueType, name: NameType, item) => {
+                  const payload = item.payload as { unit: string; metric: string };
+                  return [
+                    `${Number(value).toFixed(payload.unit === 'ms' ? 0 : 2)}${payload.unit}`,
+                    payload.metric
+                  ];
+                }}
               />
               <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                 {performanceMetrics.map((entry, index) => (

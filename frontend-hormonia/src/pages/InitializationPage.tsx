@@ -67,7 +67,6 @@ export function InitializationPage() {
   return (
     <SystemInitializationWizard
       onComplete={handleInitializationComplete}
-      onError={handleInitializationError}
       autoStart={false}
       skipWelcome={false}
     />
