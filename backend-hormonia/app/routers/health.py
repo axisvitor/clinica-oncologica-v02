@@ -15,7 +15,7 @@ import psutil
 import sys
 
 from app.database import get_db
-from app.dependencies.cache import get_redis_client
+from app.core.redis_unified import get_async_redis
 from app.utils.structured_logger import StructuredLogger
 from app.middleware.metrics import get_metrics as get_performance_metrics
 
@@ -102,7 +102,7 @@ async def readiness_check(
 
     # Check Redis connection (non-critical)
     try:
-        redis_client = get_redis_client()
+        redis_client = await get_async_redis()
         redis_start = time.perf_counter()
         await redis_client.ping()
         redis_duration = (time.perf_counter() - redis_start) * 1000
