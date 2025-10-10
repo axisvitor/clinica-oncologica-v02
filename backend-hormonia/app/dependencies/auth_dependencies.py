@@ -6,7 +6,7 @@ Dual authentication system:
 
 All Supabase fallback code has been removed.
 """
-from fastapi import Depends, HTTPException, status, Header
+from fastapi import Depends, HTTPException, status, Header, Cookie
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, Dict, List, Any
 import logging
@@ -136,7 +136,8 @@ async def verify_firebase_token(id_token: str) -> Optional[Dict[str, Any]]:
 
 
 async def get_current_user_from_session(
-    session_id: str = Header(..., alias="X-Session-ID"),
+    session_id: str = Cookie(None, alias="session_id"),
+    x_session_id: str = Header(None, alias="X-Session-ID"),
     services: ServiceProvider = Depends(_get_service_provider),
     redis_cache: 'FirebaseRedisCache' = Depends(get_redis_cache)
 ) -> Dict:
@@ -167,9 +168,16 @@ async def get_current_user_from_session(
         HTTPException 403: User account is inactive
     """
     try:
+        final_session_id = session_id or x_session_id
+        if not final_session_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session ID not provided",
+                headers={"WWW-Authenticate": "Session"}
+            )
 
         # Layer 1: Get session from Redis (~2-5ms)
-        session_data = await redis_cache.get_session(session_id)
+        session_data = await redis_cache.get_session(final_session_id)
 
         if not session_data:
             logger.warning(f"Invalid or expired session: {session_id[:8]}...")
@@ -322,6 +330,8 @@ async def get_current_user(
             logger.debug(f"✅ User cache HIT for {firebase_uid}")
             # Convert dict to User model
             from app.models.user import User
+            # FIX: Remove 'cached_at' before creating User model to prevent TypeError
+            cached_user.pop('cached_at', None)
             user = User(**cached_user)
             return user
 

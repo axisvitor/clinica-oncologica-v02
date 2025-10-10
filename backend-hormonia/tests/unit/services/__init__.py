@@ -1,3 +1,1 @@
-"""
-Service unit tests
-"""
+"""Unit tests for services."""

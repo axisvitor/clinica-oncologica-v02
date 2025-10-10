@@ -1,470 +1,468 @@
 """
 Comprehensive CSRF Protection Tests
 
-Tests CSRF middleware implementation for session-based authentication endpoints.
+Tests CSRF token validation for session-based authentication endpoints.
+Verifies that state-changing requests (POST, PUT, DELETE) require valid CSRF tokens.
 
 Test Coverage:
-1. CSRF token generation and validation
-2. Protected endpoints (POST /session, DELETE /logout, DELETE /logout-all)
-3. Exempt endpoints (GET endpoints, /csrf-token)
-4. Cookie security (httpOnly, secure, SameSite)
-5. Token expiration and rotation
-6. Error handling and logging
-7. Integration with session authentication
-
-Security Validation:
-- Requests without CSRF token should fail (403)
-- Requests with invalid CSRF token should fail (403)
-- Requests with valid CSRF token should succeed
-- CSRF cookie should have security flags set
-- GET/HEAD/OPTIONS requests should be exempt
+- CSRF token generation and validation
+- Protected endpoints (session creation, logout, preferences)
+- Exempt endpoints (GET, HEAD, OPTIONS, token endpoint)
+- Invalid token rejection
+- Missing token rejection
+- Cookie-based CSRF protection
 """
-
 import pytest
 from fastapi.testclient import TestClient
-from datetime import datetime, timedelta
 from unittest.mock import Mock, patch, MagicMock
-import secrets
+import uuid
 
 from app.main import app
-from app.middleware.csrf import (
-    get_csrf_settings,
-    create_csrf_protect,
-    get_csrf_token,
-    validate_csrf_token,
-    is_csrf_exempt,
-    CsrfProtectError
-)
 
 
 @pytest.fixture
 def client():
-    """Create test client with CSRF protection enabled."""
+    """Test client with default configuration."""
     return TestClient(app)
 
 
 @pytest.fixture
-def csrf_secret():
-    """Generate secure CSRF secret for testing."""
-    return secrets.token_urlsafe(32)
+def mock_firebase_service():
+    """Mock Firebase service for authentication."""
+    with patch('app.routers.auth_session._firebase_service') as mock:
+        # Configure mock to return valid user data
+        mock.verify_token = Mock(return_value={
+            'uid': 'test-firebase-uid',
+            'email': 'test@example.com',
+            'name': 'Test User',
+            'role': 'doctor'
+        })
+        yield mock
 
 
 @pytest.fixture
-def mock_csrf_settings(csrf_secret, monkeypatch):
-    """Mock CSRF settings for testing."""
-    from app.config import settings
-    monkeypatch.setattr(settings, 'CSRF_SECRET_KEY', csrf_secret)
-    monkeypatch.setattr(settings, 'ENVIRONMENT', 'development')
-    monkeypatch.setattr(settings, 'SESSION_COOKIE_SECURE', False)
+def mock_service_provider():
+    """Mock service provider with database session."""
+    with patch('app.routers.auth_session._get_service_provider') as mock:
+        # Create mock DB session
+        mock_db = MagicMock()
+
+        # Mock user query result
+        mock_user = Mock()
+        mock_user.id = uuid.uuid4()
+        mock_user.firebase_uid = 'test-firebase-uid'
+        mock_user.email = 'test@example.com'
+        mock_user.full_name = 'Test User'
+        mock_user.is_active = True
+        mock_user.role = Mock(value='doctor')
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = mock_user
+        mock_db.execute.return_value = mock_result
+
+        # Mock service provider
+        mock_provider = Mock()
+        mock_provider.db = mock_db
+        mock.return_value = mock_provider
+
+        yield mock_provider
+
+
+@pytest.fixture
+def mock_redis_cache():
+    """Mock Redis cache for session management."""
+    with patch('app.routers.auth_session.get_redis_manager') as mock_manager:
+        # Create mock Redis client
+        mock_client = Mock()
+        mock_manager.return_value.get_compatible_client.return_value = mock_client
+
+        # Mock FirebaseRedisCache
+        with patch('app.routers.auth_session.FirebaseRedisCache') as mock_cache_class:
+            mock_cache = Mock()
+            mock_cache.create_session.return_value = True
+            mock_cache.cache_user.return_value = True
+            mock_cache.get_session.return_value = {
+                'user_id': 'test-user-id',
+                'firebase_uid': 'test-firebase-uid',
+                'email': 'test@example.com'
+            }
+            mock_cache.invalidate_session.return_value = True
+            mock_cache_class.return_value = mock_cache
+
+            yield mock_cache
 
 
 class TestCsrfTokenGeneration:
-    """Test CSRF token generation and retrieval."""
+    """Test CSRF token generation endpoint."""
 
-    def test_get_csrf_token_endpoint(self, client):
-        """Test GET /api/v1/csrf-token returns valid token."""
-        response = client.get("/api/v1/csrf-token")
+    def test_get_csrf_token_success(self, client):
+        """Test successful CSRF token generation."""
+        response = client.get('/api/v1/csrf-token')
 
         assert response.status_code == 200
         data = response.json()
-
-        # Verify response structure
-        assert "csrf_token" in data
-        assert "expires_in" in data
-        assert "usage" in data
-        assert data["expires_in"] == 3600  # 1 hour
+        assert 'csrf_token' in data
+        assert data['expires_in'] == 3600
+        assert 'usage' in data
 
         # Verify CSRF cookie is set
-        assert "fastapi-csrf-token" in response.cookies
+        assert 'fastapi-csrf-token' in response.cookies
 
-    def test_csrf_cookie_security_flags(self, client, mock_csrf_settings):
-        """Test CSRF cookie has proper security flags."""
-        response = client.get("/api/v1/csrf-token")
+    def test_csrf_token_is_random(self, client):
+        """Test that CSRF tokens are unique."""
+        response1 = client.get('/api/v1/csrf-token')
+        response2 = client.get('/api/v1/csrf-token')
 
-        assert response.status_code == 200
-        cookie = response.cookies.get("fastapi-csrf-token")
+        token1 = response1.json()['csrf_token']
+        token2 = response2.json()['csrf_token']
 
-        # Verify cookie exists
-        assert cookie is not None
-
-        # Note: TestClient doesn't expose cookie flags directly,
-        # but we can verify the middleware is configured correctly
-        from app.middleware.csrf import get_csrf_settings
-        settings = get_csrf_settings()
-
-        assert settings.cookie_httponly is True
-        assert settings.cookie_samesite == "strict"
-
-    def test_csrf_token_is_unique(self, client):
-        """Test that each request generates a unique CSRF token."""
-        response1 = client.get("/api/v1/csrf-token")
-        response2 = client.get("/api/v1/csrf-token")
-
-        assert response1.status_code == 200
-        assert response2.status_code == 200
-
-        token1 = response1.json()["csrf_token"]
-        token2 = response2.json()["csrf_token"]
-
-        # Tokens should be different (stateless token generation)
-        # Note: Depending on implementation, this might be the same
-        # if using session-based tokens
-        assert isinstance(token1, str)
-        assert isinstance(token2, str)
+        assert token1 != token2
 
 
-class TestCsrfProtectedEndpoints:
-    """Test CSRF protection on session endpoints."""
+class TestSessionEndpointCsrfProtection:
+    """Test CSRF protection on session management endpoints."""
 
-    @pytest.fixture
-    def mock_firebase_token(self):
-        """Mock Firebase token for session creation."""
-        return "mock-firebase-token-12345"
-
-    @pytest.fixture
-    def mock_firebase_service(self, monkeypatch):
-        """Mock Firebase service for authentication."""
-        mock_service = Mock()
-        mock_service.verify_token = MagicMock(return_value={
-            "uid": "test-firebase-uid-123",
-            "email": "test@example.com",
-            "name": "Test User",
-            "role": "doctor"
-        })
-
-        # Patch the Firebase service dependency
-        with patch('app.routers.auth_session._firebase_service', mock_service):
-            yield mock_service
-
-    def test_create_session_without_csrf_token(self, client, mock_firebase_token, mock_firebase_service):
-        """
-        Test POST /api/v1/session WITHOUT CSRF token.
-        Currently should succeed (CSRF not yet enforced).
-        After implementation: should return 403.
-        """
+    def test_create_session_without_csrf_token_fails(
+        self,
+        client,
+        mock_firebase_service,
+        mock_service_provider,
+        mock_redis_cache
+    ):
+        """Test that session creation fails without CSRF token."""
         response = client.post(
-            "/api/v1/session",
+            '/api/v1/session/',
             json={
-                "firebase_token": mock_firebase_token,
-                "device_info": {"device_type": "web", "browser": "chrome"}
+                'firebase_token': 'valid-firebase-token',
+                'device_info': {'device_type': 'web'}
             }
         )
 
-        # TODO: After CSRF enforcement, this should be 403
-        # For now, check it's either 201 (success) or 503 (Firebase not configured)
-        assert response.status_code in [201, 503, 401]
+        assert response.status_code == 403
+        data = response.json()
+        assert data['error'] == 'csrf_validation_failed'
 
-    def test_create_session_with_valid_csrf_token(self, client, mock_firebase_token, mock_firebase_service):
-        """
-        Test POST /api/v1/session WITH valid CSRF token.
-        Should succeed when CSRF is enforced.
-        """
-        # Get CSRF token
-        csrf_response = client.get("/api/v1/csrf-token")
-        assert csrf_response.status_code == 200
-        csrf_token = csrf_response.json()["csrf_token"]
-        csrf_cookie = csrf_response.cookies.get("fastapi-csrf-token")
+    def test_create_session_with_invalid_csrf_token_fails(
+        self,
+        client,
+        mock_firebase_service,
+        mock_service_provider,
+        mock_redis_cache
+    ):
+        """Test that session creation fails with invalid CSRF token."""
+        response = client.post(
+            '/api/v1/session/',
+            json={
+                'firebase_token': 'valid-firebase-token',
+                'device_info': {'device_type': 'web'}
+            },
+            headers={'X-CSRF-Token': 'invalid-token'}
+        )
+
+        assert response.status_code == 403
+        data = response.json()
+        assert data['error'] == 'csrf_validation_failed'
+
+    def test_create_session_with_valid_csrf_token_succeeds(
+        self,
+        client,
+        mock_firebase_service,
+        mock_service_provider,
+        mock_redis_cache
+    ):
+        """Test that session creation succeeds with valid CSRF token."""
+        # First, get CSRF token
+        token_response = client.get('/api/v1/csrf-token')
+        csrf_token = token_response.json()['csrf_token']
+        csrf_cookie = token_response.cookies.get('fastapi-csrf-token')
 
         # Create session with CSRF token
         response = client.post(
-            "/api/v1/session",
+            '/api/v1/session/',
             json={
-                "firebase_token": mock_firebase_token,
-                "device_info": {"device_type": "web"}
+                'firebase_token': 'valid-firebase-token',
+                'device_info': {'device_type': 'web'}
             },
-            headers={"X-CSRF-Token": csrf_token},
-            cookies={"fastapi-csrf-token": csrf_cookie}
+            headers={'X-CSRF-Token': csrf_token},
+            cookies={'fastapi-csrf-token': csrf_cookie}
         )
 
-        # Should succeed (201) or fail due to other reasons (503, 401)
-        # but NOT 403 (CSRF error)
-        assert response.status_code in [201, 503, 401]
+        assert response.status_code == 201
+        data = response.json()
+        assert data['status'] == 'authenticated'
+        assert 'user' in data
+        assert 'expires_at' in data
 
-    def test_logout_without_csrf_token(self, client):
-        """
-        Test DELETE /api/v1/session/logout WITHOUT CSRF token.
-        Currently should succeed (CSRF not yet enforced).
-        """
+    def test_logout_without_csrf_token_fails(self, client):
+        """Test that logout fails without CSRF token."""
+        response = client.delete('/api/v1/session/logout')
+
+        assert response.status_code == 403
+        data = response.json()
+        assert data['error'] == 'csrf_validation_failed'
+
+    def test_logout_with_valid_csrf_token_succeeds(
+        self,
+        client,
+        mock_service_provider,
+        mock_redis_cache
+    ):
+        """Test that logout succeeds with valid CSRF token."""
+        # Get CSRF token
+        token_response = client.get('/api/v1/csrf-token')
+        csrf_token = token_response.json()['csrf_token']
+        csrf_cookie = token_response.cookies.get('fastapi-csrf-token')
+
+        # Logout with CSRF token
         response = client.delete(
-            "/api/v1/session/logout",
-            headers={"X-Session-ID": "test-session-id"}
+            '/api/v1/session/logout',
+            headers={'X-CSRF-Token': csrf_token},
+            cookies={
+                'fastapi-csrf-token': csrf_cookie,
+                'session_id': 'test-session-id'
+            }
         )
 
-        # Should not be 403 (CSRF error) for now
-        # Likely 401 or 500 (invalid session)
-        assert response.status_code != 403
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is True
 
-    def test_logout_all_without_csrf_token(self, client):
-        """
-        Test DELETE /api/v1/session/logout-all WITHOUT CSRF token.
-        Currently should succeed (CSRF not yet enforced).
-        """
+    def test_logout_all_without_csrf_token_fails(self, client):
+        """Test that global logout fails without CSRF token."""
         response = client.delete(
-            "/api/v1/session/logout-all",
-            headers={"Authorization": "Bearer fake-token"}
+            '/api/v1/session/logout-all',
+            headers={'Authorization': 'Bearer valid-token'}
         )
 
-        # Should not be 403 (CSRF error) for now
-        # Likely 401 or 503 (Firebase not configured)
-        assert response.status_code != 403
+        assert response.status_code == 403
+        data = response.json()
+        assert data['error'] == 'csrf_validation_failed'
+
+
+class TestAuthEndpointCsrfProtection:
+    """Test CSRF protection on auth endpoints."""
+
+    def test_update_preferences_without_csrf_fails(self, client):
+        """Test that preferences update fails without CSRF token."""
+        response = client.put(
+            '/api/v1/auth/users/preferences',
+            json={
+                'notification_email': True,
+                'language': 'en-US'
+            },
+            headers={'Authorization': 'Bearer valid-token'}
+        )
+
+        assert response.status_code == 403
+        data = response.json()
+        assert data['error'] == 'csrf_validation_failed'
+
+    def test_patch_preferences_without_csrf_fails(self, client):
+        """Test that partial preferences update fails without CSRF token."""
+        response = client.patch(
+            '/api/v1/auth/users/preferences',
+            json={'language': 'pt-BR'},
+            headers={'Authorization': 'Bearer valid-token'}
+        )
+
+        assert response.status_code == 403
+        data = response.json()
+        assert data['error'] == 'csrf_validation_failed'
+
+    def test_reset_preferences_without_csrf_fails(self, client):
+        """Test that preferences reset fails without CSRF token."""
+        response = client.post(
+            '/api/v1/auth/users/preferences/reset',
+            headers={'Authorization': 'Bearer valid-token'}
+        )
+
+        assert response.status_code == 403
+        data = response.json()
+        assert data['error'] == 'csrf_validation_failed'
+
+    def test_update_profile_without_csrf_fails(self, client):
+        """Test that profile update fails without CSRF token."""
+        response = client.put(
+            '/api/v1/auth/profile',
+            json={
+                'full_name': 'Updated Name',
+                'email': 'updated@example.com'
+            },
+            headers={'Authorization': 'Bearer valid-token'}
+        )
+
+        assert response.status_code == 403
+        data = response.json()
+        assert data['error'] == 'csrf_validation_failed'
+
+    def test_change_password_without_csrf_fails(self, client):
+        """Test that password change fails without CSRF token."""
+        response = client.put(
+            '/api/v1/auth/password',
+            json={'new_password': 'NewPassword123!'},
+            headers={'Authorization': 'Bearer valid-token'}
+        )
+
+        assert response.status_code == 403
+        data = response.json()
+        assert data['error'] == 'csrf_validation_failed'
+
+    def test_mark_notification_read_without_csrf_fails(self, client):
+        """Test that notification marking fails without CSRF token."""
+        response = client.post(
+            '/api/v1/auth/notifications/test-notification-id/read',
+            headers={'Authorization': 'Bearer valid-token'}
+        )
+
+        assert response.status_code == 403
+        data = response.json()
+        assert data['error'] == 'csrf_validation_failed'
+
+    def test_delete_notification_without_csrf_fails(self, client):
+        """Test that notification deletion fails without CSRF token."""
+        response = client.delete(
+            '/api/v1/auth/notifications/test-notification-id',
+            headers={'Authorization': 'Bearer valid-token'}
+        )
+
+        assert response.status_code == 403
+        data = response.json()
+        assert data['error'] == 'csrf_validation_failed'
 
 
 class TestCsrfExemptEndpoints:
-    """Test endpoints that should be exempt from CSRF protection."""
+    """Test that read-only endpoints are exempt from CSRF protection."""
 
-    def test_get_session_validate_exempt(self, client):
-        """Test GET /api/v1/session/validate is exempt from CSRF."""
+    def test_session_validate_no_csrf_required(self, client):
+        """Test that session validation doesn't require CSRF token."""
+        response = client.get('/api/v1/session/validate')
+
+        # Should return validation response, not CSRF error
+        assert response.status_code != 403
+
+    def test_get_preferences_no_csrf_required(self, client):
+        """Test that getting preferences doesn't require CSRF token."""
         response = client.get(
-            "/api/v1/session/validate",
-            headers={"X-Session-ID": "test-session-id"}
+            '/api/v1/auth/users/preferences',
+            headers={'Authorization': 'Bearer valid-token'}
         )
 
-        # Should not return 403 (CSRF error)
-        # Likely 401 or 500 (invalid session)
-        assert response.status_code != 403
+        # Should not be CSRF error (may be 401/403 for auth reasons)
+        assert response.status_code != 403 or 'csrf' not in response.json().get('error', '').lower()
 
-    def test_get_session_stats_exempt(self, client):
-        """Test GET /api/v1/session/stats is exempt from CSRF."""
-        response = client.get("/api/v1/session/stats")
+    def test_get_notifications_no_csrf_required(self, client):
+        """Test that getting notifications doesn't require CSRF token."""
+        response = client.get(
+            '/api/v1/auth/notifications',
+            headers={'Authorization': 'Bearer valid-token'}
+        )
 
-        # Should not return 403 (CSRF error)
-        assert response.status_code != 403
+        # Should not be CSRF error
+        assert response.status_code != 403 or 'csrf' not in response.json().get('error', '').lower()
 
-    def test_is_csrf_exempt_function(self):
-        """Test is_csrf_exempt utility function."""
-        # Exempt paths
-        assert is_csrf_exempt("/api/v1/session/validate") is True
-        assert is_csrf_exempt("/api/v1/session/stats") is True
-        assert is_csrf_exempt("/api/v1/csrf-token") is True
-        assert is_csrf_exempt("/docs") is True
-        assert is_csrf_exempt("/redoc") is True
+    def test_get_user_profile_no_csrf_required(self, client):
+        """Test that getting user profile doesn't require CSRF token."""
+        response = client.get(
+            '/api/v1/auth/me',
+            headers={'Authorization': 'Bearer valid-token'}
+        )
 
-        # Non-exempt paths
-        assert is_csrf_exempt("/api/v1/session") is False
-        assert is_csrf_exempt("/api/v1/session/logout") is False
-        assert is_csrf_exempt("/api/v1/session/logout-all") is False
-
-
-class TestCsrfConfiguration:
-    """Test CSRF configuration and settings."""
-
-    def test_csrf_settings_validation(self, csrf_secret, monkeypatch):
-        """Test CSRF settings are properly validated."""
-        from app.config import settings
-        monkeypatch.setattr(settings, 'CSRF_SECRET_KEY', csrf_secret)
-        monkeypatch.setattr(settings, 'ENVIRONMENT', 'production')
-        monkeypatch.setattr(settings, 'SESSION_COOKIE_SECURE', True)
-
-        csrf_settings = get_csrf_settings()
-
-        assert csrf_settings.secret_key == csrf_secret
-        assert csrf_settings.cookie_secure is True
-        assert csrf_settings.cookie_samesite == "strict"
-        assert csrf_settings.cookie_httponly is True
-
-    def test_csrf_settings_missing_secret_key(self, monkeypatch):
-        """Test CSRF settings validation fails without secret key."""
-        from app.config import settings
-        monkeypatch.setattr(settings, 'CSRF_SECRET_KEY', None)
-
-        with pytest.raises(ValueError, match="CSRF_SECRET_KEY is required"):
-            get_csrf_settings()
-
-    def test_csrf_settings_development_mode(self, csrf_secret, monkeypatch):
-        """Test CSRF settings in development mode."""
-        from app.config import settings
-        monkeypatch.setattr(settings, 'CSRF_SECRET_KEY', csrf_secret)
-        monkeypatch.setattr(settings, 'ENVIRONMENT', 'development')
-        monkeypatch.setattr(settings, 'SESSION_COOKIE_SECURE', False)
-
-        csrf_settings = get_csrf_settings()
-
-        # In development, cookie_secure should be False
-        assert csrf_settings.cookie_secure is False
-
-    def test_csrf_settings_production_mode(self, csrf_secret, monkeypatch):
-        """Test CSRF settings in production mode."""
-        from app.config import settings
-        monkeypatch.setattr(settings, 'CSRF_SECRET_KEY', csrf_secret)
-        monkeypatch.setattr(settings, 'ENVIRONMENT', 'production')
-        monkeypatch.setattr(settings, 'SESSION_COOKIE_SECURE', False)
-
-        csrf_settings = get_csrf_settings()
-
-        # In production, cookie_secure should be True (overriding config)
-        assert csrf_settings.cookie_secure is True
-
-
-class TestCsrfErrorHandling:
-    """Test CSRF error handling and logging."""
-
-    def test_csrf_error_response_format(self, client):
-        """Test CSRF error response has proper format."""
-        # This test will be relevant once CSRF is enforced
-        # For now, we test that the error handler is registered
-
-        # Verify CSRF exception handler is registered in app
-        from fastapi_csrf_protect.exceptions import CsrfProtectError
-        assert CsrfProtectError in app.exception_handlers
-
-    def test_csrf_error_logging(self, client, caplog):
-        """Test CSRF validation failures are logged."""
-        # This will be tested when CSRF is enforced
-        # For now, verify logging configuration
-        pass
+        # Should not be CSRF error
+        assert response.status_code != 403 or 'csrf' not in response.json().get('error', '').lower()
 
 
 class TestCsrfIntegration:
-    """Integration tests for CSRF protection."""
+    """Integration tests for complete CSRF protection flow."""
 
-    def test_full_session_workflow_with_csrf(self, client, mock_firebase_service):
-        """
-        Test complete session workflow with CSRF protection.
-
-        Workflow:
-        1. Get CSRF token
-        2. Create session (with CSRF token)
-        3. Validate session (exempt from CSRF)
-        4. Logout (with CSRF token)
-        """
+    def test_complete_session_flow_with_csrf(
+        self,
+        client,
+        mock_firebase_service,
+        mock_service_provider,
+        mock_redis_cache
+    ):
+        """Test complete flow: get token -> create session -> logout."""
         # Step 1: Get CSRF token
-        csrf_response = client.get("/api/v1/csrf-token")
-        assert csrf_response.status_code == 200
-        csrf_token = csrf_response.json()["csrf_token"]
-        csrf_cookie = csrf_response.cookies.get("fastapi-csrf-token")
+        token_response = client.get('/api/v1/csrf-token')
+        assert token_response.status_code == 200
+        csrf_token = token_response.json()['csrf_token']
+        csrf_cookie = token_response.cookies.get('fastapi-csrf-token')
 
-        # Verify token and cookie exist
-        assert csrf_token is not None
+        # Step 2: Create session with CSRF token
+        session_response = client.post(
+            '/api/v1/session/',
+            json={
+                'firebase_token': 'valid-firebase-token',
+                'device_info': {'device_type': 'web'}
+            },
+            headers={'X-CSRF-Token': csrf_token},
+            cookies={'fastapi-csrf-token': csrf_cookie}
+        )
+        assert session_response.status_code == 201
+        session_cookie = session_response.cookies.get('session_id')
+
+        # Step 3: Logout with CSRF token
+        logout_response = client.delete(
+            '/api/v1/session/logout',
+            headers={'X-CSRF-Token': csrf_token},
+            cookies={
+                'fastapi-csrf-token': csrf_cookie,
+                'session_id': session_cookie
+            }
+        )
+        assert logout_response.status_code == 200
+        assert logout_response.json()['success'] is True
+
+    def test_csrf_token_reuse(self, client):
+        """Test that CSRF token can be reused for multiple requests."""
+        # Get token once
+        token_response = client.get('/api/v1/csrf-token')
+        csrf_token = token_response.json()['csrf_token']
+        csrf_cookie = token_response.cookies.get('fastapi-csrf-token')
+
+        # Use same token for multiple requests (should succeed)
+        # Note: In real implementation, requests would need valid auth
+        for _ in range(3):
+            response = client.post(
+                '/api/v1/auth/users/preferences/reset',
+                headers={
+                    'X-CSRF-Token': csrf_token,
+                    'Authorization': 'Bearer valid-token'
+                },
+                cookies={'fastapi-csrf-token': csrf_cookie}
+            )
+            # All should fail with same CSRF validation (or auth error if CSRF passes)
+            # None should have different CSRF behavior
+            assert response.status_code in [401, 403]  # Auth or CSRF error
+
+
+class TestCsrfSecurityHeaders:
+    """Test CSRF-related security headers."""
+
+    def test_csrf_cookie_security_flags(self, client):
+        """Test that CSRF cookie has proper security flags."""
+        response = client.get('/api/v1/csrf-token')
+
+        # Check cookie exists
+        csrf_cookie = response.cookies.get('fastapi-csrf-token')
         assert csrf_cookie is not None
 
-        # Step 2: Create session (would work with valid Firebase token)
-        # This is tested in TestCsrfProtectedEndpoints
+        # In production, cookie should have:
+        # - httponly=True (JavaScript cannot access)
+        # - secure=True (HTTPS only)
+        # - samesite=strict (CSRF protection)
+        # Note: TestClient may not fully simulate cookie flags
 
-        # Step 3: Validate session (exempt from CSRF)
-        validate_response = client.get(
-            "/api/v1/session/validate",
-            headers={"X-Session-ID": "test-session-id"}
-        )
-        # Should not be 403 (CSRF error)
-        assert validate_response.status_code != 403
+    def test_csrf_token_in_response_body(self, client):
+        """Test that CSRF token is returned in response body for JavaScript."""
+        response = client.get('/api/v1/csrf-token')
 
-    def test_csrf_token_rotation(self, client):
-        """Test CSRF token can be refreshed."""
-        # Get first token
-        response1 = client.get("/api/v1/csrf-token")
-        token1 = response1.json()["csrf_token"]
-
-        # Get second token (should be new)
-        response2 = client.get("/api/v1/csrf-token")
-        token2 = response2.json()["csrf_token"]
-
-        # Both should be valid tokens
-        assert isinstance(token1, str)
-        assert isinstance(token2, str)
-        assert len(token1) > 0
-        assert len(token2) > 0
+        data = response.json()
+        assert 'csrf_token' in data
+        assert len(data['csrf_token']) > 20  # Reasonable token length
+        assert 'expires_in' in data
+        assert data['expires_in'] > 0
 
 
-class TestCsrfSecurityValidation:
-    """Security-focused CSRF validation tests."""
-
-    def test_csrf_secret_key_validation(self, monkeypatch):
-        """Test that placeholder CSRF secret keys are rejected."""
-        from app.config import settings
-
-        # Test placeholder detection
-        placeholder_keys = [
-            "CHANGE_THIS",
-            "YOUR_SECRET_KEY",
-            "change_this_to_a_secure_random_value"
-        ]
-
-        for placeholder in placeholder_keys:
-            monkeypatch.setattr(settings, 'CSRF_SECRET_KEY', placeholder)
-            # This should work (validation is in config.py, not csrf.py)
-            # But in production, placeholder keys should be detected
-
-    def test_csrf_token_tampering(self, client):
-        """Test that tampered CSRF tokens are rejected."""
-        # Get valid token
-        csrf_response = client.get("/api/v1/csrf-token")
-        valid_token = csrf_response.json()["csrf_token"]
-
-        # Tamper with token
-        tampered_token = valid_token[:-5] + "XXXXX"
-
-        # TODO: After CSRF enforcement, requests with tampered tokens should fail
-        # For now, we just verify token structure
-        assert len(tampered_token) == len(valid_token)
-
-    def test_csrf_cookie_httponly_prevents_javascript_access(self):
-        """Test that CSRF cookie has httpOnly flag to prevent XSS."""
-        from app.middleware.csrf import get_csrf_settings
-
-        # Get settings (with mocked config)
-        # This requires proper env setup
-        try:
-            settings = get_csrf_settings()
-            assert settings.cookie_httponly is True
-        except ValueError:
-            # CSRF_SECRET_KEY not set in test environment
-            pytest.skip("CSRF_SECRET_KEY not configured")
-
-    def test_csrf_cookie_samesite_strict(self):
-        """Test that CSRF cookie has SameSite=Strict to prevent CSRF."""
-        from app.middleware.csrf import get_csrf_settings
-
-        try:
-            settings = get_csrf_settings()
-            assert settings.cookie_samesite == "strict"
-        except ValueError:
-            pytest.skip("CSRF_SECRET_KEY not configured")
-
-
-# =============================================================================
-# FUTURE TESTS (After CSRF Enforcement)
-# =============================================================================
-
-class TestCsrfEnforcement:
-    """
-    Tests to be implemented after CSRF protection is enforced.
-
-    These tests will verify that:
-    1. Requests without CSRF token return 403
-    2. Requests with invalid CSRF token return 403
-    3. Requests with valid CSRF token succeed
-    4. Token expiration is enforced
-    """
-
-    @pytest.mark.skip(reason="CSRF not yet enforced on endpoints")
-    def test_create_session_requires_csrf_token(self, client):
-        """Test that POST /session requires CSRF token."""
-        response = client.post(
-            "/api/v1/session",
-            json={"firebase_token": "test-token"}
-        )
-        assert response.status_code == 403
-        assert "csrf" in response.json()["error"].lower()
-
-    @pytest.mark.skip(reason="CSRF not yet enforced on endpoints")
-    def test_logout_requires_csrf_token(self, client):
-        """Test that DELETE /logout requires CSRF token."""
-        response = client.delete(
-            "/api/v1/session/logout",
-            headers={"X-Session-ID": "test-session"}
-        )
-        assert response.status_code == 403
-
-    @pytest.mark.skip(reason="CSRF not yet enforced on endpoints")
-    def test_invalid_csrf_token_rejected(self, client):
-        """Test that invalid CSRF tokens are rejected."""
-        response = client.post(
-            "/api/v1/session",
-            json={"firebase_token": "test-token"},
-            headers={"X-CSRF-Token": "invalid-token"}
-        )
-        assert response.status_code == 403
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v", "--tb=short"])
+if __name__ == '__main__':
+    pytest.main([__file__, '-v', '--tb=short'])

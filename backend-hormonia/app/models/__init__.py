@@ -28,6 +28,19 @@ from app.models.physician import (
     PatientRiskProfile,
     RiskAssessmentsResponse
 )
+# Audit logging models
+from app.models.audit_log import AuditLog, AuditEventType
+
+# Sprint 1: Eager loading optimization models (P1-2)
+from app.models.treatment import Treatment, TreatmentStatus, TreatmentType
+from app.models.appointment import Appointment, AppointmentStatus, AppointmentType
+from app.models.medication import Medication
+from app.models.notification import Notification, NotificationType, NotificationPriority
+from app.models.session import Session
+from app.models.consent import Consent, ConsentType, ConsentStatus
+
+# Sprint 2: Webhook idempotency (P6)
+from app.models.webhook_event import WebhookEvent as IdempotentWebhookEvent
 
 __all__ = [
     # Base
@@ -86,4 +99,27 @@ __all__ = [
     "RiskAssessment",
     "PatientRiskProfile",
     "RiskAssessmentsResponse",
+
+    # Audit logging models
+    "AuditLog",
+    "AuditEventType",
+
+    # Sprint 1: Eager loading optimization models (P1-2)
+    "Treatment",
+    "TreatmentStatus",
+    "TreatmentType",
+    "Appointment",
+    "AppointmentStatus",
+    "AppointmentType",
+    "Medication",
+    "Notification",
+    "NotificationType",
+    "NotificationPriority",
+    "Session",
+    "Consent",
+    "ConsentType",
+    "ConsentStatus",
+
+    # Sprint 2: Webhook idempotency (P6)
+    "IdempotentWebhookEvent",
 ]

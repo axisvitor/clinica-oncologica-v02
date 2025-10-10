@@ -21,6 +21,7 @@ from app.models.user import User, UserRole
 from app.services.audit_service import AuditService
 from app.utils.security import get_password_hash, verify_password
 from app.middleware.admin_permissions import AdminAuditMixin
+from app.utils.search import gin_search, SearchLanguage
 
 logger = logging.getLogger(__name__)
 
@@ -663,10 +664,13 @@ class UserAdminService(AdminAuditMixin):
         """
         query = self.db.query(User)
 
-        # Apply filters
+        # Apply filters with GIN indexes for improved performance
         if filters.email:
-            query = query.filter(User.email.ilike(f"%{filters.email}%"))
+            # PERFORMANCE: Use GIN index for email search (10-100x faster)
+            query = query.filter(gin_search(User.email, filters.email, SearchLanguage.SIMPLE))
         if filters.full_name:
+            # Note: No GIN index for full_name yet, using ILIKE
+            # TODO: Consider adding GIN index if full_name search becomes frequent
             query = query.filter(User.full_name.ilike(f"%{filters.full_name}%"))
         if filters.role is not None:
             query = query.filter(User.role == filters.role)

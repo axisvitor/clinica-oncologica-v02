@@ -1,0 +1,10 @@
+{
+  "default": [
+    {
+      "key": "docker-review/frontend/report",
+      "value": "{\"score\":62,\"critical_issues\":6,\"high_priority\":4,\"medium_priority\":5,\"status\":\"completed\",\"timestamp\":\"2025-10-04T17:40:50Z\"}",
+      "namespace": "default",
+      "timestamp": 1759599654878
+    }
+  ]
+}

@@ -6,7 +6,7 @@ from typing import Annotated, List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query, File, UploadFile
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm, HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.dependencies import get_thread_safe_db as get_db, get_current_user, get_auth_service
 from app.services.auth import AuthService
@@ -119,59 +119,7 @@ async def refresh_token(
     raise HTTPException(status_code=status.HTTP_410_GONE, detail="Local refresh is disabled: Firebase handles refresh client-side")
 
 
-@router.post(
-    "/logout",
-    response_model=None,
-    summary="User Logout",
-    description="""
-    Log out the current user.
-    
-    This endpoint handles user logout. In a stateless JWT system, logout is typically
-    handled client-side by removing the token. For enhanced security, you could
-    implement a token blacklist here.
-    
-    **Authentication Required**: Bearer token in Authorization header.
-    """,
-    responses={
-        200: {
-            "description": "Logout successful",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "message": "Successfully logged out"
-                    }
-                }
-            }
-        },
-        401: {
-            "description": "Authentication required",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Could not validate credentials"
-                    }
-                }
-            }
-        }
-    }
-)
-async def logout(
-    current_user: User = Depends(get_current_user),
-    auth_service: AuthService = Depends(get_auth_service),
-    credentials: HTTPAuthorizationCredentials = Depends(security)
-) -> dict[str, str]:
-    """
-    User logout endpoint with token blacklisting.
-    
-    SECURITY FIX: Now blacklists the access token to prevent reuse.
-    """
-    # Firebase tokens are stateless; sign-out is handled client-side.
-    # We simply acknowledge the request for auditing purposes.
-    try:
-        logger.info(f"User {current_user.email} logged out (Firebase session invalidated)")
-    except Exception:
-        pass
-    return {"message": "Successfully logged out"}
+
 
 
 @router.get(
@@ -188,6 +136,8 @@ async def logout(
     - Session cookie (httpOnly) - PREFERRED (secure, XSS-safe)
     - X-Session-ID header - Fallback for backward compatibility
     - Bearer token in Authorization header - Legacy support
+
+    **Rate Limit**: 100 requests per minute per IP
     """,
     responses={
         200: {
@@ -214,10 +164,22 @@ async def logout(
                     }
                 }
             }
+        },
+        429: {
+            "description": "Rate limit exceeded",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": "too_many_requests",
+                        "message": "Muitas tentativas. Tente novamente mais tarde."
+                    }
+                }
+            }
         }
     }
 )
-async def get_current_user_profile(current_user: User = Depends(get_current_user)) -> UserResponse:
+@limiter.limit("100/minute")  # Rate limit: 100 profile fetches per minute per IP
+async def get_current_user_profile(request: Request, current_user: User = Depends(get_current_user)) -> UserResponse:
     """
     Get current user profile.
 
@@ -234,9 +196,11 @@ async def get_current_user_profile(current_user: User = Depends(get_current_user
     "/users/preferences",
     response_model=UserPreferencesResponse,
     summary="Get User Preferences",
-    description="Get preferences for the current authenticated user"
+    description="Get preferences for the current authenticated user. **Rate Limit**: 100 requests/minute per IP"
 )
+@limiter.limit("100/minute")  # Rate limit: 100 preference fetches per minute per IP
 async def get_user_preferences(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> UserPreferencesResponse:
@@ -273,9 +237,11 @@ async def get_user_preferences(
     "/users/preferences",
     response_model=UserPreferencesResponse,
     summary="Update User Preferences",
-    description="Update preferences for the current authenticated user"
+    description="Update preferences for the current authenticated user. **Rate Limit**: 20 requests/hour per IP"
 )
+@limiter.limit("20/hour")  # Rate limit: 20 preference updates per hour per IP
 async def update_user_preferences(
+    request: Request,
     preferences: UserPreferences,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -315,9 +281,11 @@ async def update_user_preferences(
     "/users/preferences",
     response_model=UserPreferencesResponse,
     summary="Partially Update User Preferences",
-    description="Partially update preferences for the current authenticated user"
+    description="Partially update preferences for the current authenticated user. **Rate Limit**: 20 requests/hour per IP"
 )
+@limiter.limit("20/hour")  # Rate limit: 20 preference patches per hour per IP
 async def patch_user_preferences(
+    request: Request,
     updates: Dict[str, Any],
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -368,9 +336,11 @@ async def patch_user_preferences(
     "/users/preferences/reset",
     response_model=SuccessResponse,
     summary="Reset User Preferences",
-    description="Reset user preferences to defaults"
+    description="Reset user preferences to defaults. **Rate Limit**: 10 requests/hour per IP"
 )
+@limiter.limit("10/hour")  # Rate limit: 10 preference resets per hour per IP
 async def reset_user_preferences(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> SuccessResponse:
@@ -409,9 +379,11 @@ async def reset_user_preferences(
     "/notifications",
     response_model=NotificationListResponse,
     summary="Get User Notifications",
-    description="Get notifications for the current authenticated user"
+    description="Get notifications for the current authenticated user. **Rate Limit**: 100 requests/minute per IP"
 )
+@limiter.limit("100/minute")  # Rate limit: 100 notification fetches per minute per IP
 async def get_notifications(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     limit: int = Query(default=10, ge=1, le=100),
@@ -452,9 +424,11 @@ async def get_notifications(
     "/notifications/{notification_id}/read",
     response_model=SuccessResponse,
     summary="Mark Notification as Read",
-    description="Mark a specific notification as read"
+    description="Mark a specific notification as read. **Rate Limit**: 100 requests/minute per IP"
 )
+@limiter.limit("100/minute")  # Rate limit: 100 notification marks per minute per IP
 async def mark_notification_as_read(
+    request: Request,
     notification_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -483,9 +457,11 @@ async def mark_notification_as_read(
     "/notifications/mark-all-read",
     response_model=SuccessResponse,
     summary="Mark All Notifications as Read",
-    description="Mark all notifications as read for the current user"
+    description="Mark all notifications as read for the current user. **Rate Limit**: 20 requests/hour per IP"
 )
+@limiter.limit("20/hour")  # Rate limit: 20 mark-all operations per hour per IP
 async def mark_all_notifications_as_read(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> SuccessResponse:
@@ -513,9 +489,11 @@ async def mark_all_notifications_as_read(
     "/notifications/{notification_id}",
     response_model=SuccessResponse,
     summary="Delete Notification",
-    description="Delete a specific notification"
+    description="Delete a specific notification. **Rate Limit**: 100 requests/minute per IP"
 )
+@limiter.limit("100/minute")  # Rate limit: 100 notification deletes per minute per IP
 async def delete_notification(
+    request: Request,
     notification_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -562,7 +540,8 @@ class ProfileUpdateResponse(BaseModel):
 
 class PasswordChangeRequest(BaseModel):
     """Password change request schema."""
-    new_password: str
+    current_password: str = Field(..., min_length=8, description="Current password for verification")
+    new_password: str = Field(..., min_length=8, description="New password")
 
 
 @router.put(
@@ -680,7 +659,7 @@ async def change_password(
     """
     Change user password with Firebase Admin SDK and rate limiting.
 
-    Note: Current password validation should be done client-side via Firebase reauthentication.
+    Requires current password verification for re-authentication security.
     """
     try:
         logger.info(f"Password change requested for user {current_user.id}")
@@ -701,6 +680,55 @@ async def change_password(
                 detail="Too many password change attempts. Please try again later."
             )
 
+        # Verify current password with Firebase Admin SDK
+        import firebase_admin
+        from firebase_admin import auth as firebase_auth
+
+        try:
+            # For Firebase Admin SDK, we need to verify the current password
+            # Since Firebase Admin doesn't directly support password verification,
+            # we use Firebase Auth REST API to verify the current password
+
+            # Verify current password using Firebase Auth REST API
+            import requests
+
+            auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={settings.FIREBASE_WEB_API_KEY}"
+            auth_payload = {
+                "email": current_user.email,
+                "password": password_data.current_password,
+                "returnSecureToken": True
+            }
+
+            auth_response = requests.post(auth_url, json=auth_payload)
+
+            if auth_response.status_code != 200:
+                logger.warning(f"Current password verification failed for user {current_user.id}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Current password is incorrect"
+                )
+
+            auth_data = auth_response.json()
+            if auth_data.get('localId') != firebase_uid:
+                logger.warning(f"Firebase UID mismatch during password verification for user {current_user.id}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Current password is incorrect"
+                )
+
+        except requests.RequestException as e:
+            logger.error(f"Error verifying current password for user {current_user.id}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current password verification failed"
+            )
+        except firebase_admin.exceptions.FirebaseError as e:
+            logger.error(f"Firebase error during password verification for user {current_user.id}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current password verification failed"
+            )
+
         # Update password via Firebase Admin SDK
         from app.services.firebase_auth_service import get_firebase_auth_service
 
@@ -711,9 +739,6 @@ async def change_password(
         )
 
         # Update password
-        import firebase_admin
-        from firebase_admin import auth as firebase_auth
-
         firebase_auth.update_user(
             firebase_uid,
             password=password_data.new_password

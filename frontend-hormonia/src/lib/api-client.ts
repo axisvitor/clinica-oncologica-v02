@@ -294,8 +294,8 @@ class ApiClient {
           if (response.status === 401) {
             logger.warn('[ApiClient] Session expired (401), clearing session data')
             if (typeof window !== 'undefined') {
-              // SECURITY: Cookie cleared by backend, just clear localStorage
-              localStorage.removeItem('firebase_token')
+              // SECURITY: Session managed by httpOnly cookies (automatic)
+              // Firebase token managed by Firebase SDK (in-memory)
 
               // Redirect to login page if not already there
               if (!window.location.pathname.includes('/login')) {

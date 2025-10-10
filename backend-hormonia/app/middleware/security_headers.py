@@ -1,7 +1,13 @@
 """
-Security Headers Middleware.
+Security Headers Middleware
 
-Implements OWASP security headers to protect against common web vulnerabilities.
+This middleware adds essential security headers to all HTTP responses to protect
+against common web vulnerabilities including:
+- Clickjacking attacks (X-Frame-Options)
+- MIME-type sniffing (X-Content-Type-Options)
+- Man-in-the-middle attacks (Strict-Transport-Security)
+- XSS attacks (X-XSS-Protection, Content-Security-Policy)
+- Information leakage (Referrer-Policy)
 """
 
 from typing import Callable
@@ -9,183 +15,172 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
-import logging
-
-logger = logging.getLogger(__name__)
-
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """
-    Middleware to add security headers to all HTTP responses.
+    Middleware that adds security headers to all responses.
 
-    Implements OWASP recommended security headers:
-    - X-Content-Type-Options: Prevents MIME type sniffing
-    - X-Frame-Options: Prevents clickjacking
-    - X-XSS-Protection: Enables XSS filter
-    - Strict-Transport-Security: Enforces HTTPS
-    - Content-Security-Policy: Controls resource loading
-    - Referrer-Policy: Controls referrer information
-    - Permissions-Policy: Controls browser features
+    This middleware implements OWASP recommended security headers to protect
+    against common web vulnerabilities in production environments.
     """
 
     def __init__(
         self,
         app: ASGIApp,
+        *,
         enable_hsts: bool = True,
-        hsts_max_age: int = 31536000,  # 1 year
-        enable_csp: bool = True,
-        csp_policy: str = None,
-        enable_frame_options: bool = True,
-        frame_options: str = "DENY"
+        hsts_max_age: int = 31536000,
+        hsts_include_subdomains: bool = True,
+        hsts_preload: bool = False,
+        frame_options: str = "DENY",
+        content_type_options: str = "nosniff",
+        xss_protection: str = "1; mode=block",
+        referrer_policy: str = "strict-origin-when-cross-origin",
+        csp_policy: str | None = None,
+        permissions_policy: str | None = None,
     ):
+        """
+        Initialize the security headers middleware.
+
+        Args:
+            app: The ASGI application
+            enable_hsts: Whether to enable HSTS header (only for HTTPS)
+            hsts_max_age: HSTS max-age in seconds (default: 1 year)
+            hsts_include_subdomains: Include subdomains in HSTS
+            hsts_preload: Enable HSTS preload
+            frame_options: X-Frame-Options value (DENY, SAMEORIGIN, or ALLOW-FROM)
+            content_type_options: X-Content-Type-Options value
+            xss_protection: X-XSS-Protection value
+            referrer_policy: Referrer-Policy value
+            csp_policy: Content-Security-Policy directives
+            permissions_policy: Permissions-Policy directives
+        """
         super().__init__(app)
         self.enable_hsts = enable_hsts
         self.hsts_max_age = hsts_max_age
-        self.enable_csp = enable_csp
-        # Enhanced CSP policy with comprehensive directives
-        self.csp_policy = csp_policy or self._get_default_csp_policy()
-        self.enable_frame_options = enable_frame_options
+        self.hsts_include_subdomains = hsts_include_subdomains
+        self.hsts_preload = hsts_preload
         self.frame_options = frame_options
+        self.content_type_options = content_type_options
+        self.xss_protection = xss_protection
+        self.referrer_policy = referrer_policy
+        self.csp_policy = csp_policy
+        self.permissions_policy = permissions_policy
 
-    def _get_default_csp_policy(self) -> str:
-        """Get comprehensive default CSP policy."""
-        import os
-        env = os.getenv("ENVIRONMENT", "development").lower()
+    def _build_hsts_header(self) -> str:
+        """Build the Strict-Transport-Security header value."""
+        hsts_parts = [f"max-age={self.hsts_max_age}"]
 
-        # Base CSP directives for production
-        csp_directives = [
-            "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com",
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
-            "font-src 'self' https://fonts.gstatic.com data:",
-            "img-src 'self' data: https: blob:",
-            "connect-src 'self' https://api.sentry.io https://*.supabase.co wss://*.supabase.co",
-            "frame-src 'none'",
-            "object-src 'none'",
-            "base-uri 'self'",
-            "form-action 'self'",
-            "frame-ancestors 'none'",
-            "upgrade-insecure-requests"
-        ]
+        if self.hsts_include_subdomains:
+            hsts_parts.append("includeSubDomains")
 
-        # Add development-specific directives
-        if env in ["development", "dev"]:
-            csp_directives[1] = "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: ws://localhost:* http://localhost:*"
-            csp_directives[5] = "connect-src 'self' https: ws://localhost:* http://localhost:* wss://*.supabase.co"
+        if self.hsts_preload:
+            hsts_parts.append("preload")
 
-        return "; ".join(csp_directives)
+        return "; ".join(hsts_parts)
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """Add security headers to response."""
+    def _get_default_csp(self) -> str:
+        """
+        Get default Content-Security-Policy.
+
+        This CSP is designed for a typical FastAPI + React application:
+        - Allows same-origin resources by default
+        - Allows inline styles (needed for many UI libraries)
+        - Restricts script sources to same-origin only
+        - Prevents loading resources from arbitrary origins
+        """
+        return (
+            "default-src 'self'; "
+            "script-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: https:; "
+            "font-src 'self' data:; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self'"
+        )
+
+    async def dispatch(
+        self, request: Request, call_next: Callable
+    ) -> Response:
+        """
+        Process the request and add security headers to the response.
+
+        Args:
+            request: The incoming HTTP request
+            call_next: The next middleware or route handler
+
+        Returns:
+            The response with security headers added
+        """
         response = await call_next(request)
 
-        # X-Content-Type-Options: Prevent MIME type sniffing
-        response.headers["X-Content-Type-Options"] = "nosniff"
+        # X-Frame-Options: Prevents clickjacking attacks
+        response.headers["X-Frame-Options"] = self.frame_options
 
-        # X-Frame-Options: Prevent clickjacking
-        if self.enable_frame_options:
-            response.headers["X-Frame-Options"] = self.frame_options
+        # X-Content-Type-Options: Prevents MIME-type sniffing
+        response.headers["X-Content-Type-Options"] = self.content_type_options
 
-        # X-XSS-Protection: Enable XSS filter (legacy, CSP is preferred)
-        response.headers["X-XSS-Protection"] = "1; mode=block"
+        # X-XSS-Protection: Legacy XSS protection (for older browsers)
+        response.headers["X-XSS-Protection"] = self.xss_protection
 
-        # Strict-Transport-Security: Enforce HTTPS
+        # Referrer-Policy: Controls referrer information
+        response.headers["Referrer-Policy"] = self.referrer_policy
+
+        # Strict-Transport-Security: Forces HTTPS connections
+        # Only set if HSTS is enabled and the request is over HTTPS
         if self.enable_hsts and request.url.scheme == "https":
-            response.headers["Strict-Transport-Security"] = f"max-age={self.hsts_max_age}; includeSubDomains"
+            response.headers["Strict-Transport-Security"] = self._build_hsts_header()
 
-        # Content-Security-Policy: Control resource loading
-        if self.enable_csp:
-            response.headers["Content-Security-Policy"] = self.csp_policy
+        # Content-Security-Policy: Prevents XSS and injection attacks
+        csp = self.csp_policy if self.csp_policy else self._get_default_csp()
+        response.headers["Content-Security-Policy"] = csp
 
-        # Referrer-Policy: Control referrer information
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-
-        # Permissions-Policy: Control browser features
-        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
-
-        # Remove server header to avoid information disclosure
-        if "server" in response.headers:
-            del response.headers["server"]
-
-        # Add custom header for security versioning
-        response.headers["X-Security-Headers-Version"] = "1.0"
+        # Permissions-Policy: Controls browser features
+        if self.permissions_policy:
+            response.headers["Permissions-Policy"] = self.permissions_policy
 
         return response
 
 
-class RateLimitHeadersMiddleware(BaseHTTPMiddleware):
+def create_production_security_middleware(
+    app: ASGIApp,
+    *,
+    custom_csp: str | None = None,
+) -> SecurityHeadersMiddleware:
     """
-    Middleware to add rate limit information headers.
+    Create a security headers middleware with production-ready defaults.
 
-    Provides transparency about rate limiting to clients.
-    """
-
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """Add rate limit headers to response."""
-        response = await call_next(request)
-
-        # Add rate limit headers if available from rate limiter
-        if hasattr(request.state, "rate_limit_info"):
-            limit_info = request.state.rate_limit_info
-
-            response.headers["X-RateLimit-Limit"] = str(limit_info.get("limit", ""))
-            response.headers["X-RateLimit-Remaining"] = str(limit_info.get("remaining", ""))
-            response.headers["X-RateLimit-Reset"] = str(limit_info.get("reset", ""))
-
-        return response
-
-
-class RequestIDMiddleware(BaseHTTPMiddleware):
-    """
-    Middleware to add unique request ID for tracing.
-
-    Adds X-Request-ID header for request tracing and correlation.
-    """
-
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """Add request ID to response."""
-        import uuid
-
-        # Generate or use existing request ID
-        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
-
-        # Store in request state for access in endpoints
-        request.state.request_id = request_id
-
-        # Process request
-        response = await call_next(request)
-
-        # Add to response
-        response.headers["X-Request-ID"] = request_id
-
-        return response
-
-
-def setup_security_middleware(app: ASGIApp, config: dict = None) -> None:
-    """
-    Setup all security middleware.
+    This factory function creates middleware configured with security headers
+    appropriate for a production medical application handling sensitive data.
 
     Args:
-        app: FastAPI application
-        config: Configuration dictionary for middleware
+        app: The ASGI application
+        custom_csp: Optional custom Content-Security-Policy
+
+    Returns:
+        Configured SecurityHeadersMiddleware instance
     """
-    config = config or {}
-
-    # Request ID middleware (first to ensure all requests have ID)
-    app.add_middleware(RequestIDMiddleware)
-
-    # Security headers middleware
-    app.add_middleware(
-        SecurityHeadersMiddleware,
-        enable_hsts=config.get("enable_hsts", True),
-        hsts_max_age=config.get("hsts_max_age", 31536000),
-        enable_csp=config.get("enable_csp", True),
-        csp_policy=config.get("csp_policy", None),  # Will use enhanced default
-        enable_frame_options=config.get("enable_frame_options", True),
-        frame_options=config.get("frame_options", "DENY")
+    return SecurityHeadersMiddleware(
+        app,
+        enable_hsts=True,
+        hsts_max_age=31536000,  # 1 year
+        hsts_include_subdomains=True,
+        hsts_preload=False,  # Only enable after testing
+        frame_options="DENY",
+        content_type_options="nosniff",
+        xss_protection="1; mode=block",
+        referrer_policy="strict-origin-when-cross-origin",
+        csp_policy=custom_csp,
+        permissions_policy=(
+            "geolocation=(), "
+            "microphone=(), "
+            "camera=(), "
+            "payment=(), "
+            "usb=(), "
+            "magnetometer=(), "
+            "gyroscope=(), "
+            "accelerometer=()"
+        ),
     )
-
-    # Rate limit headers middleware
-    app.add_middleware(RateLimitHeadersMiddleware)
-
-    logger.info("Security middleware configured successfully")

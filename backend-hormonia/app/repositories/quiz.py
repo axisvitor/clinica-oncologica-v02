@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models.quiz import QuizTemplate, QuizResponse, QuizSession
 from app.repositories.base import BaseRepository
+from app.utils.query_cache import cached_query
 
 
 class QuizRepository(BaseRepository[QuizSession]):
@@ -14,24 +15,75 @@ class QuizRepository(BaseRepository[QuizSession]):
     def __init__(self, db: Session):
         super().__init__(db, QuizSession)
 
-    def get_by_patient(self, patient_id: UUID, skip: int = 0, limit: int = 100) -> List[QuizSession]:
-        """Get quiz sessions by patient"""
-        return (
+    @cached_query('quiz_sessions_by_patient', ttl=300, tags=['quizzes'])
+    def get_by_patient(self, patient_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[QuizSession]:
+        """
+        Get quiz sessions by patient with eager loading and caching (5min TTL).
+
+        PERFORMANCE OPTIMIZATION:
+        - Eager loading prevents N+1 queries
+        - Redis caching reduces DB load
+        - Cache invalidated on quiz mutations
+
+        Relationships loaded when eager_load=True:
+        - patient: Patient information (joinedload - 1:1)
+        - quiz_template: Quiz template used (joinedload - 1:1)
+
+        Args:
+            patient_id: UUID of the patient
+            skip: Pagination offset
+            limit: Maximum records to return
+            eager_load: Enable eager loading (default: True for performance)
+
+        Returns:
+            List of quiz sessions with relationships pre-loaded
+        """
+        from sqlalchemy.orm import joinedload
+
+        query = (
             self.db.query(QuizSession)
             .filter(QuizSession.patient_id == patient_id)
             .order_by(QuizSession.created_at.desc())
-            .offset(skip)
-            .limit(limit)
-            .all()
         )
 
-    def get_active_sessions(self) -> List[QuizSession]:
-        """Get active quiz sessions"""
-        return (
-            self.db.query(QuizSession)
-            .filter(QuizSession.status == 'in_progress')
-            .all()
-        )
+        if eager_load:
+            query = query.options(
+                joinedload(QuizSession.patient),
+                joinedload(QuizSession.quiz_template)
+            )
+
+        return query.offset(skip).limit(limit).all()
+
+    def get_active_sessions(self, eager_load: bool = True) -> List[QuizSession]:
+        """
+        Get active quiz sessions with eager loading.
+
+        PERFORMANCE OPTIMIZATION: Eager loading enabled by default.
+
+        Relationships loaded when eager_load=True:
+        - patient: Patient information (joinedload - 1:1)
+        - quiz_template: Quiz template used (joinedload - 1:1)
+        - responses: Quiz responses in session (selectinload - 1:many)
+
+        Args:
+            eager_load: Enable eager loading (default: True for performance)
+
+        Returns:
+            List of active quiz sessions with relationships pre-loaded
+        """
+        from sqlalchemy.orm import joinedload, selectinload
+
+        query = self.db.query(QuizSession).filter(QuizSession.status == 'in_progress')
+
+        if eager_load:
+            # PERFORMANCE: Load patient, template, and responses to prevent N+1 queries
+            query = query.options(
+                joinedload(QuizSession.patient),
+                joinedload(QuizSession.quiz_template),
+                selectinload(QuizSession.responses)
+            )
+
+        return query.all()
 
 
 class QuizTemplateRepository(BaseRepository[QuizTemplate]):
@@ -40,8 +92,13 @@ class QuizTemplateRepository(BaseRepository[QuizTemplate]):
     def __init__(self, db: Session):
         super().__init__(db, QuizTemplate)
     
+    @cached_query('active_quiz_templates', ttl=600)
     def get_active_templates(self, skip: int = 0, limit: int = 100) -> List[QuizTemplate]:
-        """Get active quiz templates"""
+        """
+        Get active quiz templates with caching (10min TTL).
+
+        PERFORMANCE: Cached for 10 minutes as templates change infrequently.
+        """
         return (
             self.db.query(QuizTemplate)
             .filter(QuizTemplate.is_active == True)
@@ -97,16 +154,40 @@ class QuizResponseRepository(BaseRepository[QuizResponse]):
     def __init__(self, db: Session):
         super().__init__(db, QuizResponse)
     
-    def get_by_patient(self, patient_id: UUID, skip: int = 0, limit: int = 100) -> List[QuizResponse]:
-        """Get quiz responses by patient"""
-        return (
+    def get_by_patient(self, patient_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[QuizResponse]:
+        """
+        Get quiz responses by patient with eager loading.
+
+        PERFORMANCE OPTIMIZATION: Eager loading enabled by default.
+
+        Relationships loaded when eager_load=True:
+        - patient: Patient information (joinedload - 1:1)
+        - quiz_template: Quiz template used (joinedload - 1:1)
+
+        Args:
+            patient_id: UUID of the patient
+            skip: Pagination offset
+            limit: Maximum records to return
+            eager_load: Enable eager loading (default: True for performance)
+
+        Returns:
+            List of quiz responses with relationships pre-loaded
+        """
+        from sqlalchemy.orm import joinedload
+
+        query = (
             self.db.query(QuizResponse)
             .filter(QuizResponse.patient_id == patient_id)
             .order_by(QuizResponse.responded_at.desc())
-            .offset(skip)
-            .limit(limit)
-            .all()
         )
+
+        if eager_load:
+            query = query.options(
+                joinedload(QuizResponse.patient),
+                joinedload(QuizResponse.quiz_template)
+            )
+
+        return query.offset(skip).limit(limit).all()
     
     def get_by_patient_with_count(self, patient_id: UUID, skip: int = 0, limit: int = 100) -> tuple[List[QuizResponse], int]:
         """Get quiz responses by patient with total count"""
@@ -168,26 +249,80 @@ class QuizSessionRepository(BaseRepository[QuizSession]):
     def __init__(self, db: Session):
         super().__init__(db, QuizSession)
     
-    def get_active_session(self, patient_id: UUID) -> Optional[QuizSession]:
-        """Get active quiz session for a patient"""
-        return (
+    def get_active_session(self, patient_id: UUID, eager_load: bool = True) -> Optional[QuizSession]:
+        """
+        Get active quiz session for a patient with eager loading.
+
+        PERFORMANCE OPTIMIZATION: Eager loading enabled by default.
+
+        Relationships loaded when eager_load=True:
+        - patient: Patient information (joinedload - 1:1)
+        - quiz_template: Quiz template used (joinedload - 1:1)
+        - responses: Quiz responses in session (selectinload - 1:many)
+
+        Args:
+            patient_id: UUID of the patient
+            eager_load: Enable eager loading (default: True for performance)
+
+        Returns:
+            Active quiz session or None
+        """
+        from sqlalchemy.orm import joinedload, selectinload
+
+        query = (
             self.db.query(QuizSession)
             .filter(QuizSession.patient_id == patient_id)
             .filter(QuizSession.status == 'in_progress')  # FIX: Use status field instead of is_completed
             .order_by(QuizSession.started_at.desc())
-            .first()
         )
+
+        if eager_load:
+            # PERFORMANCE: Load all related entities to prevent N+1 queries
+            query = query.options(
+                joinedload(QuizSession.patient),
+                joinedload(QuizSession.quiz_template),
+                selectinload(QuizSession.responses)
+            )
+
+        return query.first()
     
-    def get_patient_sessions(self, patient_id: UUID, skip: int = 0, limit: int = 100) -> List[QuizSession]:
-        """Get quiz sessions for a patient"""
-        return (
+    def get_patient_sessions(self, patient_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[QuizSession]:
+        """
+        Get quiz sessions for a patient with eager loading.
+
+        PERFORMANCE OPTIMIZATION: Eager loading enabled by default.
+
+        Relationships loaded when eager_load=True:
+        - patient: Patient information (joinedload - 1:1)
+        - quiz_template: Quiz template used (joinedload - 1:1)
+        - responses: Quiz responses in session (selectinload - 1:many)
+
+        Args:
+            patient_id: UUID of the patient
+            skip: Pagination offset
+            limit: Maximum records to return
+            eager_load: Enable eager loading (default: True for performance)
+
+        Returns:
+            List of quiz sessions with relationships pre-loaded
+        """
+        from sqlalchemy.orm import joinedload, selectinload
+
+        query = (
             self.db.query(QuizSession)
             .filter(QuizSession.patient_id == patient_id)
             .order_by(QuizSession.started_at.desc())
-            .offset(skip)
-            .limit(limit)
-            .all()
         )
+
+        if eager_load:
+            # PERFORMANCE: Load all related entities to prevent N+1 queries
+            query = query.options(
+                joinedload(QuizSession.patient),
+                joinedload(QuizSession.quiz_template),
+                selectinload(QuizSession.responses)
+            )
+
+        return query.offset(skip).limit(limit).all()
     
     def get_patient_sessions_with_count(self, patient_id: UUID, skip: int = 0, limit: int = 100) -> tuple[List[QuizSession], int]:
         """Get quiz sessions for a patient with total count"""

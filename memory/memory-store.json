@@ -1,0 +1,26 @@
+{
+  "default": [
+    {
+      "key": "hive/connectivity-validation",
+      "value": "Frontend-backend connectivity validation in progress - analyzing API endpoints, auth flow, env vars, CORS, and WebSocket connectivity",
+      "namespace": "default",
+      "timestamp": 1759585161122
+    }
+  ],
+  "architecture": [
+    {
+      "key": "docker-review/orchestration",
+      "value": "Analysis complete. Score: 72/100. Critical issues: hardcoded passwords, exposed services, missing TLS. Report saved to docs/architecture/DOCKER_ORCHESTRATION_ANALYSIS.md",
+      "namespace": "architecture",
+      "timestamp": 1759598206655
+    }
+  ],
+  "coordination": [
+    {
+      "key": "swarm/worker-auth/complete",
+      "value": "{\"status\":\"complete\",\"task\":\"Refactor auth_dependencies for sessions\",\"deliverables\":{\"files\":[\"backend-hormonia/app/dependencies/auth_dependencies.py\"],\"features\":[\"get_current_user_from_session\",\"get_permissions_for_role\"]},\"time_taken_ms\":79600}",
+      "namespace": "coordination",
+      "timestamp": 1759805847350
+    }
+  ]
+}

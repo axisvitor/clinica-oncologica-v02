@@ -3,11 +3,14 @@
 /**
  * Firebase Authentication Service with Session Management
  *
+ * PERFORMANCE OPTIMIZATION:
+ * Firebase SDK is now lazy-loaded to reduce initial bundle size by 107KB
+ *
  * Integrates Firebase Authentication with backend session storage (Redis)
  * Handles login, logout, logout-all, and automatic token refresh
  */
 
-import { auth, firebaseAuth } from '../lib/firebase-client'
+import { firebaseAuthLazy } from '../lib/firebase-lazy'
 import type { User as FirebaseUser } from 'firebase/auth'
 import { apiClient } from '../lib/api-client'
 import { createLogger } from '../lib/logger'
@@ -73,14 +76,14 @@ export async function loginUser(
 
     logger.log('Pre-login validations passed')
 
-    // Step 1: Sign in with Firebase
-    const result = await firebaseAuth.signInWithPassword({ email, password })
+    // Step 1: Sign in with Firebase (lazy loaded)
+    const result = await firebaseAuthLazy.signInWithPassword({ email, password })
 
     if (result.error || !result.user || !result.session) {
       throw result.error || new Error('Login failed - no user or session')
     }
 
-    logger.log('Firebase authentication successful')
+    logger.log('Firebase authentication successful (lazy loaded)')
 
     // Step 2: Get Firebase ID token
     const firebaseToken = await result.user.getIdToken()
@@ -119,7 +122,6 @@ export async function loginUser(
 
     // Step 4: Firebase token stored in memory via Firebase Auth SDK
     // Session ID stored securely in httpOnly cookie (not accessible to JavaScript)
-    // NO localStorage usage - prevents XSS token theft
 
     // Step 5: NOW safe to call auth.me() (cookie sent automatically)
     apiClient.setAuthToken(firebaseToken)
@@ -177,7 +179,7 @@ export async function logoutUser(): Promise<void> {
       logger.warn('Backend logout request failed, continuing with cleanup:', error)
     }
 
-    // Local storage NO LONGER USED (session cleared via httpOnly cookie by backend)
+    // Session cleared via httpOnly cookie by backend
     // Firebase Auth SDK automatically clears in-memory token
 
     // Clear token refresh interval
@@ -186,8 +188,8 @@ export async function logoutUser(): Promise<void> {
       tokenRefreshInterval = null
     }
 
-    // Sign out from Firebase
-    await firebaseAuth.signOut()
+    // Sign out from Firebase (lazy loaded)
+    await firebaseAuthLazy.signOut()
 
     logger.log('Logout successful')
   } catch (error) {
@@ -210,8 +212,8 @@ export async function logoutAllDevices(): Promise<{ sessions_deleted: number }> 
   try {
     logger.log('Logging out from all devices')
 
-    // Get Firebase token from Firebase Auth SDK (in-memory)
-    const currentUser = await firebaseAuth.getCurrentUser()
+    // Get Firebase token from Firebase Auth SDK (lazy loaded, in-memory)
+    const currentUser = await firebaseAuthLazy.getCurrentUser()
     if (!currentUser) {
       logger.warn('No Firebase user found, performing local logout only')
       await logoutUser()
@@ -238,7 +240,6 @@ export async function logoutAllDevices(): Promise<{ sessions_deleted: number }> 
         const logoutData = await response.json()
         logger.log(`All sessions invalidated: ${logoutData.sessions_deleted} sessions deleted`)
 
-        // Local storage NO LONGER USED
         // Session cleared via httpOnly cookie by backend
 
         // Clear token refresh interval
@@ -247,8 +248,8 @@ export async function logoutAllDevices(): Promise<{ sessions_deleted: number }> 
           tokenRefreshInterval = null
         }
 
-        // Sign out from Firebase
-        await firebaseAuth.signOut()
+        // Sign out from Firebase (lazy loaded)
+        await firebaseAuthLazy.signOut()
 
         return { sessions_deleted: logoutData.sessions_deleted }
       } else {
@@ -273,8 +274,8 @@ export async function logoutAllDevices(): Promise<{ sessions_deleted: number }> 
  */
 export async function getCurrentUser(): Promise<User | null> {
   try {
-    // Check Firebase auth state (Firebase Auth SDK manages token in-memory)
-    const firebaseUser = await firebaseAuth.getCurrentUser()
+    // Check Firebase auth state (lazy loaded, Firebase Auth SDK manages token in-memory)
+    const firebaseUser = await firebaseAuthLazy.getCurrentUser()
     if (!firebaseUser) {
       logger.log('No Firebase user, session cleared')
       return null
@@ -319,8 +320,12 @@ export async function checkSession(): Promise<boolean> {
 }
 
 /**
- * Setup automatic token refresh
+ * Setup automatic token refresh with backend validation
  * Firebase tokens expire after 1 hour, refresh every 55 minutes
+ *
+ * SECURITY IMPROVEMENT: After refreshing the token, validates with backend
+ * to prevent token use after account deactivation. If validation fails,
+ * forces logout to protect against unauthorized access.
  */
 export function setupTokenRefresh(): void {
   // Clear any existing interval
@@ -333,9 +338,9 @@ export function setupTokenRefresh(): void {
 
   tokenRefreshInterval = setInterval(async () => {
     try {
-      logger.log('Auto-refreshing Firebase token')
+      logger.log('Auto-refreshing Firebase token (lazy loaded)')
 
-      const firebaseUser = await firebaseAuth.getCurrentUser()
+      const firebaseUser = await firebaseAuthLazy.getCurrentUser()
       if (!firebaseUser) {
         logger.warn('No Firebase user for token refresh')
         if (tokenRefreshInterval) {
@@ -352,13 +357,52 @@ export function setupTokenRefresh(): void {
       apiClient.setAuthToken(newToken)
 
       logger.log('Token refreshed successfully')
+
+      // SECURITY: Validate token with backend after refresh
+      // This prevents use of refreshed tokens after account deactivation
+      try {
+        const validationResponse = await apiClient.auth.me()
+
+        if (!validationResponse || !validationResponse.data) {
+          logger.error('Backend validation failed after token refresh - session invalid')
+          throw new Error('Session validation failed')
+        }
+
+        // Check if account is still active
+        if (!validationResponse.data.is_active) {
+          logger.error('Account deactivated - forcing logout')
+          throw new Error('Account has been deactivated')
+        }
+
+        logger.log('Backend validation successful after token refresh')
+      } catch (validationError) {
+        logger.error('Token validation failed, forcing logout:', validationError)
+
+        // Clear refresh interval
+        if (tokenRefreshInterval) {
+          clearInterval(tokenRefreshInterval)
+          tokenRefreshInterval = null
+        }
+
+        // Force logout to clear session
+        try {
+          await logoutUser()
+        } catch (logoutError) {
+          logger.error('Logout during validation failure encountered error:', logoutError)
+        }
+
+        // Redirect to login page
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login?session_invalid=true'
+        }
+      }
     } catch (error) {
       logger.error('Token refresh failed:', error)
-      // Don't throw - let it retry on next interval
+      // Don't throw - error handling above will manage logout if needed
     }
   }, REFRESH_INTERVAL)
 
-  logger.log('Token refresh scheduled every 55 minutes')
+  logger.log('Token refresh with validation scheduled every 55 minutes')
 }
 
 /**
@@ -372,5 +416,5 @@ export function stopTokenRefresh(): void {
   }
 }
 
-// Export Firebase auth instance for direct use if needed
-export { auth, firebaseAuth }
+// Export lazy-loaded Firebase auth instance for direct use if needed
+export { firebaseAuthLazy as firebaseAuth }

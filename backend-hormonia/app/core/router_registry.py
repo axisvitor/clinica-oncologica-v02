@@ -36,10 +36,11 @@ def register_routers(app: FastAPI) -> None:
             auth, patients, messages, flows, quiz, reports, alerts, webhooks,
             tasks, localization, analytics, dashboard, docs, health, performance,
             platform_sync, template_management, template_versioning, monthly_quiz, monthly_quiz_public, ai, metrics, debug, config, admin_users, admin_roles,
-            health_rls, upload, medico, physician  # RLS endpoints, upload, medico dashboard, and physician endpoints
+            health_rls, upload, medico, physician, system  # RLS endpoints, upload, medico dashboard, physician endpoints, and system management
         )
         from app.routers.quiz_auth import router as quiz_auth
         from app.routers.auth_session import router as auth_session
+        from app.routers.health import router as health_monitoring  # New monitoring health endpoints
         logger.info("✓ All router imports successful")
     except Exception as e:
         import traceback
@@ -73,6 +74,10 @@ def register_routers(app: FastAPI) -> None:
     # Physician endpoints - optimized bulk operations
     app.include_router(physician.router, prefix="/api/v1", tags=["Physician"])
     logger.info("✓ Physician endpoints registered (risk assessments, bulk ops)")
+
+    # Monitoring health endpoints
+    app.include_router(health_monitoring, tags=["Health"])
+    logger.info("✓ Health monitoring endpoints registered (/health/live, /health/ready, /health/metrics)")
 
     # Admin endpoints - protected by admin permissions
     # Import admin module router which includes all admin sub-routers
@@ -137,6 +142,10 @@ def register_routers(app: FastAPI) -> None:
     from app.api.v1 import database_health
     app.include_router(database_health.router, prefix="/api/v1", tags=["Database Health"])
     logger.info("✓ Database health endpoints registered")
+
+    # Add system management endpoints
+    app.include_router(system.router, prefix="/api/v1/system", tags=["System Management"])
+    logger.info("✓ System management endpoints registered")
 
     # Add Redis health endpoint
     @app.get("/api/v1/redis/health", tags=["Health"])

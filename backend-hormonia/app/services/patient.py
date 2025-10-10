@@ -25,6 +25,7 @@ from app.utils.unified_cache import (
 )
 from app.services.flow_engine import FlowEngine
 from app.utils.db_retry import with_db_retry
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,21 @@ class PatientService:
             changes={"action": "created"},
             metadata={"treatment_type": patient.treatment_type}
         )
+
+        # WHATSAPP INTEGRATION: Send welcome message after patient creation
+        if settings.ENABLE_WHATSAPP_ON_REGISTRATION and settings.WHATSAPP_WELCOME_MESSAGE_ENABLED:
+            try:
+                await self._send_welcome_message(patient, current_user)
+            except Exception as e:
+                logger.error(f"Failed to send welcome message to patient {patient.id}: {e}")
+                # Don't fail patient creation if WhatsApp fails
+                await self._log_whatsapp_failure(
+                    patient_id=patient.id,
+                    phone_number=patient.phone,
+                    message_type="welcome",
+                    error_message=str(e),
+                    retry_count=0
+                )
 
         # AUTO-TRIGGER: Start flow automatically after patient creation with validation
         try:
@@ -326,6 +342,123 @@ class PatientService:
         except Exception as e:
             logger.error(f"Patient merge failed: {e}")
             raise
+
+    async def _send_welcome_message(self, patient: Patient, current_user: Optional[User] = None) -> None:
+        """
+        Send WhatsApp welcome message to newly registered patient.
+
+        Args:
+            patient: The newly created patient
+            current_user: The user who created the patient (for logging)
+
+        Raises:
+            Exception: If message sending fails after max retries
+        """
+        try:
+            from app.services.whatsapp_unified import WhatsAppUnifiedService, MessageType, MessagePriority
+            from app.templates.whatsapp import get_welcome_message
+
+            # Get WhatsApp service instance
+            whatsapp_service = WhatsAppUnifiedService()
+
+            # Generate welcome message
+            welcome_text = get_welcome_message(
+                patient_name=patient.name,
+                clinic_name=settings.CLINIC_NAME,
+                support_phone=settings.CLINIC_SUPPORT_PHONE
+            )
+
+            # Send message with high priority (non-blocking)
+            result = await whatsapp_service.send_message(
+                phone_number=patient.phone,
+                message_type=MessageType.TEXT,
+                content={"text": welcome_text},
+                priority=MessagePriority.HIGH,
+                metadata={
+                    "patient_id": str(patient.id),
+                    "patient_name": patient.name,
+                    "message_type": "welcome",
+                    "created_by": current_user.email if current_user else "system",
+                    "treatment_type": patient.treatment_type
+                }
+            )
+
+            logger.info(
+                f"Welcome message sent to patient {patient.id} ({patient.name}): "
+                f"status={result.get('status')}, phone={patient.phone}"
+            )
+
+        except ImportError as e:
+            logger.error(f"WhatsApp service not available: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Error sending welcome message to {patient.phone}: {e}", exc_info=True)
+            raise
+
+    async def _log_whatsapp_failure(
+        self,
+        patient_id: UUID,
+        phone_number: str,
+        message_type: str,
+        error_message: str,
+        retry_count: int = 0,
+        error_code: Optional[str] = None,
+        message_content: Optional[str] = None
+    ) -> None:
+        """
+        Log WhatsApp delivery failure to database for retry mechanism.
+
+        Args:
+            patient_id: Patient UUID
+            phone_number: Phone number that failed
+            message_type: Type of message (welcome, reminder, etc.)
+            error_message: Error description
+            retry_count: Current retry count
+            error_code: Optional error code from WhatsApp API
+            message_content: Optional message content that failed
+        """
+        try:
+            from datetime import timedelta
+            from sqlalchemy import text
+
+            # Calculate next retry time with exponential backoff
+            retry_delay = settings.WHATSAPP_RETRY_DELAY_SECONDS * (2 ** retry_count)
+            next_retry_at = datetime.utcnow() + timedelta(seconds=retry_delay)
+
+            # Insert failure record
+            self.db.execute(
+                text("""
+                    INSERT INTO whatsapp_delivery_failures
+                    (patient_id, phone_number, message_type, message_content, error_message,
+                     error_code, retry_count, max_retries, next_retry_at, status)
+                    VALUES (:patient_id, :phone_number, :message_type, :message_content,
+                            :error_message, :error_code, :retry_count, :max_retries,
+                            :next_retry_at, :status)
+                """),
+                {
+                    "patient_id": patient_id,
+                    "phone_number": phone_number,
+                    "message_type": message_type,
+                    "message_content": message_content,
+                    "error_message": error_message,
+                    "error_code": error_code,
+                    "retry_count": retry_count,
+                    "max_retries": settings.WHATSAPP_MAX_RETRIES,
+                    "next_retry_at": next_retry_at,
+                    "status": "pending"
+                }
+            )
+            self.db.commit()
+
+            logger.info(
+                f"WhatsApp failure logged for patient {patient_id}: "
+                f"type={message_type}, retry={retry_count}/{settings.WHATSAPP_MAX_RETRIES}, "
+                f"next_retry={next_retry_at}"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to log WhatsApp delivery failure: {e}", exc_info=True)
+            self.db.rollback()
 
     def _get_default_template(self, cancer_or_treatment_type: Optional[str]) -> Optional[str]:
         """

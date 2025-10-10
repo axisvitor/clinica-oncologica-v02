@@ -85,6 +85,13 @@ class Patient(BaseModel):
     medical_reports = relationship("MedicalReport", back_populates="patient")
     alerts = relationship("Alert", back_populates="patient")
 
+    # New relationships for Sprint 1 eager loading optimization
+    treatments = relationship("Treatment", back_populates="patient", lazy="select")
+    appointments = relationship("Appointment", back_populates="patient", lazy="select")
+    medications = relationship("Medication", back_populates="patient", lazy="select")
+    notifications = relationship("Notification", back_populates="related_patient", lazy="select")
+    consents = relationship("Consent", back_populates="patient", foreign_keys="[Consent.patient_id]", lazy="select")
+
     # NOTE: cpf, diagnosis, treatment_phase, doctor_notes are now dedicated columns
     # No property accessors needed - they are direct column attributes
 

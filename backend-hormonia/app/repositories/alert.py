@@ -26,80 +26,117 @@ class AlertRepository(BaseRepository[Alert]):
     def __init__(self, db: Session):
         super().__init__(db, Alert)
     
-    def get_by_patient(self, patient_id: UUID, skip: int = 0, limit: int = 100) -> List[Alert]:
+    def get_by_patient(self, patient_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Alert]:
         """
-        Get alerts by patient with pagination.
-        
+        Get alerts by patient with pagination and eager loading.
+
+        PERFORMANCE OPTIMIZATION: Eager loading enabled by default to prevent N+1 queries.
+
+        Relationships loaded when eager_load=True:
+        - patient: Patient information (joinedload - 1:1)
+
         Args:
             patient_id: UUID of the patient
             skip: Number of records to skip for pagination
             limit: Maximum number of records to return
-            
+            eager_load: Enable eager loading (default: True for performance)
+
         Returns:
             List of alerts for the patient ordered by creation time (newest first)
         """
-        return (
+        from sqlalchemy.orm import joinedload
+
+        query = (
             self.db.query(Alert)
             .filter(Alert.patient_id == patient_id)
             .order_by(Alert.created_at.desc(), Alert.id)
-            .offset(skip)
-            .limit(limit)
-            .all()
         )
+
+        if eager_load:
+            query = query.options(joinedload(Alert.patient))
+
+        return query.offset(skip).limit(limit).all()
     
-    def get_unacknowledged(self, skip: int = 0, limit: int = 100) -> List[Alert]:
+    def get_unacknowledged(self, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Alert]:
         """
-        Get unacknowledged alerts with pagination.
-        
+        Get unacknowledged alerts with pagination and eager loading.
+
+        PERFORMANCE OPTIMIZATION: Eager loading enabled by default.
+
         Args:
             skip: Number of records to skip for pagination
             limit: Maximum number of records to return
-            
+            eager_load: Enable eager loading (default: True for performance)
+
         Returns:
             List of unacknowledged alerts ordered by creation time (newest first)
         """
-        return (
+        from sqlalchemy.orm import joinedload
+
+        query = (
             self.db.query(Alert)
             .filter(Alert.status == AlertStatus.PENDING)
             .order_by(Alert.created_at.desc(), Alert.id)
-            .offset(skip)
-            .limit(limit)
-            .all()
         )
+
+        if eager_load:
+            query = query.options(joinedload(Alert.patient))
+
+        return query.offset(skip).limit(limit).all()
     
-    def get_by_severity(self, severity: AlertSeverity, skip: int = 0, limit: int = 100) -> List[Alert]:
+    def get_by_severity(self, severity: AlertSeverity, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Alert]:
         """
-        Get alerts by severity level with pagination.
-        
+        Get alerts by severity level with pagination and eager loading.
+
+        PERFORMANCE OPTIMIZATION: Eager loading enabled by default.
+
+        Relationships loaded when eager_load=True:
+        - patient: Patient information (joinedload - 1:1)
+        - patient.doctor: Doctor information via patient (nested joinedload - 1:1)
+
         Args:
             severity: AlertSeverity enum value to filter by
             skip: Number of records to skip for pagination
             limit: Maximum number of records to return
-            
+            eager_load: Enable eager loading (default: True for performance)
+
         Returns:
             List of alerts with specified severity ordered by creation time
         """
-        return (
+        from sqlalchemy.orm import joinedload
+        from app.models.patient import Patient
+
+        query = (
             self.db.query(Alert)
             .filter(Alert.severity == severity)
             .order_by(Alert.created_at.desc(), Alert.id)
-            .offset(skip)
-            .limit(limit)
-            .all()
         )
+
+        if eager_load:
+            # PERFORMANCE: Nested eager loading for patient and doctor relationships
+            query = query.options(
+                joinedload(Alert.patient).joinedload(Patient.doctor)
+            )
+
+        return query.offset(skip).limit(limit).all()
     
-    def get_critical_unacknowledged(self, skip: int = 0, limit: int = 100) -> List[Alert]:
+    def get_critical_unacknowledged(self, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Alert]:
         """
-        Get critical unacknowledged alerts with compound filter.
-        
+        Get critical unacknowledged alerts with compound filter and eager loading.
+
+        PERFORMANCE OPTIMIZATION: Eager loading enabled by default.
+
         Args:
             skip: Number of records to skip for pagination
             limit: Maximum number of records to return
-            
+            eager_load: Enable eager loading (default: True for performance)
+
         Returns:
             List of critical unacknowledged alerts ordered by creation time
         """
-        return (
+        from sqlalchemy.orm import joinedload
+
+        query = (
             self.db.query(Alert)
             .filter(
                 and_(
@@ -108,31 +145,48 @@ class AlertRepository(BaseRepository[Alert]):
                 )
             )
             .order_by(Alert.created_at.desc(), Alert.id)
-            .offset(skip)
-            .limit(limit)
-            .all()
         )
+
+        if eager_load:
+            query = query.options(joinedload(Alert.patient))
+
+        return query.offset(skip).limit(limit).all()
     
-    def get_by_type(self, alert_type: str, skip: int = 0, limit: int = 100) -> List[Alert]:
+    def get_by_type(self, alert_type: str, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Alert]:
         """
-        Get alerts by type with pagination.
-        
+        Get alerts by type with pagination and eager loading.
+
+        PERFORMANCE OPTIMIZATION: Eager loading enabled by default.
+
+        Relationships loaded when eager_load=True:
+        - patient: Patient information (joinedload - 1:1)
+        - patient.doctor: Doctor information via patient (nested joinedload - 1:1)
+
         Args:
             alert_type: Type of alert to filter by
             skip: Number of records to skip for pagination
             limit: Maximum number of records to return
-            
+            eager_load: Enable eager loading (default: True for performance)
+
         Returns:
             List of alerts of specified type ordered by creation time
         """
-        return (
+        from sqlalchemy.orm import joinedload
+        from app.models.patient import Patient
+
+        query = (
             self.db.query(Alert)
             .filter(Alert.alert_type == alert_type)
             .order_by(Alert.created_at.desc(), Alert.id)
-            .offset(skip)
-            .limit(limit)
-            .all()
         )
+
+        if eager_load:
+            # PERFORMANCE: Nested eager loading for patient and doctor relationships
+            query = query.options(
+                joinedload(Alert.patient).joinedload(Patient.doctor)
+            )
+
+        return query.offset(skip).limit(limit).all()
     
     def get_recent_alerts(self, patient_id: UUID, alert_type: str, hours: int = 24) -> List[Alert]:
         """

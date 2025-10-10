@@ -4,10 +4,11 @@ Middleware configuration for the FastAPI application.
 Configures and applies middleware in the correct order:
 1. Monitoring middleware (first for comprehensive instrumentation)
 2. Request logging middleware (debug only)
-3. Security middleware
-4. Rate limiting middleware
-5. Compression middleware
-6. Custom CORS middleware (last - first to execute, supports wildcard patterns)
+3. Security headers middleware (production security headers)
+4. Security middleware
+5. Rate limiting middleware
+6. Compression middleware
+7. Custom CORS middleware (last - first to execute, supports wildcard patterns)
 """
 from fastapi import FastAPI
 from app.config import settings
@@ -16,10 +17,12 @@ from app.middleware.enhanced_middleware import (
     EnhancedSecurityMiddleware,
     RequestLoggingMiddleware
 )
+from app.middleware.security_headers import create_production_security_middleware
 # Custom CORS middleware imported inline to avoid circular imports
 from app.utils.compression import EnhancedCompressionMiddleware
 from app.utils.logging import get_logger
 from app.middleware.query_logger import QueryPerformanceMiddleware
+from app.middleware.metrics import PerformanceMetricsMiddleware
 
 
 def setup_middleware(app: FastAPI) -> None:
@@ -51,6 +54,10 @@ def setup_middleware(app: FastAPI) -> None:
     except Exception as e:
         logger.warning(f"Failed to add monitoring middleware: {e}")
 
+    # Add performance metrics middleware for request tracking
+    app.add_middleware(PerformanceMetricsMiddleware)
+    logger.info("Performance metrics middleware added (correlation IDs, timing, query counts)")
+
     # Add query performance middleware for database monitoring
     app.add_middleware(
         QueryPerformanceMiddleware,
@@ -69,6 +76,43 @@ def setup_middleware(app: FastAPI) -> None:
             sensitive_headers=["authorization", "cookie", "x-api-key", "x-auth-token"]
         )
         logger.info("Request logging middleware added (debug mode)")
+
+    # Production security headers middleware
+    # Adds OWASP recommended security headers to all responses
+    middleware = create_production_security_middleware(app)
+    app.add_middleware(
+        type(middleware),
+        enable_hsts=middleware.enable_hsts,
+        hsts_max_age=middleware.hsts_max_age,
+        hsts_include_subdomains=middleware.hsts_include_subdomains,
+        hsts_preload=middleware.hsts_preload,
+        frame_options=middleware.frame_options,
+        content_type_options=middleware.content_type_options,
+        xss_protection=middleware.xss_protection,
+        referrer_policy=middleware.referrer_policy,
+        csp_policy=middleware.csp_policy,
+        permissions_policy=middleware.permissions_policy,
+    )
+    logger.info("Security headers middleware added (production hardening)")
+
+    # Webhook signature validation middleware
+    # Protects webhook endpoints from unauthorized access and replay attacks
+    if settings.EVOLUTION_WEBHOOK_SECRET:
+        from app.middleware.webhook_validator import WebhookValidatorMiddleware
+        app.add_middleware(
+            WebhookValidatorMiddleware,
+            secret_key=settings.EVOLUTION_WEBHOOK_SECRET,
+            max_timestamp_age=300,  # 5 minutes
+            signature_header="X-Webhook-Signature",
+            timestamp_header="X-Webhook-Timestamp",
+            webhook_paths=["/webhooks/"]
+        )
+        logger.info("✅ Webhook signature validation middleware added (HMAC-SHA256)")
+    else:
+        logger.warning(
+            "⚠️  Webhook signature validation DISABLED - "
+            "Set EVOLUTION_WEBHOOK_SECRET to enable security"
+        )
 
     # Enhanced security middleware
     app.add_middleware(EnhancedSecurityMiddleware)
@@ -93,41 +137,24 @@ def setup_middleware(app: FastAPI) -> None:
     )
     logger.info("Enhanced compression middleware added")
     
-    # CORS middleware - Dynamic configuration (domain-only in prod, regex in dev)
-    from fastapi.middleware.cors import CORSMiddleware
+    # CORS middleware - Use secure validation from cors.py
+    from app.middleware.cors import configure_cors
 
     cors_origins = settings.get_cors_origins()
     is_production = settings.ENVIRONMENT.lower() == "production"
 
-    if is_production:
-        # Production: use explicit domains only
-        logger.info(f"CORS Production Mode: {len(cors_origins)} allowed origins")
-        logger.info(f"Allowed origins: {cors_origins}")
+    # Configure CORS with security validation
+    # Production: No regex, explicit HTTPS origins only
+    # Development: Localhost regex pattern allowed
+    configure_cors(
+        app,
+        allowed_origins=cors_origins,
+        allowed_origin_regex=None if is_production else r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+        allow_credentials=True,  # ✅ CRITICAL: Required for httpOnly cookies and credentials
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        allow_headers=["authorization", "content-type", "x-csrf-token", "x-requested-with", "accept", "origin"]
+    )
 
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=cors_origins,
-            allow_credentials=True,  # ✅ CRITICAL: Required for httpOnly cookies and credentials
-            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-            allow_headers=["*"],  # Allow all headers for flexibility
-            expose_headers=["*"],  # Expose all headers to frontend
-            max_age=86400
-        )
-    else:
-        # Development: use regex for localhost/127.0.0.1 with any port
-        logger.info("CORS Development Mode: Using regex for localhost (any port)")
-        logger.info("Allowed pattern: http(s)://localhost:* and http(s)://127.0.0.1:*")
-
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
-            allow_credentials=True,  # ✅ CRITICAL: Required for httpOnly cookies and credentials
-            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-            allow_headers=["*"],  # Allow all headers for flexibility
-            expose_headers=["*"],  # Expose all headers to frontend
-            max_age=86400
-        )
-
-    logger.info("Dynamic CORS middleware configured successfully")
+    logger.info(f"CORS configured securely for {'PRODUCTION' if is_production else 'DEVELOPMENT'}")
     
     logger.info("All middleware configured successfully")

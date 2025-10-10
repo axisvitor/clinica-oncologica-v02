@@ -3,7 +3,7 @@ import { apiClient } from '../lib/api-client'
 import { User } from '../hooks/auth/types'
 import { isMockAuthEnabled } from '../config/mock.config'
 import mockAuthService from '../lib/mock-auth-service'
-import { firebaseAuth } from '../lib/firebase-client'
+import { firebaseAuthLazy } from '../lib/firebase-lazy'
 import type { User as FirebaseUser } from 'firebase/auth'
 import { wsManager } from '../lib/websocket'
 import { createLogger } from '../lib/logger'
@@ -82,9 +82,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const response = await apiClient.auth.me()
 
       if (!response || !response.data) {
-        // No user data returned, force sign out
+        // No user data returned, force sign out (lazy loaded)
         logger.warn('No user data from /auth/me, signing out')
-        await firebaseAuth.signOut()
+        await firebaseAuthLazy.signOut()
 
         toast({
           title: 'Sessão expirada',
@@ -98,11 +98,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return response.data
 
     } catch (error: any) {
-      // ANY error from /auth/me = force sign out
+      // ANY error from /auth/me = force sign out (lazy loaded)
       logger.error('/auth/me failed, signing out user', { error })
 
       // Don't use fallback data - always sign out
-      await firebaseAuth.signOut()
+      await firebaseAuthLazy.signOut()
 
       // Show error to user
       toast({
@@ -119,6 +119,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     const init = async (): Promise<void | (() => void)> => {
       logger.log('Initializing authentication...')
+
+      // Fetch CSRF token on app initialization
+      try {
+        await apiClient.fetchCsrfToken()
+        logger.log('CSRF token initialized')
+      } catch (error) {
+        logger.warn('Failed to initialize CSRF token:', error)
+      }
 
       if (isMockAuthEnabled()) {
         logger.log('Using mock authentication')
@@ -140,20 +148,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setIsLoading(false)
         return undefined
       } else {
-        logger.log('Using Firebase authentication')
+        logger.log('Using Firebase authentication (lazy loaded)')
 
         // Check if Firebase is configured before setting up listeners
-        if (!firebaseAuth.isConfigured()) {
+        if (!firebaseAuthLazy.isConfigured()) {
           logger.warn('Firebase not configured - falling back to unauthenticated state')
           logger.info('Set VITE_USE_MOCK_AUTH=true or configure Firebase credentials')
           setIsLoading(false)
           return undefined
         }
 
-        // Set up Firebase auth state listener
-        const unsubscribe = firebaseAuth.onAuthStateChange(async (firebaseUser) => {
+        // Set up Firebase auth state listener (lazy loaded)
+        const unsubscribe = await firebaseAuthLazy.onAuthStateChanged(async (firebaseUser) => {
           if (firebaseUser) {
-            logger.log('Firebase user signed in:', firebaseUser.email)
+            logger.log('Firebase user signed in (lazy loaded):', firebaseUser.email)
             try {
               const token = await firebaseUser.getIdToken()
               const appUser = await transformFirebaseUser(firebaseUser)
@@ -195,12 +203,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
           setIsLoading(false)
         })
 
-        // Set up Firebase token refresh listener
-        const unsubscribeTokenRefresh = firebaseAuth.onIdTokenChanged(async (firebaseUser) => {
+        // Set up Firebase token refresh listener (lazy loaded)
+        const unsubscribeTokenRefresh = await firebaseAuthLazy.onIdTokenChanged(async (firebaseUser) => {
           if (firebaseUser) {
             try {
               const newToken = await firebaseUser.getIdToken()
-              logger.log('Firebase token refreshed')
+              logger.log('Firebase token refreshed (lazy loaded)')
 
               // Update WebSocket with new token
               wsManager.updateToken(newToken)
@@ -247,12 +255,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // Connect WebSocket for mock auth
         wsManager.connect(result.session.access_token)
       } else {
-        // Set persistence BEFORE signIn using the firebaseAuth module's setPersistence wrapper
+        // Set persistence BEFORE signIn using lazy-loaded Firebase
         try {
-          await firebaseAuth.setPersistence(rememberMe)
-          logger.log(`Persistence set to ${rememberMe ? 'LOCAL' : 'SESSION'}`)
+          await firebaseAuthLazy.setPersistence(rememberMe)
+          logger.log(`Persistence set to ${rememberMe ? 'LOCAL' : 'SESSION'} (lazy loaded)`)
         } catch (error) {
           logger.error('Failed to set persistence, continuing with default:', error)
+        }
+
+        // Fetch fresh CSRF token before creating backend session
+        try {
+          await apiClient.fetchCsrfToken()
+          logger.log('CSRF token refreshed before login')
+        } catch (error) {
+          logger.warn('Failed to refresh CSRF token before login:', error)
         }
 
         // Use new firebase-auth service with session management
@@ -260,12 +276,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         logger.log('Firebase login successful (session in httpOnly cookie)')
 
+        // Refresh CSRF token after session creation
+        try {
+          await apiClient.fetchCsrfToken()
+          logger.log('CSRF token refreshed after login')
+        } catch (error) {
+          logger.warn('Failed to refresh CSRF token after login:', error)
+        }
+
         // SECURITY: session_id is now in httpOnly cookie (not exposed to JavaScript)
         // loginResponse.session_id is just a placeholder ('cookie')
         // Actual session validation happens server-side via cookie
 
-        // Get Firebase token from Firebase Auth SDK (in-memory)
-        const currentFirebaseUser = await firebaseAuth.getCurrentUser()
+        // Get Firebase token from lazy-loaded Firebase Auth SDK (in-memory)
+        const currentFirebaseUser = await firebaseAuthLazy.getCurrentUser()
         const firebaseToken = currentFirebaseUser ? await currentFirebaseUser.getIdToken() : ''
 
         setUser(loginResponse.user)
@@ -319,7 +343,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       apiClient.setAuthToken(null)
       setUser(null)
       setSession(null)
-      localStorage.removeItem('firebase_token')
+
       wsManager.disconnect()
     }
   }, [])
@@ -366,11 +390,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   /**
    * Get current Firebase token from Firebase Auth SDK (in-memory)
    * Used by WebSocket connections and direct API calls
-   * SECURITY: No localStorage usage - token managed by Firebase SDK
+   *
+   * SECURITY ARCHITECTURE:
+   * - Firebase ID tokens: Managed by Firebase SDK in-memory
+   * - Backend sessions: Stored in httpOnly cookies (automatic, secure)
+   * - httpOnly cookies prevent JavaScript access (OWASP best practice)
    */
   const getFirebaseToken = useCallback(async (): Promise<string | null> => {
     try {
-      const currentUser = await firebaseAuth.getCurrentUser()
+      const currentUser = await firebaseAuthLazy.getCurrentUser()
       if (!currentUser) return null
       return await currentUser.getIdToken()
     } catch (error) {
@@ -385,12 +413,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
    */
   const refreshToken = useCallback(async (): Promise<void> => {
     try {
-      const currentUser = await firebaseAuth.getCurrentUser()
+      const currentUser = await firebaseAuthLazy.getCurrentUser()
       if (currentUser) {
         const newToken = await currentUser.getIdToken(true) // force refresh
-        // Token automatically updated in Firebase Auth SDK (in-memory)
+        // Token automatically updated in lazy-loaded Firebase Auth SDK (in-memory)
         apiClient.setAuthToken(newToken)
-        logger.info('Firebase token refreshed successfully')
+        logger.info('Firebase token refreshed successfully (lazy loaded)')
       }
     } catch (error) {
       logger.error('Failed to refresh Firebase token:', error)

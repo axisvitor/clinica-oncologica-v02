@@ -5,6 +5,21 @@ Provides common fixtures for database testing, authentication,
 session management, and security testing.
 """
 
+# Load test environment variables BEFORE importing settings
+import os
+from pathlib import Path
+
+# Load .env.test file if it exists
+env_test_file = Path(__file__).parent.parent / ".env.test"
+if env_test_file.exists():
+    from dotenv import load_dotenv
+    load_dotenv(env_test_file, override=True)
+    print(f"[TEST ENV] Loaded test environment from {env_test_file}")
+    print(f"[TEST ENV] ENVIRONMENT={os.getenv('ENVIRONMENT')}")
+    print(f"[TEST ENV] DEBUG={os.getenv('DEBUG')}")
+else:
+    print(f"[WARNING] Test environment file not found: {env_test_file}")
+
 import pytest
 import asyncio
 import redis
@@ -17,12 +32,26 @@ from sqlalchemy.pool import NullPool
 from fastapi.testclient import TestClient
 import httpx
 import json
-import os
 import tempfile
 from datetime import datetime, timedelta
 
-from app.config import settings
-from app.core.database import Base
+try:
+    from app.config import settings
+except ImportError:
+    # Fallback settings for test environment
+    class MockSettings:
+        DATABASE_URL = "sqlite:///./test.db"
+        REDIS_URL = "redis://localhost:6379/1"
+        DEBUG = True
+        ENVIRONMENT = "test"
+    settings = MockSettings()
+
+try:
+    from app.core.database import Base
+except ImportError:
+    # Fallback Base for when database module is not available
+    from sqlalchemy.ext.declarative import declarative_base
+    Base = declarative_base()
 from tests.helpers.jwt_helper import jwt_helper
 
 # Import session service if available
@@ -35,7 +64,16 @@ except ImportError:
 try:
     from app.main import app
 except ImportError:
-    app = None
+    try:
+        # Try application factory instead
+        from app.core.application_factory import create_application
+        app = create_application(
+            enable_monitoring=False,
+            enable_debug_endpoints=True,
+            deployment_mode="development"
+        )
+    except ImportError:
+        app = None
 
 
 # Event loop fixture for pytest-asyncio
@@ -426,6 +464,36 @@ def empty_db(db_session):
 # ============================================================================
 
 @pytest.fixture
+def test_redis():
+    """Create test Redis instance using fakeredis."""
+    try:
+        import fakeredis
+        # Create fake Redis server and client
+        redis_server = fakeredis.FakeServer()
+        fake_redis = fakeredis.FakeRedis(
+            server=redis_server,
+            decode_responses=True
+        )
+        yield fake_redis
+        # Cleanup
+        fake_redis.flushall()
+    except ImportError:
+        pytest.skip("fakeredis not available for testing")
+
+
+@pytest.fixture
+def test_firebase_cache(test_redis):
+    """Create FirebaseRedisCache with test Redis."""
+    from app.core.redis_manager import FirebaseRedisCache
+    cache = FirebaseRedisCache(test_redis)
+    # Set shorter TTLs for testing
+    cache.token_ttl = 300    # 5 minutes
+    cache.user_ttl = 600     # 10 minutes
+    cache.session_ttl = 1800 # 30 minutes
+    return cache
+
+
+@pytest.fixture
 def mock_redis():
     """Mock Redis client for testing."""
     mock_redis = Mock()
@@ -433,11 +501,14 @@ def mock_redis():
     # Mock Redis methods
     mock_redis.get = Mock(return_value=None)
     mock_redis.set = Mock(return_value=True)
+    mock_redis.setex = Mock(return_value=True)
     mock_redis.delete = Mock(return_value=1)
     mock_redis.exists = Mock(return_value=0)
     mock_redis.expire = Mock(return_value=True)
     mock_redis.ttl = Mock(return_value=3600)
     mock_redis.flushdb = Mock(return_value=True)
+    mock_redis.ping = Mock(return_value=True)
+    mock_redis.scan_iter = Mock(return_value=iter([]))
 
     # Mock pipeline
     mock_pipeline = Mock()

@@ -1,12 +1,12 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useTreatmentDistribution } from '@/src/hooks/api/useTreatmentDistribution'
+import { useTreatmentDistribution } from '@/hooks/api/useTreatmentDistribution'
 import type { TreatmentDistributionResponse } from '@/src/types/api-wave2'
 import React from 'react'
 import { vi, describe, it, beforeEach, expect } from 'vitest'
 
 // Mock the api-client module
-vi.mock('@/src/lib/api-client', () => ({
+vi.mock('@/lib/api-client', () => ({
   apiClient: {
     request: vi.fn()
   }
@@ -23,7 +23,7 @@ const createWrapper = () => {
 }
 
 // Import the mocked apiClient after setting up the mock
-import { apiClient } from '@/src/lib/api-client'
+import { apiClient } from '@/lib/api-client'
 
 describe('useTreatmentDistribution', () => {
   beforeEach(() => {

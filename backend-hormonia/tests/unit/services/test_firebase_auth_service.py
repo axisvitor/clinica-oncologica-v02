@@ -6,7 +6,7 @@ Tests token validation, error handling, and edge cases for Firebase auth integra
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 from firebase_admin import auth as firebase_auth
-from firebase_admin.exceptions import InvalidIdTokenError, ExpiredIdTokenError
+from firebase_admin import exceptions
 
 # Import the service - adjust path based on actual structure
 try:

@@ -17,39 +17,9 @@ from sqlalchemy.ext.declarative import declarative_base
 
 from app.database import Base
 from app.utils.security import mask_sensitive_url, mask_dict_secrets
+from app.models.audit_log import AuditLog  # Import existing model instead of redefining
 
 logger = logging.getLogger(__name__)
-
-
-class AuditLog(Base):
-    """Model for storing audit logs."""
-
-    __tablename__ = "audit_logs"
-
-    id = Column(String, primary_key=True, default=lambda: str(uuid4()))
-    event_type = Column(String, nullable=False, index=True)
-    event_category = Column(String, nullable=False, index=True)  # security, access, data_change, consent
-    severity = Column(String, nullable=False)  # info, warning, error, critical
-
-    # Actor and subject tracking (who did what to whom)
-    actor_id = Column(String, nullable=True, index=True)  # User who performed the action
-    subject_id = Column(String, nullable=True, index=True)  # Entity affected by the action
-
-    # Legacy fields for backward compatibility
-    user_id = Column(String, nullable=True, index=True)  # Deprecated: use actor_id
-    patient_id = Column(String, nullable=True, index=True)  # Deprecated: use subject_id
-
-    session_id = Column(String, nullable=True, index=True)
-    ip_address = Column(String, nullable=True)
-    user_agent = Column(String, nullable=True)
-    event_data = Column(JSON, nullable=True)
-    result = Column(String, nullable=True)  # success, failure, blocked
-    timestamp = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
-
-    # LGPD specific fields
-    data_subject_id = Column(String, nullable=True, index=True)  # Patient ID for LGPD
-    legal_basis = Column(String, nullable=True)  # Legitimate interest, consent, etc.
-    retention_until = Column(DateTime, nullable=True)
 
 
 class AuditService:

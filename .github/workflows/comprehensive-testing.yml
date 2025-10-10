@@ -1,0 +1,566 @@
+name: Comprehensive Testing and Validation
+
+on:
+  push:
+    branches: [ main, develop, docs-refactor-py313 ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      coverage_threshold:
+        description: 'Coverage threshold percentage'
+        required: false
+        default: '90'
+        type: string
+      skip_benchmarks:
+        description: 'Skip performance benchmarks'
+        required: false
+        default: false
+        type: boolean
+      skip_security:
+        description: 'Skip security validation'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+  COVERAGE_THRESHOLD: ${{ github.event.inputs.coverage_threshold || '90' }}
+
+jobs:
+  # Pre-flight checks
+  pre-flight:
+    name: Pre-flight Checks
+    runs-on: ubuntu-latest
+    outputs:
+      backend-changed: ${{ steps.changes.outputs.backend }}
+      frontend-changed: ${{ steps.changes.outputs.frontend }}
+      should-run-full: ${{ steps.changes.outputs.full }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changes
+        uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            backend:
+              - 'backend-hormonia/**'
+              - 'requirements.txt'
+              - 'Dockerfile.backend'
+            frontend:
+              - 'frontend-hormonia/**'
+              - 'package*.json'
+              - 'Dockerfile.frontend'
+            full:
+              - '.github/workflows/**'
+              - 'run_complete_tests.py'
+              - '**/*.py'
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.js'
+              - '**/*.jsx'
+
+  # Backend testing
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    needs: pre-flight
+    if: needs.pre-flight.outputs.backend-changed == 'true' || needs.pre-flight.outputs.should-run-full == 'true'
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Install Python dependencies
+        working-directory: ./backend-hormonia
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-cov pytest-benchmark bandit safety
+
+      - name: Set up environment variables
+        run: |
+          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/test_db" >> $GITHUB_ENV
+          echo "REDIS_URL=redis://localhost:6379" >> $GITHUB_ENV
+          echo "TESTING=true" >> $GITHUB_ENV
+
+      - name: Run database migrations
+        working-directory: ./backend-hormonia
+        run: |
+          # Add your migration commands here
+          echo "Running database migrations..."
+
+      - name: Run backend tests with coverage
+        working-directory: ./backend-hormonia
+        run: |
+          python -m pytest \
+            --verbose \
+            --tb=short \
+            --cov=app \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:coverage-html \
+            --cov-report=json:coverage.json \
+            --junitxml=junit.xml \
+            --cov-fail-under=${{ env.COVERAGE_THRESHOLD }}
+
+      - name: Run security checks
+        working-directory: ./backend-hormonia
+        continue-on-error: true
+        run: |
+          # Security scanning with bandit
+          bandit -r app -f json -o bandit-report.json || true
+
+          # Dependency vulnerability check
+          safety check --json --output safety-report.json || true
+
+      - name: Upload backend coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./backend-hormonia/coverage.xml
+          flags: backend
+          name: backend-coverage
+
+      - name: Upload backend test artifacts
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: backend-test-results
+          path: |
+            backend-hormonia/coverage.xml
+            backend-hormonia/coverage.json
+            backend-hormonia/coverage-html/
+            backend-hormonia/junit.xml
+            backend-hormonia/bandit-report.json
+            backend-hormonia/safety-report.json
+
+  # Frontend testing
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    needs: pre-flight
+    if: needs.pre-flight.outputs.frontend-changed == 'true' || needs.pre-flight.outputs.should-run-full == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'frontend-hormonia/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ./frontend-hormonia
+        run: npm ci
+
+      - name: Run type checking
+        working-directory: ./frontend-hormonia
+        run: npm run typecheck
+
+      - name: Run linting
+        working-directory: ./frontend-hormonia
+        run: npm run lint
+
+      - name: Run frontend tests with coverage
+        working-directory: ./frontend-hormonia
+        run: |
+          npm run test -- \
+            --coverage \
+            --reporter=verbose \
+            --run
+
+      - name: Check coverage threshold
+        working-directory: ./frontend-hormonia
+        run: |
+          # Extract coverage percentage and compare with threshold
+          if [ -f "coverage/coverage-summary.json" ]; then
+            COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
+            echo "Current coverage: $COVERAGE%"
+            if (( $(echo "$COVERAGE < ${{ env.COVERAGE_THRESHOLD }}" | bc -l) )); then
+              echo "Coverage $COVERAGE% is below threshold ${{ env.COVERAGE_THRESHOLD }}%"
+              exit 1
+            fi
+          fi
+
+      - name: Run security audit
+        working-directory: ./frontend-hormonia
+        continue-on-error: true
+        run: |
+          npm audit --json > npm-audit.json || true
+
+      - name: Upload frontend coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./frontend-hormonia/coverage/coverage-final.json
+          flags: frontend
+          name: frontend-coverage
+
+      - name: Upload frontend test artifacts
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: frontend-test-results
+          path: |
+            frontend-hormonia/coverage/
+            frontend-hormonia/npm-audit.json
+
+  # Performance benchmarks
+  performance-benchmarks:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests]
+    if: always() && !github.event.inputs.skip_benchmarks
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'frontend-hormonia/package-lock.json'
+
+      - name: Install dependencies
+        run: |
+          # Backend dependencies
+          cd backend-hormonia
+          pip install -r requirements.txt
+          pip install pytest-benchmark
+          cd ..
+
+          # Frontend dependencies
+          cd frontend-hormonia
+          npm ci
+          cd ..
+
+      - name: Run performance benchmarks
+        run: |
+          python run_complete_tests.py \
+            --skip-coverage \
+            --skip-security \
+            --output-dir performance-reports \
+            --verbose
+
+      - name: Upload performance reports
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: performance-benchmarks
+          path: performance-reports/benchmarks/
+
+  # Security validation
+  security-validation:
+    name: Security Validation
+    runs-on: ubuntu-latest
+    needs: pre-flight
+    if: always() && !github.event.inputs.skip_security
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install security tools
+        run: |
+          pip install bandit safety semgrep
+          npm install -g audit-ci
+
+      - name: Run comprehensive security scan
+        run: |
+          # Python security scanning
+          if [ -d "backend-hormonia" ]; then
+            cd backend-hormonia
+            bandit -r app -f json -o ../security-reports/bandit.json || true
+            safety check --json --output ../security-reports/safety.json || true
+            cd ..
+          fi
+
+          # JavaScript security scanning
+          if [ -d "frontend-hormonia" ]; then
+            cd frontend-hormonia
+            npm audit --json > ../security-reports/npm-audit.json || true
+            audit-ci --config ../security-reports/audit-ci.json || true
+            cd ..
+          fi
+
+          # SAST with Semgrep
+          semgrep --config=auto --json --output=security-reports/semgrep.json . || true
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: security-reports
+          path: security-reports/
+
+  # Comprehensive test execution
+  comprehensive-tests:
+    name: Comprehensive Test Execution
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests]
+    if: always()
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'frontend-hormonia/package-lock.json'
+
+      - name: Install all dependencies
+        run: |
+          # Backend dependencies
+          if [ -d "backend-hormonia" ]; then
+            cd backend-hormonia
+            pip install -r requirements.txt
+            pip install pytest-cov pytest-benchmark bandit safety
+            cd ..
+          fi
+
+          # Frontend dependencies
+          if [ -d "frontend-hormonia" ]; then
+            cd frontend-hormonia
+            npm ci
+            cd ..
+          fi
+
+      - name: Set up environment variables
+        run: |
+          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/test_db" >> $GITHUB_ENV
+          echo "REDIS_URL=redis://localhost:6379" >> $GITHUB_ENV
+          echo "TESTING=true" >> $GITHUB_ENV
+
+      - name: Run comprehensive tests
+        run: |
+          python run_complete_tests.py \
+            --coverage-threshold ${{ env.COVERAGE_THRESHOLD }} \
+            --output-dir test-reports \
+            --ci \
+            --verbose \
+            ${{ github.event.inputs.skip_benchmarks == 'true' && '--skip-benchmarks' || '' }} \
+            ${{ github.event.inputs.skip_security == 'true' && '--skip-security' || '' }}
+
+      - name: Upload comprehensive test reports
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: comprehensive-test-reports
+          path: test-reports/
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        if: always()
+        with:
+          directory: test-reports/
+          flags: comprehensive
+          name: comprehensive-coverage
+
+      - name: Comment PR with test results
+        uses: actions/github-script@v6
+        if: github.event_name == 'pull_request' && always()
+        with:
+          script: |
+            const fs = require('fs');
+
+            // Read test results
+            let testResults = '';
+            try {
+              const resultsPath = 'test-reports/test_results.json';
+              if (fs.existsSync(resultsPath)) {
+                const data = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
+                const summary = data.summary;
+
+                testResults = `## 🧪 Test Results Summary
+
+**Status:** ${summary.execution.status === 'PASSED' ? '✅ PASSED' : '❌ FAILED'}
+**Duration:** ${summary.execution.duration_seconds.toFixed(2)}s
+**Tests:** ${summary.tests.passed}/${summary.tests.total} passed (${summary.tests.success_rate.toFixed(1)}%)
+
+### Coverage
+- **Backend:** ${summary.coverage.backend?.lines?.percentage?.toFixed(1) || 'N/A'}%
+- **Frontend:** ${summary.coverage.frontend?.lines?.percentage?.toFixed(1) || 'N/A'}%
+- **Threshold:** ${summary.coverage.threshold}% ${summary.coverage.meets_threshold ? '✅' : '❌'}
+
+### Recommendations
+${summary.recommendations.map(rec => `- ${rec}`).join('\n')}
+
+[View detailed reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+              }
+            } catch (error) {
+              testResults = `## 🧪 Test Results Summary\n\n❌ Failed to parse test results: ${error.message}`;
+            }
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: testResults
+            });
+
+  # Quality gate
+  quality-gate:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    needs: [comprehensive-tests, security-validation, performance-benchmarks]
+    if: always()
+
+    steps:
+      - name: Download test artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: comprehensive-test-reports
+          path: test-reports/
+
+      - name: Evaluate quality gate
+        run: |
+          echo "Evaluating quality gate..."
+
+          # Check if test results exist
+          if [ ! -f "test-reports/test_results.json" ]; then
+            echo "❌ No test results found"
+            exit 1
+          fi
+
+          # Parse test results (requires jq)
+          sudo apt-get install -q -y jq
+
+          STATUS=$(jq -r '.summary.execution.status' test-reports/test_results.json)
+          COVERAGE_OK=$(jq -r '.summary.coverage.meets_threshold' test-reports/test_results.json)
+
+          echo "Test Status: $STATUS"
+          echo "Coverage OK: $COVERAGE_OK"
+
+          if [ "$STATUS" != "PASSED" ] || [ "$COVERAGE_OK" != "true" ]; then
+            echo "❌ Quality gate failed"
+            exit 1
+          fi
+
+          echo "✅ Quality gate passed"
+
+      - name: Create deployment artifact
+        if: success() && github.ref == 'refs/heads/main'
+        run: |
+          echo "Creating deployment artifact..."
+          tar -czf deployment-ready.tar.gz test-reports/
+          echo "deployment_ready=true" >> $GITHUB_OUTPUT
+
+      - name: Upload deployment artifact
+        if: success() && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-ready
+          path: deployment-ready.tar.gz
+
+# Workflow notifications
+  notify:
+    name: Notification
+    runs-on: ubuntu-latest
+    needs: [quality-gate]
+    if: always()
+
+    steps:
+      - name: Notify on success
+        if: needs.quality-gate.result == 'success'
+        run: |
+          echo "✅ All tests passed! Ready for deployment."
+
+      - name: Notify on failure
+        if: needs.quality-gate.result == 'failure'
+        run: |
+          echo "❌ Quality gate failed. Please review test results."

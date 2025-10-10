@@ -8,7 +8,7 @@ import logging
 import functools
 import asyncio
 import inspect
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional, Union, Dict
 from datetime import timedelta, datetime
 from uuid import UUID
 from decimal import Decimal
@@ -500,3 +500,105 @@ def async_cache() -> AsyncCacheContext:
             value = await cache.get("key")
     """
     return AsyncCacheContext()
+
+
+# Redis connection management for system initialization
+def get_redis_client():
+    """Get Redis client for system operations."""
+    return get_sync_redis()
+
+
+def reset_redis_connections() -> bool:
+    """
+    Reset Redis connection pools for system restart.
+
+    This function clears connection pools and forces
+    new connections to be established.
+
+    Returns:
+        True if reset successful, False otherwise
+    """
+    try:
+        global _cache_manager, _async_cache_manager
+
+        # Clear global cache managers to force new connections
+        _cache_manager = None
+        _async_cache_manager = None
+
+        # Reset the Redis connection pools in the unified module
+        from app.core.redis_unified import reset_redis_pools
+        reset_redis_pools()
+
+        logger.info("✅ Redis connections reset successfully")
+        return True
+
+    except Exception as e:
+        logger.error(f"❌ Failed to reset Redis connections: {e}")
+        return False
+
+
+def test_redis_connectivity() -> Dict[str, Any]:
+    """
+    Test Redis connectivity with comprehensive checks.
+
+    Returns:
+        Dictionary with connectivity test results
+    """
+    test_results = {
+        "status": "unknown",
+        "tests": {},
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+    try:
+        redis_client = get_redis_client()
+
+        # Test 1: Basic ping
+        start_time = datetime.utcnow()
+        ping_result = redis_client.ping()
+        ping_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+
+        test_results["tests"]["ping"] = {
+            "status": "success" if ping_result else "failed",
+            "response_time_ms": ping_time
+        }
+
+        # Test 2: Set/Get operation
+        test_key = "connectivity_test"
+        test_value = "test_value_123"
+
+        start_time = datetime.utcnow()
+        redis_client.set(test_key, test_value, ex=60)  # 60 second expiry
+        retrieved_value = redis_client.get(test_key)
+        operation_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+
+        test_results["tests"]["set_get"] = {
+            "status": "success" if retrieved_value.decode() == test_value else "failed",
+            "response_time_ms": operation_time
+        }
+
+        # Clean up test key
+        redis_client.delete(test_key)
+
+        # Test 3: Get Redis info
+        redis_info = redis_client.info()
+        test_results["tests"]["info"] = {
+            "status": "success",
+            "redis_version": redis_info.get("redis_version"),
+            "memory_used": redis_info.get("used_memory_human"),
+            "connected_clients": redis_info.get("connected_clients")
+        }
+
+        # Overall status
+        all_tests_passed = all(
+            test.get("status") == "success"
+            for test in test_results["tests"].values()
+        )
+        test_results["status"] = "healthy" if all_tests_passed else "unhealthy"
+
+    except Exception as e:
+        test_results["status"] = "unhealthy"
+        test_results["error"] = str(e)
+        logger.error(f"Redis connectivity test failed: {e}")
+
+    return test_results

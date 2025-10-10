@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { apiClient, ApiError } from '../../lib/api-client'
+import { apiClient, ApiError } from '@/lib/api-client'
+
+vi.mock('@/config', () => ({
+  getApiUrl: () => 'http://localhost:8000/api/v1'
+}))
 
 // Mock fetch globally
 const mockFetch = vi.fn()
@@ -9,6 +13,7 @@ describe('ApiClient Integration Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     apiClient.setAuthToken(null)
+    apiClient.setBaseURL('http://localhost:8000/api/v1')
   })
 
   afterEach(() => {

@@ -69,9 +69,7 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
   const fetchSummary = useCallback(async () => {
     try {
       const response = await fetch('/api/v1/metrics/summary', {
-        headers: {
-          ['Authorization']: `Bearer ${localStorage.getItem('token')}`
-        }
+        credentials: 'include' // Use httpOnly cookies
       });
 
       if (!response.ok) {
@@ -88,9 +86,7 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
   const fetchRealTimeMetrics = useCallback(async () => {
     try {
       const response = await fetch('/api/v1/metrics/realtime', {
-        headers: {
-          ['Authorization']: `Bearer ${localStorage.getItem('token')}`
-        }
+        credentials: 'include' // Use httpOnly cookies
       });
 
       if (!response.ok) {
@@ -107,9 +103,7 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
   const fetchAlerts = useCallback(async () => {
     try {
       const response = await fetch('/api/v1/metrics/alerts', {
-        headers: {
-          ['Authorization']: `Bearer ${localStorage.getItem('token')}`
-        }
+        credentials: 'include' // Use httpOnly cookies
       });
 
       if (!response.ok) {
@@ -159,8 +153,8 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
     try {
       const response = await fetch(`/api/v1/metrics/alerts/${alertId}/acknowledge`, {
         method: 'POST',
+        credentials: 'include', // Use httpOnly cookies
         headers: {
-          ['Authorization']: `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
         }
       });

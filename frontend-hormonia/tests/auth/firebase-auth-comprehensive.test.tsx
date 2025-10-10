@@ -5,23 +5,23 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { renderHook, act, waitFor } from '@testing-library/react'
-import { AuthProvider, useAuth } from '../../src/contexts/AuthContext'
+import { render, renderHook, act, waitFor } from '@testing-library/react'
+import { useAuth } from '@/contexts/AuthContext'
 import { createWrapperWithProviders, mockUser, mockSession } from '../test-utils'
-import * as firebaseAuthService from '../../src/services/firebase-auth'
-import { firebaseAuth } from '../../src/lib/firebase-client'
-import { apiClient } from '../../src/lib/api-client'
-import { wsManager } from '../../src/lib/websocket'
+import * as firebaseAuthService from '@/services/firebase-auth'
+import { firebaseAuth } from '@/lib/firebase-client'
+import { apiClient } from '@/lib/api-client'
+import { wsManager } from '@/lib/websocket'
 
 // Mock Firebase Auth Service
-vi.mock('../../src/services/firebase-auth', () => ({
+vi.mock('@/services/firebase-auth', () => ({
   loginUser: vi.fn(),
   logoutUser: vi.fn(),
   logoutAllDevices: vi.fn(),
 }))
 
 // Mock Firebase client
-vi.mock('../../src/lib/firebase-client', () => ({
+vi.mock('@/lib/firebase-client', () => ({
   firebaseAuth: {
     isConfigured: vi.fn(() => true),
     onAuthStateChange: vi.fn(),
@@ -33,7 +33,7 @@ vi.mock('../../src/lib/firebase-client', () => ({
 }))
 
 // Mock WebSocket manager
-vi.mock('../../src/lib/websocket', () => ({
+vi.mock('@/lib/websocket', () => ({
   wsManager: {
     connect: vi.fn(),
     disconnect: vi.fn(),
@@ -42,9 +42,9 @@ vi.mock('../../src/lib/websocket', () => ({
 }))
 
 // Mock API client
-vi.mock('../../src/lib/api-client', () => ({
+vi.mock('@/lib/api-client', () => ({
   apiClient: {
-    setAuthToken: vi.fn(),
+    setAuthToken: vi.fn((token) => console.log('setAuthToken called with:', token)),
     auth: {
       me: vi.fn(),
     },
@@ -52,7 +52,7 @@ vi.mock('../../src/lib/api-client', () => ({
 }))
 
 // Mock config
-vi.mock('../../src/config/mock.config', () => ({
+vi.mock('@/config/mock.config', () => ({
   isMockAuthEnabled: vi.fn(() => false),
 }))
 
@@ -84,6 +84,7 @@ describe('Firebase Authentication Comprehensive Tests', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
+    vi.restoreAllMocks()
   })
 
   describe('Firebase Authentication Flow', () => {
@@ -223,9 +224,11 @@ describe('Firebase Authentication Comprehensive Tests', () => {
         })
       ).rejects.toThrow('Firebase: Invalid credentials')
 
-      expect(result.current.user).toBe(null)
-      expect(result.current.session).toBe(null)
-      expect(apiClient.setAuthToken).toHaveBeenCalledWith(null)
+      await waitFor(() => {
+        expect(result.current.user).toBe(null)
+        expect(result.current.session).toBe(null)
+        expect(apiClient.setAuthToken).toHaveBeenCalledWith(null)
+      })
     })
 
     it('should handle persistence setting errors gracefully', async () => {
@@ -434,8 +437,7 @@ describe('Firebase Authentication Comprehensive Tests', () => {
     })
 
     it('should cleanup Firebase listeners on unmount', () => {
-      const wrapper = createWrapperWithProviders()
-      const { unmount } = renderHook(() => useAuth(), { wrapper })
+      const { unmount } = render(<AuthProvider><div></div></AuthProvider>)
 
       unmount()
 

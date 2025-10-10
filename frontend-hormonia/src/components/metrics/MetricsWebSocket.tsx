@@ -49,9 +49,8 @@ export const MetricsWebSocket = ({
   const getWebSocketUrl = useCallback(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
-    const token = localStorage.getItem('token');
-
-    return `${protocol}//${host}/api/v1/metrics/live?token=${token}`;
+    // WebSocket connections automatically include cookies
+    return `${protocol}//${host}/api/v1/metrics/live`;
   }, []);
 
   const handleOpen = useCallback(() => {

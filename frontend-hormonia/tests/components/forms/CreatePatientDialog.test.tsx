@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '../../test-utils'
-import userEvent from '@testing-library/user-event'
-import { CreatePatientDialog } from '../../../components/patients/CreatePatientDialog'
+import { render, screen, fireEvent, waitFor } from '@/../tests/test-utils'
+import { CreatePatientDialog } from '@/components/patients/CreatePatientDialog'
+
+const mockCreatePatient = vi.fn()
 
 // Mock API
-const mockCreatePatient = vi.fn()
-vi.mock('../../../lib/api-client', () => ({
+vi.mock('@/lib/api-client', () => ({
   apiClient: {
     patients: {
       create: mockCreatePatient

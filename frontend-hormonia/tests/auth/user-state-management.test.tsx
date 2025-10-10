@@ -6,19 +6,19 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import { AuthProvider, useAuth } from '../../src/contexts/AuthContext'
+import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import { createWrapperWithProviders } from '../test-utils'
-import { firebaseAuth } from '../../src/lib/firebase-client'
-import { apiClient } from '../../src/lib/api-client'
-import { wsManager } from '../../src/lib/websocket'
-import * as firebaseAuthService from '../../src/services/firebase-auth'
+import { firebaseAuth } from '@/lib/firebase-client'
+import { apiClient } from '@/lib/api-client'
+import { wsManager } from '@/lib/websocket'
+import * as firebaseAuthService from '@/services/firebase-auth'
 
 // Mock dependencies
-vi.mock('../../src/services/firebase-auth')
-vi.mock('../../src/lib/firebase-client')
-vi.mock('../../src/lib/api-client')
-vi.mock('../../src/lib/websocket')
-vi.mock('../../src/config/mock.config', () => ({
+vi.mock('@/services/firebase-auth')
+vi.mock('@/lib/firebase-client')
+vi.mock('@/lib/api-client')
+vi.mock('@/lib/websocket')
+vi.mock('@/config/mock.config', () => ({
   isMockAuthEnabled: vi.fn(() => false),
 }))
 

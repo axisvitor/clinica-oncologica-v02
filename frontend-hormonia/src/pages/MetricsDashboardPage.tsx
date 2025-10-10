@@ -56,8 +56,8 @@ const MetricsDashboardPage: React.FC = () => {
 
       const response = await fetch('/api/v1/metrics/export', {
         method: 'POST',
+        credentials: 'include', // Use httpOnly cookies
         headers: {
-          ['Authorization']: `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

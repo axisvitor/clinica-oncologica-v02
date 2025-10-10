@@ -18,7 +18,7 @@ Performance:
 - Full request (warm): ~5ms (95-98% cache hit rate)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Header, status, Cookie, Response
+from fastapi import APIRouter, Depends, HTTPException, Header, status, Cookie, Response, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
@@ -31,6 +31,7 @@ from app.services import ServiceProvider
 from app.services.audit_log import AuditLogService
 from app.dependencies.auth_dependencies import _firebase_service, _get_service_provider
 from app.middleware.csrf import validate_csrf_token
+from app.utils.rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/session", tags=["Session Authentication"])
@@ -172,9 +173,11 @@ class CacheStatsResponse(BaseModel):
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(validate_csrf_token)]
 )
+@limiter.limit("20/minute")  # Rate limit: 20 session creations per minute per IP
 async def create_session(
     request: SessionCreateRequest,
     response: Response,
+    http_request: Request,
     services: ServiceProvider = Depends(_get_service_provider)
 ):
     """
@@ -347,7 +350,9 @@ async def create_session(
 
 
 @router.get("/validate", response_model=SessionValidationResponse)
+@limiter.limit("200/minute")  # Rate limit: 200 session validations per minute per IP
 async def validate_session(
+    request: Request,
     session_id: Optional[str] = Cookie(None),
     x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
     services: ServiceProvider = Depends(_get_service_provider)
@@ -431,7 +436,9 @@ async def validate_session(
     response_model=LogoutResponse,
     dependencies=[Depends(validate_csrf_token)]
 )
+@limiter.limit("100/minute")  # Rate limit: 100 logout attempts per minute per IP
 async def logout_session(
+    request: Request,
     response: Response,
     session_id: Optional[str] = Cookie(None),
     x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
@@ -525,7 +532,9 @@ async def logout_session(
     response_model=LogoutResponse,
     dependencies=[Depends(validate_csrf_token)]
 )
+@limiter.limit("10/hour")  # Rate limit: 10 global logout attempts per hour per IP
 async def logout_all_sessions(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     services: ServiceProvider = Depends(_get_service_provider)
 ):
@@ -581,7 +590,9 @@ async def logout_all_sessions(
 
 
 @router.get("/active", response_model=SessionListResponse)
+@limiter.limit("100/minute")  # Rate limit: 100 session list requests per minute per IP
 async def list_active_sessions(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     services: ServiceProvider = Depends(_get_service_provider)
 ):
@@ -633,7 +644,9 @@ async def list_active_sessions(
 
 
 @router.get("/stats", response_model=CacheStatsResponse)
+@limiter.limit("60/minute")  # Rate limit: 60 cache stats requests per minute per IP
 async def get_cache_stats(
+    request: Request,
     services: ServiceProvider = Depends(_get_service_provider)
 ):
     """

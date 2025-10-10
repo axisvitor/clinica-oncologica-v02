@@ -667,8 +667,9 @@ class QuizSessionService:
             raise ConflictError(f"Failed to advance session: {str(e)}")
     
     async def complete_session(self, session_id: UUID) -> QuizSessionResponse:
-        """Complete a quiz session."""
+        """Complete a quiz session and evaluate responses for alerts."""
         from app.models.patient import Patient
+        from app.services.quiz_response_evaluator import QuizResponseEvaluator
 
         # Use eager loading for enrichment
         session = (
@@ -700,6 +701,35 @@ class QuizSessionService:
             updated_session.patient = session.patient
             updated_session.quiz_template = session.quiz_template
 
+            # NEW: Evaluate quiz responses and generate alerts
+            try:
+                # Get all responses for this session
+                responses_data = self._collect_session_responses(session_id)
+
+                if responses_data:
+                    # Initialize evaluator
+                    evaluator = QuizResponseEvaluator(self.db)
+
+                    # Evaluate responses and generate alerts
+                    triggered_alerts, risk_score = await evaluator.evaluate_quiz_session(
+                        quiz_session_id=session_id,
+                        patient_id=session.patient_id,
+                        responses=responses_data
+                    )
+
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.info(
+                        f"Quiz session {session_id} evaluation: "
+                        f"{len(triggered_alerts)} alerts, risk score: {risk_score:.2f}"
+                    )
+            except Exception as e:
+                # Don't fail session completion on alert evaluation error
+                import logging
+                logging.getLogger(__name__).error(
+                    f"Failed to evaluate quiz responses for alerts: {e}", exc_info=True
+                )
+
             # Record completion metric
             try:
                 metrics = await get_quiz_metrics_collector()
@@ -729,6 +759,26 @@ class QuizSessionService:
         except IntegrityError as e:
             self.db.rollback()
             raise ConflictError(f"Failed to complete session: {str(e)}")
+
+    def _collect_session_responses(self, session_id: UUID) -> Dict[str, Any]:
+        """
+        Collect all responses for a quiz session into a dictionary.
+
+        Args:
+            session_id: UUID of the quiz session
+
+        Returns:
+            Dictionary mapping question_id to response_value
+        """
+        responses = self.response_repository.get_by_session(session_id)
+
+        response_dict = {}
+        for response in responses:
+            # Deserialize response value if needed
+            value = deserialize_response_value(response.response_value)
+            response_dict[response.question_id] = value
+
+        return response_dict
     
     def get_patient_sessions(self, patient_id: UUID, skip: int = 0, limit: int = 100) -> tuple[List[QuizSessionResponse], int]:
         """Get quiz sessions for a patient with enriched data."""

@@ -18,6 +18,7 @@ from app.utils.logging import setup_logging, get_logger
 from app.utils.security import mask_sensitive_url
 from app.core.redis_manager import get_redis_manager, cleanup_redis_connections
 from app.core.session_manager import initialize_session_manager
+from app.utils.structured_logger import configure_logging as configure_structured_logging
 
 
 @asynccontextmanager
@@ -59,6 +60,11 @@ async def _startup(app: FastAPI) -> object:
     # Setup logging first
     setup_logging()
     logger = get_logger(__name__)
+
+    # Configure structured logging with JSON output
+    log_level = 'DEBUG' if settings.DEBUG else 'INFO'
+    configure_structured_logging(log_level=log_level)
+    logger.info("Structured logging configured", extra={'log_level': log_level})
 
     # Record startup time
     app.state.start_time = time.time()

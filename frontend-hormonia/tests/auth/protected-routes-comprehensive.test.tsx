@@ -7,8 +7,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { ProtectedRoute } from '../../src/components/auth/ProtectedRoute'
-import { AuthProvider } from '../../src/contexts/AuthContext'
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
+import { AuthProvider } from '@/contexts/AuthContext'
 import userEvent from '@testing-library/user-event'
 
 // Mock components for testing
@@ -36,8 +36,8 @@ const createMockAuthContext = (overrides = {}) => ({
 })
 
 // Mock the AuthContext
-vi.mock('../../src/contexts/AuthContext', async () => {
-  const actual = await vi.importActual('../../src/contexts/AuthContext')
+vi.mock('@/contexts/AuthContext', async () => {
+  const actual = await vi.importActual('@/contexts/AuthContext')
   return {
     ...actual,
     useAuth: vi.fn(),
@@ -55,7 +55,7 @@ vi.mock('react-router-dom', async () => {
 })
 
 // Import the mocked useAuth after mocking
-import { useAuth } from '../../src/contexts/AuthContext'
+import { useAuth } from '@/contexts/AuthContext'
 
 describe('Protected Routes Comprehensive Tests', () => {
   const user = userEvent.setup()

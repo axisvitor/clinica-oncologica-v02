@@ -22,32 +22,68 @@ class MessageRepository(BaseRepository[Message]):
         super().__init__(db, Message)
         self.integrity_service = MessageIntegrityService(db)
     
-    def get_by_patient(self, patient_id: UUID, skip: int = 0, limit: int = 100) -> List[Message]:
-        """Get messages by patient"""
-        return (
+    def get_by_patient(self, patient_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Message]:
+        """
+        Get messages by patient with eager loading.
+
+        PERFORMANCE OPTIMIZATION: Eager loading enabled by default to prevent N+1 queries.
+
+        Relationships loaded when eager_load=True:
+        - patient: Patient information (joinedload - 1:1)
+
+        Args:
+            patient_id: UUID of the patient
+            skip: Pagination offset
+            limit: Maximum records to return
+            eager_load: Enable eager loading (default: True for performance)
+
+        Returns:
+            List of messages with relationships pre-loaded
+        """
+        query = (
             self.db.query(Message)
             .filter(Message.patient_id == patient_id)
             .order_by(Message.created_at.desc())
-            .offset(skip)
-            .limit(limit)
-            .all()
         )
+
+        if eager_load:
+            query = query.options(joinedload(Message.patient))
+
+        return query.offset(skip).limit(limit).all()
     
     def get_by_whatsapp_id(self, whatsapp_id: str) -> Optional[Message]:
         """Get message by WhatsApp ID"""
         return self.db.query(Message).filter(Message.whatsapp_id == whatsapp_id).first()
     
     def get_pending_messages(
-        self, skip: int = 0, limit: int = 100, patient_id: Optional[UUID] = None
+        self, skip: int = 0, limit: int = 100, patient_id: Optional[UUID] = None, eager_load: bool = True
     ) -> List[Message]:
-        """Get pending messages for sending"""
+        """
+        Get pending messages for sending with eager loading.
+
+        PERFORMANCE OPTIMIZATION: Eager loading enabled by default for patient relationship.
+
+        Args:
+            skip: Pagination offset
+            limit: Maximum records to return
+            patient_id: Optional patient filter
+            eager_load: Enable eager loading (default: True for performance)
+
+        Returns:
+            List of pending messages with relationships pre-loaded
+        """
         query = (
             self.db.query(Message)
             .filter(Message.status == MessageStatus.PENDING)
             .filter(Message.direction == MessageDirection.OUTBOUND)
         )
+
         if patient_id:
             query = query.filter(Message.patient_id == patient_id)
+
+        if eager_load:
+            query = query.options(joinedload(Message.patient))
+
         return (
             query.order_by(Message.scheduled_for.asc())
             .offset(skip)
@@ -67,39 +103,83 @@ class MessageRepository(BaseRepository[Message]):
             .all()
         )
     
-    def get_conversation_history(self, patient_id: UUID, skip: int = 0, limit: int = 50) -> List[Message]:
-        """Get conversation history for a patient"""
-        return (
+    def get_conversation_history(self, patient_id: UUID, skip: int = 0, limit: int = 50, eager_load: bool = True) -> List[Message]:
+        """
+        Get conversation history for a patient with eager loading.
+
+        PERFORMANCE OPTIMIZATION: Eager loading enabled by default.
+
+        Args:
+            patient_id: UUID of the patient
+            skip: Pagination offset
+            limit: Maximum records to return
+            eager_load: Enable eager loading (default: True for performance)
+
+        Returns:
+            List of messages ordered chronologically with relationships pre-loaded
+        """
+        query = (
             self.db.query(Message)
             .filter(Message.patient_id == patient_id)
             .order_by(Message.created_at.asc())
-            .offset(skip)
-            .limit(limit)
-            .all()
         )
+
+        if eager_load:
+            query = query.options(joinedload(Message.patient))
+
+        return query.offset(skip).limit(limit).all()
     
-    def get_failed_messages(self, skip: int = 0, limit: int = 100) -> List[Message]:
-        """Get failed messages for retry processing"""
-        return (
+    def get_failed_messages(self, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Message]:
+        """
+        Get failed messages for retry processing with eager loading.
+
+        PERFORMANCE OPTIMIZATION: Eager loading enabled by default.
+
+        Args:
+            skip: Pagination offset
+            limit: Maximum records to return
+            eager_load: Enable eager loading (default: True for performance)
+
+        Returns:
+            List of failed messages with relationships pre-loaded
+        """
+        query = (
             self.db.query(Message)
             .filter(Message.status == MessageStatus.FAILED)
             .filter(Message.direction == MessageDirection.OUTBOUND)
             .order_by(Message.created_at.desc())
-            .offset(skip)
-            .limit(limit)
-            .all()
         )
+
+        if eager_load:
+            query = query.options(joinedload(Message.patient))
+
+        return query.offset(skip).limit(limit).all()
     
-    def get_by_status(self, status: MessageStatus, skip: int = 0, limit: int = 100) -> List[Message]:
-        """Get messages by status"""
-        return (
+    def get_by_status(self, status: MessageStatus, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Message]:
+        """
+        Get messages by status with eager loading.
+
+        PERFORMANCE OPTIMIZATION: Eager loading enabled by default.
+
+        Args:
+            status: Message status to filter by
+            skip: Pagination offset
+            limit: Maximum records to return
+            eager_load: Enable eager loading (default: True for performance)
+
+        Returns:
+            List of messages with relationships pre-loaded
+        """
+        query = (
             self.db.query(Message)
             .filter(Message.status == status)
             .order_by(Message.created_at.desc())
-            .offset(skip)
-            .limit(limit)
-            .all()
         )
+
+        if eager_load:
+            query = query.options(joinedload(Message.patient))
+
+        return query.offset(skip).limit(limit).all()
     
     def count_by_patient(self, patient_id: UUID) -> int:
         """Count total messages for a patient"""

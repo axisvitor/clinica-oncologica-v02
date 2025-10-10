@@ -1,15 +1,15 @@
 import { render, screen } from '@testing-library/react'
 import { BrowserRouter, MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { LandingRoute } from '@/src/pages/LandingRoute'
-import { useAuth } from '@/src/contexts/AuthContext'
+import { LandingRoute } from '@/pages/LandingRoute'
+import { useAuth } from '@/contexts/AuthContext'
 
 // Mock the AuthContext
-vi.mock('@/src/contexts/AuthContext')
+vi.mock('@/contexts/AuthContext')
 const mockUseAuth = useAuth as ReturnType<typeof vi.fn>
 
 // Mock the logger to avoid console logs in tests
-vi.mock('@/src/lib/logger', () => ({
+vi.mock('@/lib/logger', () => ({
   createLogger: () => ({
     log: vi.fn(),
     info: vi.fn(),

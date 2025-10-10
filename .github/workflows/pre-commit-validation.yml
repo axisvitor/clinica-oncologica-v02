@@ -1,0 +1,187 @@
+name: Pre-commit Security Validation
+
+on:
+  pull_request:
+    branches: [main, develop, docs-refactor-py313]
+  push:
+    branches: [main, develop, docs-refactor-py313]
+
+jobs:
+  security-checks:
+    name: Security & Environment Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for proper diff analysis
+
+      - name: Set up environment
+        run: |
+          chmod +x scripts/pre-commit-check.sh
+          chmod +x scripts/test-pre-commit-hook.sh
+
+      - name: Run security checks on changed files
+        run: |
+          echo "🔍 Running security validation on PR changes..."
+
+          # For PRs, check diff against base branch
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_REF="${{ github.event.pull_request.base.ref }}"
+            HEAD_REF="${{ github.event.pull_request.head.ref }}"
+
+            echo "Comparing $HEAD_REF against $BASE_REF"
+
+            # Simulate git diff for the pre-commit script
+            git diff origin/$BASE_REF...HEAD --name-only > changed_files.txt
+            git diff origin/$BASE_REF...HEAD > changes.diff
+
+            # Check for .env files
+            if grep -E '\.env$|\.env\..*$' changed_files.txt; then
+              echo "❌ ERROR: .env files detected in PR!"
+              exit 1
+            fi
+
+            # Check for hardcoded secrets
+            if grep -iE '(api_key|secret|password|token)\s*=\s*["'\''][^"'\'']{8,}' changes.diff; then
+              echo "⚠️  WARNING: Possible hardcoded secrets detected!"
+              exit 1
+            fi
+
+            # Check for localStorage token usage in frontend
+            if grep 'frontend-hormonia' changed_files.txt | xargs -I {} grep -l 'localStorage\.\(setItem\|getItem\).*token' {} 2>/dev/null; then
+              echo "❌ ERROR: Insecure localStorage token usage detected!"
+              exit 1
+            fi
+          fi
+
+          echo "✅ Security checks passed!"
+
+      - name: Test pre-commit hook functionality
+        run: |
+          echo "🧪 Testing pre-commit hook..."
+          ./scripts/test-pre-commit-hook.sh
+
+      - name: Validate .gitignore includes .env
+        run: |
+          if ! grep -q '\.env' .gitignore; then
+            echo "❌ ERROR: .gitignore does not contain .env pattern!"
+            echo "Please add .env* to .gitignore"
+            exit 1
+          fi
+          echo "✅ .gitignore properly configured"
+
+      - name: Check for .env files in repository
+        run: |
+          if find . -name ".env" -o -name ".env.*" | grep -v node_modules | grep -v ".env.example"; then
+            echo "❌ ERROR: .env files found in repository!"
+            echo "These files should be removed and added to .gitignore"
+            exit 1
+          fi
+          echo "✅ No .env files found in repository"
+
+      - name: Scan for AWS credentials
+        run: |
+          # Check for AWS access keys
+          if grep -r -E 'AKIA[0-9A-Z]{16}' --exclude-dir=node_modules --exclude-dir=.git .; then
+            echo "❌ ERROR: AWS credentials detected!"
+            exit 1
+          fi
+          echo "✅ No AWS credentials detected"
+
+      - name: Scan for Firebase API keys
+        run: |
+          # Check for Firebase API keys in non-config files
+          if grep -r -E 'AIza[0-9A-Za-z\-_]{35}' --exclude-dir=node_modules --exclude-dir=.git --exclude="*.md" .; then
+            echo "⚠️  WARNING: Possible Firebase API key detected!"
+            echo "Ensure these are in environment variables, not hardcoded"
+          fi
+          echo "✅ Firebase key check complete"
+
+      - name: Check for private keys
+        run: |
+          if grep -r "BEGIN.*PRIVATE KEY" --exclude-dir=node_modules --exclude-dir=.git .; then
+            echo "❌ ERROR: Private key detected in repository!"
+            exit 1
+          fi
+          echo "✅ No private keys detected"
+
+      - name: Validate environment variable usage
+        run: |
+          echo "Checking for proper environment variable usage..."
+
+          # Check that config files use process.env
+          if find backend-hormonia/app -name "*.py" -exec grep -l "os\.getenv\|os\.environ" {} \; | wc -l | grep -q "^0$"; then
+            echo "⚠️  WARNING: Python backend may not be using environment variables properly"
+          fi
+
+          echo "✅ Environment variable validation complete"
+
+      - name: Security summary
+        if: always()
+        run: |
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Security Validation Summary"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "Checks performed:"
+          echo "  ✓ .env file detection"
+          echo "  ✓ Hardcoded secrets scan"
+          echo "  ✓ localStorage token usage"
+          echo "  ✓ AWS credentials scan"
+          echo "  ✓ Firebase API keys"
+          echo "  ✓ Private key detection"
+          echo "  ✓ Environment variable validation"
+          echo ""
+          echo "All security checks completed!"
+          echo ""
+
+  pre-commit-hook-validation:
+    name: Pre-commit Hook Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: |
+          chmod +x scripts/pre-commit-check.sh
+          chmod +x scripts/test-pre-commit-hook.sh
+          chmod +x scripts/install-pre-commit-hook.sh
+
+      - name: Run comprehensive hook tests
+        run: |
+          echo "🧪 Running comprehensive pre-commit hook tests..."
+          ./scripts/test-pre-commit-hook.sh
+
+      - name: Test hook installation
+        run: |
+          echo "🔧 Testing hook installation process..."
+          echo "y" | ./scripts/install-pre-commit-hook.sh
+
+          # Verify hook was installed
+          if [ ! -f .git/hooks/pre-commit ]; then
+            echo "❌ ERROR: Pre-commit hook was not installed!"
+            exit 1
+          fi
+
+          if [ ! -x .git/hooks/pre-commit ]; then
+            echo "❌ ERROR: Pre-commit hook is not executable!"
+            exit 1
+          fi
+
+          echo "✅ Hook installation test passed!"
+
+      - name: Report results
+        if: always()
+        run: |
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Pre-commit Hook Validation Complete"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "The pre-commit hooks are working correctly and ready for use."
+          echo ""

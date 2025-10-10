@@ -70,9 +70,8 @@ export function useSessionManagement({
   const updateSessionFromTokens = useCallback((tokens: AuthTokens) => {
     if (tokens.expires_in) {
       setupSession(tokens.expires_in)
-      // Also store in localStorage for persistence
-      const expiry = Date.now() + (tokens.expires_in * 1000)
-      localStorage.setItem('session_expiry', expiry.toString())
+      // SECURITY: Session managed by httpOnly cookies (backend)
+      // No localStorage storage needed - cookies are automatic
     }
   }, [setupSession])
 
@@ -82,21 +81,11 @@ export function useSessionManagement({
   }, [clearTimeouts])
 
   const restoreSessionFromStorage = useCallback((): boolean => {
-    const savedExpiry = localStorage.getItem('session_expiry')
-    if (savedExpiry) {
-      const expiry = parseInt(savedExpiry, 10)
-      if (expiry > Date.now()) {
-        setSessionExpiry(expiry)
-        const remainingTime = Math.floor((expiry - Date.now()) / 1000)
-        setupSession(remainingTime)
-        return true
-      } else {
-        // Session expired, clear storage
-        localStorage.removeItem('session_expiry')
-        return false
-      }
-    }
-    return false
+    // SECURITY: Session restoration handled by httpOnly cookies (backend)
+    // Firebase Auth SDK manages token refresh automatically
+    // No localStorage restoration needed
+    logger.debug('Session restore: delegated to backend cookies + Firebase SDK')
+    return false // Always return false - let backend/Firebase handle it
   }, [setupSession])
 
   const sessionData: SessionData = {

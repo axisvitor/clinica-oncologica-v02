@@ -25,12 +25,25 @@ RATE_LIMIT_REDIS_URL: Optional[str] = None  # Custom Redis URL (uses REDIS_URL i
 
 | Endpoint | Limit | Description |
 |----------|-------|-------------|
-| `/api/v1/auth/login` | 5/minute | Login attempts per IP |
-| `/api/v1/auth/login-json` | 5/minute | JSON login attempts per IP |
-| `/api/v1/auth/refresh` | 20/minute | Token refresh per IP |
+| **Authentication (Deprecated)** |
+| `/api/v1/auth/login` | 5/minute | Login attempts per IP (deprecated) |
+| `/api/v1/auth/login-json` | 5/minute | JSON login attempts per IP (deprecated) |
+| `/api/v1/auth/refresh` | 20/minute | Token refresh per IP (deprecated) |
+| **User Profile** |
+| `/api/v1/auth/me` | 100/minute | Get current user profile per IP |
+| `/api/v1/auth/profile` | 20/hour | Update user profile per IP |
 | `/api/v1/auth/password` | 3/hour | Password changes per IP |
 | `/api/v1/auth/avatar` | 10/hour | Avatar uploads per IP |
-| `/api/v1/auth/profile` | 20/hour | Profile updates per IP |
+| **User Preferences** |
+| `/api/v1/auth/users/preferences` (GET) | 100/minute | Get user preferences per IP |
+| `/api/v1/auth/users/preferences` (PUT) | 20/hour | Update all preferences per IP |
+| `/api/v1/auth/users/preferences` (PATCH) | 20/hour | Partially update preferences per IP |
+| `/api/v1/auth/users/preferences/reset` | 10/hour | Reset preferences to defaults per IP |
+| **Notifications** |
+| `/api/v1/auth/notifications` | 100/minute | Get user notifications per IP |
+| `/api/v1/auth/notifications/{id}/read` | 100/minute | Mark notification as read per IP |
+| `/api/v1/auth/notifications/mark-all-read` | 20/hour | Mark all notifications read per IP |
+| `/api/v1/auth/notifications/{id}` (DELETE) | 100/minute | Delete notification per IP |
 
 ### IP Detection
 
@@ -79,9 +92,59 @@ Run the rate limiting tests:
 # Run all rate limit tests
 pytest backend-hormonia/tests/test_rate_limiting.py -v
 
+# Run comprehensive rate limiting tests (all endpoints)
+pytest backend-hormonia/tests/integration/auth/test_auth_rate_limiting_comprehensive.py -v
+
+# Run specific test class
+pytest backend-hormonia/tests/integration/auth/test_auth_rate_limiting_comprehensive.py::TestProfileEndpointRateLimiting -v
+
 # Run specific test
 pytest backend-hormonia/tests/test_rate_limiting.py::TestLoginRateLimit::test_login_rate_limit_exceeded -v
 ```
+
+#### Test Coverage
+
+The comprehensive test suite (`test_auth_rate_limiting_comprehensive.py`) includes:
+
+1. **Login Endpoints** (5/minute):
+   - Form-based login rate limiting
+   - JSON login rate limiting
+   - Per-IP enforcement
+
+2. **Token Refresh** (20/minute):
+   - Token refresh rate limiting
+
+3. **Profile Endpoints**:
+   - GET `/me` (100/minute)
+   - PUT `/profile` (20/hour)
+   - PUT `/password` (3/hour)
+   - POST `/avatar` (10/hour)
+
+4. **User Preferences**:
+   - GET `/users/preferences` (100/minute)
+   - PUT `/users/preferences` (20/hour)
+   - PATCH `/users/preferences` (20/hour)
+   - POST `/users/preferences/reset` (10/hour)
+
+5. **Notifications**:
+   - GET `/notifications` (100/minute)
+   - POST `/notifications/{id}/read` (100/minute)
+   - POST `/notifications/mark-all-read` (20/hour)
+   - DELETE `/notifications/{id}` (100/minute)
+
+6. **Error Response Format**:
+   - Standardized error format
+   - Retry information included
+   - Limit details provided
+
+7. **IP Detection**:
+   - X-Forwarded-For header support
+   - X-Real-IP header fallback
+   - Multiple IPs in chain handling
+
+8. **Rate Limit Independence**:
+   - Different endpoints have independent limits
+   - Different IPs have independent limits
 
 ### Monitoring
 

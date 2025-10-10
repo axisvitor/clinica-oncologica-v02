@@ -70,7 +70,14 @@
       "Bash(npm run test:coverage:*)",
       "Bash([ -f .env ])",
       "Bash([ -f .gitignore ])",
-      "Bash(pnpm install:*)"
+      "Bash(pnpm install:*)",
+      "Bash(set ENVIRONMENT=development)",
+      "Bash(set ENVIRONMENT=production)",
+      "Bash(set DEBUG=false)",
+      "Bash(set SESSION_COOKIE_SECURE=true)",
+      "Bash(set SECURE_SSL_REDIRECT=true)",
+      "Bash(alembic revision:*)",
+      "Bash(Select-Object -First 30)"
     ],
     "deny": []
   }

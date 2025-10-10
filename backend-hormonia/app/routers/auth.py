@@ -22,6 +22,7 @@ from app.dependencies.auth_dependencies import (
 )
 from app.models.user import User
 from app.core.config import settings
+from app.utils.rate_limiter import limiter
 
 
 router = APIRouter(prefix="/api/v1/auth", tags=["authentication"])
@@ -66,7 +67,9 @@ class SessionStatusResponse(BaseModel):
 # ============================================================================
 
 @router.post("/session", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/minute")  # Rate limit: 20 session creations per minute per IP
 async def create_session(
+    request: Request,
     session_data: SessionCreate,
     db: Session = Depends(get_db),
     redis_cache: FirebaseRedisCache = Depends(get_redis_cache)
@@ -173,7 +176,9 @@ async def create_session(
 
 
 @router.post("/logout", response_model=LogoutResponse)
+@limiter.limit("100/minute")  # Rate limit: 100 logout attempts per minute per IP
 async def logout(
+    request: Request,
     x_session_id: str = Header(..., description="Session ID to invalidate"),
     redis_cache: FirebaseRedisCache = Depends(get_redis_cache)
 ):
@@ -214,7 +219,9 @@ async def logout(
 
 
 @router.post("/logout-all", response_model=LogoutAllResponse)
+@limiter.limit("10/hour")  # Rate limit: 10 global logout attempts per hour per IP
 async def logout_all(
+    request: Request,
     current_user: User = Depends(get_current_user_from_session),
     redis_cache: FirebaseRedisCache = Depends(get_redis_cache)
 ):
@@ -253,7 +260,9 @@ async def logout_all(
 
 
 @router.get("/me")
+@limiter.limit("100/minute")  # Rate limit: 100 profile fetches per minute per IP
 async def get_current_user(
+    request: Request,
     current_user: User = Depends(get_current_user_from_session)
 ):
     """
@@ -279,7 +288,9 @@ async def get_current_user(
 
 
 @router.get("/session/status", response_model=SessionStatusResponse)
+@limiter.limit("200/minute")  # Rate limit: 200 session status checks per minute per IP
 async def get_session_status(
+    request: Request,
     x_session_id: str = Header(..., description="Session ID to check"),
     redis_cache: FirebaseRedisCache = Depends(get_redis_cache)
 ):
@@ -330,7 +341,8 @@ async def get_session_status(
 # ============================================================================
 
 @router.get("/health")
-async def health_check():
+@limiter.limit("60/minute")  # Rate limit: 60 health checks per minute per IP
+async def health_check(request: Request):
     """
     Authentication service health check.
 

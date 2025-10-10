@@ -119,9 +119,16 @@ def configure_cors(
     if allow_methods is None:
         allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
 
-    # Default headers
+    # Default headers - Use explicit list for security
     if allow_headers is None:
-        allow_headers = ["*"]
+        allow_headers = [
+            "authorization",
+            "content-type",
+            "x-csrf-token",
+            "x-requested-with",
+            "accept",
+            "origin"
+        ]
 
     # Add CORS middleware
     app.add_middleware(
@@ -131,7 +138,7 @@ def configure_cors(
         allow_credentials=allow_credentials,
         allow_methods=allow_methods,
         allow_headers=allow_headers,
-        expose_headers=["*"],
+        expose_headers=["content-type", "x-csrf-token", "x-total-count", "x-page", "x-per-page"],
         max_age=3600,  # Cache preflight for 1 hour
     )
 

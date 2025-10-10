@@ -1,11 +1,14 @@
 from typing import Any, Dict, Generic, List, Optional, Tuple, Type, TypeVar, Union
 from uuid import UUID
+import logging
 
 from sqlalchemy.orm import Session
 
 from app.models.base import BaseModel
+from app.services.cache_service import get_cache_service
 
 ModelType = TypeVar("ModelType", bound=BaseModel)
+logger = logging.getLogger(__name__)
 
 
 class BaseRepository(Generic[ModelType]):
@@ -45,28 +48,51 @@ class BaseRepository(Generic[ModelType]):
         return self.db.query(self.model).offset(skip).limit(limit).all()
     
     def create(self, obj_in: Dict[str, Any]) -> ModelType:
-        """Create new record"""
+        """
+        Create new record with automatic cache invalidation.
+
+        CACHE INVALIDATION: Invalidates related caches after creation.
+        """
         db_obj = self.model(**obj_in)
         self.db.add(db_obj)
         self.db.commit()
         self.db.refresh(db_obj)
+
+        # Invalidate caches after mutation
+        self._invalidate_caches_for_model(db_obj)
+
         return db_obj
     
     def update(self, db_obj: ModelType, obj_in: Dict[str, Any]) -> ModelType:
-        """Update existing record"""
+        """
+        Update existing record with automatic cache invalidation.
+
+        CACHE INVALIDATION: Invalidates related caches after update.
+        """
         for field, value in obj_in.items():
             if hasattr(db_obj, field):
                 setattr(db_obj, field, value)
-        
+
         self.db.add(db_obj)
         self.db.commit()
         self.db.refresh(db_obj)
+
+        # Invalidate caches after mutation
+        self._invalidate_caches_for_model(db_obj)
+
         return db_obj
     
     def delete(self, id: UUID) -> bool:
-        """Delete record by ID"""
+        """
+        Delete record by ID with automatic cache invalidation.
+
+        CACHE INVALIDATION: Invalidates related caches after deletion.
+        """
         db_obj = self.get_by_id(id)
         if db_obj:
+            # Invalidate caches BEFORE deletion (while we still have the object)
+            self._invalidate_caches_for_model(db_obj)
+
             self.db.delete(db_obj)
             self.db.commit()
             return True
@@ -131,11 +157,56 @@ class BaseRepository(Generic[ModelType]):
     def exists(self, id: UUID) -> bool:
         """
         Check if record exists by ID.
-        
+
         Args:
             id: Record ID to check
-            
+
         Returns:
             True if record exists, False otherwise
         """
         return self.db.query(self.model).filter(self.model.id == id).first() is not None
+
+    def _invalidate_caches_for_model(self, db_obj: ModelType):
+        """
+        Invalidate caches for a model instance after mutations.
+
+        CACHE INVALIDATION STRATEGY:
+        - Patient: Invalidate patient:ID tag
+        - Quiz: Invalidate quiz:ID tag
+        - Report: Invalidate report:ID tag
+
+        Args:
+            db_obj: Model instance that was mutated
+        """
+        try:
+            cache_service = get_cache_service()
+            model_name = self.model.__name__.lower()
+
+            # Get model ID
+            if hasattr(db_obj, 'id') and db_obj.id:
+                tag = f"{model_name}:{db_obj.id}"
+                cache_service.invalidate_by_tag(tag)
+                logger.debug(f"Cache invalidated for {tag}")
+
+            # Model-specific invalidations
+            if model_name == 'patient':
+                # Invalidate doctor's patient list if patient has doctor_id
+                if hasattr(db_obj, 'doctor_id') and db_obj.doctor_id:
+                    doctor_tag = f"doctor:{db_obj.doctor_id}"
+                    cache_service.invalidate_by_tag(doctor_tag)
+
+            elif model_name == 'quizsession':
+                # Invalidate patient's quiz list
+                if hasattr(db_obj, 'patient_id') and db_obj.patient_id:
+                    patient_tag = f"patient:{db_obj.patient_id}"
+                    cache_service.invalidate_by_tag(patient_tag)
+
+            elif model_name == 'medicalreport':
+                # Invalidate patient's report list
+                if hasattr(db_obj, 'patient_id') and db_obj.patient_id:
+                    patient_tag = f"patient:{db_obj.patient_id}"
+                    cache_service.invalidate_by_tag(patient_tag)
+
+        except Exception as e:
+            # Log error but don't fail the mutation
+            logger.error(f"Cache invalidation error for {model_name}: {e}")

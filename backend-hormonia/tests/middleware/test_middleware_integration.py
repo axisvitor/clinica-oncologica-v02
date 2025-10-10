@@ -6,7 +6,7 @@ Tests middleware interactions and request flow
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from app.middleware.cors import setup_cors
+from app.middleware.cors import configure_cors
 from app.middleware.security import SecurityHeadersMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.logging import RequestLoggingMiddleware
@@ -21,7 +21,7 @@ def app():
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RateLimitMiddleware, requests_per_minute=60)
-    setup_cors(app)
+    configure_cors(app)
 
     @app.get("/test")
     async def test_endpoint():

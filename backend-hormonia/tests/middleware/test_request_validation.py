@@ -260,7 +260,7 @@ from starlette.responses import JSONResponse
 class UserModel(BaseModel):
     """Test user model with validation."""
     username: str = Field(..., min_length=3, max_length=20)
-    email: str = Field(..., regex=r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
+    email: str = Field(..., pattern=r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
     age: int = Field(..., ge=0, le=150)
 
     @validator('username')

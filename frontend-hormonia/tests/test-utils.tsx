@@ -3,7 +3,7 @@ import { render, RenderOptions } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import { vi } from 'vitest'
-import { AuthProvider, AuthContextType } from '../contexts/AuthContext'
+import { AuthProvider, AuthContextType } from '@/contexts/AuthContext'
 
 // Mock user for testing
 export const mockUser = {
@@ -102,11 +102,9 @@ const AllTheProviders = ({
 
   return (
     <QueryClientProvider client={client}>
-      <BrowserRouter>
         <MockAuthProvider>
           {children}
         </MockAuthProvider>
-      </BrowserRouter>
     </QueryClientProvider>
   )
 }

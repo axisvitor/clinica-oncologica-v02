@@ -2,9 +2,9 @@
 Configuration settings for Hormonia Backend System using Pydantic Settings.
 Using AWS RDS PostgreSQL database.
 """
-from pydantic import Field, field_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import List, Optional
+from typing import List, Optional, ClassVar, Any
 import os
 import json
 
@@ -15,16 +15,6 @@ class Settings(BaseSettings):
     # Application
     DEBUG: bool = Field(default=True, description="Debug mode")
     ENVIRONMENT: str = Field(default="development", description="Environment name")
-
-    @field_validator('DEBUG', mode='before')
-    @classmethod
-    def parse_debug(cls, v):
-        """Parse DEBUG from string to boolean (Railway sends 'false' as string)."""
-        if isinstance(v, bool):
-            return v
-        if isinstance(v, str):
-            return v.lower() not in ('false', '0', 'no', 'off', '')
-        return bool(v)
     SECRET_KEY: str = Field(..., description="Secret key for JWT signing")
     JWT_SECRET_KEY: Optional[str] = Field(default=None, description="JWT secret key (fallback to SECRET_KEY if not set)")
     ENCRYPTION_KEY: Optional[str] = Field(default=None, description="Encryption key for sensitive data")
@@ -36,16 +26,6 @@ class Settings(BaseSettings):
     # Security: Session and Cookie Configuration
     SESSION_COOKIE_SECURE: bool = Field(default=False, description="Require HTTPS for session cookies")
     SECURE_SSL_REDIRECT: bool = Field(default=False, description="Force HTTPS redirect")
-
-    @field_validator('SESSION_COOKIE_SECURE', 'SECURE_SSL_REDIRECT', mode='before')
-    @classmethod
-    def parse_bool_fields(cls, v):
-        """Parse boolean fields from string (Railway/env vars send as strings)."""
-        if isinstance(v, bool):
-            return v
-        if isinstance(v, str):
-            return v.lower() not in ('false', '0', 'no', 'off', '')
-        return bool(v)
 
     # Security: CSRF Protection
     CSRF_SECRET_KEY: Optional[str] = Field(
@@ -73,30 +53,6 @@ class Settings(BaseSettings):
         description="Authorized email domains for Firebase user creation (no public domains allowed)"
     )
 
-    @field_validator('SECRET_KEY', 'JWT_SECRET_KEY', 'ENCRYPTION_KEY', mode='after')
-    @classmethod
-    def validate_not_placeholder(cls, v, info):
-        """Validate that security keys are not using placeholder values."""
-        if v and ('CHANGE_THIS' in v.upper() or 'YOUR_' in v.upper()):
-            raise ValueError(
-                f"{info.field_name} must be changed from placeholder value. "
-                f"Never use default/example values in production."
-            )
-        return v
-
-    @field_validator('FIREBASE_ALLOWED_DOMAINS', mode='before')
-    @classmethod
-    def parse_allowed_domains(cls, v):
-        """Parse FIREBASE_ALLOWED_DOMAINS from JSON string or return empty list for empty string."""
-        if v is None or v == '':
-            return []
-        if isinstance(v, str):
-            try:
-                return json.loads(v)
-            except json.JSONDecodeError:
-                return []
-        return v
-
     FIREBASE_REQUIRE_CUSTOM_CLAIMS: bool = Field(
         default=True,
         description="Require valid custom claims (role) before creating user"
@@ -118,20 +74,9 @@ class Settings(BaseSettings):
         description="Public email domains that are explicitly blocked"
     )
 
-
-    # File Upload Settings
-    UPLOAD_DIR: str = Field(
-        default="uploads",
-        description="Directory for uploaded files (relative or absolute path)"
-    )
-    MAX_UPLOAD_SIZE: int = Field(
-        default=10 * 1024 * 1024,  # 10MB
-        description="Maximum file upload size in bytes"
-    )
-    
     # Database (AWS RDS PostgreSQL)
     DATABASE_URL: str = Field(..., description="AWS RDS PostgreSQL connection string")
-    
+
     # Redis (for caching and Celery)
     # Redis Connection Settings (redis-py 6.0.0 compatible)
     REDIS_URL: str = Field(default="redis://localhost:6379", description="Redis connection URL (use redis:// or rediss:// for SSL)")
@@ -195,7 +140,7 @@ class Settings(BaseSettings):
         default=None,
         description="Redis URL for rate limiting storage (uses REDIS_URL if not set, in-memory if Redis unavailable)"
     )
-    
+
     # Evolution API (WhatsApp)
     ENABLE_EVOLUTION: bool = Field(default=True, description="Enable Evolution API WhatsApp integration")
     EVOLUTION_API_URL: str = Field(default="http://localhost:8080", description="Evolution API base URL")
@@ -203,7 +148,7 @@ class Settings(BaseSettings):
     EVOLUTION_API_KEY: str = Field(default="your-evolution-api-key-here", description="Evolution API key")
     EVOLUTION_WEBHOOK_SECRET: Optional[str] = Field(default=None, description="Evolution webhook secret for signature validation")
     EVOLUTION_WEBHOOK_URL: Optional[str] = Field(default=None, description="Webhook URL for receiving Evolution API events")
-    
+
     # AI Services (Gemini/LangChain)
     LANGCHAIN_TRACING_V2: bool = Field(default=False, description="Enable LangChain tracing")
     LANGCHAIN_API_KEY: Optional[str] = Field(default=None, description="LangChain API key")
@@ -217,7 +162,7 @@ class Settings(BaseSettings):
     GEMINI_TOP_K: int = Field(default=40, description="Gemini top-k parameter")
     GEMINI_TIMEOUT: int = Field(default=30, description="Gemini API timeout in seconds")
     GEMINI_MAX_RETRIES: int = Field(default=3, description="Gemini API max retries")
-    
+
     # Celery Configuration
     CELERY_BROKER_URL: str = Field(default="rediss://localhost:6379/0", description="Celery broker URL")
     CELERY_RESULT_BACKEND: str = Field(default="rediss://localhost:6379/1", description="Celery result backend (use different DB)")
@@ -231,7 +176,7 @@ class Settings(BaseSettings):
     CELERY_TASK_SOFT_TIME_LIMIT: int = Field(default=240, description="Task soft time limit in seconds")
     CELERY_WORKER_MAX_TASKS_PER_CHILD: int = Field(default=1000, description="Max tasks per worker child")
     CELERY_WORKER_DISABLE_RATE_LIMITS: bool = Field(default=True, description="Disable rate limits for workers")
-    
+
     # CORS - Dynamic configuration (domain-only in production, regex in dev)
     FRONTEND_URL: str = Field(
         default="http://localhost:5173",
@@ -246,41 +191,17 @@ class Settings(BaseSettings):
         description="Allowed CORS origins (auto-constructed from FRONTEND_URL + QUIZ_URL in production, empty in dev for regex)"
     )
 
-    @field_validator("ALLOWED_ORIGINS", mode="before")
-    @classmethod
-    def _parse_allowed_origins(cls, v):
-        """
-        Constructs ALLOWED_ORIGINS dynamically:
-        - Production: uses FRONTEND_URL + QUIZ_URL (only domains)
-        - Dev: returns empty list (allow_origin_regex will be used in middleware)
-        """
-        # If explicit value is passed, use it
-        if isinstance(v, list) and len(v) > 0:
-            return v
-        if isinstance(v, str) and v.strip():
-            # Parse JSON or CSV
-            s = v.strip()
-            if s.startswith("["):
-                try:
-                    return json.loads(s)
-                except:
-                    pass
-            return [item.strip() for item in s.split(",") if item.strip()]
-
-        # Auto value: return empty list (regex will be used)
-        return []
-    
     # File Storage
     UPLOAD_DIR: str = Field(default="uploads", description="Upload directory for files")
     MAX_FILE_SIZE: int = Field(default=10 * 1024 * 1024, description="Max file size in bytes (10MB)")
-    
+
     # Localization
     DEFAULT_LOCALE: str = Field(default="pt-BR", description="Default language locale")
     SUPPORTED_LOCALES: List[str] = Field(
         default=["en", "pt-BR", "es"],
         description="Supported language locales"
     )
-    
+
     # Logging
     LOG_LEVEL: str = Field(default="INFO", description="Logging level")
     LOG_FORMAT: str = Field(
@@ -344,32 +265,109 @@ class Settings(BaseSettings):
         ],
         description="Keywords that prevent AI humanization for safety"
     )
-    
-    @field_validator("AI_HUMANIZATION_CRITICAL_KEYWORDS", mode="before")
-    @classmethod
-    def _parse_critical_keywords(cls, v):
-        """Allow JSON array or comma-separated string for critical keywords."""
-        if isinstance(v, list):
-            return v
-        if isinstance(v, str):
-            s = v.strip()
-            # Try JSON array
-            if s.startswith("["):
-                try:
-                    arr = json.loads(s)
-                    if isinstance(arr, list):
-                        return arr
-                except Exception:
-                    pass
-            # Fallback: comma-separated
-            return [item.strip() for item in s.split(",") if item.strip()]
-        return [
-            "medicação", "remédio", "dosagem", "mg", "ml", "emergência", "urgente",
-            "hospital", "médico", "consulta", "exame", "resultado", "tratamento",
-            "quimioterapia", "radioterapia", "cirurgia", "efeito colateral",
-            "reação adversa", "contraindicação", "suspender", "parar", "não tome"
-        ]
 
+    # WhatsApp Integration Configuration
+    ENABLE_WHATSAPP_ON_REGISTRATION: bool = Field(
+        default=True,
+        description="Enable automatic WhatsApp welcome message on patient registration"
+    )
+    WHATSAPP_WELCOME_MESSAGE_ENABLED: bool = Field(
+        default=True,
+        description="Enable welcome message feature (can be disabled for testing)"
+    )
+    WHATSAPP_MAX_RETRIES: int = Field(
+        default=3,
+        description="Maximum retry attempts for failed WhatsApp messages"
+    )
+    WHATSAPP_RETRY_DELAY_SECONDS: int = Field(
+        default=60,
+        description="Initial delay in seconds before retrying failed messages (uses exponential backoff)"
+    )
+    CLINIC_NAME: str = Field(
+        default="Clínica Oncológica Hormonia",
+        description="Clinic name for WhatsApp messages"
+    )
+    CLINIC_SUPPORT_PHONE: Optional[str] = Field(
+        default=None,
+        description="Support phone number for emergencies (shown in welcome message)"
+    )
+
+    # Pydantic v2.9.2 + Python 3.13: model_validator requires special handling
+    @model_validator(mode='before')
+    @classmethod
+    def parse_env_values(cls, data: Any) -> Any:
+        """Parse all environment variable values before model validation (Pydantic v2 compatible)."""
+        # Parse boolean fields from string
+        for field in ['DEBUG', 'SESSION_COOKIE_SECURE', 'SECURE_SSL_REDIRECT']:
+            if field in data:
+                v = data[field]
+                if isinstance(v, bool):
+                    data[field] = v
+                elif isinstance(v, str):
+                    data[field] = v.lower() not in ('false', '0', 'no', 'off', '')
+                else:
+                    data[field] = bool(v)
+
+        # Parse FIREBASE_ALLOWED_DOMAINS from JSON string
+        if 'FIREBASE_ALLOWED_DOMAINS' in data:
+            v = data['FIREBASE_ALLOWED_DOMAINS']
+            if v is None or v == '':
+                data['FIREBASE_ALLOWED_DOMAINS'] = []
+            elif isinstance(v, str):
+                try:
+                    data['FIREBASE_ALLOWED_DOMAINS'] = json.loads(v)
+                except json.JSONDecodeError:
+                    data['FIREBASE_ALLOWED_DOMAINS'] = []
+
+        # Parse ALLOWED_ORIGINS
+        if 'ALLOWED_ORIGINS' in data:
+            v = data['ALLOWED_ORIGINS']
+            if isinstance(v, list) and len(v) > 0:
+                pass  # Already a list
+            elif isinstance(v, str) and v.strip():
+                s = v.strip()
+                if s.startswith("["):
+                    try:
+                        data['ALLOWED_ORIGINS'] = json.loads(s)
+                    except:
+                        data['ALLOWED_ORIGINS'] = [item.strip() for item in s.split(",") if item.strip()]
+                else:
+                    data['ALLOWED_ORIGINS'] = [item.strip() for item in s.split(",") if item.strip()]
+            else:
+                data['ALLOWED_ORIGINS'] = []
+
+        # Parse AI_HUMANIZATION_CRITICAL_KEYWORDS
+        if 'AI_HUMANIZATION_CRITICAL_KEYWORDS' in data:
+            v = data['AI_HUMANIZATION_CRITICAL_KEYWORDS']
+            if isinstance(v, list):
+                pass  # Already a list
+            elif isinstance(v, str):
+                s = v.strip()
+                if s.startswith("["):
+                    try:
+                        arr = json.loads(s)
+                        if isinstance(arr, list):
+                            data['AI_HUMANIZATION_CRITICAL_KEYWORDS'] = arr
+                        else:
+                            data['AI_HUMANIZATION_CRITICAL_KEYWORDS'] = [item.strip() for item in s.split(",") if item.strip()]
+                    except Exception:
+                        data['AI_HUMANIZATION_CRITICAL_KEYWORDS'] = [item.strip() for item in s.split(",") if item.strip()]
+                else:
+                    data['AI_HUMANIZATION_CRITICAL_KEYWORDS'] = [item.strip() for item in s.split(",") if item.strip()]
+
+        # Validate security keys are not placeholders
+        for field in ['SECRET_KEY', 'JWT_SECRET_KEY', 'ENCRYPTION_KEY']:
+            if field in data:
+                v = data[field]
+                if v and ('CHANGE_THIS' in v.upper() or 'YOUR_' in v.upper()):
+                    raise ValueError(
+                        f"{field} must be changed from placeholder value. "
+                        f"Never use default/example values in production."
+                    )
+
+        return data
+
+    # Pydantic v2: model_config MUST be declared AFTER all validators
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,
@@ -382,6 +380,7 @@ class Settings(BaseSettings):
         self._validate_firebase_config()
         self._validate_cors_config()
         self._validate_production_config()
+        self._validate_csrf_config()
 
     def _validate_firebase_config(self):
         """Validate Firebase configuration at runtime."""
@@ -429,6 +428,47 @@ class Settings(BaseSettings):
                 )
         else:
             logger.info(f"✅ CORS configured with {len(self.ALLOWED_ORIGINS)} allowed origins")
+
+    def _validate_csrf_config(self):
+        """Validate CSRF secret key strength at application startup."""
+        import logging
+        logger = logging.getLogger(__name__)
+
+        if self.CSRF_SECRET_KEY:
+            try:
+                # Import validation function
+                from app.utils.security_validation import validate_csrf_secret
+
+                # Validate CSRF secret with entropy checking
+                # log_validation=True will log metrics without exposing the secret
+                validate_csrf_secret(self.CSRF_SECRET_KEY, log_validation=True)
+                logger.info("✅ CSRF secret validation passed")
+
+            except ValueError as e:
+                logger.error(f"❌ CSRF secret validation failed: {e}")
+
+                # In production, weak CSRF secrets should prevent application startup
+                if self.ENVIRONMENT.lower() == 'production':
+                    raise ValueError(
+                        f"CSRF secret validation failed in production: {e}\n"
+                        "Generate a secure secret with: "
+                        "python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+                    )
+                else:
+                    # In development, just warn but allow startup
+                    logger.warning(
+                        "⚠️  Continuing in development mode with weak CSRF secret. "
+                        "This is NOT SAFE for production! "
+                        "Generate a secure secret with: "
+                        "python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+                    )
+        else:
+            logger.warning(
+                "⚠️  CSRF_SECRET_KEY not configured. "
+                "CSRF protection will be disabled. "
+                "For production, generate a secret with: "
+                "python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+            )
 
     def _validate_production_config(self):
         """Validate production environment has secure configurations."""
@@ -531,4 +571,3 @@ def get_firebase_security_config():
         "block_public_domains": settings.FIREBASE_BLOCK_PUBLIC_DOMAINS,
         "public_domains_blocklist": settings.FIREBASE_PUBLIC_DOMAINS_BLOCKLIST
     }
-

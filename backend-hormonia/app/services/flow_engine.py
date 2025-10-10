@@ -30,6 +30,7 @@ from app.services.ai import get_ai_humanizer, get_context_builder, PatientContex
 from app.config import is_ai_humanization_enabled, should_humanize_message, get_humanization_config
 from app.utils.db_retry import with_db_retry
 from app.services.question_humanizer import get_question_humanizer
+from app.utils.distributed_lock import async_flow_state_lock, LockAcquisitionError, LockTimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -450,6 +451,103 @@ class FlowEngine(AsyncFlowEngineBase):
                     context={"step_type": step.type, "patient_id": str(flow_state.patient_id)}
                 )
     
+    def _validate_patient_data(self, patient: Patient) -> dict[str, Any]:
+        """
+        Validate patient data completeness before starting flow.
+
+        Args:
+            patient: Patient model instance
+
+        Returns:
+            Dict containing validation results with 'valid' flag and any errors
+
+        Raises:
+            ValidationError: If critical patient data is missing
+        """
+        errors = []
+        warnings = []
+
+        # Critical fields that MUST be present
+        critical_fields = {
+            'cpf': (patient.cpf, "CPF não informado"),
+            'treatment_type': (patient.treatment_type, "Tipo de tratamento não informado"),
+            'phone': (patient.phone, "Telefone não informado"),
+        }
+
+        # Check critical fields
+        for field_name, (field_value, error_msg) in critical_fields.items():
+            if not field_value or (isinstance(field_value, str) and not field_value.strip()):
+                errors.append({
+                    'field': field_name,
+                    'message': error_msg,
+                    'severity': 'error'
+                })
+
+        # Recommended fields for better flow execution
+        recommended_fields = {
+            'name': (patient.name, "Nome do paciente não informado"),
+            'treatment_start_date': (patient.treatment_start_date, "Data de início do tratamento não informada"),
+            'diagnosis': (patient.diagnosis, "Diagnóstico não informado"),
+        }
+
+        # Check recommended fields
+        for field_name, (field_value, warning_msg) in recommended_fields.items():
+            if not field_value or (isinstance(field_value, str) and not field_value.strip()):
+                warnings.append({
+                    'field': field_name,
+                    'message': warning_msg,
+                    'severity': 'warning'
+                })
+
+        # Additional validations
+        if patient.phone:
+            # Basic phone validation (Brazilian format)
+            phone_digits = ''.join(filter(str.isdigit, patient.phone))
+            if len(phone_digits) < 10 or len(phone_digits) > 11:
+                errors.append({
+                    'field': 'phone',
+                    'message': f"Telefone com formato inválido: {patient.phone}",
+                    'severity': 'error'
+                })
+
+        if patient.cpf:
+            # Basic CPF validation (11 digits)
+            cpf_digits = ''.join(filter(str.isdigit, patient.cpf))
+            if len(cpf_digits) != 11:
+                errors.append({
+                    'field': 'cpf',
+                    'message': f"CPF com formato inválido (deve ter 11 dígitos): {patient.cpf}",
+                    'severity': 'error'
+                })
+
+        # Build validation result
+        validation_result = {
+            'valid': len(errors) == 0,
+            'patient_id': str(patient.id),
+            'errors': errors,
+            'warnings': warnings,
+            'checked_fields': {
+                'critical': list(critical_fields.keys()),
+                'recommended': list(recommended_fields.keys())
+            }
+        }
+
+        # If there are critical errors, raise ValidationError
+        if errors:
+            error_messages = [f"{err['field']}: {err['message']}" for err in errors]
+            raise ValidationError(
+                f"Dados do paciente incompletos ou inválidos. Erros: {'; '.join(error_messages)}"
+            )
+
+        # Log warnings if any
+        if warnings:
+            warning_messages = [f"{warn['field']}: {warn['message']}" for warn in warnings]
+            logger.warning(
+                f"Paciente {patient.id} tem campos recomendados ausentes: {'; '.join(warning_messages)}"
+            )
+
+        return validation_result
+
     @with_db_retry(max_retries=3)
     def start_flow(
         self,
@@ -472,12 +570,20 @@ class FlowEngine(AsyncFlowEngineBase):
 
         Raises:
             NotFoundError: If patient not found or no suitable template available
-            ValidationError: If flow validation fails
+            ValidationError: If flow validation fails or patient data incomplete
         """
         # Get patient
         patient = self.patient_repo.get(patient_id)
         if not patient:
             raise NotFoundError(f"Patient {patient_id} not found")
+
+        # CRITICAL FIX #1: Pre-flight validation
+        # Validate patient data completeness before starting flow
+        validation_result = self._validate_patient_data(patient)
+        logger.info(
+            f"Patient {patient_id} data validation passed. "
+            f"Warnings: {len(validation_result.get('warnings', []))}"
+        )
 
         # Get template with fallback handling
         template_data = self._get_template_with_fallback(flow_type, fallback_to_default)
@@ -1068,7 +1174,12 @@ class FlowEngine(AsyncFlowEngineBase):
         context: dict[str, Any],
         state_machine: StateMachine,
     ) -> dict[str, Any]:
-        """Handle the result of a state transition."""
+        """
+        Handle the result of a state transition with distributed locking.
+
+        Uses distributed locks to prevent race conditions between concurrent
+        flow state updates and message scheduling operations.
+        """
         result = {
             "status": transition.result.value,
             "message": transition.message,
@@ -1079,52 +1190,80 @@ class FlowEngine(AsyncFlowEngineBase):
             "conditions_evaluated": transition.conditions_evaluated,
             "timestamp": transition.timestamp
         }
-        
-        if transition.result == TransitionResult.SUCCESS:
-            # Update flow state
-            flow_state.current_step = transition.to_step
-            flow_state.state_data = flow_state.state_data or {}
-            flow_state.state_data["last_transition"] = {
-                "timestamp": transition.timestamp.isoformat(),
-                "from_step": transition.from_step,
-                "to_step": transition.to_step,
-                "conditions": transition.conditions_evaluated
-            }
-            
-            self.db.commit()
-            result["current_step"] = transition.to_step
 
-            # Schedule next step actions (async)
-            next_step = state_machine.get_current_step(transition.to_step)
-            if next_step:
-                await self._schedule_step(flow_state, next_step, transition.timestamp)
-            
-        elif transition.result == TransitionResult.FLOW_COMPLETED:
-            # Mark flow as completed
-            flow_state.completed_at = transition.timestamp
-            flow_state.state_data = flow_state.state_data or {}
-            flow_state.state_data["completion"] = {
-                "timestamp": transition.timestamp.isoformat(),
-                "final_step": transition.from_step,
-                "auto_completion": True
-            }
-            
-            self.db.commit()
-            result["completed_at"] = transition.timestamp
-            
-        elif transition.result == TransitionResult.CONDITION_NOT_MET:
-            # Log the failed transition attempt
-            flow_state.state_data = flow_state.state_data or {}
-            flow_state.state_data["failed_transitions"] = flow_state.state_data.get("failed_transitions", [])
-            flow_state.state_data["failed_transitions"].append({
-                "timestamp": transition.timestamp.isoformat(),
-                "from_step": transition.from_step,
-                "to_step": transition.to_step,
-                "reason": "conditions_not_met",
-                "conditions": transition.conditions_evaluated
-            })
-            
-            self.db.commit()
+        # Acquire distributed lock for flow state transition
+        try:
+            async with async_flow_state_lock(flow_state.patient_id, timeout=30) as lock:
+                logger.debug(f"Acquired flow state lock for patient {flow_state.patient_id}")
+
+                if transition.result == TransitionResult.SUCCESS:
+                    # Update flow state
+                    flow_state.current_step = transition.to_step
+                    flow_state.state_data = flow_state.state_data or {}
+                    flow_state.state_data["last_transition"] = {
+                        "timestamp": transition.timestamp.isoformat(),
+                        "from_step": transition.from_step,
+                        "to_step": transition.to_step,
+                        "conditions": transition.conditions_evaluated
+                    }
+
+                    self.db.commit()
+                    result["current_step"] = transition.to_step
+
+                    # Schedule next step actions (async) - still protected by lock
+                    next_step = state_machine.get_current_step(transition.to_step)
+                    if next_step:
+                        await self._schedule_step(flow_state, next_step, transition.timestamp)
+
+                elif transition.result == TransitionResult.FLOW_COMPLETED:
+                    # Mark flow as completed
+                    flow_state.completed_at = transition.timestamp
+                    flow_state.state_data = flow_state.state_data or {}
+                    flow_state.state_data["completion"] = {
+                        "timestamp": transition.timestamp.isoformat(),
+                        "final_step": transition.from_step,
+                        "auto_completion": True
+                    }
+
+                    self.db.commit()
+                    result["completed_at"] = transition.timestamp
+
+                elif transition.result == TransitionResult.CONDITION_NOT_MET:
+                    # Log the failed transition attempt
+                    flow_state.state_data = flow_state.state_data or {}
+                    flow_state.state_data["failed_transitions"] = flow_state.state_data.get("failed_transitions", [])
+                    flow_state.state_data["failed_transitions"].append({
+                        "timestamp": transition.timestamp.isoformat(),
+                        "from_step": transition.from_step,
+                        "to_step": transition.to_step,
+                        "reason": "conditions_not_met",
+                        "conditions": transition.conditions_evaluated
+                    })
+
+                    self.db.commit()
+
+                # Log lock metrics for monitoring
+                lock_metrics = lock.get_metrics()
+                if lock_metrics.get("contention_count", 0) > 0:
+                    logger.info(
+                        f"Flow state lock contention detected: "
+                        f"{lock_metrics['contention_count']} contentions, "
+                        f"avg wait: {lock_metrics['average_wait_time']:.3f}s"
+                    )
+
+        except LockTimeoutError as e:
+            logger.error(
+                f"Lock timeout during flow transition for patient {flow_state.patient_id}: {e}"
+            )
+            result["status"] = "lock_timeout"
+            result["error"] = str(e)
+
+        except LockAcquisitionError as e:
+            logger.error(
+                f"Failed to acquire lock for flow transition for patient {flow_state.patient_id}: {e}"
+            )
+            result["status"] = "lock_failed"
+            result["error"] = str(e)
 
         return result
 
