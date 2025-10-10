@@ -30,10 +30,10 @@ interface Service {
   category: 'auth' | 'messaging' | 'monitoring' | 'ai' | 'websocket'
   status: 'pending' | 'checking' | 'healthy' | 'degraded' | 'unhealthy' | 'unknown'
   required: boolean
-  url?: string
-  responseTime?: number
-  lastCheck?: Date
-  error?: string
+  url?: string | undefined
+  responseTime?: number | undefined
+  lastCheck?: Date | undefined
+  error?: string | undefined
   details?: any
 }
 
@@ -155,6 +155,8 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
 
       for (let i = 0; i < services.length; i++) {
         const service = services[i]
+        if (!service) continue
+
         setCurrentServiceIndex(i)
         updateServiceStatus(service.id, 'checking')
 
@@ -255,7 +257,7 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
       }
       updateServiceStatus('firebase-auth', 'checking', undefined, undefined, {
         configured: true,
-        projectId: config.FIREBASE_CONFIG.projectId || 'N/A'
+        projectId: (config.FIREBASE_CONFIG as { projectId?: string }).projectId || 'N/A'
       })
     } catch (error) {
       throw new Error('Falha na validação Firebase')
@@ -401,10 +403,11 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
   }
 
   const servicesByCategory = services.reduce((acc, service) => {
-    if (!acc[service.category]) {
-      acc[service.category] = []
+    const category = service.category
+    if (!acc[category]) {
+      acc[category] = []
     }
-    acc[service.category].push(service)
+    acc[category]?.push(service)
     return acc
   }, {} as Record<string, Service[]>)
 

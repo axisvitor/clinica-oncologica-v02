@@ -10,6 +10,7 @@ import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   ComposedChart
 } from '@/components/charts/LazyRechartsComponents';
+import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import { ChartSkeleton } from '@/components/ui/chart-skeleton';
 
 interface QuizData {
@@ -103,8 +104,8 @@ export const QuizCompletionChart: React.FC<QuizCompletionChartProps> = ({
                   borderRadius: '8px',
                   boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                 }}
-                formatter={(value: number) => [value, 'Quizzes Completados']}
-                labelFormatter={(label) => `Data: ${label}`}
+                formatter={(value: ValueType) => [value, 'Quizzes Completados']}
+                labelFormatter={(label: string) => `Data: ${label}`}
               />
               <Area
                 type="monotone"
@@ -165,7 +166,7 @@ export const QuizCompletionChart: React.FC<QuizCompletionChartProps> = ({
                   borderRadius: '8px',
                   boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                 }}
-                formatter={(value: number) => [value, 'Quizzes Completados']}
+                formatter={(value: ValueType) => [value, 'Quizzes Completados']}
               />
               <Legend />
               <Area
@@ -217,8 +218,8 @@ export const QuizCompletionChart: React.FC<QuizCompletionChartProps> = ({
                   border: '1px solid #E5E7EB',
                   borderRadius: '8px'
                 }}
-                formatter={(value: number, name: string) => [
-                  name === 'completion_rate' ? `${value.toFixed(1)}%` : value,
+                formatter={(value: ValueType, name: NameType) => [
+                  name === 'completion_rate' ? `${Number(value).toFixed(1)}%` : value,
                   name === 'total' ? 'Total' : name === 'completed' ? 'Completados' : 'Taxa de Conclusão'
                 ]}
               />
@@ -253,7 +254,7 @@ export const QuizCompletionChart: React.FC<QuizCompletionChartProps> = ({
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value: number) => [value, 'Quizzes']}
+                  formatter={(value: ValueType) => [value, 'Quizzes']}
                 />
                 <Legend />
               </PieChart>
@@ -282,7 +283,7 @@ export const QuizCompletionChart: React.FC<QuizCompletionChartProps> = ({
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value: number) => [value, 'Quizzes']}
+                  formatter={(value: ValueType) => [value, 'Quizzes']}
                 />
                 <Legend />
               </PieChart>
@@ -322,7 +323,7 @@ export const QuizCompletionChart: React.FC<QuizCompletionChartProps> = ({
                   border: '1px solid #E5E7EB',
                   borderRadius: '8px'
                 }}
-                formatter={(value: number) => [`${value.toFixed(1)}%`, 'Taxa de Conclusão']}
+                formatter={(value: ValueType) => [`${Number(value).toFixed(1)}%`, 'Taxa de Conclusão']}
               />
               <Bar dataKey="completion_rate" radius={[4, 4, 0, 0]}>
                 {quizTypeData.map((entry, index) => (

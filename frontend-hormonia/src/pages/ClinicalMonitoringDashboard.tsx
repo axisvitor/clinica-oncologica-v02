@@ -27,6 +27,7 @@ import {
   PolarRadiusAxis,
   Radar,
 } from '@/components/charts/LazyRechartsComponents';
+import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import { ChartSkeleton } from '@/components/ui/chart-skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -388,7 +389,7 @@ const ClinicalMonitoringDashboard: React.FC = () => {
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ name, value }) => `${name}: ${value}%`}
+                      label={({ name, value }: { name: string; value: number }) => `${name}: ${value}%`}
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="value"

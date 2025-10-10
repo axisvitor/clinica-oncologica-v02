@@ -61,7 +61,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     }
 
     // In production, you might want to report this to an error reporting service
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env['NODE_ENV'] === 'production') {
       // Report to Sentry, LogRocket, etc.
       console.error('Production Error:', error, errorInfo)
     }
@@ -238,7 +238,7 @@ export function useErrorHandler() {
     })
 
     // In production, report to error service
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env['NODE_ENV'] === 'production') {
       console.error('Production Error (Manual):', error, errorInfo)
     }
   }

@@ -241,6 +241,11 @@ export function WelcomeFlow({ onComplete }: WelcomeFlowProps) {
   ]
 
   const currentStepData = welcomeSteps[currentStep]
+  if (!currentStepData) {
+    onComplete()
+    return null
+  }
+
   const isLastStep = currentStep === welcomeSteps.length - 1
 
   const handleNext = () => {

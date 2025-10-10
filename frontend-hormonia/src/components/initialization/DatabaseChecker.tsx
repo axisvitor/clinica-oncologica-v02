@@ -27,8 +27,8 @@ interface DatabaseTest {
   name: string
   description: string
   status: 'pending' | 'running' | 'success' | 'error'
-  duration?: number
-  error?: string
+  duration?: number | undefined
+  error?: string | undefined
   details?: any
 }
 
@@ -124,6 +124,8 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
 
       for (let i = 0; i < tests.length; i++) {
         const test = tests[i]
+        if (!test) continue
+
         setCurrentTestIndex(i)
         updateTestStatus(test.id, 'running')
 
@@ -197,15 +199,15 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
   }
 
   const testConnection = async () => {
-    const response = await apiClient.get('/admin/database/health')
+    const response = await apiClient.get('/admin/database/health') as Response
     if (!response.ok) {
       throw new Error('Falha na conexão com o banco de dados')
     }
   }
 
   const testTableStructure = async () => {
-    const response = await apiClient.get('/admin/database/tables')
-    const data = await response.json()
+    const response = await apiClient.get('/admin/database/tables') as Response
+    const data = await response.json() as { tables: string[] }
 
     const requiredTables = [
       'users', 'patients', 'consultations', 'treatments',
@@ -227,8 +229,8 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
   }
 
   const testIndexes = async () => {
-    const response = await apiClient.get('/admin/database/indexes')
-    const data = await response.json()
+    const response = await apiClient.get('/admin/database/indexes') as Response
+    const data = await response.json() as { indexes: Array<{ name: string }> }
 
     const requiredIndexes = [
       'idx_patients_cpf',
@@ -238,7 +240,7 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
     ]
 
     const missingIndexes = requiredIndexes.filter(
-      index => !data.indexes.some((idx: any) => idx.name === index)
+      index => !data.indexes.some((idx) => idx.name === index)
     )
 
     if (missingIndexes.length > 0) {
@@ -252,8 +254,8 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
   }
 
   const testPermissions = async () => {
-    const response = await apiClient.get('/admin/database/permissions')
-    const data = await response.json()
+    const response = await apiClient.get('/admin/database/permissions') as Response
+    const data = await response.json() as { permissions: string[] }
 
     const requiredPermissions = ['SELECT', 'INSERT', 'UPDATE', 'DELETE']
     const missingPermissions = requiredPermissions.filter(
@@ -270,8 +272,11 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
   }
 
   const testMigrations = async () => {
-    const response = await apiClient.get('/admin/database/migrations')
-    const data = await response.json()
+    const response = await apiClient.get('/admin/database/migrations') as Response
+    const data = await response.json() as {
+      pendingMigrations?: string[]
+      appliedMigrations?: string[]
+    }
 
     if (data.pendingMigrations && data.pendingMigrations.length > 0) {
       throw new Error(`${data.pendingMigrations.length} migrações pendentes`)
@@ -284,8 +289,11 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
   }
 
   const testPerformance = async () => {
-    const response = await apiClient.get('/admin/database/performance')
-    const data = await response.json()
+    const response = await apiClient.get('/admin/database/performance') as Response
+    const data = await response.json() as {
+      averageQueryTime: number
+      slowQueries?: number
+    }
 
     // Check if average query time is reasonable (< 100ms)
     if (data.averageQueryTime > 100) {
@@ -300,8 +308,8 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
 
   const loadDatabaseStats = async () => {
     try {
-      const response = await apiClient.get('/admin/database/stats')
-      const data = await response.json()
+      const response = await apiClient.get('/admin/database/stats') as Response
+      const data = await response.json() as DatabaseStats
       setStats(data)
     } catch (error) {
       logger.error('Failed to load database stats:', error)

@@ -9,6 +9,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell
 } from '@/components/charts/LazyRechartsComponents';
+import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import { ChartSkeleton } from '@/components/ui/chart-skeleton';
 
 interface EngagementData {
@@ -109,8 +110,8 @@ export const EngagementChart: React.FC<EngagementChartProps> = ({
                   borderRadius: '8px',
                   boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                 }}
-                formatter={(value: number) => [value, 'Usuários Ativos']}
-                labelFormatter={(label) => `Data: ${label}`}
+                formatter={(value: ValueType) => [value, 'Usuários Ativos']}
+                labelFormatter={(label: string) => `Data: ${label}`}
               />
               <Area
                 type="monotone"
@@ -171,7 +172,7 @@ export const EngagementChart: React.FC<EngagementChartProps> = ({
                   borderRadius: '8px',
                   boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                 }}
-                formatter={(value: number) => [value, 'Usuários Ativos']}
+                formatter={(value: ValueType) => [value, 'Usuários Ativos']}
               />
               <Legend />
               <Line
@@ -213,7 +214,7 @@ export const EngagementChart: React.FC<EngagementChartProps> = ({
                     border: '1px solid #E5E7EB',
                     borderRadius: '8px'
                   }}
-                  formatter={(value: number) => [value, 'Usuários']}
+                  formatter={(value: ValueType) => [value, 'Usuários']}
                 />
                 <Bar dataKey="users" radius={[4, 4, 0, 0]}>
                   {userActivityData.map((entry, index) => (
@@ -246,7 +247,7 @@ export const EngagementChart: React.FC<EngagementChartProps> = ({
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value: number) => [value, 'Pacientes']}
+                  formatter={(value: ValueType) => [value, 'Pacientes']}
                 />
                 <Legend />
               </PieChart>
@@ -286,10 +287,10 @@ export const EngagementChart: React.FC<EngagementChartProps> = ({
                   border: '1px solid #E5E7EB',
                   borderRadius: '8px'
                 }}
-                formatter={(value: number, name: string, props: any) => [
-                  `${value.toFixed(1)}${props.payload.unit}`,
-                  props.payload.metric
-                ]}
+                formatter={(value: ValueType, name: NameType, item) => {
+                  const payload = item.payload as { unit: string; metric: string };
+                  return [`${Number(value).toFixed(1)}${payload.unit}`, payload.metric];
+                }}
               />
               <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                 {responseMetrics.map((entry, index) => (
