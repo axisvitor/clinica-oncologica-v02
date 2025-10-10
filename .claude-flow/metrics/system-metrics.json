@@ -5566,5 +5566,17 @@
     "cpuLoad": 0,
     "platform": "win32",
     "uptime": 79155.39
+  },
+  {
+    "timestamp": 1760057639749,
+    "memoryTotal": 34267242496,
+    "memoryUsed": 17269256192,
+    "memoryFree": 16997986304,
+    "memoryUsagePercent": 50.39581516959187,
+    "memoryEfficiency": 49.60418483040813,
+    "cpuCount": 16,
+    "cpuLoad": 0,
+    "platform": "win32",
+    "uptime": 79185.39
   }
 ]
