@@ -56,8 +56,8 @@ class Session(BaseModel):
     is_suspicious = Column(Boolean, default=False, nullable=False, index=True)
     risk_score = Column(String(50), nullable=True)  # low, medium, high
 
-    # Metadata
-    metadata = Column(JSONB, nullable=True)
+    # Metadata (renamed from 'metadata' to avoid SQLAlchemy reserved name conflict)
+    session_metadata = Column(JSONB, nullable=True)
 
     # Relationships (optimized for eager loading)
     user = relationship("User", back_populates="sessions", lazy="select")
