@@ -59,8 +59,8 @@ class Notification(BaseModel):
     action_url = Column(String(500), nullable=True)
     action_label = Column(String(100), nullable=True)
 
-    # Metadata
-    metadata = Column(JSONB, nullable=True)
+    # Metadata (renamed from 'metadata' to avoid SQLAlchemy reserved name conflict)
+    notification_metadata = Column(JSONB, nullable=True)
 
     # Status
     is_read = Column(Boolean, default=False, nullable=False, index=True)
