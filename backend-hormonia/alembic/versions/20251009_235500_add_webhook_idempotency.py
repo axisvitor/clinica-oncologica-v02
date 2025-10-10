@@ -4,6 +4,8 @@ Revision ID: 20251009_235500
 Revises: 20251009_230000
 Create Date: 2025-10-09 23:55:00.000000
 
+IMPORTANT: Renamed table from 'webhook_events' to 'webhook_idempotency'
+to avoid conflict with existing webhook_events table (created in migration 019)
 """
 from typing import Sequence, Union
 
@@ -20,14 +22,17 @@ depends_on = None
 
 def upgrade() -> None:
     """
-    Create webhook_events table for idempotency tracking.
+    Create webhook_idempotency table for idempotency tracking.
 
     This table prevents duplicate webhook processing by storing event IDs
     and detecting replays within a 24-hour window.
+
+    Note: Table renamed from webhook_events to webhook_idempotency to avoid
+    conflict with the existing webhook_events table (migration 019).
     """
-    # Create webhook_events table
+    # Create webhook_idempotency table
     op.create_table(
-        'webhook_events',
+        'webhook_idempotency',
         sa.Column(
             'event_id',
             sa.String(length=255),
@@ -97,52 +102,53 @@ def upgrade() -> None:
 
     # Create indexes for efficient queries
     op.create_index(
-        'idx_webhook_events_provider_type',
-        'webhook_events',
+        'idx_webhook_idempotency_provider_type',
+        'webhook_idempotency',
         ['provider', 'event_type']
     )
 
     op.create_index(
-        'idx_webhook_events_expires_at',
-        'webhook_events',
+        'idx_webhook_idempotency_expires_at',
+        'webhook_idempotency',
         ['expires_at']
     )
 
     op.create_index(
-        'idx_webhook_events_received_at',
-        'webhook_events',
+        'idx_webhook_idempotency_received_at',
+        'webhook_idempotency',
         ['received_at']
     )
 
     op.create_index(
-        'idx_webhook_events_status',
-        'webhook_events',
+        'idx_webhook_idempotency_status',
+        'webhook_idempotency',
         ['status']
     )
 
     # Create partial index for active events (optimization)
     op.execute("""
-        CREATE INDEX idx_webhook_events_active
-        ON webhook_events (event_id, status)
+        CREATE INDEX idx_webhook_idempotency_active
+        ON webhook_idempotency (event_id, status)
         WHERE status = 'processing' OR status = 'completed'
     """)
 
     # Add comment to table
     op.execute("""
-        COMMENT ON TABLE webhook_events IS
+        COMMENT ON TABLE webhook_idempotency IS
         'Tracks webhook events for idempotent processing.
-        Prevents duplicate webhook processing within 24-hour window.'
+        Prevents duplicate webhook processing within 24-hour window.
+        Separate from webhook_events table which stores full event history.'
     """)
 
 
 def downgrade() -> None:
-    """Drop webhook_events table and related indexes."""
+    """Drop webhook_idempotency table and related indexes."""
     # Drop indexes
-    op.drop_index('idx_webhook_events_active', table_name='webhook_events')
-    op.drop_index('idx_webhook_events_status', table_name='webhook_events')
-    op.drop_index('idx_webhook_events_received_at', table_name='webhook_events')
-    op.drop_index('idx_webhook_events_expires_at', table_name='webhook_events')
-    op.drop_index('idx_webhook_events_provider_type', table_name='webhook_events')
+    op.drop_index('idx_webhook_idempotency_active', table_name='webhook_idempotency')
+    op.drop_index('idx_webhook_idempotency_status', table_name='webhook_idempotency')
+    op.drop_index('idx_webhook_idempotency_received_at', table_name='webhook_idempotency')
+    op.drop_index('idx_webhook_idempotency_expires_at', table_name='webhook_idempotency')
+    op.drop_index('idx_webhook_idempotency_provider_type', table_name='webhook_idempotency')
 
     # Drop table
-    op.drop_table('webhook_events')
+    op.drop_table('webhook_idempotency')
