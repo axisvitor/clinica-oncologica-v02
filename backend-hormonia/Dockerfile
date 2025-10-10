@@ -24,10 +24,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar código da aplicação
 COPY . .
 
-# Copiar e preparar script de migração
-COPY run_migrations.sh ./
-RUN chmod +x run_migrations.sh
-
 # Criar usuário não-root
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
@@ -43,6 +39,6 @@ ENV PYTHONDONTWRITEBYTECODE=1
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
-# Comando de inicialização: Migração → Diagnóstico → Uvicorn
-# Execute migração primeiro, depois diagnóstico, depois inicie o servidor
-CMD bash run_migrations.sh && python startup_debug.py && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --log-level info
+# Comando de inicialização: Migração → Uvicorn
+# Execute migração via Alembic primeiro, depois inicie o servidor
+CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --log-level info
