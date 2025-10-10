@@ -80,8 +80,8 @@ class Consent(BaseModel):
     is_required = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False, index=True)
 
-    # Metadata
-    metadata = Column(JSONB, nullable=True)
+    # Metadata (renamed from 'metadata' to avoid SQLAlchemy reserved name conflict)
+    consent_metadata = Column(JSONB, nullable=True)
 
     # Relationships (optimized for eager loading)
     patient = relationship("Patient", back_populates="consents", foreign_keys=[patient_id], lazy="select")
