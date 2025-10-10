@@ -155,7 +155,7 @@ def verify_health_endpoints():
         "async def startup_validation",
         "async def performance_metrics",
         "from app.database import get_db",
-        "from app.dependencies.cache import get_redis_client",
+        "from app.core.redis_unified import get_async_redis",
     ]
 
     success, missing = verify_file_content(file_path, required_content)
