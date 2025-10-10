@@ -5,7 +5,7 @@ from app.models.base import BaseModel
 from app.models.user import User, UserRole
 from app.models.patient import Patient, FlowState
 from app.models.message import Message, MessageDirection, MessageType, MessageStatus
-from app.models.message_events import MessageStatusEvent, WebhookEvent
+from app.models.message_events import MessageStatusEvent
 from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion
 from app.models.quiz import QuizTemplate, QuizResponse
 from app.models.report import MedicalReport
@@ -40,7 +40,8 @@ from app.models.session import Session
 from app.models.consent import Consent, ConsentType, ConsentStatus
 
 # Sprint 2: Webhook idempotency (P6)
-from app.models.webhook_event import WebhookEvent as IdempotentWebhookEvent
+# Import as WebhookEvent to replace old message_events.WebhookEvent
+from app.models.webhook_event import WebhookEvent
 
 __all__ = [
     # Base
@@ -60,7 +61,7 @@ __all__ = [
     "MessageType",
     "MessageStatus",
     "MessageStatusEvent",
-    "WebhookEvent",
+    "WebhookEvent",  # Re-exported from webhook_event.py as IdempotentWebhookEvent
 
     # Flow models
     "PatientFlowState",
@@ -120,6 +121,5 @@ __all__ = [
     "ConsentType",
     "ConsentStatus",
 
-    # Sprint 2: Webhook idempotency (P6)
-    "IdempotentWebhookEvent",
+    # Sprint 2: Webhook idempotency (P6) - WebhookEvent exported above
 ]
