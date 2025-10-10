@@ -82,9 +82,6 @@ async def _startup(app: FastAPI) -> object:
     # Initialize thread-safe session management
     await _initialize_session_manager(app, logger)
 
-    # Initialize ServiceProvider (legacy)
-    await _initialize_service_provider(app, logger)
-
     # Initialize AI services
     await _initialize_ai_services(app, logger)
 
@@ -265,48 +262,6 @@ async def _initialize_session_manager(app: FastAPI, logger) -> None:
         app.state.session_manager = None
 
 
-async def _initialize_service_provider(app: FastAPI, logger) -> None:
-    """
-    DEPRECATED: Global ServiceProvider initialization (CAUSES THREAD-SAFETY ISSUES).
-
-    Historical purpose: Initialize global ServiceProvider for app startup.
-
-    PROBLEM: This created a single global SQLAlchemy session shared by ALL requests,
-    causing session cross-talk and thread-safety violations under concurrent load.
-
-    SOLUTION: All endpoints now use get_thread_safe_service_provider() which creates
-    per-request ServiceProvider instances with isolated sessions.
-
-    Migration Guide: docs/deployment/SERVICE_DI_REFACTOR.md
-
-    Status: DISABLED - Global provider no longer initialized
-    """
-    logger.warning(
-        "⚠️  DEPRECATED: Global ServiceProvider initialization is DISABLED for thread safety. "
-        "All endpoints now use get_thread_safe_service_provider() for per-request session isolation. "
-        "See docs/deployment/SERVICE_DI_REFACTOR.md for details."
-    )
-
-    # DO NOT initialize global service provider - causes thread-safety violations
-    # app.state.service_provider = None  # Explicitly set to None if needed
-
-    # Optional: Keep for backward compatibility with startup health checks
-    # that may still reference app.state.service_provider
-    try:
-        # Only create if absolutely needed for startup checks
-        # This instance should NOT be used for request handling
-        from app.services import ServiceProvider
-
-        # Note: This session will be closed and should not be used
-        # db_session = next(get_db())
-        # app.state.service_provider = ServiceProvider(db_session, None)
-
-        logger.info("✓ ServiceProvider initialization skipped (using thread-safe per-request providers)")
-
-    except Exception as e:
-        logger.error(f"ServiceProvider initialization check failed: {e}")
-
-
 async def _initialize_redis_pubsub(app: FastAPI, logger) -> None:
     """Initialize Redis Pub/Sub for horizontal WebSocket scaling."""
     try:
@@ -367,15 +322,6 @@ async def _cleanup_session_manager(app: FastAPI, logger) -> None:
     logger.info("Cleaning up session manager...")
 
     try:
-        # Close legacy service provider session if it exists
-        if hasattr(app.state, 'service_provider') and app.state.service_provider:
-            if hasattr(app.state.service_provider, 'db') and app.state.service_provider.db:
-                try:
-                    app.state.service_provider.db.close()
-                    logger.info("✓ Legacy ServiceProvider database session closed")
-                except Exception as db_error:
-                    logger.error(f"Error closing legacy database session: {db_error}")
-
         # Cleanup session manager if it exists
         if hasattr(app.state, 'session_manager'):
             session_manager = app.state.session_manager

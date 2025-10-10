@@ -5,7 +5,6 @@ Handles application startup and shutdown processes including:
 - Logging setup
 - Monitoring system initialization
 - Redis connection for WebSocket events
-- ServiceProvider initialization
 - Question humanization integration
 - Graceful cleanup on shutdown
 """
@@ -25,7 +24,6 @@ async def lifespan(app: FastAPI):
     from app.services.websocket_events import websocket_events, WebSocketEventService
     from app.monitoring.manager import initialize_monitoring, start_monitoring, stop_monitoring
     from app.services.quiz_question_humanizer_integration import integrate_humanization_into_quiz_service
-    from app.services import ServiceProvider
 
     # Setup logging first
     setup_logging()
@@ -103,10 +101,6 @@ async def lifespan(app: FastAPI):
                 logger.error(f"Error cleaning up Redis connection: {cleanup_error}")
 
         _cleanup_websocket_events()
-
-    # Initialize ServiceProvider
-    db_session = next(get_db())
-    app.state.service_provider = ServiceProvider(db_session, redis_client)
 
     # Initialize Redis-backed query caching and invalidation
     try:

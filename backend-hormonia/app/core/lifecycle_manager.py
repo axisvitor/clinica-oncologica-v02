@@ -9,7 +9,6 @@ from fastapi import FastAPI
 from app.config import settings
 from app.utils.logging import setup_logging, get_logger
 from app.database import get_db, test_connection
-from app.services import ServiceProvider
 from app.core.session_manager import initialize_session_manager
 from app.core.redis_unified import get_async_redis
 
@@ -21,7 +20,6 @@ class ApplicationLifecycleManager:
     def __init__(self):
         self.redis_client = None
         self.monitoring_manager = None
-        self.service_provider = None
     
     def get_lifespan(self):
         """Get lifespan context manager for FastAPI"""
@@ -126,17 +124,6 @@ class ApplicationLifecycleManager:
             app.state.session_manager = session_manager
             logger.info("Thread-safe session manager initialized")
 
-            # Keep legacy service provider for backward compatibility during migration
-            # This will be removed in a future release
-            try:
-                db_session = next(get_db())
-                self.service_provider = ServiceProvider(db_session, self.redis_client)
-                app.state.service_provider = self.service_provider
-                logger.info("Legacy ServiceProvider initialized for backward compatibility")
-            except Exception as legacy_error:
-                logger.warning(f"Legacy ServiceProvider initialization failed: {legacy_error}")
-                logger.info("Continuing with thread-safe session management only")
-
         except Exception as e:
             logger.error(f"Services initialization failed: {e}")
             # Don't raise the exception - allow app to start with partial functionality
@@ -172,15 +159,6 @@ class ApplicationLifecycleManager:
     async def _shutdown_session_manager(self, app: FastAPI):
         """Cleanup session manager and database connections"""
         try:
-            # Close legacy service provider session if it exists
-            if hasattr(app.state, 'service_provider') and app.state.service_provider:
-                if hasattr(app.state.service_provider, 'db') and app.state.service_provider.db:
-                    try:
-                        app.state.service_provider.db.close()
-                        logger.info("Legacy ServiceProvider database session closed")
-                    except Exception as db_error:
-                        logger.error(f"Error closing legacy database session: {db_error}")
-
             # Cleanup session manager if it exists
             if hasattr(app.state, 'session_manager'):
                 try:
