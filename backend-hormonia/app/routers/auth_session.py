@@ -19,6 +19,7 @@ Performance:
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Header, status, Cookie, Response, Request
+from sqlalchemy.orm import Session
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
@@ -30,8 +31,9 @@ from app.models.user import User
 from app.services import ServiceProvider
 from app.services.audit_log import AuditLogService
 from app.dependencies.auth_dependencies import _firebase_service, _get_service_provider
+from app.dependencies.simple_service_provider import get_simple_service_provider
+from app.database import get_db
 from app.middleware.csrf import validate_csrf_token
-from app.middleware.custom_csrf import validate_custom_csrf
 from app.utils.rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
@@ -168,6 +170,17 @@ class CacheStatsResponse(BaseModel):
 # SESSION MANAGEMENT ENDPOINTS
 # =============================================================================
 
+@router.post("/test-simple")
+async def test_simple_session():
+    """
+    Endpoint de teste ultra simples para debug
+    """
+    return {
+        "status": "success",
+        "message": "Simple session test working!",
+        "timestamp": "2025-10-10T19:32:00Z"
+    }
+
 @router.post(
     "/",
     response_model=SessionResponse,
@@ -176,9 +189,9 @@ class CacheStatsResponse(BaseModel):
 )
 @limiter.limit("20/minute")  # Rate limit: 20 session creations per minute per IP
 async def create_session(
-    request: SessionCreateRequest,
+    session_data: SessionCreateRequest,
     response: Response,
-    http_request: Request,
+    request: Request,
     services: ServiceProvider = Depends(_get_service_provider)
 ):
     """
@@ -199,8 +212,9 @@ async def create_session(
     Subsequent requests: ~2-5ms (session validation)
 
     Args:
-        request: Session creation request with Firebase token
+        session_data: Session creation request with Firebase token
         response: FastAPI Response object for setting cookies
+        request: FastAPI Request object
 
     Returns:
         Session status and user data (session_id NOT in response body)
@@ -218,7 +232,7 @@ async def create_session(
     try:
         # Validate Firebase token (200ms)
         try:
-            user_data = await _firebase_service.verify_token(request.firebase_token)
+            user_data = await _firebase_service.verify_token(session_data.firebase_token)
         except Exception as e:
             logger.error(f"Firebase token verification failed: {str(e)}", exc_info=True)
             raise HTTPException(
@@ -275,7 +289,7 @@ async def create_session(
         metadata = {
             "email": user.email,
             "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
-            **(request.device_info or {})
+            **(session_data.device_info or {})
         }
 
         # SECURITY: Regenerate session ID after authentication to prevent session fixation
@@ -406,7 +420,7 @@ async def validate_session(
             from sqlalchemy import select
 
             stmt = select(User).where(User.firebase_uid == firebase_uid)
-            result = services.db.execute(stmt)
+            result = db.execute(stmt)
             user = result.scalar_one_or_none()
 
             if not user:
@@ -443,7 +457,7 @@ async def logout_session(
     response: Response,
     session_id: Optional[str] = Cookie(None),
     x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
-    services: ServiceProvider = Depends(_get_service_provider)
+    db: Session = Depends(get_db)
 ):
     """
     Logout - invalidate current session.
@@ -486,7 +500,7 @@ async def logout_session(
         # Log audit event
         if user_id:
             try:
-                audit_service = AuditLogService(services.db)
+                audit_service = AuditLogService(db)
                 from fastapi import Request
                 class MockRequest:
                     def __init__(self):
