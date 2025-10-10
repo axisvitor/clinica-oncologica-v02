@@ -88,7 +88,7 @@ class MessageStatusEvent(BaseModel):
         return self.status in ['read', 'failed']
 
 
-class WebhookEvent(BaseModel):
+class EvolutionWebhookEvent(BaseModel):
     """
     Store Evolution API webhook events for debugging and audit purposes.
 
@@ -97,8 +97,10 @@ class WebhookEvent(BaseModel):
     - Replay of events for testing
     - Audit trail for compliance
     - Performance monitoring
+
+    Note: Renamed from WebhookEvent to avoid conflict with idempotency tracking.
     """
-    __tablename__ = "webhook_events"
+    __tablename__ = "evolution_webhook_events"
 
     # Event classification
     event_type = Column(String(100), nullable=False, index=True)  # message.sent, message.delivered, etc.
@@ -153,7 +155,7 @@ class WebhookEvent(BaseModel):
     )
 
     def __repr__(self):
-        return f"<WebhookEvent(event_type='{self.event_type}', processed={self.processed})>"
+        return f"<EvolutionWebhookEvent(event_type='{self.event_type}', processed={self.processed})>"
 
     @property
     def can_retry(self) -> bool:
