@@ -18,13 +18,13 @@ NODE_ENV = "production"
 PORT = "3000"
 
 # Supabase Configuration (Override in Railway dashboard)
-VITE_SUPABASE_URL = process.env['VITE_SUPABASE_URL'] || ""
-VITE_SUPABASE_ANON_KEY = process.env['VITE_SUPABASE_ANON_KEY'] || ""
+VITE_SUPABASE_URL = ""
+VITE_SUPABASE_ANON_KEY = ""
 
 # API Configuration (Override in Railway dashboard)
-VITE_API_URL = process.env['VITE_API_URL'] || "http://localhost:8000/api/v1"
-VITE_API_BASE_URL = process.env['VITE_API_BASE_URL'] || "http://localhost:8000"
-VITE_WS_BASE_URL = process.env['VITE_WS_BASE_URL'] || "ws://localhost:8000/ws"
+VITE_API_URL = "http://localhost:8000/api/v1"
+VITE_API_BASE_URL = "http://localhost:8000"
+VITE_WS_BASE_URL = "ws://localhost:8000/ws"
 
 # Application Configuration
 VITE_WHATSAPP_INSTANCE_NAME = "hormonia-instance"
