@@ -12,6 +12,7 @@ import {
 } from '../types/flow'
 import { apiClient } from '../api-client'
 import { createLogger } from '../logger'
+import { smartMapFlowResponse } from '../mappers/flowResponseMapper'
 import EventEmitter from 'eventemitter3'
 
 const logger = createLogger('FlowEngine')
@@ -81,7 +82,10 @@ export class FlowEngine extends EventEmitter {
   async startFlow(patientId: string, flowType: FlowType): Promise<FlowState> {
     try {
       logger.info('Starting flow', { patientId, flowType })
-      const flowState = await apiClient.flows.start(patientId, flowType)
+      const response = await apiClient.flows.start(patientId, flowType)
+
+      // Map backend response (nested) to frontend FlowState (flat)
+      const flowState = smartMapFlowResponse(response)
       this.activeFlows.set(patientId, flowState)
 
       this.emit('flow_started', {
@@ -104,7 +108,10 @@ export class FlowEngine extends EventEmitter {
   async advanceFlow(patientId: string, forceDay?: number): Promise<FlowState> {
     try {
       logger.info('Advancing flow', { patientId, forceDay })
-      const flowState = await apiClient.flows.advance(patientId, forceDay)
+      const response = await apiClient.flows.advance(patientId, forceDay)
+
+      // Map backend response (nested) to frontend FlowState (flat)
+      const flowState = smartMapFlowResponse(response)
       this.activeFlows.set(patientId, flowState)
 
       this.emit('flow_advanced', {
@@ -171,8 +178,14 @@ export class FlowEngine extends EventEmitter {
   async processResponse(patientId: string, message: InboundMessage): Promise<ResponseResult> {
     try {
       logger.info('Processing patient response', { patientId, messageId: message.id })
-      // @ts-expect-error TODO: fix message type
-      const result = await apiClient.flows.processResponse(patientId, message)
+
+      // Extract message content and metadata separately
+      // Backend expects response_text as a string, not the full message object
+      const result = await apiClient.flows.processResponse(
+        patientId,
+        message.content,  // Pass content as string
+        message.metadata  // Pass metadata separately
+      )
 
       this.emit('response_received', {
         type: 'response_received',

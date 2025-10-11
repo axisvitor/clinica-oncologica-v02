@@ -22,6 +22,7 @@ from app.dependencies import (
     get_request_context,
     RequestContext
 )
+from app.middleware.db_optimization import QueryOptimizer, get_db_optimizer
 from app.models.user import User, UserRole
 from app.repositories.user import UserRepository
 from app.schemas.user_admin import (
@@ -34,7 +35,9 @@ from app.schemas.user_admin import (
     UserListResponse,
     UserFilterParams,
     UserStatsResponse,
-    UserActionResponse
+    UserActionResponse,
+    UserActivityResponse,
+    UserActivityRecord
 )
 from app.schemas.common import SuccessResponse, ErrorResponse
 from app.services.auth import AuthService
@@ -92,7 +95,7 @@ async def log_user_action(
 
 
 def build_user_filters(filters: UserFilterParams, query):
-    """Build query filters for user list."""
+    """Build optimized query filters for user list."""
     if filters.role:
         try:
             role_enum = UserRole(filters.role.lower())
@@ -103,13 +106,12 @@ def build_user_filters(filters: UserFilterParams, query):
     if filters.is_active is not None:
         query = query.filter(User.is_active == filters.is_active)
 
+    # Use optimized search with proper indexing
     if filters.search:
-        search_term = f"%{filters.search}%"
-        query = query.filter(
-            or_(
-                User.email.ilike(search_term),
-                User.full_name.ilike(search_term)
-            )
+        query = QueryOptimizer.add_search_filters(
+            query,
+            filters.search,
+            [User.email, User.full_name]
         )
 
     if filters.created_after:
@@ -171,21 +173,22 @@ async def list_users(
             created_before=created_before
         )
 
-        # Build base query
+        # Build base query with optimizations
         query = db.query(User)
         query = build_user_filters(filters, query)
 
-        # Get total count
-        total = query.count()
+        # Use optimized pagination
+        paginated_query, total, pagination_info = QueryOptimizer.optimize_pagination_query(
+            query, page, size, max_size=100
+        )
 
-        # Apply pagination and ordering
-        offset = (page - 1) * size
-        users = query.order_by(User.created_at.desc()).offset(offset).limit(size).all()
+        # Execute query with ordering
+        users = paginated_query.order_by(User.created_at.desc()).all()
 
-        # Calculate pagination info
-        total_pages = math.ceil(total / size)
-        has_next = page < total_pages
-        has_previous = page > 1
+        # Extract pagination info
+        total_pages = pagination_info['total_pages']
+        has_next = pagination_info['has_next']
+        has_previous = pagination_info['has_previous']
 
         # Log the action
         audit_service = AuditService(db)
@@ -198,7 +201,7 @@ async def list_users(
         )
 
         return UserListResponse(
-            users=[UserResponse.model_validate(user) for user in users],
+            items=[UserResponse.model_validate(user) for user in users],
             total=total,
             page=page,
             size=size,
@@ -974,6 +977,130 @@ async def reset_user_password(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error resetting user password"
+        )
+
+
+@router.get(
+    "/{user_id}/activity",
+    response_model=UserActivityResponse,
+    summary="Get User Activity Log",
+    description="""
+    Retrieve paginated activity history for a specific user.
+
+    **Admin Access Required**: Only users with admin role can view user activity.
+
+    **Features**:
+    - Paginated activity records
+    - Detailed action logging
+    - IP address and user agent tracking
+    - Resource and action filtering
+    """,
+    responses={
+        200: {"description": "User activity retrieved successfully"},
+        404: {"description": "User not found"},
+        403: {"description": "Admin access required"}
+    }
+)
+async def get_user_activity(
+    user_id: UUID,
+    page: int = Query(1, ge=1, description="Page number"),
+    size: int = Query(20, ge=1, le=100, description="Page size"),
+    action: Optional[str] = Query(None, description="Filter by action type"),
+    db: Session = Depends(get_thread_safe_db),
+    admin_user: User = Depends(get_admin_user),
+    context: RequestContext = Depends(get_request_context)
+) -> UserActivityResponse:
+    """Get paginated user activity history."""
+    try:
+        user_repo = UserRepository(db)
+        audit_service = AuditService(db)
+
+        # Get user
+        user = user_repo.get(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        # Build query for audit events
+        query_filters = {"user_id": user_id}
+        if action:
+            query_filters["event_type"] = action
+
+        # Get total count for pagination
+        total_count = audit_service.count_events(**query_filters)
+
+        # Calculate pagination
+        offset = (page - 1) * size
+        total_pages = math.ceil(total_count / size)
+
+        # Get activity records
+        events = audit_service.query_events(
+            limit=size,
+            offset=offset,
+            **query_filters
+        )
+
+        # Convert to activity records
+        activity_records = []
+        for event in events:
+            # Extract action from event_type (e.g., "admin_user_create" -> "create")
+            action_name = event.event_type.split('_')[-1] if '_' in event.event_type else event.event_type
+
+            # Determine resource from event data
+            resource = "user"
+            resource_id = None
+            if event.event_data:
+                if "target_user_id" in event.event_data:
+                    resource_id = event.event_data["target_user_id"]
+                elif "patient_id" in event.event_data:
+                    resource = "patient"
+                    resource_id = event.event_data["patient_id"]
+
+            activity_record = UserActivityRecord(
+                id=str(event.id),
+                user_id=str(user_id),
+                user_email=user.email,
+                action=action_name,
+                resource=resource,
+                resource_id=resource_id,
+                details=event.event_data or {},
+                timestamp=event.timestamp,
+                ip_address=event.ip_address or "unknown",
+                user_agent=event.user_agent or "unknown"
+            )
+            activity_records.append(activity_record)
+
+        # Log the action
+        await log_user_action(
+            audit_service, "activity_view", user_id, admin_user, context,
+            target_user=user,
+            additional_data={
+                "page": page,
+                "size": size,
+                "action_filter": action,
+                "total_records": total_count
+            }
+        )
+
+        return UserActivityResponse(
+            items=activity_records,
+            total=total_count,
+            page=page,
+            size=size,
+            pages=total_pages,
+            has_next=page < total_pages,
+            has_previous=page > 1
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving user activity {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error retrieving user activity"
         )
 
 

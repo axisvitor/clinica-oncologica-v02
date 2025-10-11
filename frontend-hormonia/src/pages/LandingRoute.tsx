@@ -60,9 +60,14 @@ export function LandingRoute() {
     return <Navigate to="/patients" replace />
   }
 
-  // For admin, superadmin, and all other roles - redirect to main dashboard
-  // NOTE: /admin/* routes require separate AdminAuthProvider login
-  // Regular admin users should use the main dashboard at /dashboard
+  // For admin, superadmin, and all other roles - redirect to appropriate dashboard
+  // Admin users with ADMIN role go to /admin/dashboard
+  // Regular users go to /dashboard
+  if (user.role === 'admin' || user.role === 'ADMIN' || user.role === 'superadmin') {
+    logger.log('Redirecting to admin dashboard', { role: user.role })
+    return <Navigate to="/admin/dashboard" replace />
+  }
+
   logger.log('Redirecting to main dashboard', { role: user.role })
   return <Navigate to="/dashboard" replace />
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense } from 'react'
+import React, { useState, useEffect, Suspense, memo, useCallback, useMemo } from 'react'
 import { Outlet, Navigate, useLocation } from 'react-router-dom'
 import {
   BarChart,
@@ -51,37 +51,12 @@ import AdminNavigationMenu from './AdminNavigationMenu'
 import AdminSessionManager from './AdminSessionManager'
 import AdminUserActivityMonitor from './AdminUserActivityMonitor'
 import { createLogger } from '../../lib/logger'
+import { useSystemStats } from '../../hooks/useSystemStats'
 
 const logger = createLogger('AdminDashboard')
 
 interface AdminDashboardProps {
   children?: React.ReactNode
-}
-
-// Mock data for demonstration
-const mockDashboardStats: AdminDashboardStats = {
-  users: {
-    total: 1247,
-    active: 892,
-    locked: 15,
-    new_today: 23
-  },
-  security: {
-    failed_logins: 47,
-    active_sessions: 156,
-    blocked_ips: 8
-  },
-  system: {
-    uptime: 99.7,
-    memory_usage: 68,
-    cpu_usage: 45,
-    disk_usage: 72
-  },
-  audit: {
-    total_logs: 15420,
-    critical_events: 3,
-    warnings: 28
-  }
 }
 
 const mockSecurityMetrics: SecurityMetrics = {
@@ -138,60 +113,63 @@ const securityTrendData = [
 
 const COLORS = ['#10B981', '#F59E0B', '#EF4444', '#3B82F6']
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
+export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ children }) => {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth()
   const location = useLocation()
-  const [dashboardStats, setDashboardStats] = useState<AdminDashboardStats>(mockDashboardStats)
+
+  // ✅ FIXED: Use live API instead of mock data
+  const { stats: dashboardStats, isLoading: statsLoading } = useSystemStats({
+    realTimeUpdates: true,
+    refreshInterval: 30000
+  })
+
   const [securityMetrics, setSecurityMetrics] = useState<SecurityMetrics>(mockSecurityMetrics)
   const [recentActivity, setRecentActivity] = useState<AdminUserActivity[]>(mockRecentActivity)
-  const [isLoading, setIsLoading] = useState(true)
+  const isLoading = statsLoading || authLoading
 
   // Redirect to login if not authenticated
   if (!isAuthenticated) {
     return <Navigate to="/admin/login" state={{ from: location }} replace />
   }
 
-  // Load dashboard data
+  // Update security metrics when stats are loaded
   useEffect(() => {
-    const loadDashboardData = async () => {
-      try {
-        setIsLoading(true)
-        // TODO: Replace with actual API calls
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        setDashboardStats(mockDashboardStats)
-        setSecurityMetrics(mockSecurityMetrics)
-        setRecentActivity(mockRecentActivity)
-      } catch (error) {
-        logger.error('Failed to load dashboard data', { error })
-      } finally {
-        setIsLoading(false)
-      }
+    if (dashboardStats) {
+      setSecurityMetrics({
+        total_users: dashboardStats.users?.total ?? 0,
+        active_sessions: dashboardStats.security?.active_sessions ?? 0,
+        failed_logins_24h: dashboardStats.security?.failed_logins ?? 0,
+        blocked_ips: dashboardStats.security?.blocked_ips ?? 0,
+        last_backup: null, // Backend should provide this
+        system_uptime: dashboardStats.system?.uptime ?? 99.0
+      })
     }
+  }, [dashboardStats])
 
-    loadDashboardData()
+  const formatUptime = useCallback((uptime: number): string => {
+    return `${uptime.toFixed(1)}%`
   }, [])
 
-  const formatUptime = (uptime: number): string => {
-    return `${uptime.toFixed(1)}%`
-  }
-
-  const formatDate = (dateString: string): string => {
+  const formatDate = useCallback((dateString: string): string => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
     })
-  }
+  }, [])
 
-  const getSecurityStatusColor = (failedLogins: number): string => {
+  const getSecurityStatusColor = useCallback((failedLogins: number): string => {
     if (failedLogins > 50) return 'text-red-600'
     if (failedLogins > 30) return 'text-yellow-600'
     return 'text-green-600'
-  }
+  }, [])
 
   // Show only dashboard overview if we're at the root admin path
-  const showDashboardOverview = location.pathname === '/admin' || location.pathname === '/admin/'
+  const showDashboardOverview = useMemo(() =>
+    location.pathname === '/admin' || location.pathname === '/admin/',
+    [location.pathname]
+  )
 
   if (!showDashboardOverview) {
     return (
@@ -231,7 +209,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
           </div>
 
           {/* Critical Alerts */}
-          {dashboardStats.audit.critical_events > 0 && (
+          {dashboardStats && dashboardStats.audit.critical_events > 0 && (
             <Alert className="border-red-200 bg-red-50">
               <AlertTriangle className="h-4 w-4 text-red-600" />
               <AlertDescription className="text-red-800">
@@ -251,9 +229,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{dashboardStats.users.total.toLocaleString()}</div>
+                <div className="text-2xl font-bold">{dashboardStats?.users.total.toLocaleString() || 0}</div>
                 <p className="text-xs text-muted-foreground">
-                  +{dashboardStats.users.new_today} new today
+                  +{dashboardStats?.users.new_today || 0} new today
                 </p>
               </CardContent>
             </Card>
@@ -264,9 +242,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
                 <Activity className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{dashboardStats.security.active_sessions}</div>
+                <div className="text-2xl font-bold">{dashboardStats?.security.active_sessions || 0}</div>
                 <p className="text-xs text-muted-foreground">
-                  {dashboardStats.users.active} active users
+                  {dashboardStats?.users.active || 0} active users
                 </p>
               </CardContent>
             </Card>
@@ -274,10 +252,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Security Events</CardTitle>
-                <Shield className={`h-4 w-4 ${getSecurityStatusColor(dashboardStats.security.failed_logins)}`} />
+                <Shield className={`h-4 w-4 ${getSecurityStatusColor(dashboardStats?.security.failed_logins || 0)}`} />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{dashboardStats.security.failed_logins}</div>
+                <div className="text-2xl font-bold">{dashboardStats?.security.failed_logins || 0}</div>
                 <p className="text-xs text-muted-foreground">
                   Failed logins (24h)
                 </p>
@@ -290,7 +268,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
                 <Database className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatUptime(dashboardStats.system.uptime)}</div>
+                <div className="text-2xl font-bold">{formatUptime(dashboardStats?.system.uptime || 0)}</div>
                 <p className="text-xs text-muted-foreground">
                   System uptime
                 </p>
@@ -321,21 +299,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
                           <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                           <span className="text-sm">Active Users</span>
                         </div>
-                        <span className="font-medium">{dashboardStats.users.active}</span>
+                        <span className="font-medium">{dashboardStats?.users.active || 0}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
                           <div className="w-3 h-3 bg-red-500 rounded-full"></div>
                           <span className="text-sm">Locked Accounts</span>
                         </div>
-                        <span className="font-medium">{dashboardStats.users.locked}</span>
+                        <span className="font-medium">{dashboardStats?.users.locked || 0}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
                           <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                           <span className="text-sm">New Today</span>
                         </div>
-                        <span className="font-medium">{dashboardStats.users.new_today}</span>
+                        <span className="font-medium">{dashboardStats?.users.new_today || 0}</span>
                       </div>
                     </div>
                   </CardContent>
@@ -422,19 +400,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
                   <CardContent className="space-y-4">
                     <div className="text-center">
                       <div className="text-2xl font-bold text-green-600 mb-1">
-                        {dashboardStats.security.blocked_ips}
+                        {dashboardStats?.security.blocked_ips || 0}
                       </div>
                       <p className="text-sm text-gray-600">Blocked IPs</p>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-yellow-600 mb-1">
-                        {dashboardStats.security.failed_logins}
+                        {dashboardStats?.security.failed_logins || 0}
                       </div>
                       <p className="text-sm text-gray-600">Failed Logins (24h)</p>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-blue-600 mb-1">
-                        {dashboardStats.users.locked}
+                        {dashboardStats?.users.locked || 0}
                       </div>
                       <p className="text-sm text-gray-600">Locked Accounts</p>
                     </div>
@@ -485,9 +463,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
                           <Cpu className="h-4 w-4" />
                           <span className="text-sm">CPU Usage</span>
                         </div>
-                        <span className="text-sm font-medium">{dashboardStats.system.cpu_usage}%</span>
+                        <span className="text-sm font-medium">{dashboardStats?.system?.cpu_usage ?? 0}%</span>
                       </div>
-                      <Progress value={dashboardStats.system.cpu_usage} className="h-2" />
+                      <Progress value={dashboardStats?.system?.cpu_usage ?? 0} className="h-2" />
                     </div>
 
                     <div className="space-y-2">
@@ -496,9 +474,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
                           <Database className="h-4 w-4" />
                           <span className="text-sm">Memory Usage</span>
                         </div>
-                        <span className="text-sm font-medium">{dashboardStats.system.memory_usage}%</span>
+                        <span className="text-sm font-medium">{dashboardStats?.system?.memory_usage ?? 0}%</span>
                       </div>
-                      <Progress value={dashboardStats.system.memory_usage} className="h-2" />
+                      <Progress value={dashboardStats?.system?.memory_usage ?? 0} className="h-2" />
                     </div>
 
                     <div className="space-y-2">
@@ -507,9 +485,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
                           <HardDrive className="h-4 w-4" />
                           <span className="text-sm">Disk Usage</span>
                         </div>
-                        <span className="text-sm font-medium">{dashboardStats.system.disk_usage}%</span>
+                        <span className="text-sm font-medium">{dashboardStats?.system?.disk_usage ?? 0}%</span>
                       </div>
-                      <Progress value={dashboardStats.system.disk_usage} className="h-2" />
+                      <Progress value={dashboardStats?.system?.disk_usage ?? 0} className="h-2" />
                     </div>
                   </CardContent>
                 </Card>
@@ -525,5 +503,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
     </div>
   )
 }
+
+AdminDashboard.displayName = 'AdminDashboard'
 
 export default AdminDashboard

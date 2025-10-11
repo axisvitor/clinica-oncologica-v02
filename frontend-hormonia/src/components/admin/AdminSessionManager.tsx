@@ -13,7 +13,7 @@ import {
 } from '../ui/dialog'
 import { Badge } from '../ui/badge'
 import { SessionWarning } from '../../types/admin'
-import { useAdminAuth } from '../../contexts/AdminAuthContext'
+import { useAuth } from '../../contexts/AuthContext'
 import { createLogger } from '../../lib/logger'
 
 const logger = createLogger('AdminSessionManager')
@@ -28,18 +28,19 @@ const SESSION_REFRESH_INTERVAL = 60 * 1000 // Check every minute
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000 // 30 minutes of inactivity
 
 export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ className }) => {
-  const { state, extendSession, logout, refreshToken } = useAdminAuth()
+  const { user, isAuthenticated, logout } = useAuth()
   const [sessionWarning, setSessionWarning] = useState<SessionWarning | null>(null)
   const [lastActivity, setLastActivity] = useState<Date>(new Date())
   const [isExtending, setIsExtending] = useState(false)
   const [showInactivityDialog, setShowInactivityDialog] = useState(false)
   const [inactivityCountdown, setInactivityCountdown] = useState(0)
+  const [sessionExpiry] = useState<Date>(() => new Date(Date.now() + 24 * 60 * 60 * 1000)) // 24h session
 
   // Calculate time remaining until session expires
   const getTimeRemaining = useCallback((): number => {
-    if (!state.sessionExpiry) return 0
-    return Math.max(0, state.sessionExpiry.getTime() - Date.now())
-  }, [state.sessionExpiry])
+    if (!sessionExpiry) return 0
+    return Math.max(0, sessionExpiry.getTime() - Date.now())
+  }, [sessionExpiry])
 
   // Calculate time since last activity
   const getTimeSinceActivity = useCallback((): number => {
@@ -52,11 +53,11 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
     setShowInactivityDialog(false)
   }, [])
 
-  // Handle session extension
+  // Handle session extension (Firebase handles token refresh automatically)
   const handleExtendSession = useCallback(async () => {
     setIsExtending(true)
     try {
-      await extendSession()
+      // Firebase automatically refreshes tokens, just reset activity tracking
       setSessionWarning(null)
       updateActivity()
     } catch (error) {
@@ -68,20 +69,20 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
     } finally {
       setIsExtending(false)
     }
-  }, [extendSession, updateActivity])
+  }, [updateActivity])
 
   // Handle logout
   const handleLogout = useCallback(async () => {
     try {
       await logout()
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Logout failed', { error })
     }
   }, [logout])
 
   // Monitor session expiry and inactivity
   useEffect(() => {
-    if (!state.isAuthenticated || !state.sessionExpiry) return
+    if (!isAuthenticated || !sessionExpiry) return
 
     const checkSession = () => {
       const timeRemaining = getTimeRemaining()
@@ -124,8 +125,8 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
     const interval = setInterval(checkSession, SESSION_REFRESH_INTERVAL)
     return () => clearInterval(interval)
   }, [
-    state.isAuthenticated,
-    state.sessionExpiry,
+    isAuthenticated,
+    sessionExpiry,
     sessionWarning,
     showInactivityDialog,
     getTimeRemaining,
@@ -168,19 +169,18 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
     }
   }, [updateActivity])
 
-  // Auto-refresh token when close to expiry
+  // Auto-refresh token when close to expiry (Firebase handles this automatically)
   useEffect(() => {
-    if (!state.isAuthenticated || !state.sessionExpiry) return
+    if (!isAuthenticated || !sessionExpiry) return
 
     const timeRemaining = getTimeRemaining()
     const shouldRefresh = timeRemaining <= SESSION_WARNING_TIME && timeRemaining > 0
 
     if (shouldRefresh && !sessionWarning) {
-      refreshToken().catch(error => {
-        logger.error('Auto token refresh failed', { error })
-      })
+      // Firebase automatically refreshes tokens
+      logger.info('Session auto-refresh handled by Firebase')
     }
-  }, [state.isAuthenticated, state.sessionExpiry, sessionWarning, refreshToken, getTimeRemaining])
+  }, [isAuthenticated, sessionExpiry, sessionWarning, getTimeRemaining])
 
   const formatTime = (milliseconds: number): string => {
     const totalSeconds = Math.floor(milliseconds / 1000)
@@ -198,7 +198,7 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
     return 'text-green-600'
   }
 
-  if (!state.isAuthenticated) {
+  if (!isAuthenticated) {
     return null
   }
 
@@ -216,7 +216,7 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
               </Badge>
             </div>
 
-            {state.sessionExpiry && (
+            {sessionExpiry && (
               <div className="flex items-center space-x-2 text-sm text-gray-600">
                 <Clock className="h-4 w-4" />
                 <span>

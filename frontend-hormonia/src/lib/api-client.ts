@@ -5,6 +5,7 @@ import { transformPaginationResponse, transformFlowListResponse, transformReport
 import { isMockApiEnabled } from '../config/mock.config'
 import { mockApiHandler } from './mock-api-handler'
 import { createLogger } from './logger'
+import { environment } from './environment'
 import type {
   PaginatedResponse,
   Patient,
@@ -61,13 +62,77 @@ export interface ApiResponse<T> {
 export { PaginatedResponse }
 
 export class ApiError extends Error {
+  public userFriendlyMessage: string
+  public retryable: boolean
+  public timestamp: string
+
   constructor(
     public status: number,
     public data: unknown,
-    message?: string
+    message?: string,
+    userFriendlyMessage?: string
   ) {
     super(message || `API Error: ${status}`)
     this.name = 'ApiError'
+    this.userFriendlyMessage = userFriendlyMessage || this.getDefaultUserMessage(status)
+    this.retryable = this.isRetryableError(status)
+    this.timestamp = new Date().toISOString()
+  }
+
+  private getDefaultUserMessage(status: number): string {
+    switch (status) {
+      case 0:
+        return 'Não foi possível conectar ao servidor. Verifique sua conexão com a internet.'
+      case 400:
+        return 'Os dados enviados estão incorretos. Verifique as informações e tente novamente.'
+      case 401:
+        return 'Sua sessão expirou. Por favor, faça login novamente.'
+      case 403:
+        return 'Você não tem permissão para realizar esta ação.'
+      case 404:
+        return 'O recurso solicitado não foi encontrado.'
+      case 408:
+        return 'A requisição demorou muito para responder. Tente novamente.'
+      case 409:
+        return 'Conflito nos dados. Verifique se outro usuário não modificou as informações.'
+      case 422:
+        return 'Os dados fornecidos não puderam ser processados. Verifique os campos obrigatórios.'
+      case 429:
+        return 'Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente novamente.'
+      case 500:
+        return 'Erro interno do servidor. Nossa equipe foi notificada.'
+      case 502:
+      case 503:
+      case 504:
+        return 'O servidor está temporariamente indisponível. Tente novamente em alguns minutos.'
+      default:
+        if (status >= 500) {
+          return 'Erro no servidor. Nossa equipe foi notificada.'
+        }
+        if (status >= 400) {
+          return 'Erro na requisição. Verifique os dados e tente novamente.'
+        }
+        return 'Erro inesperado. Tente novamente ou entre em contato com o suporte.'
+    }
+  }
+
+  private isRetryableError(status: number): boolean {
+    // Network errors (0) and server errors (5xx) are retryable
+    // Rate limiting (429) and timeouts (408) are retryable
+    return status === 0 || status === 408 || status === 429 || (status >= 500 && status <= 599)
+  }
+
+  toJSON() {
+    return {
+      name: this.name,
+      message: this.message,
+      userFriendlyMessage: this.userFriendlyMessage,
+      status: this.status,
+      data: this.data,
+      retryable: this.retryable,
+      timestamp: this.timestamp,
+      stack: environment.isDevelopment ? this.stack : undefined
+    }
   }
 }
 
@@ -266,6 +331,16 @@ class ApiClient {
     // Don't retry on last attempt
     if (attempt >= 3) return false
 
+    // Don't retry on authentication errors
+    if (error instanceof ApiError && [401, 403].includes(error.status)) {
+      return false
+    }
+
+    // Don't retry on client errors (except timeout and rate limit)
+    if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+      return [408, 429].includes(error.status)
+    }
+
     // Retry on network errors
     if (error instanceof TypeError) return true
 
@@ -343,7 +418,10 @@ class ApiClient {
         }
 
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+        const timeoutId = setTimeout(() => {
+          logger.warn('[ApiClient] Request timeout, aborting...', { endpoint, method })
+          controller.abort()
+        }, 30000) // 30 second timeout
 
         const response = await fetch(url, {
           ...fetchOptions,
@@ -356,8 +434,19 @@ class ApiClient {
 
         if (!response.ok) {
           let errorData: any = {}
+          let userFriendlyMessage: string | undefined
+
           try {
             errorData = await response.json()
+
+            // Extract user-friendly message from backend response
+            if (errorData.detail && typeof errorData.detail === 'string') {
+              userFriendlyMessage = errorData.detail
+            } else if (errorData.message && typeof errorData.message === 'string') {
+              userFriendlyMessage = errorData.message
+            } else if (errorData.error && typeof errorData.error === 'string') {
+              userFriendlyMessage = errorData.error
+            }
           } catch {
             errorData = { message: `HTTP ${response.status}: ${response.statusText}` }
           }
@@ -365,14 +454,34 @@ class ApiClient {
           // Handle 401 Unauthorized - session expired
           if (response.status === 401) {
             logger.warn('[ApiClient] Session expired (401), clearing session data')
+            userFriendlyMessage = 'Sua sessão expirou. Redirecionando para login...'
+
             if (typeof window !== 'undefined') {
               // SECURITY: Session managed by httpOnly cookies (automatic)
               // Firebase token managed by Firebase SDK (in-memory)
 
               // Redirect to login page if not already there
               if (!window.location.pathname.includes('/login')) {
-                window.location.href = '/login?session_expired=true'
+                setTimeout(() => {
+                  window.location.href = '/login?session_expired=true'
+                }, 1500) // Give time for user to see the message
               }
+            }
+          }
+
+          // Handle validation errors (422)
+          if (response.status === 422 && errorData.detail && Array.isArray(errorData.detail)) {
+            const validationErrors = errorData.detail
+              .map((err: any) => `${err.loc?.join('.') || 'Campo'}: ${err.msg}`)
+              .join('; ')
+            userFriendlyMessage = `Erro de validação: ${validationErrors}`
+          }
+
+          // Handle rate limiting with retry info
+          if (response.status === 429) {
+            const retryAfter = response.headers.get('Retry-After')
+            if (retryAfter) {
+              userFriendlyMessage = `Muitas tentativas. Tente novamente em ${retryAfter} segundos.`
             }
           }
 
@@ -380,9 +489,16 @@ class ApiClient {
             endpoint,
             status: response.status,
             statusText: response.statusText,
-            error: errorData
+            error: errorData,
+            userFriendlyMessage
           })
-          throw new ApiError(response.status, errorData, errorData.message)
+
+          throw new ApiError(
+            response.status,
+            errorData,
+            errorData.message || `HTTP ${response.status}: ${response.statusText}`,
+            userFriendlyMessage
+          )
         }
 
         logger.debug('[ApiClient] Request successful:', {
@@ -415,23 +531,69 @@ class ApiClient {
             throw error
           }
 
-          // Handle network errors
+          // Handle network errors with better messages
           if (error instanceof TypeError && 'message' in error && String(error.message).includes('fetch')) {
-            throw new ApiError(0, { message: 'Falha ao conectar ao servidor' }, 'Não foi possível conectar ao servidor. Verifique sua conexão com a internet.')
+            const networkError = new ApiError(
+              0,
+              { message: 'Network error', originalError: error.message },
+              'Network connection failed',
+              'Não foi possível conectar ao servidor. Verifique sua conexão com a internet e tente novamente.'
+            )
+            throw networkError
           }
 
           // Handle timeout errors
           if (error instanceof DOMException && error.name === 'AbortError') {
-            throw new ApiError(408, { message: 'Timeout' }, 'A requisição demorou muito para responder. Tente novamente.')
+            const timeoutError = new ApiError(
+              408,
+              { message: 'Request timeout', timeout: 30000 },
+              'Request timed out',
+              'A requisição demorou muito para responder. Verifique sua conexão e tente novamente.'
+            )
+            throw timeoutError
           }
 
-          // Handle other errors
-          throw new ApiError(500, { message: 'Erro de rede' }, 'Erro de conexão. Verifique sua internet e tente novamente.')
+          // Handle CORS errors (common in development)
+          if (error instanceof TypeError && error.message.includes('CORS')) {
+            const corsError = new ApiError(
+              0,
+              { message: 'CORS error', originalError: error.message },
+              'CORS policy violation',
+              environment.isDevelopment
+                ? 'Erro de CORS. Verifique se o backend está rodando na porta correta.'
+                : 'Erro de conexão. Nossa equipe foi notificada.'
+            )
+            throw corsError
+          }
+
+          // Handle SSL/certificate errors
+          if (error instanceof TypeError && (
+            error.message.includes('certificate') ||
+            error.message.includes('SSL') ||
+            error.message.includes('TLS')
+          )) {
+            const sslError = new ApiError(
+              0,
+              { message: 'SSL/Certificate error', originalError: error.message },
+              'SSL certificate error',
+              'Erro de certificado de segurança. Tente novamente ou entre em contato com o suporte.'
+            )
+            throw sslError
+          }
+
+          // Handle other network/connection errors
+          const genericError = new ApiError(
+            500,
+            { message: 'Unknown network error', originalError: error.message },
+            'Unknown error occurred',
+            'Erro de conexão inesperado. Verifique sua internet e tente novamente.'
+          )
+          throw genericError
         }
 
-        // Retry with exponential backoff
-        const delay = baseDelay * Math.pow(2, attempt - 1)
-        logger.log(`Tentativa ${attempt}/${maxAttempts} falhou. Tentando novamente em ${delay}ms...`)
+        // Retry with exponential backoff + jitter
+        const delay = baseDelay * Math.pow(2, attempt - 1) + Math.random() * 1000
+        logger.log(`Tentativa ${attempt}/${maxAttempts} falhou. Tentando novamente em ${Math.round(delay)}ms...`)
         await this._sleep(delay)
       }
     }
@@ -773,10 +935,10 @@ class ApiClient {
     getSession: (sessionId: string) =>
       this.request<any>(`/api/v1/quiz/sessions/${sessionId}`),
 
-    submitResponse: (sessionId: string, responses: any) =>
-      this.request<void>(`/api/v1/quiz/sessions/${sessionId}/submit`, {
+    submitResponse: (sessionId: string, question_id: string, answer: string, response_metadata?: any) =>
+      this.request<any>(`/api/v1/quiz/sessions/${sessionId}/submit`, {
         method: 'POST',
-        body: JSON.stringify({ responses })
+        params: { question_id, answer, ...(response_metadata ? { response_metadata: JSON.stringify(response_metadata) } : {}) }
       }),
 
     sessions: (params: { patient_id?: string; status?: string }) =>
@@ -814,17 +976,46 @@ class ApiClient {
       templates: this.quiz.templates.bind(this.quiz)
     }
   }
-  
+
   // Notifications endpoints (available under auth route)
   notifications = {
     list: () =>
-      this.request<any>('/api/v1/auth/notifications')
+      this.request<{ items: any[]; unread_count: number }>('/api/v1/auth/notifications')
+  }
+
+  // Admin System Stats endpoint
+  admin = {
+    systemStats: () =>
+      this.request<{
+        users: {
+          total: number
+          active: number
+          locked: number
+          new_today: number
+        }
+        security: {
+          failed_logins: number
+          active_sessions: number
+          blocked_ips: number
+        }
+        system: {
+          uptime: number
+          memory_usage: number
+          cpu_usage: number
+          disk_usage: number
+        }
+        audit: {
+          total_logs: number
+          critical_events: number
+          warnings: number
+        }
+      }>('/api/v1/admin/system-stats')
   }
 
   // Admin User Management endpoints
   adminUsers = {
     list: (params: { page?: number; size?: number; search?: string; role?: string; is_active?: boolean }) =>
-      this.request<PaginatedResponse<any>>('/api/v1/admin/users', { params }),
+      this.request<{ items: any[]; total: number; page: number; pages: number }>('/api/v1/admin/users', { params }),
 
     get: (id: string) =>
       this.request<any>(`/api/v1/admin/users/${id}`),
@@ -865,8 +1056,11 @@ class ApiClient {
     getActivity: (id: string, params?: { page?: number; size?: number }) =>
       this.request<PaginatedResponse<any>>(`/api/v1/admin/users/${id}/activity`, params ? { params } : {}),
 
-    resetPassword: (id: string) =>
-      this.request<{ temporary_password: string }>(`/api/v1/admin/users/${id}/reset-password`, { method: 'POST' }),
+    resetPassword: (id: string, payload: { new_password: string; force_change: boolean }) =>
+      this.request<{ success: boolean; message: string }>(`/api/v1/admin/users/${id}/reset-password`, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      }),
 
     unlock: (id: string) =>
       this.request<void>(`/api/v1/admin/users/${id}/unlock`, { method: 'POST' }),

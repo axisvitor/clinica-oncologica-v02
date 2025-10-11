@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { AdminUser, AdminDashboardStats, AdminUserActivity } from '@/types/admin'
 import { useToast } from '@/components/ui/use-toast'
-import { useWebSocket } from './useWebSocket'
 
 interface UseUserAdminOptions {
   /** Enable real-time updates via WebSocket */
@@ -34,25 +33,13 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
   const queryClient = useQueryClient()
 
   // WebSocket for real-time updates
-  const { isConnected, sendMessage } = useWebSocket({
-    url: '/ws/admin/users',
-    onMessage: useCallback((data: any) => {
-      if (data.type === 'user_updated' || data.type === 'user_created' || data.type === 'user_deleted') {
-        // Invalidate users list to refresh data
-        queryClient.invalidateQueries({ queryKey: ['admin-users'] })
-        queryClient.invalidateQueries({ queryKey: ['admin-stats'] })
-
-        // Show notification for user updates
-        if (data.type === 'user_updated') {
-          toast({
-            title: 'Usuário atualizado',
-            description: `${data.user?.full_name || 'Usuário'} foi atualizado por outro administrador.`,
-          })
-        }
-      }
-    }, [queryClient, toast]),
-    autoConnect: realTimeUpdates
-  })
+  // TODO: Implement WebSocket endpoint /ws/admin/users on backend
+  // For now, using polling-based updates via refetchInterval
+  const isConnected = false
+  const sendMessage = useCallback((_message: any) => {
+    // Placeholder until backend WebSocket endpoint is implemented
+    // This function accepts a message parameter but does nothing with it
+  }, [])
 
   // State for filters and pagination
   const [filters, setFilters] = useState<UserFilters>({
@@ -278,6 +265,7 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
   })
 
   // Update permissions mutation
+  // WARNING: Backend endpoint is currently a placeholder and doesn't persist permissions
   const updatePermissionsMutation = useMutation({
     mutationFn: ({ id, permissions }: { id: string; permissions: string[] }) =>
       apiClient.adminUsers.updatePermissions(id, permissions),
@@ -286,8 +274,8 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
       queryClient.invalidateQueries({ queryKey: ['admin-user', variables.id] })
 
       toast({
-        title: 'Permissões atualizadas com sucesso',
-        description: 'As permissões do usuário foram alteradas.',
+        title: '⚠️ Permissões atualizadas (temporário)',
+        description: 'Nota: Backend ainda não persiste permissões. Implementação pendente.',
       })
     },
     onError: (error: any) => {
@@ -301,7 +289,19 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
 
   // Reset password mutation
   const resetPasswordMutation = useMutation({
-    mutationFn: (id: string) => apiClient.adminUsers.resetPassword(id),
+    mutationFn: async (id: string) => {
+      // Generate secure temporary password client-side
+      const tempPassword = generateTemporaryPassword()
+
+      // Send password to backend for user update
+      await apiClient.adminUsers.resetPassword(id, {
+        new_password: tempPassword,
+        force_change: true
+      })
+
+      // Return generated password for display
+      return { temporary_password: tempPassword }
+    },
     onSuccess: (response) => {
       toast({
         title: 'Senha redefinida com sucesso',
@@ -316,6 +316,15 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
       })
     }
   })
+
+  // Generate secure temporary password
+  function generateTemporaryPassword(): string {
+    const length = 12
+    const charset = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%^&*'
+    const array = new Uint8Array(length)
+    crypto.getRandomValues(array)
+    return Array.from(array, (byte) => charset[byte % charset.length]).join('')
+  }
 
   // Helper functions
   const updateFilters = useCallback((newFilters: Partial<UserFilters>) => {

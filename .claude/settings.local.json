@@ -86,8 +86,22 @@
       "Bash(where npm)",
       "Bash(alembic current:*)",
       "Bash(where pytest)",
-      "Bash(Select-Object -Last 30)"
+      "Bash(Select-Object -Last 30)",
+      "Bash(timeout 120 railway logs --service frontend)",
+      "Bash(npm test:*)",
+      "Bash(echo \"Tests completed with status: $?\")",
+      "Bash(Select-Object -First 50)",
+      "Bash(curl -X GET \"https://evolution.axisvanguard.site/health\" -H \"apikey: 8635EBA73252-46A9-A965-7E534F24E72C\")",
+      "Bash(curl -X GET \"https://evolution.axisvanguard.site/\" -H \"apikey: 8635EBA73252-46A9-A965-7E534F24E72C\" --connect-timeout 10)",
+      "Bash(curl -X GET \"https://evolution.axisvanguard.site/instance/fetchInstances\" -H \"apikey: 8635EBA73252-46A9-A965-7E534F24E72C\" --connect-timeout 10)"
     ],
     "deny": []
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "claude-flow@alpha",
+    "ruv-swarm",
+    "flow-nexus",
+    "agentic-payments"
+  ]
 }

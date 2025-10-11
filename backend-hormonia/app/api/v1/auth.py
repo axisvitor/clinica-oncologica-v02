@@ -65,7 +65,7 @@ class NotificationResponse(BaseModel):
 
 class NotificationListResponse(BaseModel):
     """Notification list response."""
-    notifications: List[NotificationResponse]
+    items: List[NotificationResponse]
     total: int
     unread_count: int
 
@@ -407,7 +407,7 @@ async def get_notifications(
         logger.info(f"Fetching notifications for user {current_user.id}")
 
         return NotificationListResponse(
-            notifications=notifications,
+            items=notifications,
             total=total,
             unread_count=unread_count
         )

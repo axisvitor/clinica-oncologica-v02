@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react'
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useMemo } from 'react'
 import { apiClient } from '../lib/api-client'
 import { User } from '../hooks/auth/types'
 import { isMockAuthEnabled } from '../config/mock.config'
@@ -240,6 +240,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       logger.log('Attempting login:', email)
 
+      // Clear any previous errors
+      apiClient.setAuthToken(null)
+
       if (isMockAuthEnabled()) {
         const result = await mockAuthService.signIn(email, password)
 
@@ -290,12 +293,37 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     } catch (error: any) {
       logger.error('Login failed:', error)
+
+      // Comprehensive cleanup on login failure
       setUser(null)
       setSession(null)
       apiClient.setAuthToken(null)
 
+      // Disconnect WebSocket on login failure
+      wsManager.disconnect()
+
       // Ensure cleanup on error (cookie cleared by backend)
       // Firebase Auth SDK automatically clears in-memory token
+
+      // Enhanced error handling with user-friendly messages
+      let userMessage = 'Erro ao fazer login. Tente novamente.'
+
+      if (error.message?.includes('auth/user-not-found')) {
+        userMessage = 'Usuário não encontrado. Verifique seu email.'
+      } else if (error.message?.includes('auth/wrong-password')) {
+        userMessage = 'Senha incorreta. Tente novamente.'
+      } else if (error.message?.includes('auth/too-many-requests')) {
+        userMessage = 'Muitas tentativas. Aguarde alguns minutos.'
+      } else if (error.message?.includes('Network')) {
+        userMessage = 'Erro de conexão. Verifique sua internet.'
+      }
+
+      // Show user-friendly error
+      toast({
+        title: 'Erro no Login',
+        description: userMessage,
+        variant: 'destructive'
+      })
 
       throw error
     } finally {
@@ -411,7 +439,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [])
 
-  const value: AuthContextType = {
+  const value: AuthContextType = useMemo(() => ({
     user,
     session,
     isAuthenticated,
@@ -423,7 +451,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
     hasRole,
     getFirebaseToken,
     refreshToken
-  }
+  }), [
+    user,
+    session,
+    isAuthenticated,
+    isLoading,
+    login,
+    logout,
+    logoutAll,
+    hasPermission,
+    hasRole,
+    getFirebaseToken,
+    refreshToken
+  ])
 
   return (
     <AuthContext.Provider value={value}>

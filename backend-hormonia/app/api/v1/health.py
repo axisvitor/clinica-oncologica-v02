@@ -1,362 +1,193 @@
 """
-Health monitoring API endpoints.
+Comprehensive Health Check and Performance Monitoring Endpoints
+Enhanced health checks for production Railway deployment with detailed metrics
 """
-from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Any
 
-from app.utils.health_monitoring import check_system_health, get_health_metrics
-from app.utils.error_tracking import get_error_summary, clear_old_errors
-from app.utils.logging import get_logger
-from app.dependencies import get_current_user
+from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+from datetime import datetime, timedelta
+import psutil
+import os
+import logging
+import time
+from typing import Dict, Any, Optional
+
+from app.database import get_db
 from app.models.user import User
+from app.models.patient import Patient
+from app.models.message import Message
+from app.models.alert import Alert
 
-router = APIRouter()
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
+router = APIRouter(tags=["health"])
 
 
-@router.get("/health", response_model=None)
-async def basic_health_check() -> dict[str, Any]:
-    """
-    Basic health check endpoint.
-    
-    Returns a simple health status without detailed metrics.
-    This endpoint is typically used by load balancers and monitoring systems.
-    """
-    return {
+@router.get("/health")
+async def health_check(request: Request, db: Session = Depends(get_db)):
+    """Comprehensive health check endpoint for Railway with detailed system status"""
+    start_time = time.time()
+
+    health_data = {
         "status": "healthy",
-        "service": "hormonia-backend",
-        "message": "Service is operational"
-    }
-
-
-@router.get("/health/detailed", response_model=None)
-async def detailed_health_check() -> dict[str, Any]:
-    """
-    Detailed health check with comprehensive system metrics.
-    
-    Performs checks on:
-    - System resources (CPU, memory, disk)
-    - Database connectivity and performance
-    - Redis connectivity and performance
-    - External service connectivity
-    - Application error rates
-    
-    Returns detailed metrics and component status.
-    """
-    try:
-        health_data = await check_system_health()
-        
-        # Log health check request
-        logger.info(
-            "Detailed health check requested",
-            extra={
-                'event_type': 'health_check_request',
-                'overall_status': health_data.get('status'),
-                'components_checked': len(health_data.get('components', {}))
-            }
-        )
-        
-        return health_data
-        
-    except Exception as e:
-        logger.error(
-            f"Detailed health check failed: {str(e)}",
-            extra={'event_type': 'health_check_error'},
-            exc_info=True
-        )
-        
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Health check service unavailable"
-        )
-
-
-@router.get("/health/metrics", response_model=None)
-async def get_system_metrics(current_user: User = Depends(get_current_user)) -> dict[str, Any]:
-    """
-    Get system metrics summary.
-    
-    Requires authentication. Returns collected metrics from the last health check.
-    """
-    try:
-        metrics = get_health_metrics()
-        
-        logger.info(
-            "System metrics requested",
-            extra={
-                'event_type': 'metrics_request',
-                'user_id': str(current_user.id),
-                'total_metrics': metrics.get('total_metrics', 0)
-            }
-        )
-        
-        return metrics
-        
-    except Exception as e:
-        logger.error(
-            f"Failed to get system metrics: {str(e)}",
-            extra={'event_type': 'metrics_error', 'user_id': str(current_user.id)},
-            exc_info=True
-        )
-        
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve system metrics"
-        )
-
-
-@router.get("/health/errors", response_model=None)
-async def get_error_metrics(
-    hours: int = 24,
-    current_user: User = Depends(get_current_user)
-) -> dict[str, Any]:
-    """
-    Get error metrics and summary.
-    
-    Args:
-        hours: Number of hours to look back for errors (default: 24)
-    
-    Returns error summary including counts, types, and recent occurrences.
-    """
-    try:
-        if hours < 1 or hours > 168:  # Max 1 week
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Hours parameter must be between 1 and 168"
-            )
-        
-        error_summary = get_error_summary(hours=hours)
-        
-        logger.info(
-            f"Error metrics requested for {hours} hours",
-            extra={
-                'event_type': 'error_metrics_request',
-                'user_id': str(current_user.id),
-                'hours': hours,
-                'total_errors': error_summary.get('total_errors', 0)
-            }
-        )
-        
-        return error_summary
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(
-            f"Failed to get error metrics: {str(e)}",
-            extra={'event_type': 'error_metrics_error', 'user_id': str(current_user.id)},
-            exc_info=True
-        )
-        
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve error metrics"
-        )
-
-
-@router.post("/health/errors/cleanup", response_model=None)
-async def cleanup_old_errors(
-    hours: int = 24,
-    current_user: User = Depends(get_current_user)
-) -> dict[str, Any]:
-    """
-    Clean up old error records.
-    
-    Args:
-        hours: Remove errors older than this many hours (default: 24)
-    
-    Returns count of cleaned up errors.
-    """
-    try:
-        if hours < 1 or hours > 168:  # Max 1 week
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Hours parameter must be between 1 and 168"
-            )
-        
-        cleared_count = clear_old_errors(hours=hours)
-        
-        logger.info(
-            f"Error cleanup completed: {cleared_count} errors removed",
-            extra={
-                'event_type': 'error_cleanup',
-                'user_id': str(current_user.id),
-                'hours': hours,
-                'cleared_count': cleared_count
-            }
-        )
-        
-        return {
-            'message': f'Successfully cleaned up {cleared_count} old error records',
-            'cleared_count': cleared_count,
-            'cutoff_hours': hours,
-            'timestamp': get_logger(__name__).extra.get('timestamp', 'unknown')
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(
-            f"Failed to cleanup errors: {str(e)}",
-            extra={'event_type': 'error_cleanup_error', 'user_id': str(current_user.id)},
-            exc_info=True
-        )
-        
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to cleanup error records"
-        )
-
-
-@router.get("/health/readiness", response_model=None)
-async def readiness_check() -> dict[str, Any]:
-    """
-    Kubernetes-style readiness probe.
-    
-    Checks if the service is ready to receive traffic.
-    This is a lightweight check that verifies core dependencies.
-    """
-    try:
-        from app.utils.health_monitoring import health_monitor
-        
-        # Quick check of critical components
-        await health_monitor._check_database_health()
-        
-        db_status = health_monitor.components.get('database')
-        if db_status and db_status.status.value in ['critical', 'unhealthy']:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Database not ready"
-            )
-        
-        return {
-            "status": "ready",
-            "service": "hormonia-backend",
-            "message": "Service is ready to receive traffic"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(
-            f"Readiness check failed: {str(e)}",
-            extra={'event_type': 'readiness_check_error'},
-            exc_info=True
-        )
-        
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service not ready"
-        )
-
-
-@router.get("/health/liveness", response_model=None)
-async def liveness_check() -> dict[str, Any]:
-    """
-    Kubernetes-style liveness probe.
-
-    Checks if the service is alive and should not be restarted.
-    This is a very lightweight check.
-    """
-    return {
-        "status": "alive",
-        "service": "hormonia-backend",
-        "message": "Service is alive"
-    }
-
-
-# Enhanced health checks for the new fallback systems
-@router.get("/health/auth-system", response_model=None)
-async def auth_system_health() -> dict[str, Any]:
-    """
-    Test authentication system components for the ServiceProvider fix.
-
-    This endpoint specifically tests the simplified authentication system
-    to ensure login functionality works.
-    """
-    from datetime import datetime
-
-    results = {
         "timestamp": datetime.utcnow().isoformat(),
-        "database_session": {"status": "unknown"},
-        "service_provider": {"status": "unknown"},
-        "auth_service": {"status": "unknown"},
-        "fallback_systems": {"status": "unknown"}
+        "version": "2.1.0",
+        "service": "clinica-oncologica-api",
+        "environment": os.getenv("ENVIRONMENT", "production"),
+        "checks": {},
+        "performance": {},
+        "system": {}
     }
 
-    # Test database session creation
+    # Database health check
     try:
-        from app.core.database_direct import get_direct_session, initialize_direct_database
+        db_start = time.time()
+        result = db.execute(text("SELECT 1 as health_check")).fetchone()
+        db_time = (time.time() - db_start) * 1000
 
-        # Initialize direct database if needed
-        initialize_direct_database()
-
-        with get_direct_session() as db:
-            from sqlalchemy import text
-            result = db.execute(text("SELECT 1")).fetchone()
-            results["database_session"] = {
-                "status": "available",
-                "test_query": result[0] if result else None
-            }
+        health_data["checks"]["database"] = {
+            "status": "healthy" if result and result[0] == 1 else "unhealthy",
+            "response_time_ms": round(db_time, 2),
+            "connection_pool_size": getattr(db.bind.pool, "size", "unknown"),
+            "checked_out_connections": getattr(db.bind.pool, "checkedout", "unknown")
+        }
     except Exception as e:
-        logger.error(f"Database session test failed: {e}")
-        results["database_session"] = {
-            "status": "failed",
-            "error": str(e)
+        health_data["checks"]["database"] = {
+            "status": "unhealthy",
+            "error": str(e),
+            "response_time_ms": None
+        }
+        health_data["status"] = "degraded"
+
+    # System metrics
+    try:
+        cpu_percent = psutil.cpu_percent(interval=0.1)
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage("/")
+
+        health_data["system"] = {
+            "cpu_percent": round(cpu_percent, 2),
+            "memory_percent": round(memory.percent, 2),
+            "memory_available_mb": round(memory.available / 1024 / 1024, 2),
+            "memory_used_mb": round(memory.used / 1024 / 1024, 2),
+            "disk_usage_percent": round(disk.percent, 2),
+            "disk_free_gb": round(disk.free / 1024 / 1024 / 1024, 2),
+            "uptime_seconds": int(time.time() - psutil.boot_time())
         }
 
-    # Test service provider creation
-    if results["database_session"]["status"] == "available":
+        # Alert if resources are high
+        if cpu_percent > 80 or memory.percent > 85:
+            health_data["status"] = "degraded"
+        if cpu_percent > 95 or memory.percent > 95:
+            health_data["status"] = "unhealthy"
+
+    except Exception as e:
+        health_data["system"] = {"error": str(e)}
+
+    # Performance metrics
+    total_time = (time.time() - start_time) * 1000
+    health_data["performance"] = {
+        "total_response_time_ms": round(total_time, 2),
+        "request_id": getattr(request.state, "request_id", "unknown")
+    }
+
+    # Determine final status
+    if health_data["status"] == "healthy":
+        status_code = 200
+    elif health_data["status"] == "degraded":
+        status_code = 200  # Still operational
+    else:
+        status_code = 503  # Service unavailable
+
+    return JSONResponse(content=health_data, status_code=status_code)
+
+
+@router.get("/metrics")
+async def metrics_endpoint(db: Session = Depends(get_db)):
+    """Performance metrics endpoint for monitoring and observability"""
+    try:
+        start_time = time.time()
+        metrics = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "database": {},
+            "application": {},
+            "system": {}
+        }
+
+        # Database metrics
         try:
-            from app.services_simple import SimplifiedServiceProvider
-            from app.core.redis_unified import get_sync_redis
-            from app.core.database_direct import get_direct_session
+            # Basic counts
+            user_count = db.query(User).count()
+            patient_count = db.query(Patient).count()
+            message_count_24h = db.query(Message).filter(
+                Message.created_at >= datetime.utcnow() - timedelta(hours=24)
+            ).count()
+            alert_count_24h = db.query(Alert).filter(
+                Alert.created_at >= datetime.utcnow() - timedelta(hours=24)
+            ).count()
 
-            # Get Redis
-            redis_client = None
-            try:
-                redis_client = get_sync_redis()
-            except Exception as redis_error:
-                logger.warning(f"Redis initialization failed: {redis_error}")
+            # Database performance
+            db_start = time.time()
+            db.execute(text("SELECT 1"))
+            db_response_time = (time.time() - db_start) * 1000
 
-            with get_direct_session() as db:
-                provider = SimplifiedServiceProvider(db, redis_client)
-
-                results["service_provider"] = {
-                    "status": "available" if provider.is_initialized else "failed",
-                    "initialized": provider.is_initialized,
-                    "redis_available": redis_client is not None and redis_client.get_status().get("available", False)
-                }
-
-                # Test auth service
-                if provider.is_initialized:
-                    try:
-                        auth_service = provider.auth_service
-                        results["auth_service"] = {
-                            "status": "available",
-                            "type": type(auth_service).__name__
-                        }
-                    except Exception as auth_error:
-                        logger.error(f"Auth service test failed: {auth_error}")
-                        results["auth_service"] = {
-                            "status": "failed",
-                            "error": str(auth_error)
-                        }
-        except Exception as e:
-            logger.error(f"Service provider test failed: {e}")
-            results["service_provider"] = {
-                "status": "failed",
-                "error": str(e)
+            metrics["database"] = {
+                "response_time_ms": round(db_response_time, 2),
+                "user_count": user_count,
+                "patient_count": patient_count,
+                "messages_last_24h": message_count_24h,
+                "alerts_last_24h": alert_count_24h,
+                "connection_pool_size": getattr(db.bind.pool, "size", "unknown"),
+                "active_connections": getattr(db.bind.pool, "checkedout", "unknown")
             }
 
-    # Determine overall status
-    auth_ready = (
-        results["database_session"].get("status") == "available" and
-        results["service_provider"].get("status") == "available" and
-        results["auth_service"].get("status") == "available"
-    )
+        except Exception as e:
+            metrics["database"] = {"error": str(e)}
 
-    results["overall_status"] = "ready" if auth_ready else "degraded"
-    results["login_should_work"] = auth_ready
+        # System metrics
+        try:
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+            memory = psutil.virtual_memory()
+            disk = psutil.disk_usage("/")
+            network = psutil.net_io_counters()
 
-    return results
+            metrics["system"] = {
+                "cpu_percent": round(cpu_percent, 2),
+                "memory_percent": round(memory.percent, 2),
+                "memory_used_mb": round(memory.used / 1024 / 1024, 2),
+                "memory_available_mb": round(memory.available / 1024 / 1024, 2),
+                "disk_usage_percent": round(disk.percent, 2),
+                "disk_free_gb": round(disk.free / 1024 / 1024 / 1024, 2),
+                "network_bytes_sent": network.bytes_sent if network else 0,
+                "network_bytes_recv": network.bytes_recv if network else 0,
+                "process_count": len(psutil.pids()),
+                "uptime_hours": round((time.time() - psutil.boot_time()) / 3600, 2)
+            }
+
+        except Exception as e:
+            metrics["system"] = {"error": str(e)}
+
+        # Application metrics
+        total_time = (time.time() - start_time) * 1000
+        metrics["application"] = {
+            "response_time_ms": round(total_time, 2),
+            "environment": os.getenv("ENVIRONMENT", "unknown"),
+            "version": "2.1.0",
+            "python_version": os.sys.version.split()[0],
+            "pid": os.getpid(),
+            "worker_id": os.getenv("WORKER_ID", "unknown")
+        }
+
+        return metrics
+
+    except Exception as e:
+        logger.error(f"Metrics endpoint failed: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "Failed to generate metrics",
+                "details": str(e),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )

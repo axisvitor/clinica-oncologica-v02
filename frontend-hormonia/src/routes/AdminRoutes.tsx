@@ -4,8 +4,9 @@ import AdminDashboard from '../components/admin/AdminDashboard'
 import AdminLoginForm from '../components/admin/AdminLoginForm'
 import AdminProtectedRoute from '../components/admin/AdminProtectedRoute'
 import AdminUserActivityMonitor from '../components/admin/AdminUserActivityMonitor'
-import { useAdminAuth } from '../contexts/AdminAuthContext'
+import { useAuth } from '../contexts/AuthContext'
 import { createLogger } from '../lib/logger'
+import { AdminLoginCredentials, AdminLoginResponse, AdminUser } from '../types/admin'
 
 const logger = createLogger('AdminRoutes')
 
@@ -61,14 +62,30 @@ const AdminProfilePage = () => (
 
 // Login page component
 const AdminLoginPage: React.FC = () => {
-  const { login } = useAdminAuth()
+  const { login, user } = useAuth()
 
-  const handleLogin = async (credentials: { email: string; password: string; rememberMe?: boolean }) => {
+  const handleLogin = async (credentials: AdminLoginCredentials): Promise<AdminLoginResponse> => {
     try {
-      return await login(credentials.email, credentials.password, credentials.rememberMe)
+      await login(credentials.email, credentials.password, credentials.rememberMe)
+
+      // Return success response in AdminLoginResponse format
+      const response: AdminLoginResponse = {
+        success: true
+      }
+
+      if (user) {
+        response.user = user as AdminUser
+      }
+
+      return response
     } catch (error) {
       logger.error('Login failed:', error)
-      throw error
+
+      // Return error response in AdminLoginResponse format
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Login failed'
+      }
     }
   }
 

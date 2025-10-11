@@ -113,6 +113,31 @@ class APISecurityConfig(BaseModel):
     content_security_policy: str = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
 
 
+class WhatsAppSecurityConfig(BaseModel):
+    """WhatsApp-specific security configuration."""
+    # Access control
+    enable_patient_validation: bool = True
+    enable_phone_blocking: bool = True
+    enable_unauthorized_logging: bool = True
+
+    # Rate limiting for unauthorized attempts
+    max_unauthorized_attempts_per_hour: int = Field(default=5, ge=1, le=20)
+    max_unauthorized_attempts_per_day: int = Field(default=15, ge=5, le=50)
+
+    # Blocking configuration
+    block_duration_hours: int = Field(default=24, ge=1, le=168)  # Max 1 week
+    escalating_responses: bool = True
+
+    # Security monitoring
+    high_risk_threshold: int = Field(default=7, ge=1, le=10)
+    alert_after_attempts: int = Field(default=10, ge=5, le=50)
+
+    # Feature flags for gradual rollout
+    enable_enhanced_validation: bool = True
+    enable_security_alerts: bool = True
+    enable_risk_scoring: bool = True
+
+
 class LoggingSecurityConfig(BaseModel):
     """Security logging configuration."""
     # Authentication events
@@ -131,12 +156,18 @@ class LoggingSecurityConfig(BaseModel):
     log_permission_denials: bool = True
     log_suspicious_activity: bool = True
 
+    # WhatsApp security events
+    log_whatsapp_unauthorized_access: bool = True
+    log_whatsapp_authorized_access: bool = True
+    log_phone_blocking_events: bool = True
+
     # Log retention
     security_log_retention_days: int = Field(default=90, ge=30, le=365)
 
     # Alert thresholds
     failed_login_alert_threshold: int = Field(default=10, ge=5, le=50)
     suspicious_activity_alert_threshold: int = Field(default=5, ge=1, le=20)
+    whatsapp_security_alert_threshold: int = Field(default=10, ge=5, le=30)
 
 
 class SecurityConfig(BaseModel):
@@ -145,6 +176,7 @@ class SecurityConfig(BaseModel):
     authentication: AuthenticationConfig = AuthenticationConfig()
     domain_security: DomainSecurityConfig = DomainSecurityConfig()
     api_security: APISecurityConfig = APISecurityConfig()
+    whatsapp_security: WhatsAppSecurityConfig = WhatsAppSecurityConfig()
     logging: LoggingSecurityConfig = LoggingSecurityConfig()
 
     # Environment-specific settings
@@ -156,6 +188,7 @@ class SecurityConfig(BaseModel):
     enable_domain_validation: bool = True
     enable_role_hierarchies: bool = True
     enable_audit_logging: bool = True
+    enable_whatsapp_security_monitoring: bool = True
 
     @validator('environment')
     def validate_environment(cls, v):
@@ -237,11 +270,29 @@ class SecurityConfigLoader:
             if api_config:
                 config_dict["api_security"] = api_config
 
+            # WhatsApp security configuration
+            whatsapp_config = {}
+            if os.getenv("WHATSAPP_ENABLE_PATIENT_VALIDATION") is not None:
+                whatsapp_config["enable_patient_validation"] = os.getenv("WHATSAPP_ENABLE_PATIENT_VALIDATION", "true").lower() == "true"
+            if os.getenv("WHATSAPP_ENABLE_PHONE_BLOCKING") is not None:
+                whatsapp_config["enable_phone_blocking"] = os.getenv("WHATSAPP_ENABLE_PHONE_BLOCKING", "true").lower() == "true"
+            if os.getenv("WHATSAPP_MAX_ATTEMPTS_PER_HOUR"):
+                whatsapp_config["max_unauthorized_attempts_per_hour"] = int(os.getenv("WHATSAPP_MAX_ATTEMPTS_PER_HOUR"))
+            if os.getenv("WHATSAPP_BLOCK_DURATION_HOURS"):
+                whatsapp_config["block_duration_hours"] = int(os.getenv("WHATSAPP_BLOCK_DURATION_HOURS"))
+            if os.getenv("WHATSAPP_ENABLE_ENHANCED_VALIDATION") is not None:
+                whatsapp_config["enable_enhanced_validation"] = os.getenv("WHATSAPP_ENABLE_ENHANCED_VALIDATION", "true").lower() == "true"
+
+            if whatsapp_config:
+                config_dict["whatsapp_security"] = whatsapp_config
+
             # Feature flags
             if os.getenv("ENABLE_AUTO_PROVISIONING") is not None:
                 config_dict["enable_auto_provisioning"] = os.getenv("ENABLE_AUTO_PROVISIONING", "true").lower() == "true"
             if os.getenv("ENABLE_AUDIT_LOGGING") is not None:
                 config_dict["enable_audit_logging"] = os.getenv("ENABLE_AUDIT_LOGGING", "true").lower() == "true"
+            if os.getenv("ENABLE_WHATSAPP_SECURITY_MONITORING") is not None:
+                config_dict["enable_whatsapp_security_monitoring"] = os.getenv("ENABLE_WHATSAPP_SECURITY_MONITORING", "true").lower() == "true"
 
             # Create configuration object
             self._config = SecurityConfig(**config_dict)
@@ -329,9 +380,17 @@ BLOCKED_DOMAINS=tempmail.org,10minutemail.com
 CORS_ALLOW_ORIGINS=https://app.hormonia.io
 MAX_REQUEST_SIZE_MB=10
 
+# WhatsApp Security
+WHATSAPP_ENABLE_PATIENT_VALIDATION=true
+WHATSAPP_ENABLE_PHONE_BLOCKING=true
+WHATSAPP_MAX_ATTEMPTS_PER_HOUR=5
+WHATSAPP_BLOCK_DURATION_HOURS=24
+WHATSAPP_ENABLE_ENHANCED_VALIDATION=true
+
 # Feature Flags
 ENABLE_AUTO_PROVISIONING=true
 ENABLE_AUDIT_LOGGING=true
+ENABLE_WHATSAPP_SECURITY_MONITORING=true
 """
         return template.strip()
 

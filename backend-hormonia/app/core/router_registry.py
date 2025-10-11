@@ -38,6 +38,7 @@ def register_routers(app: FastAPI) -> None:
             platform_sync, template_management, template_versioning, monthly_quiz, monthly_quiz_public, ai, metrics, debug, config, admin_users, admin_roles,
             health_rls, upload, medico, physician, system  # RLS endpoints, upload, medico dashboard, physician endpoints, and system management
         )
+        from app.api.v1.health import router as comprehensive_health_router
         from app.routers.quiz_auth import router as quiz_auth
         from app.routers.auth_session import router as auth_session
         from app.routers.health import router as health_monitoring  # New monitoring health endpoints
@@ -138,7 +139,8 @@ def register_routers(app: FastAPI) -> None:
         app.include_router(debug.router, prefix="/api/v1/debug", tags=["Debug"])
         logger.info("✓ Debug endpoints enabled")
 
-    # Add simple health checks for Railway deployment
+    # Add comprehensive health checks for Railway deployment
+    app.include_router(comprehensive_health_router, prefix="/api/v1", tags=["Health"])
     app.include_router(prod_health_router, tags=["Health"])
 
     # Add RLS endpoints (Phase 1 - testing in parallel) - TEMPORARILY DISABLED

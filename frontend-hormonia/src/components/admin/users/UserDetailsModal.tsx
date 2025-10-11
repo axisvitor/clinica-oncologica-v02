@@ -89,7 +89,19 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
   })
 
   const resetPasswordMutation = useMutation({
-    mutationFn: () => apiClient.adminUsers.resetPassword(user['id']),
+    mutationFn: async () => {
+      // Generate secure temporary password client-side
+      const tempPassword = generateTemporaryPassword()
+
+      // Send password to backend for user update
+      await apiClient.adminUsers.resetPassword(user['id'], {
+        new_password: tempPassword,
+        force_change: true
+      })
+
+      // Return generated password for display
+      return { temporary_password: tempPassword }
+    },
     onSuccess: (data) => {
       toast({
         title: 'Senha resetada com sucesso',
@@ -111,6 +123,15 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
 
   const handlePermissionsChange = (permissions: string[]) => {
     setValue('permissions', permissions)
+  }
+
+  // Generate secure temporary password
+  function generateTemporaryPassword(): string {
+    const length = 12
+    const charset = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%^&*'
+    const array = new Uint8Array(length)
+    crypto.getRandomValues(array)
+    return Array.from(array, (byte) => charset[byte % charset.length]).join('')
   }
 
   const formatLastLogin = (lastLogin?: string | null) => {

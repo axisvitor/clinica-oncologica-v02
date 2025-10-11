@@ -119,7 +119,17 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
 
   const resetPasswordMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiClient.adminUsers.resetPassword(id)
+      // Generate secure temporary password client-side
+      const tempPassword = generateTemporaryPassword()
+
+      // Send password to backend for user update
+      await apiClient.adminUsers.resetPassword(id, {
+        new_password: tempPassword,
+        force_change: true
+      })
+
+      // Return generated password for display
+      return { temporary_password: tempPassword }
     },
     onSuccess: (response) => {
       toast({
@@ -196,6 +206,15 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
   const handleResetPassword = () => {
     if (!user) return
     resetPasswordMutation.mutate(user['id'])
+  }
+
+  // Generate secure temporary password
+  function generateTemporaryPassword(): string {
+    const length = 12
+    const charset = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%^&*'
+    const array = new Uint8Array(length)
+    crypto.getRandomValues(array)
+    return Array.from(array, (byte) => charset[byte % charset.length]).join('')
   }
 
   const resetForm = () => {

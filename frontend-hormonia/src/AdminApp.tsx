@@ -1,6 +1,5 @@
 import React from 'react'
 import { Toaster } from './components/ui/toaster'
-import { AdminAuthProvider } from './contexts/AdminAuthContext'
 import AdminRoutes from './routes/AdminRoutes'
 import { ErrorBoundary } from './components/error/ErrorBoundary'
 
@@ -9,31 +8,28 @@ import { ErrorBoundary } from './components/error/ErrorBoundary'
  *
  * IMPORTANT: This component is loaded inside App.tsx which already provides:
  * - PersistQueryClientProvider (with IndexedDB persistence)
- * - AuthProvider (Firebase authentication)
+ * - AuthProvider (Firebase authentication) ✅ UNIFIED AUTH
  * - Router (React Router v6)
- *
- * Therefore, AdminApp should NOT duplicate these providers.
- * It only adds AdminAuthProvider for admin-specific authentication state.
  *
  * Provider Hierarchy (from App.tsx down):
  * - ErrorBoundary
  *   - PersistQueryClientProvider (shared queryClient)
- *     - AuthProvider (Firebase auth)
+ *     - AuthProvider (Firebase auth) ✅ SINGLE SOURCE OF TRUTH
  *       - Router
  *         - AdminApp (lazy loaded)
- *           - AdminAuthProvider (admin-specific auth)
- *             - AdminRoutes
+ *           - AdminRoutes
+ *
+ * FIXED: Removed AdminAuthProvider duplication
+ * All admin components now use unified AuthProvider from App.tsx
  */
 
 const AdminApp: React.FC = () => {
   return (
     <ErrorBoundary>
-      <AdminAuthProvider>
-        <div className="admin-app">
-          <AdminRoutes />
-        </div>
-        <Toaster />
-      </AdminAuthProvider>
+      <div className="admin-app">
+        <AdminRoutes />
+      </div>
+      <Toaster />
     </ErrorBoundary>
   )
 }

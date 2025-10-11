@@ -206,7 +206,7 @@ class EvolutionClient:
         return urljoin(f"{self.base_url}/", clean_endpoint)
 
     def _check_rate_limit(self) -> bool:
-        """Check and enforce rate limiting."""
+        """Check and enforce rate limiting with improved efficiency."""
         current_time = time.time()
 
         # Reset counter every second
@@ -214,18 +214,20 @@ class EvolutionClient:
             self.rate_limiter['request_times'] = []
             self.rate_limiter['last_reset'] = current_time
 
-        # Remove requests older than 1 second
+        # Remove requests older than 1 second (optimization: use list comprehension)
+        cutoff_time = current_time - 1
         self.rate_limiter['request_times'] = [
-            t for t in self.rate_limiter['request_times']
-            if current_time - t < 1
+            t for t in self.rate_limiter['request_times'] if t > cutoff_time
         ]
 
         # Check if we're under the limit
-        if len(self.rate_limiter['request_times']) >= self.rate_limiter['requests_per_second']:
+        current_requests = len(self.rate_limiter['request_times'])
+        if current_requests >= self.rate_limiter['requests_per_second']:
             logger.warning(
                 "Evolution API rate limit exceeded",
-                requests_in_last_second=len(self.rate_limiter['request_times']),
-                limit=self.rate_limiter['requests_per_second']
+                requests_in_last_second=current_requests,
+                limit=self.rate_limiter['requests_per_second'],
+                wait_time=1.0 - (current_time - min(self.rate_limiter['request_times']))
             )
             return False
 
@@ -669,7 +671,12 @@ class EvolutionClient:
                 has_api_key=bool(self.api_key),
                 has_webhook_secret=bool(self.webhook_secret)
             )
-            return True  # Allow in development, should be False in production
+            # P0 FIX: Enforce signature validation in production
+            # In production, reject webhooks without valid signatures for security
+            if getattr(settings, 'ENVIRONMENT', 'development') == 'production':
+                logger.error("Webhook signature validation required in production but no secret configured")
+                return False
+            return True  # Allow in development only
 
         try:
             # Remove common prefixes

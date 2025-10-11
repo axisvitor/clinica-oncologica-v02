@@ -3,10 +3,12 @@ Webhook processor for Evolution API integration.
 Handles incoming messages from WhatsApp and processes them through the flow engine.
 """
 import logging
+import hashlib
 from typing import Any, Optional, Dict, List
 from datetime import datetime, timedelta
-from uuid import UUID
+from uuid import UUID, uuid4
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 import redis.asyncio as redis
 
 from app.models.message import Message, MessageType, MessageStatus, MessageDirection
@@ -74,14 +76,15 @@ class WebhookProcessor:
         Process incoming message webhook from Evolution API.
 
         Flow:
-        1. Extract and validate message data
-        2. Check idempotency (deduplicate by whatsapp_id)
-        3. Find patient by phone number
-        4. Create inbound message record
-        5. Publish WebSocket event
-        6. Check for active flow
-        7. Route to flow processing or general chat
-        8. Generate and send response
+        1. Persist webhook event to database (P0 FIX #2)
+        2. Extract and validate message data
+        3. Check idempotency (deduplicate by whatsapp_id)
+        4. Find patient by phone number
+        5. Create inbound message record
+        6. Publish WebSocket event
+        7. Check for active flow
+        8. Route to flow processing or general chat
+        9. Generate and send response
 
         Args:
             event_data: Webhook event data from Evolution API
@@ -89,11 +92,21 @@ class WebhookProcessor:
         Returns:
             Message ID if processed successfully, None otherwise
         """
+        webhook_id = None
         try:
+            # Step 0: Persist webhook event first (P0 FIX #2)
+            webhook_id = await self._persist_webhook_event(
+                event_type="message.received",
+                source="evolution_api",
+                payload=event_data
+            )
+
             # Step 1: Extract message data from webhook
             message_data = self._extract_message_data(event_data)
             if not message_data:
                 logger.warning("No valid message data found in webhook")
+                if webhook_id:
+                    await self._mark_webhook_processed(webhook_id, False, "No valid message data")
                 return None
 
             whatsapp_id = message_data["whatsapp_id"]
@@ -121,11 +134,58 @@ class WebhookProcessor:
                 await redis_client.setex(idempotency_key, 3600, str(existing_message.id))
                 return str(existing_message.id)
 
-            # Step 3: Find patient by phone number
+            # Step 3: Enhanced patient validation with security monitoring
             patient = self._find_patient_by_phone(message_data["phone"])
             if not patient:
-                logger.warning(f"Patient not found for phone: {message_data['phone']}")
-                # Future: Could implement auto-registration here
+                # Import security monitor for tracking unauthorized access
+                from app.services.security_monitor import SecurityMonitor
+                security_monitor = SecurityMonitor(self.db)
+
+                # Log and track unauthorized access attempt
+                await security_monitor.log_unauthorized_access(
+                    phone=message_data["phone"],
+                    message_content=message_data["content"][:100],  # First 100 chars for analysis
+                    source_metadata={
+                        "whatsapp_id": message_data["whatsapp_id"],
+                        "timestamp": message_data.get("metadata", {}).get("timestamp"),
+                        "push_name": message_data.get("metadata", {}).get("pushName")
+                    }
+                )
+
+                # Check if phone should be blocked (too many attempts)
+                should_block = await security_monitor.should_block_phone(message_data["phone"])
+                if should_block:
+                    logger.warning(
+                        f"Phone {message_data['phone']} blocked due to repeated unauthorized attempts"
+                    )
+                    if webhook_id:
+                        await self._mark_webhook_processed(
+                            webhook_id, False, "Phone blocked - too many unauthorized attempts"
+                        )
+                    return None
+
+                # Get attempt count for rate limiting
+                attempt_count = await security_monitor.get_attempt_count(message_data["phone"])
+
+                logger.warning(
+                    f"Unauthorized access attempt from {message_data['phone']} "
+                    f"(attempt #{attempt_count}). Content: {message_data['content'][:50]}..."
+                )
+
+                # Send response only for first 3 attempts with escalating messages
+                if attempt_count <= 3:
+                    await self._send_unauthorized_response(
+                        message_data["phone"],
+                        attempt_count=attempt_count
+                    )
+
+                # Mark webhook as processed with enhanced failure info
+                if webhook_id:
+                    await self._mark_webhook_processed(
+                        webhook_id, False,
+                        f"Unauthorized: patient not found (attempt {attempt_count}, blocked={should_block})"
+                    )
+
                 return None
 
             # Step 4: Check flow status and add context
@@ -168,10 +228,16 @@ class WebhookProcessor:
             else:
                 await self._handle_general_chat(patient, message)
 
+            # Step 8: Mark webhook as processed (P0 FIX #2)
+            if webhook_id:
+                await self._mark_webhook_processed(webhook_id, True)
+
             return str(message.id)
 
         except Exception as e:
             logger.error(f"Error processing message webhook: {e}", exc_info=True)
+            if webhook_id:
+                await self._mark_webhook_processed(webhook_id, False, str(e))
             return None
 
     @with_db_retry(max_retries=3)
@@ -179,19 +245,31 @@ class WebhookProcessor:
         """
         Process message status update webhook (delivered, read, etc).
 
+        P0 FIX #2: Now persists webhook event to database.
+
         Args:
             event_data: Webhook event data
 
         Returns:
             True if processed successfully
         """
+        webhook_id = None
         try:
+            # Persist webhook event first (P0 FIX #2)
+            webhook_id = await self._persist_webhook_event(
+                event_type="message.status",
+                source="evolution_api",
+                payload=event_data
+            )
+
             # Extract status data
             whatsapp_id = event_data.get("key", {}).get("id")
             status = event_data.get("update", {}).get("status")
 
             if not whatsapp_id or not status:
                 logger.warning("Missing required fields in status webhook")
+                if webhook_id:
+                    await self._mark_webhook_processed(webhook_id, False, "Missing required fields")
                 return False
 
             # Update message status
@@ -213,13 +291,21 @@ class WebhookProcessor:
                 )
 
                 logger.info(f"Updated message {message.id} status to {status}")
+
+                # Mark webhook as processed (P0 FIX #2)
+                if webhook_id:
+                    await self._mark_webhook_processed(webhook_id, True)
                 return True
 
             logger.warning(f"Message not found for WhatsApp ID: {whatsapp_id}")
+            if webhook_id:
+                await self._mark_webhook_processed(webhook_id, False, "Message not found")
             return False
 
         except Exception as e:
             logger.error(f"Error processing status webhook: {e}", exc_info=True)
+            if webhook_id:
+                await self._mark_webhook_processed(webhook_id, False, str(e))
             return False
 
     # =========================================================================
@@ -465,6 +551,63 @@ class WebhookProcessor:
             except Exception as rollback_error:
                 logger.error(f"Rollback failed: {rollback_error}", exc_info=True)
             return None
+
+    async def _send_unauthorized_response(self, phone: str, attempt_count: int = 1) -> None:
+        """
+        Send escalating unauthorized messages to non-registered numbers.
+
+        Enhanced security implementation with escalating responses:
+        - Different messages based on attempt count
+        - Clear instructions for legitimate users
+        - Security warnings for repeated attempts
+        - Fails silently if Evolution API is unavailable
+
+        Args:
+            phone: Phone number that attempted access
+            attempt_count: Number of unauthorized attempts (1-3)
+        """
+        try:
+            from app.integrations.evolution import get_evolution_client
+
+            # Get Evolution client
+            client = await get_evolution_client()
+            if not client:
+                logger.warning(f"Evolution client unavailable, cannot send unauthorized response to {phone}")
+                return
+
+            # Escalating messages based on attempt count
+            if attempt_count == 1:
+                message = (
+                    "Olá! Este número não está cadastrado no sistema de acompanhamento da clínica. "
+                    "Para informações sobre cadastro, entre em contato com a recepção pelos telefones oficiais."
+                )
+            elif attempt_count == 2:
+                message = (
+                    "ATENÇÃO: Este número não tem autorização para acessar o sistema da clínica. "
+                    "Se você é paciente, verifique se está usando o número correto cadastrado. "
+                    "Contate a recepção se precisar atualizar seus dados."
+                )
+            else:  # attempt_count >= 3
+                message = (
+                    "ALERTA DE SEGURANÇA: Múltiplas tentativas de acesso não autorizado detectadas. "
+                    "Este número será temporariamente bloqueado. "
+                    "Entre em contato com a clínica pelos canais oficiais se esta for uma tentativa legítima."
+                )
+
+            # Send message with increasing delay to rate limit aggressive attempts
+            delay = min(1000 * attempt_count, 5000)  # 1s, 2s, 3s+ (max 5s)
+            await client.send_text_message(phone, message, delay=delay)
+
+            logger.info(
+                f"Sent unauthorized response (attempt #{attempt_count}) to {phone}. "
+                f"Message type: {'warning' if attempt_count > 1 else 'info'}"
+            )
+
+        except Exception as e:
+            # Fail silently but log for security monitoring
+            logger.error(
+                f"Failed to send unauthorized response to {phone} (attempt #{attempt_count}): {e}"
+            )
 
     async def _publish_message_event(self, message: Message, patient_id: UUID) -> None:
         """
@@ -732,3 +875,360 @@ class WebhookProcessor:
             evolution_status.upper(),
             MessageStatus.PENDING
         )
+
+    # =========================================================================
+    # P0 FIXES: WEBHOOK PERSISTENCE, CONNECTION HANDLER, QR CODE, RETRY
+    # =========================================================================
+
+    async def _persist_webhook_event(
+        self,
+        event_type: str,
+        source: str,
+        payload: Dict[str, Any],
+        related_message_id: Optional[UUID] = None,
+        related_patient_id: Optional[UUID] = None
+    ) -> Optional[UUID]:
+        """
+        P0 FIX #2: Persist webhook event to database for audit trail and retry.
+
+        Args:
+            event_type: Type of webhook event (e.g., 'message.received', 'connection.update')
+            source: Source of webhook (e.g., 'evolution_api')
+            payload: Raw webhook payload
+            related_message_id: Optional related message ID
+            related_patient_id: Optional related patient ID
+
+        Returns:
+            UUID of created webhook event, or None if failed
+        """
+        try:
+            # Import WebhookEvent model from the correct location
+            from sqlalchemy import Column, String, Boolean, Integer, Text, DateTime, text
+            from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
+            from app.models.base import Base
+
+            # Generate event hash for idempotency
+            payload_str = str(sorted(payload.items()))
+            event_hash = hashlib.sha256(payload_str.encode()).hexdigest()
+
+            # Check if event already exists (idempotency via event_hash)
+            from sqlalchemy import select
+            stmt = text("""
+                SELECT id FROM webhook_events
+                WHERE event_hash = :event_hash
+                LIMIT 1
+            """)
+            result = self.db.execute(stmt, {"event_hash": event_hash}).fetchone()
+
+            if result:
+                logger.info(f"Duplicate webhook event detected via hash: {event_hash}")
+                return UUID(result[0]) if result[0] else None
+
+            # Create new webhook event record
+            event_id = uuid4()
+            insert_stmt = text("""
+                INSERT INTO webhook_events (
+                    id, event_type, source, payload, processed, retry_count, max_retries,
+                    related_message_id, related_patient_id, event_hash, is_duplicate,
+                    created_at
+                )
+                VALUES (
+                    :id, :event_type, :source, :payload, :processed, :retry_count, :max_retries,
+                    :related_message_id, :related_patient_id, :event_hash, :is_duplicate,
+                    NOW()
+                )
+                RETURNING id
+            """)
+
+            result = self.db.execute(insert_stmt, {
+                "id": str(event_id),
+                "event_type": event_type,
+                "source": source,
+                "payload": payload,
+                "processed": False,
+                "retry_count": 0,
+                "max_retries": 3,
+                "related_message_id": str(related_message_id) if related_message_id else None,
+                "related_patient_id": str(related_patient_id) if related_patient_id else None,
+                "event_hash": event_hash,
+                "is_duplicate": False
+            })
+
+            self.db.commit()
+
+            logger.info(
+                f"Persisted webhook event: {event_id} "
+                f"(type={event_type}, source={source}, hash={event_hash[:8]}...)"
+            )
+
+            return event_id
+
+        except IntegrityError as e:
+            self.db.rollback()
+            logger.warning(f"Duplicate webhook event (integrity error): {e}")
+            return None
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Failed to persist webhook event: {e}", exc_info=True)
+            return None
+
+    async def _mark_webhook_processed(
+        self,
+        event_id: UUID,
+        success: bool = True,
+        error_message: Optional[str] = None
+    ) -> None:
+        """
+        Mark webhook event as processed.
+
+        Args:
+            event_id: Webhook event ID
+            success: Whether processing succeeded
+            error_message: Optional error message if failed
+        """
+        try:
+            update_stmt = text("""
+                UPDATE webhook_events
+                SET processed = :processed,
+                    processed_at = NOW(),
+                    error_message = :error_message
+                WHERE id = :event_id
+            """)
+
+            self.db.execute(update_stmt, {
+                "event_id": str(event_id),
+                "processed": success,
+                "error_message": error_message
+            })
+            self.db.commit()
+
+            logger.debug(f"Marked webhook {event_id} as processed (success={success})")
+
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Failed to mark webhook as processed: {e}")
+
+    @with_db_retry(max_retries=3)
+    async def process_connection_webhook(self, event_data: dict[str, Any]) -> bool:
+        """
+        P0 FIX #3: Process connection status webhook (connection.update events).
+
+        Handles WhatsApp instance connection state changes:
+        - open: Instance is connected
+        - close: Instance disconnected
+        - connecting: Instance is connecting
+
+        Args:
+            event_data: Webhook event data
+
+        Returns:
+            True if processed successfully
+        """
+        try:
+            # Persist webhook event first
+            webhook_id = await self._persist_webhook_event(
+                event_type="connection.update",
+                source="evolution_api",
+                payload=event_data
+            )
+
+            # Extract connection data
+            instance = event_data.get("instance")
+            state = event_data.get("state") or event_data.get("data", {}).get("state")
+
+            if not instance or not state:
+                logger.warning("Missing instance or state in connection webhook")
+                if webhook_id:
+                    await self._mark_webhook_processed(webhook_id, False, "Missing required fields")
+                return False
+
+            # Update connection state in Redis
+            await self.connection_state_repo.set_state(instance, state)
+
+            logger.info(
+                f"Updated connection state for instance '{instance}': {state}",
+                extra={"instance": instance, "state": state}
+            )
+
+            # Mark webhook as processed
+            if webhook_id:
+                await self._mark_webhook_processed(webhook_id, True)
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error processing connection webhook: {e}", exc_info=True)
+            if webhook_id:
+                await self._mark_webhook_processed(webhook_id, False, str(e))
+            return False
+
+    @with_db_retry(max_retries=3)
+    async def process_qrcode_webhook(self, event_data: dict[str, Any]) -> bool:
+        """
+        P0 FIX #5: Process QR code webhook (qrcode.updated events).
+
+        Stores QR code data in connection state metadata for UI display.
+
+        Args:
+            event_data: Webhook event data containing QR code
+
+        Returns:
+            True if processed successfully
+        """
+        try:
+            # Persist webhook event
+            webhook_id = await self._persist_webhook_event(
+                event_type="qrcode.updated",
+                source="evolution_api",
+                payload=event_data
+            )
+
+            # Extract QR code data
+            instance = event_data.get("instance")
+            qr_code = event_data.get("qrcode") or event_data.get("data", {}).get("qrcode")
+
+            if not instance:
+                logger.warning("Missing instance in QR code webhook")
+                if webhook_id:
+                    await self._mark_webhook_processed(webhook_id, False, "Missing instance")
+                return False
+
+            # Store QR code in Redis with metadata
+            redis_client = await get_async_redis()
+            qr_key = f"qrcode:{instance}"
+            qr_data = {
+                "instance": instance,
+                "qrcode": qr_code,
+                "timestamp": datetime.utcnow().isoformat(),
+                "status": "pending"
+            }
+
+            # Store with 5-minute expiration (QR codes expire quickly)
+            await redis_client.setex(qr_key, 300, str(qr_data))
+
+            logger.info(
+                f"Stored QR code for instance '{instance}'",
+                extra={"instance": instance, "has_qrcode": bool(qr_code)}
+            )
+
+            # Mark webhook as processed
+            if webhook_id:
+                await self._mark_webhook_processed(webhook_id, True)
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error processing QR code webhook: {e}", exc_info=True)
+            if webhook_id:
+                await self._mark_webhook_processed(webhook_id, False, str(e))
+            return False
+
+    async def retry_failed_webhooks(self) -> int:
+        """
+        P0 FIX #4: Retry failed webhook events with exponential backoff.
+
+        Simple retry mechanism:
+        - Retry webhooks where processed=false and retry_count < max_retries
+        - Exponential backoff: 60s, 120s, 240s
+        - Update next_retry_at for scheduling
+
+        Returns:
+            Number of webhooks retried
+        """
+        try:
+            # Find webhooks eligible for retry
+            select_stmt = text("""
+                SELECT id, event_type, payload, retry_count, related_message_id, related_patient_id
+                FROM webhook_events
+                WHERE processed = false
+                  AND retry_count < max_retries
+                  AND (next_retry_at IS NULL OR next_retry_at <= NOW())
+                ORDER BY created_at ASC
+                LIMIT 50
+            """)
+
+            results = self.db.execute(select_stmt).fetchall()
+            retried_count = 0
+
+            for row in results:
+                event_id = UUID(row[0])
+                event_type = row[1]
+                payload = row[2]
+                retry_count = row[3]
+                related_message_id = UUID(row[4]) if row[4] else None
+                related_patient_id = UUID(row[5]) if row[5] else None
+
+                try:
+                    # Route to appropriate handler based on event type
+                    success = False
+
+                    if event_type == "message.received":
+                        message_id = await self.process_message_webhook(payload)
+                        success = bool(message_id)
+                    elif event_type == "message.status":
+                        success = await self.process_status_webhook(payload)
+                    elif event_type == "connection.update":
+                        success = await self.process_connection_webhook(payload)
+                    elif event_type == "qrcode.updated":
+                        success = await self.process_qrcode_webhook(payload)
+                    else:
+                        logger.warning(f"Unknown event type for retry: {event_type}")
+                        success = False
+
+                    if success:
+                        # Mark as processed
+                        await self._mark_webhook_processed(event_id, True)
+                        retried_count += 1
+                        logger.info(f"Successfully retried webhook {event_id} (type={event_type})")
+                    else:
+                        # Increment retry count and schedule next retry
+                        next_retry_delay = 60 * (2 ** retry_count)  # 60s, 120s, 240s
+                        next_retry_at = datetime.utcnow() + timedelta(seconds=next_retry_delay)
+
+                        update_stmt = text("""
+                            UPDATE webhook_events
+                            SET retry_count = retry_count + 1,
+                                next_retry_at = :next_retry_at,
+                                error_message = 'Retry failed, will retry again'
+                            WHERE id = :event_id
+                        """)
+
+                        self.db.execute(update_stmt, {
+                            "event_id": str(event_id),
+                            "next_retry_at": next_retry_at
+                        })
+                        self.db.commit()
+
+                        logger.warning(
+                            f"Webhook retry failed: {event_id} "
+                            f"(retry_count={retry_count + 1}, next_retry_at={next_retry_at})"
+                        )
+
+                except Exception as retry_error:
+                    logger.error(f"Error retrying webhook {event_id}: {retry_error}", exc_info=True)
+
+                    # Update retry count and schedule next retry
+                    next_retry_delay = 60 * (2 ** retry_count)
+                    next_retry_at = datetime.utcnow() + timedelta(seconds=next_retry_delay)
+
+                    update_stmt = text("""
+                        UPDATE webhook_events
+                        SET retry_count = retry_count + 1,
+                            next_retry_at = :next_retry_at,
+                            error_message = :error_message
+                        WHERE id = :event_id
+                    """)
+
+                    self.db.execute(update_stmt, {
+                        "event_id": str(event_id),
+                        "next_retry_at": next_retry_at,
+                        "error_message": str(retry_error)
+                    })
+                    self.db.commit()
+
+            logger.info(f"Webhook retry completed: {retried_count}/{len(results)} succeeded")
+            return retried_count
+
+        except Exception as e:
+            logger.error(f"Error in retry_failed_webhooks: {e}", exc_info=True)
+            return 0

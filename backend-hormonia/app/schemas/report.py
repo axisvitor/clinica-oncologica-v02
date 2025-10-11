@@ -167,6 +167,14 @@ class DashboardResponse(BaseModel):
     completed_quizzes: int = Field(0, description="Quizzes completed in the last 7 days")
     avg_response_time: float = Field(0.0, description="Average response time in minutes (approx)")
 
+    # Trend data (percentage changes from previous period)
+    patients_change: float = Field(0.0, description="Percentage change in total patients from previous period")
+    active_patients_change: float = Field(0.0, description="Percentage change in active patients from previous period")
+    messages_change: float = Field(0.0, description="Percentage change in messages from previous period")
+    alerts_change: float = Field(0.0, description="Percentage change in alerts from previous period")
+    response_rate_change: float = Field(0.0, description="Percentage change in response rate from previous period")
+    quizzes_change: float = Field(0.0, description="Percentage change in completed quizzes from previous period")
+
     # Recent activity
     recent_messages: List[dict[str, Any]] = Field(default_factory=list, description="Recent messages")
     recent_alerts: List[dict[str, Any]] = Field(default_factory=list, description="Recent alerts")

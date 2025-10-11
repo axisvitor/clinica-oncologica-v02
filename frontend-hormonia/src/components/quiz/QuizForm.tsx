@@ -45,8 +45,15 @@ export function QuizForm({ session, onComplete }: QuizFormProps) {
   const queryClient = useQueryClient()
 
   const submitResponseMutation = useMutation({
-    mutationFn: (data: { session_id: string; responses: Record<string, any> }) =>
-      apiClient.quiz.submitResponse(data.session_id, data.responses),
+    mutationFn: async (data: { session_id: string; responses: Record<string, any> }) => {
+      // Submit each question response individually
+      const submissions = Object.entries(data.responses).map(([questionId, answer]) =>
+        apiClient.quiz.submitResponse(data.session_id, questionId, String(answer))
+      )
+
+      // Wait for all submissions to complete
+      await Promise.all(submissions)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quiz-sessions'] })
       queryClient.invalidateQueries({ queryKey: ['quiz-session', session.id] })

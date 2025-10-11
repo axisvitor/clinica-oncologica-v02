@@ -12,7 +12,9 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:other-option": "jest tests/quiz-other-option.test.tsx --verbose",
-    "postinstall": "next telemetry disable"
+    "postinstall": "next telemetry disable",
+    "health-check": "curl -f http://localhost:3000/api/health || exit 1",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

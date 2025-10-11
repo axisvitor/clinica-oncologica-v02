@@ -115,7 +115,7 @@ export function DashboardPage() {
             />
             <MetricCard
               title="Alertas Ativos"
-              value={metrics?.active_alerts || 0}
+              value={metrics?.alerts_pending || 0}
               change={metrics?.alerts_change || 0}
               icon={AlertTriangle}
               trend="down"

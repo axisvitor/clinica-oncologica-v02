@@ -110,7 +110,7 @@ class UserResponse(BaseModel):
 
 class UserListResponse(BaseModel):
     """Schema for paginated user list response."""
-    users: List[UserResponse] = Field(..., description="List of users")
+    items: List[UserResponse] = Field(..., description="List of users")
     total: int = Field(..., description="Total number of users")
     page: int = Field(..., description="Current page number")
     size: int = Field(..., description="Page size")
@@ -143,3 +143,34 @@ class UserActionResponse(BaseModel):
     message: str = Field(..., description="Action result message")
     user_id: UUID = Field(..., description="Affected user ID")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Action timestamp")
+
+
+class UserActivityRecord(BaseModel):
+    """Schema for individual user activity record."""
+    id: str = Field(..., description="Activity record ID")
+    user_id: str = Field(..., description="User ID")
+    user_email: Optional[str] = Field(None, description="User email")
+    action: str = Field(..., description="Action performed")
+    resource: str = Field(..., description="Resource affected")
+    resource_id: Optional[str] = Field(None, description="Resource ID")
+    details: dict = Field(default_factory=dict, description="Activity details")
+    timestamp: datetime = Field(..., description="Activity timestamp")
+    ip_address: str = Field(..., description="IP address")
+    user_agent: Optional[str] = Field(None, description="User agent")
+
+    class Config:
+        from_attributes = True
+
+
+class UserActivityResponse(BaseModel):
+    """Schema for paginated user activity response."""
+    items: List[UserActivityRecord] = Field(..., description="Activity records")
+    total: int = Field(..., description="Total number of records")
+    page: int = Field(..., description="Current page number")
+    size: int = Field(..., description="Page size")
+    pages: int = Field(..., description="Total number of pages")
+    has_next: bool = Field(..., description="Whether there is a next page")
+    has_previous: bool = Field(..., description="Whether there is a previous page")
+
+    class Config:
+        from_attributes = True

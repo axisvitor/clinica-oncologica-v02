@@ -71,7 +71,8 @@ export function MessageComposer({ patientId, patientName, onMessageSent }: Messa
       patient_id: patientId,
       content: message.trim(),
       type: messageType,
-      ...(scheduledFor && scheduledFor.trim() ? { scheduled_for: scheduledFor } : {})
+      // Default to current time if no schedule is provided (backend requires this field)
+      scheduled_for: scheduledFor && scheduledFor.trim() ? scheduledFor : new Date().toISOString()
     })
   }
 
