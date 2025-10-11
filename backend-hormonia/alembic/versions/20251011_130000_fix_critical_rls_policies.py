@@ -42,6 +42,10 @@ def upgrade() -> None:
     # Get connection for executing raw SQL
     connection = op.get_bind()
 
+    print("🔑 Creating database roles 'authenticated' and 'service_role' if they don't exist...")
+    connection.execute(text("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated; END IF; END $$;"))
+    connection.execute(text("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN CREATE ROLE service_role; END IF; END $$;"))
+
     print("🔒 Starting critical RLS policy implementation...")
 
     # =============================================================================
@@ -957,3 +961,8 @@ def downgrade() -> None:
 
     print("🚨 CRITICAL: All RLS policies removed - Security vulnerability restored!")
     print("🚨 IMMEDIATE ACTION REQUIRED: Run the upgrade again to restore security!")
+
+    # Drop roles
+    print("🗑️ Dropping database roles 'authenticated' and 'service_role'...")
+    connection.execute(text("DROP ROLE IF EXISTS authenticated;"))
+    connection.execute(text("DROP ROLE IF EXISTS service_role;"))
