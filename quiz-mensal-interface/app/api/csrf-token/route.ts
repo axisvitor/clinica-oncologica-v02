@@ -7,6 +7,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { storeCSRFToken, TOKEN_EXPIRY } from '@/lib/csrf'
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic'
+
 /**
  * Generate a secure CSRF token and store it in httpOnly cookie
  */

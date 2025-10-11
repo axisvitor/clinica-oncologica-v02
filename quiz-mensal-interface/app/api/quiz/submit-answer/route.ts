@@ -8,6 +8,9 @@ import { validateCSRF } from '@/lib/csrf'
 import { getSessionData, updateSessionToken } from '@/lib/quiz-session'
 import { quizAPI } from '@/lib/api'
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic'
+
 /**
  * Submit quiz answer with CSRF protection
  */

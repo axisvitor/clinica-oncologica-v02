@@ -5,10 +5,24 @@
  * for the Monthly Quiz interface system.
  */
 
-import * as Sentry from '@sentry/nextjs';
-import { BrowserTracing } from '@sentry/tracing';
-import { CaptureConsole } from '@sentry/integrations';
-import { Replay } from '@sentry/replay';
+// Optional Sentry imports - gracefully handle missing dependencies
+let Sentry: any = null;
+let BrowserTracing: any = null;
+let CaptureConsole: any = null;
+let Replay: any = null;
+
+try {
+  Sentry = require('@sentry/nextjs');
+  const tracing = require('@sentry/tracing');
+  const integrations = require('@sentry/integrations');
+  const replay = require('@sentry/replay');
+  
+  BrowserTracing = tracing.BrowserTracing;
+  CaptureConsole = integrations.CaptureConsole;
+  Replay = replay.Replay;
+} catch (error) {
+  console.warn('Sentry packages not installed. Monitoring will be disabled.');
+}
 
 // Environment configuration
 const ENVIRONMENT = process.env.NODE_ENV || 'development';
@@ -38,12 +52,22 @@ export class QuizSentryMonitoring {
   private static currentQuizContext: QuizContext | null = null;
 
   /**
+   * Check if Sentry is available and initialized
+   */
+  private static isSentryAvailable(): boolean {
+    return !!Sentry && this.isInitialized;
+  }
+
+  /**
    * Initialize Sentry SDK for Next.js with comprehensive monitoring
    */
   static init(): void {
-    if (this.isInitialized || !SENTRY_DSN) {
+    if (this.isInitialized || !SENTRY_DSN || !Sentry) {
       if (!SENTRY_DSN) {
         console.warn('Sentry DSN not configured. Quiz monitoring disabled.');
+      }
+      if (!Sentry) {
+        console.warn('Sentry packages not available. Quiz monitoring disabled.');
       }
       return;
     }
@@ -60,7 +84,7 @@ export class QuizSentryMonitoring {
           enableWebVitals: true,
 
           // Custom transaction names for quiz flow
-          beforeNavigate: (context) => ({
+          beforeNavigate: (context: any) => ({
             ...context,
             name: this.getTransactionName(context.location.pathname),
             tags: {
@@ -166,7 +190,7 @@ export class QuizSentryMonitoring {
   /**
    * Filter events before sending to Sentry
    */
-  private static beforeSendFilter(event: Sentry.Event, hint: Sentry.EventHint): Sentry.Event | null {
+  private static beforeSendFilter(event: any, hint: any): any | null {
     // Skip development noise
     if (ENVIRONMENT === 'development') {
       const error = hint.originalException;
@@ -201,7 +225,7 @@ export class QuizSentryMonitoring {
   /**
    * Filter performance transactions before sending
    */
-  private static beforeSendTransactionFilter(event: Sentry.Event): Sentry.Event | null {
+  private static beforeSendTransactionFilter(event: any): any | null {
     // Skip very fast transactions in production
     if (ENVIRONMENT === 'production') {
       const duration = (event.timestamp || 0) - (event.start_timestamp || 0);
@@ -223,6 +247,8 @@ export class QuizSentryMonitoring {
    * Set user context for quiz tracking
    */
   static setUserContext(user: UserContext): void {
+    if (!this.isSentryAvailable()) return;
+
     Sentry.setUser({
       id: user.id,
       email: user.email,
@@ -479,7 +505,8 @@ export class QuizSentryMonitoring {
   /**
    * Start a custom transaction for quiz operations
    */
-  static startTransaction(name: string, op: string = 'quiz'): Sentry.Transaction {
+  static startTransaction(name: string, op: string = 'quiz'): any {
+    if (!this.isSentryAvailable()) return null;
     return Sentry.startTransaction({
       name,
       op,
@@ -494,6 +521,11 @@ export class QuizSentryMonitoring {
    * Capture custom exception with quiz context
    */
   static captureException(error: Error, context?: Record<string, any>): string {
+    if (!this.isSentryAvailable()) {
+      console.error('Quiz Error:', error, context);
+      return '';
+    }
+
     return Sentry.captureException(error, {
       extra: {
         quiz_context: this.currentQuizContext,
@@ -537,12 +569,10 @@ export class QuizSentryMonitoring {
   }
 }
 
-// Export Sentry components for Next.js integration
-export const {
-  captureException,
-  captureMessage,
-  withSentryConfig,
-} = Sentry;
+// Export Sentry components for Next.js integration (with fallbacks)
+export const captureException = Sentry?.captureException || ((error: Error) => { console.error(error); return ''; });
+export const captureMessage = Sentry?.captureMessage || ((message: string) => { console.log(message); return ''; });
+export const withSentryConfig = Sentry?.withSentryConfig || ((config: any) => config);
 
 // Initialize Sentry when module is imported (client-side only)
 if (typeof window !== 'undefined') {

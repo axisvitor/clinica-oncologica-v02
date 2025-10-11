@@ -39,8 +39,13 @@ export class CSRFTokenManager {
       }
 
       const data = await response.json()
+      
+      if (!data.csrfToken || typeof data.csrfToken !== 'string') {
+        throw new Error('CSRF token not received from server')
+      }
+      
       this.csrfToken = data.csrfToken
-      return this.csrfToken
+      return data.csrfToken
     } catch (error) {
       console.error('Error fetching CSRF token:', error)
       throw new Error('Unable to initialize secure connection')

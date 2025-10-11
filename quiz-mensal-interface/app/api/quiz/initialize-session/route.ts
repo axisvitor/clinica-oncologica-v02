@@ -8,6 +8,9 @@ import { validateCSRF } from '@/lib/csrf'
 import { storeSession } from '@/lib/quiz-session'
 import { quizAPI } from '@/lib/api'
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic'
+
 /**
  * Initialize secure session with quiz token
  */
