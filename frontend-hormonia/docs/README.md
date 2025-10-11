@@ -6,6 +6,8 @@
 
 ### 🏗️ Arquitetura
 - [Sistema de Tipos](architecture/TYPE_SYSTEM.md)
+- [Otimização de Performance](architecture/PERFORMANCE_OPTIMIZATION.md)
+- [Correções TypeScript](architecture/TYPESCRIPT_INITIALIZATION_FIXES.md)
 
 ### 🔐 Autenticação
 - [Uso do MedicoAuthContext](auth/MedicoAuthContext-Usage.md)
@@ -13,14 +15,18 @@
 ### 🧩 Componentes
 - [Guia de Componentes](components/COMPONENTS_GUIDE.md)
 
+### 📊 Charts & Visualizações
+- [Recharts - Referência Rápida](RECHARTS_QUICK_REFERENCE.md)
+
+### 📋 Queries & Cache
+- [Migração Query Keys](QUERY_KEYS_MIGRATION_GUIDE.md)
+
 ### 🚀 Deployment
 - [Guia de Deployment](deployment/DEPLOYMENT_GUIDE.md)
 
 ### 🧪 Testes
 - [Guia de Testes](testing/TESTING_GUIDE.md)
 
-### 📋 Relatórios Arquivados
-- [Relatórios de Incidentes](incidents/_archive/)
 
 ## 📁 Estrutura do Frontend
 
@@ -90,10 +96,22 @@ npm run test:coverage
 - [← Voltar para Raiz](../../README.md)
 - [Quiz Interface →](../../quiz-mensal-interface/docs/README.md)
 
+## 📈 Performance & Otimização
+
+O frontend implementa otimizações abrangentes para melhor performance:
+
+- **Lazy Loading:** Todas as rotas com React.lazy()
+- **Code Splitting:** Chunks automáticos via Vite
+- **Cache Persistente:** IndexedDB com React Query
+- **Componente Optimization:** React.memo em componentes críticos
+- **Bundle Reduction:** 50% redução no bundle inicial
+
+Ver [Guia de Performance](architecture/PERFORMANCE_OPTIMIZATION.md) para detalhes completos.
+
 ## Convenções
 
 - **Canônicos**: Documentos de referência atuais e mantidos
-- **Arquivados**: Relatórios históricos em `incidents/_archive/`
+- **Arquitetura**: Documentos técnicos em `architecture/`
 - **Língua**: PT-BR (padrão do projeto)
 
 ---
