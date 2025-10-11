@@ -87,13 +87,13 @@ def upgrade() -> None:
         ondelete='SET NULL'
     )
 
-    # Create partial index for recent unauthorized attempts (performance optimization)
-    op.execute("""
-        CREATE INDEX idx_security_audit_recent_unauthorized
-        ON security_audit_log (phone_number, created_at)
-        WHERE event_type = 'unauthorized_whatsapp_access'
-          AND created_at > (CURRENT_TIMESTAMP - INTERVAL '24 hours')
-    """)
+    # Create partial index for unauthorized attempts (performance optimization)
+    op.create_index(
+        'idx_security_audit_unauthorized_access',
+        'security_audit_log',
+        ['phone_number', 'created_at'],
+        postgresql_where=sa.text("event_type = 'unauthorized_whatsapp_access'")
+    )
 
     # Create GIN index for JSON searching in metadata fields
     op.create_index(
