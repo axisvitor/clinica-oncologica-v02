@@ -111,7 +111,7 @@ END $$;
 
 DO $$
 DECLARE
-    table_name TEXT;
+    tbl_name TEXT;
     tables_to_fix TEXT[] := ARRAY[
         'patients', 'messages', 'quiz_sessions', 'quiz_responses',
         'medical_reports', 'audit_logs', 'appointments', 'medications',
@@ -120,12 +120,12 @@ DECLARE
         'webhook_events', 'whatsapp_delivery_failures', 'security_audit_log'
     ];
 BEGIN
-    FOREACH table_name IN ARRAY tables_to_fix
+    FOREACH tbl_name IN ARRAY tables_to_fix
     LOOP
         -- Check if table exists
         IF EXISTS (
             SELECT 1 FROM information_schema.tables 
-            WHERE table_schema = 'public' AND table_name = table_name
+            WHERE table_schema = 'public' AND table_name = tbl_name
         ) THEN
             -- Drop any existing policies
             EXECUTE format('
@@ -141,14 +141,14 @@ BEGIN
                                      pol_record.policyname, %L);
                     END LOOP;
                 END $policy$;
-            ', table_name, table_name);
+            ', tbl_name, tbl_name);
             
             -- Disable RLS
-            EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', table_name);
+            EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', tbl_name);
             
-            RAISE NOTICE '✅ Fixed RLS for table: %', table_name;
+            RAISE NOTICE '✅ Fixed RLS for table: %', tbl_name;
         ELSE
-            RAISE NOTICE '⚠️ Table % does not exist, skipping', table_name;
+            RAISE NOTICE '⚠️ Table % does not exist, skipping', tbl_name;
         END IF;
     END LOOP;
 END $$;
@@ -181,16 +181,16 @@ DECLARE
     expected_tables TEXT[] := ARRAY[
         'users', 'patients', 'messages', 'security_audit_log'
     ];
-    table_name TEXT;
+    tbl_name TEXT;
     missing_tables TEXT[] := ARRAY[]::TEXT[];
 BEGIN
-    FOREACH table_name IN ARRAY expected_tables
+    FOREACH tbl_name IN ARRAY expected_tables
     LOOP
         IF NOT EXISTS (
             SELECT 1 FROM information_schema.tables
-            WHERE table_schema = 'public' AND table_name = table_name
+            WHERE table_schema = 'public' AND table_name = tbl_name
         ) THEN
-            missing_tables := array_append(missing_tables, table_name);
+            missing_tables := array_append(missing_tables, tbl_name);
         END IF;
     END LOOP;
 
