@@ -101,7 +101,7 @@
     "build": "tsc && vite build",
     "build:prod": "vite build --mode production",
     "build:railway": "npm ci --prefer-offline && npm run build:runtime",
-    "build:runtime": "tsc && vite build --mode production && npm run post-build:runtime",
+    "build:runtime": "vite build --mode production && npm run post-build:runtime",
     "post-build:runtime": "node scripts/post-build-config.js",
     "start": "npm run preview",
     "preview": "vite preview --host 0.0.0.0 --port $PORT",

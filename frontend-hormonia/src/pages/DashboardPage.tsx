@@ -11,7 +11,7 @@ import { MetricCard } from '../components/dashboard/MetricCard'
 import { RecentActivity } from '../components/dashboard/RecentActivity'
 import { AlertsPanel } from '../components/dashboard/AlertsPanel'
 import { EngagementChart } from '../components/dashboard/EngagementChart'
-import { QuickStats } from '../components/dashboard/QuickStats'
+import QuickStats from '../components/dashboard/QuickStats'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export function DashboardPage() {

@@ -18,14 +18,15 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
       "~backend/*": ["../Backend/*"],
       "~backend/client": ["./client.ts"]
     },
-    "types": [],
+    "types": ["react", "react-dom"],
     "skipDefaultLibCheck": true
   },
   "include": [

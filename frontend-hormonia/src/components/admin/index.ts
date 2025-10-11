@@ -19,7 +19,7 @@ export { AuditLogViewer } from './AuditLogViewer'
 export { PermissionGuard, withPermissionGuard, usePermissionGuard, PermissionLevel } from './PermissionGuard'
 
 // Existing components
-export { AdminDashboard } from './AdminDashboard'
+export { default as AdminDashboard } from './AdminDashboard'
 export { AdminLoginForm } from './AdminLoginForm'
 export { AdminNavigationMenu } from './AdminNavigationMenu'
 export { AdminSessionManager } from './AdminSessionManager'

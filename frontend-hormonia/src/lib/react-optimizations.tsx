@@ -4,7 +4,8 @@
  * Provides utilities for React 19 features and Railway deployment optimization
  */
 
-import { useCallback, useMemo, useRef, useEffect } from 'react'
+import React, { useCallback, useMemo, useRef, useEffect } from 'react'
+import ReactDOM from 'react-dom'
 import { environment, REACT_19_FLAGS } from './environment'
 
 // React 19 transition utilities
@@ -295,12 +296,27 @@ export function initializeReact19Optimizations() {
   }
 }
 
-// Export utilities
-export {
-  useOptimizedTransition,
-  createOptimizedMemo,
-  usePerformanceMonitoring,
-  useOptimizedState,
-  createSuspenseResource,
-  withConcurrentFeatures
+// Optimized Query Client for React Query
+export function createOptimizedQueryClient() {
+  const { QueryClient } = require('@tanstack/react-query')
+  
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 5 * 60 * 1000, // 5 minutes
+        gcTime: 10 * 60 * 1000, // 10 minutes
+        retry: (failureCount, error: any) => {
+          if (error?.status === 404) return false
+          return failureCount < 3
+        },
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: 'always'
+      },
+      mutations: {
+        retry: 1
+      }
+    }
+  })
 }
+
+// All functions are already exported individually above

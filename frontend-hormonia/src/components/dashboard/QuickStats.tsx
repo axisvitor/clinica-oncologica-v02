@@ -111,7 +111,7 @@ const StatCard = memo<{
 
 StatCard.displayName = 'StatCard'
 
-export const QuickStats = memo(() => {
+const QuickStats = memo(() => {
   const { user, isLoading: authLoading } = useAuth()
 
   const { data: metrics, isLoading, error } = useQuery<DashboardMetrics>({
@@ -138,17 +138,17 @@ export const QuickStats = memo(() => {
       value: `${metrics?.response_rate || 0}%`,
       change: metrics?.response_rate_change || 0,
       icon: MessageSquare,
-      description: 'Últimos 7 dias'
+      description: 'Ultimos 7 dias'
     },
     {
       title: 'Alertas Ativos',
       value: metrics?.alerts_pending || 0,
       change: metrics?.alerts_change || 0,
       icon: AlertTriangle,
-      description: 'Requerem atenção'
+      description: 'Requerem atencao'
     },
     {
-      title: 'Questionários',
+      title: 'Questionarios',
       value: metrics?.completed_quizzes || 0,
       change: metrics?.quizzes_change || 0,
       icon: CheckCircle,
@@ -169,7 +169,7 @@ export const QuickStats = memo(() => {
           <CardContent className="pt-6">
             <div className="flex items-center justify-center text-red-600">
               <AlertTriangle className="h-5 w-5 mr-2" />
-              <span>Erro ao carregar métricas do dashboard</span>
+              <span>Erro ao carregar metricas do dashboard</span>
             </div>
           </CardContent>
         </Card>
@@ -191,9 +191,8 @@ export const QuickStats = memo(() => {
       ))}
     </div>
   )
-}
+})
 
-// Export memoized version for better performance
-QuickStats.displayName = 'QuickStats'
+QuickStats.displayName = 'QuickStats';
 
-export default QuickStats
+export default QuickStats;

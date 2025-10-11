@@ -113,11 +113,11 @@ const securityTrendData = [
 
 const COLORS = ['#10B981', '#F59E0B', '#EF4444', '#3B82F6']
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ children }) => {
+const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ children }) => {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth()
   const location = useLocation()
 
-  // ✅ FIXED: Use live API instead of mock data
+  // FIXED: Use live API instead of mock data
   const { stats: dashboardStats, isLoading: statsLoading } = useSystemStats({
     realTimeUpdates: true,
     refreshInterval: 30000
@@ -166,7 +166,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ children })
   }, [])
 
   // Show only dashboard overview if we're at the root admin path
-  const showDashboardOverview = useMemo(() =>
+  const showDashboardOverview = useMemo(() => 
     location.pathname === '/admin' || location.pathname === '/admin/',
     [location.pathname]
   )
@@ -502,8 +502,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ children })
       </main>
     </div>
   )
-}
+})
 
-AdminDashboard.displayName = 'AdminDashboard'
+AdminDashboard.displayName = 'AdminDashboard';
 
-export default AdminDashboard
+export default AdminDashboard;

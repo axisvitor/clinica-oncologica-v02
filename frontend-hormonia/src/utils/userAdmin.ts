@@ -58,20 +58,20 @@ export function formatUserActivity(action: string): string {
     'failed_login': 'Tentativa de login falhada',
     'password_change': 'Alterou a senha',
     'password_reset': 'Redefiniu a senha',
-    'permission_change': 'Permissões foram alteradas',
-    'role_change': 'Função foi alterada',
-    'create_user': 'Criou um novo usuário',
-    'update_user': 'Atualizou informações de usuário',
-    'delete_user': 'Excluiu um usuário',
+    'permission_change': 'Permissoes foram alteradas',
+    'role_change': 'Funcao foi alterada',
+    'create_user': 'Criou um novo usuario',
+    'update_user': 'Atualizou informacoes de usuario',
+    'delete_user': 'Excluiu um usuario',
     'view_patient': 'Acessou dados de paciente',
     'create_patient': 'Criou um novo paciente',
-    'update_patient': 'Atualizou informações de paciente',
+    'update_patient': 'Atualizou informacoes de paciente',
     'delete_patient': 'Excluiu um paciente',
-    'settings_change': 'Modificou configurações do sistema',
-    'report_generated': 'Gerou um relatório',
+    'settings_change': 'Modificou configuracoes do sistema',
+    'report_generated': 'Gerou um relatorio',
     'export_data': 'Exportou dados',
     'audit_access': 'Acessou logs de auditoria',
-    'security_event': 'Evento de segurança registrado'
+    'security_event': 'Evento de seguranca registrado'
   }
 
   return activityMap[action.toLowerCase()] || action.replace('_', ' ')
@@ -120,15 +120,15 @@ export function validatePassword(password: string): {
   }
 
   if (!/[a-z]/.test(password)) {
-    errors.push('Senha deve conter pelo menos uma letra minúscula')
+    errors.push('Senha deve conter pelo menos uma letra minuscula')
   }
 
   if (!/[A-Z]/.test(password)) {
-    errors.push('Senha deve conter pelo menos uma letra maiúscula')
+    errors.push('Senha deve conter pelo menos uma letra maiuscula')
   }
 
   if (!/\d/.test(password)) {
-    errors.push('Senha deve conter pelo menos um número')
+    errors.push('Senha deve conter pelo menos um numero')
   }
 
   if (!/[^A-Za-z\d]/.test(password)) {
@@ -168,12 +168,12 @@ export function formatPermissionName(permission: string): string {
     const action = parts[2] || 'access'
 
     const resourceNames: Record<string, string> = {
-      users: 'Usuários',
+      users: 'Usuarios',
       patients: 'Pacientes',
       flows: 'Fluxos',
-      settings: 'Configurações',
+      settings: 'Configuracoes',
       analytics: 'Analytics',
-      reports: 'Relatórios',
+      reports: 'Relatorios',
       audit: 'Auditoria'
     }
 
@@ -266,13 +266,13 @@ export function exportUsersToCSV(users: AdminUser[]): string {
     'ID',
     'Nome Completo',
     'Email',
-    'Função',
+    'Funcao',
     'Status',
     '2FA Ativo',
     'Tentativas de Login Falhadas',
-    'Último Login',
-    'Data de Criação',
-    'Permissões'
+    'Ultimo Login',
+    'Data de Criacao',
+    'Permissoes'
   ]
 
   const rows = users.map(user => [
@@ -281,7 +281,7 @@ export function exportUsersToCSV(users: AdminUser[]): string {
     user['email'],
     getRoleLabel(user['role']),
     getStatusDisplayName(user),
-    user.two_factor_enabled ? 'Sim' : 'Não',
+    user.two_factor_enabled ? 'Sim' : 'Nao',
     user.failed_login_attempts.toString(),
     user.last_login ? new Date(user.last_login).toLocaleString('pt-BR') : 'Nunca',
     new Date(user.created_at).toLocaleString('pt-BR'),
