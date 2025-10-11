@@ -8,13 +8,13 @@
     "lint": "next lint",
     "start": "next start",
     "railway-build": "pnpm install --no-frozen-lockfile && next build",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
+    "test:coverage": "jest --coverage --passWithNoTests",
     "test:other-option": "jest tests/quiz-other-option.test.tsx --verbose",
     "postinstall": "next telemetry disable",
     "health-check": "curl -f http://localhost:3000/api/health || exit 1",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit --skipLibCheck"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

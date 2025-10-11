@@ -55,6 +55,15 @@ export interface QuizSubmitRequest {
   response_metadata?: Record<string, any>
 }
 
+// Backend compatibility - matches MonthlyQuizSubmitResponse schema
+export interface QuizSubmitRequestBackend {
+  token: string
+  question_id: string
+  response_value: any  // Backend accepts Any type
+  other_text?: string
+  response_metadata?: Record<string, any>
+}
+
 export interface QuizSubmitResponse {
   success: boolean
   response_id?: string

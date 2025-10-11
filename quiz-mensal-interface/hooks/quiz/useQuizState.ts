@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react"
 import type { QuizSession, SingleAnswer, MultipleAnswer } from "@/types/quiz"
-import { secureCookieAuth } from "@/lib/auth-utils"
+import { quizAPI } from "@/lib/api"
+import { useSecureToken } from "@/lib/secure-token-manager"
 
 interface UseQuizStateProps {
   session: QuizSession
+  initialToken?: string
   onComplete?: () => void
 }
 
-export function useQuizState({ session, onComplete }: UseQuizStateProps) {
+export function useQuizState({ session, initialToken, onComplete }: UseQuizStateProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(session.current_question_index)
   const [selectedAnswer, setSelectedAnswer] = useState<SingleAnswer | MultipleAnswer | null>(null)
   const [answers, setAnswers] = useState<Map<string, SingleAnswer | MultipleAnswer>>(new Map())
@@ -15,7 +17,11 @@ export function useQuizState({ session, onComplete }: UseQuizStateProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isCompleted, setIsCompleted] = useState(false)
 
-  // No token management needed - handled by secure cookies
+  // Use secure token management
+  const { hasToken, isExpired, getToken, updateToken, clearToken } = useSecureToken(
+    initialToken || session.new_token,
+    session.expires_at
+  )
 
   const currentQuestion = session.questions[currentQuestionIndex]
   const totalQuestions = session.total_questions
@@ -33,17 +39,35 @@ export function useQuizState({ session, onComplete }: UseQuizStateProps) {
     responseValue: string | string[],
     metadata?: Record<string, any>
   ) => {
+    const currentToken = getToken()
+    
+    if (!currentToken) {
+      throw new Error("No valid token available for submission")
+    }
+
+    if (isExpired) {
+      throw new Error("Token has expired. Please refresh the page.")
+    }
+
     setIsSubmitting(true)
     try {
-      const response = await secureCookieAuth.submitAnswer(
+      const response = await quizAPI.submitAnswer(
+        currentToken,
         questionId,
         responseValue,
         metadata
       )
 
+      // Handle token rotation securely
+      if (response.new_token) {
+        updateToken(response.new_token, session.expires_at)
+      }
+
       // Handle completion
       if (response.is_last_question) {
         setIsCompleted(true)
+        // Clear token on completion for security
+        clearToken()
         onComplete?.()
       } else {
         setCurrentQuestionIndex(prev => prev + 1)
@@ -70,12 +94,16 @@ export function useQuizState({ session, onComplete }: UseQuizStateProps) {
     totalQuestions,
     progress,
     isLastQuestion,
+    hasToken,
+    isExpired,
     setCurrentQuestionIndex,
     setSelectedAnswer,
     setAnswers,
     setOtherTexts,
     setIsSubmitting,
     setIsCompleted,
+    updateToken,
+    clearToken,
     handleSubmitAnswer,
   }
 }

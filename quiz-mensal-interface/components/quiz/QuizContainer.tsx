@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import type { QuizSession } from "@/types/quiz"
 import { QuizHeader } from "./QuizHeader"
@@ -24,18 +25,56 @@ export default function QuizContainer({
   onComplete,
   onTokenUpdate
 }: QuizContainerProps) {
-  const quizState = useQuizState({ session, token, onTokenUpdate })
+  const quizState = useQuizState({ 
+    session, 
+    initialToken: token,
+    onComplete 
+  })
   const quizAnswer = useQuizAnswer()
 
+  // Handle token updates securely
+  const handleTokenUpdate = (newToken: string) => {
+    quizState.updateToken(newToken, session.expires_at)
+    onTokenUpdate?.(newToken)
+  }
+
+  // Show error if token is expired
+  if (quizState.isExpired) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <h2 className="text-xl font-semibold text-destructive">Token Expirado</h2>
+          <p className="text-muted-foreground">
+            Sua sessão expirou. Por favor, acesse o quiz novamente através do link enviado.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show error if no valid token
+  if (!quizState.hasToken) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <h2 className="text-xl font-semibold text-destructive">Token Inválido</h2>
+          <p className="text-muted-foreground">
+            Não foi possível validar seu acesso. Por favor, use o link correto enviado para você.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   const navigation = useQuizNavigation({
-    currentToken: quizState.currentToken,
+    currentToken: token, // Use original token for navigation
     currentQuestionIndex: quizState.currentQuestionIndex,
     currentQuestionId: quizState.currentQuestion.id,
     isLastQuestion: quizState.isLastQuestion,
     selectedAnswer: quizState.selectedAnswer,
     validateAnswer: quizAnswer.validateAnswer,
     prepareAnswerPayload: quizAnswer.prepareAnswerPayload,
-    onTokenUpdate: quizState.handleTokenUpdate,
+    onTokenUpdate: handleTokenUpdate,
     onAnswerSaved: (questionId, answer) => {
       quizState.setAnswers(new Map(quizState.answers.set(questionId, answer)))
     },

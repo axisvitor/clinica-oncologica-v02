@@ -155,9 +155,15 @@ quiz-mensal-interface/
 ├── components/
 │   ├── quiz-interface.tsx  # Componente principal do quiz
 │   └── ui/                 # Componentes UI shadcn/ui
+├── docs/
+│   ├── deployment/         # Guias de deployment
+│   ├── integration/        # Documentação de integração
+│   ├── security/           # Análises de segurança
+│   └── incidents/          # Histórico de incidentes
 ├── lib/
 │   ├── api.ts              # Cliente API
-│   └── utils.ts            # Utilitários
+│   ├── utils.ts            # Utilitários
+│   └── secure-token-manager.ts # Gerenciamento seguro de tokens
 ├── types/
 │   └── quiz.ts             # Tipos TypeScript
 ├── .env.local              # Variáveis de ambiente (criar)
@@ -267,7 +273,7 @@ A interface é totalmente responsiva e otimizada para:
 
 A aplicação está configurada para deploy no Railway com suporte completo a Nixpacks.
 
-**Guia Completo:** Veja [docs/RAILWAY_DEPLOYMENT.md](docs/RAILWAY_DEPLOYMENT.md) para instruções detalhadas.
+**Guia Completo:** Veja [docs/deployment/DEPLOYMENT_GUIDE.md](docs/deployment/DEPLOYMENT_GUIDE.md) para instruções detalhadas.
 
 **Quick Start:**
 

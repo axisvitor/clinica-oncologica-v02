@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react"
 import QuizInterface from "@/components/quiz-interface"
-import { secureCookieAuth, extractTokenFromURL, isTokenExpired } from "@/lib/auth-utils"
+import { extractTokenFromURL, isTokenExpired } from "@/lib/auth-utils"
+import { quizAPI } from "@/lib/api"
 import type { QuizSession, QuizError } from "@/types/quiz"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -22,19 +23,6 @@ export default function Home() {
     setError(null)
 
     try {
-      // First check if there's already a valid session
-      const hasValidSession = await secureCookieAuth.checkSession()
-      if (hasValidSession) {
-        // Session exists, try to get session data
-        // This would require an endpoint to get current session data
-        setError({
-          detail: "Já existe uma sessão ativa. Recarregue a página se necessário.",
-          status: 200
-        })
-        setIsLoading(false)
-        return
-      }
-
       // Get token from URL and clean it immediately
       const urlToken = extractTokenFromURL()
 
@@ -47,8 +35,8 @@ export default function Home() {
         return
       }
 
-      // Initialize secure session with token
-      const session = await secureCookieAuth.initializeSession(urlToken)
+      // Access quiz directly via API (no cookies needed)
+      const session = await quizAPI.accessQuiz(urlToken)
 
       // Check if token is expired
       if (isTokenExpired(session.expires_at)) {
@@ -58,6 +46,11 @@ export default function Home() {
         })
         setIsLoading(false)
         return
+      }
+
+      // Store the initial token for the session
+      if (!session.new_token) {
+        session.new_token = urlToken
       }
 
       setQuizSession(session)
@@ -130,8 +123,6 @@ export default function Home() {
           onComplete={() => {
             // Quiz completed - could redirect or show completion message
             console.log("Quiz completed successfully!")
-            // Clear session on completion
-            secureCookieAuth.clearSession()
           }}
         />
       </main>
