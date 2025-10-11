@@ -41,7 +41,7 @@ class MonthlyQuizConfig(BaseSettings):
 
     # Base URL for quiz links
     MONTHLY_QUIZ_BASE_URL: str = Field(
-        default="http://localhost:3000/quiz/monthly",
+        default="https://quiz-interface-production.up.railway.app",
         description="Base URL for monthly quiz access links"
     )
 
