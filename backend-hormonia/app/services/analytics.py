@@ -507,9 +507,13 @@ class AnalyticsService:
         week_start = today - timedelta(days=7)
         month_start = today - timedelta(days=30)
 
-        # Get basic counts
-        total_patients = self.db.query(Patient).count()
-        active_patients = self.db.query(Patient).filter(Patient.flow_state == FlowState.ACTIVE).count()
+        # Get basic counts (avoid selecting full Patient rows)
+        total_patients = int(self.db.query(func.count(Patient.id)).scalar() or 0)
+        active_patients = int(
+            self.db.query(func.count(Patient.id))
+            .filter(Patient.flow_state == FlowState.ACTIVE)
+            .scalar() or 0
+        )
         total_doctors = self.db.query(User).count()
 
         # Get message metrics
@@ -587,10 +591,10 @@ class AnalyticsService:
 
     def _get_total_patients(self, doctor_id: Optional[UUID]) -> int:
         """Get total patient count."""
-        query = self.db.query(Patient)
+        q = self.db.query(func.count(Patient.id))
         if doctor_id:
-            query = query.filter(Patient.doctor_id == doctor_id)
-        return query.count()
+            q = q.filter(Patient.doctor_id == doctor_id)
+        return int(q.scalar() or 0)
 
     def _get_quizzes_completed_last_days(self, days: int, doctor_id: Optional[UUID]) -> int:
         """Return total quizzes completed in the last N days, optionally filtered by doctor."""
@@ -608,10 +612,10 @@ class AnalyticsService:
 
     def _get_active_patients(self, doctor_id: Optional[UUID]) -> int:
         """Get active patient count."""
-        query = self.db.query(Patient).filter(Patient.flow_state == FlowState.ACTIVE)
+        q = self.db.query(func.count(Patient.id)).filter(Patient.flow_state == FlowState.ACTIVE)
         if doctor_id:
-            query = query.filter(Patient.doctor_id == doctor_id)
-        return query.count()
+            q = q.filter(Patient.doctor_id == doctor_id)
+        return int(q.scalar() or 0)
 
     def _get_messages_today(self, doctor_id: Optional[UUID]) -> int:
         """Get messages sent today."""

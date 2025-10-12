@@ -4,7 +4,7 @@ Corresponds to the actual Supabase schema structure.
 """
 from sqlalchemy import Column, String, Date, Integer, ForeignKey, Enum
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, deferred
 import enum
 from typing import Dict, Any, Optional
 
@@ -74,7 +74,8 @@ class Patient(BaseModel):
     # Flexible metadata storage (matches Supabase column name)
     # Note: Using 'patient_data' as attribute name since 'metadata' is reserved by SQLAlchemy
     # Now only stores additional/dynamic fields not covered by dedicated columns
-    patient_data = Column('metadata', JSONB, nullable=True, default=dict)
+    # Deferred to avoid selecting this column by default (prevents UndefinedColumn if DB lacks it)
+    patient_data = deferred(Column('metadata', JSONB, nullable=True, default=dict))
 
     # Relationships
     doctor = relationship("User", back_populates="patients")
