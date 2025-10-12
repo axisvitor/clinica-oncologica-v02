@@ -25,7 +25,7 @@ class QuestionType(str, Enum):
 class ValidationRule(BaseModel):
     """Validation rule for quiz questions."""
     type: str = Field(..., description="Type of validation (required, min_length, max_length, range, etc.)")
-    value: Union[str, int, float, bool, list] = Field(..., description="Validation value")
+    value: Union[str, int, float, bool, list, dict] = Field(..., description="Validation value (can be primitive or dict for complex rules like range)")
     message: str = Field(..., description="Error message if validation fails")
 
 
