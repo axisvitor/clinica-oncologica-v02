@@ -23,22 +23,40 @@ def upgrade():
     This migration addresses the type mismatch between the SQLAlchemy model
     (which expects UUID) and the database schema (which was created as String).
     """
-    
-    # First, we need to convert existing string UUIDs to proper UUID type
-    # This is safe because all user_id values should already be valid UUIDs
-    
-    # Step 1: Add a temporary UUID column
-    op.add_column('audit_logs', sa.Column('user_id_temp', postgresql.UUID(as_uuid=True), nullable=True))
-    
-    # Step 2: First, clean up any empty string values by setting them to NULL
+    conn = op.get_bind()
+    table_exists = conn.execute(sa.text("""
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'audit_logs'
+        )
+    """)).scalar()
+    if not table_exists:
+        return
+    user_id_type = conn.execute(sa.text("""
+        SELECT data_type
+        FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='audit_logs' AND column_name='user_id'
+    """)).scalar()
+    if user_id_type is None:
+        return
+    if user_id_type == 'uuid':
+        op.execute("CREATE INDEX IF NOT EXISTS idx_audit_user_event_time ON audit_logs (user_id, event_type, created_at)")
+        return
+
+    temp_exists = conn.execute(sa.text("""
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='audit_logs' AND column_name='user_id_temp'
+        )
+    """)).scalar()
+    if not temp_exists:
+        op.add_column('audit_logs', sa.Column('user_id_temp', postgresql.UUID(as_uuid=True), nullable=True))
+
     op.execute("""
         UPDATE audit_logs 
         SET user_id = NULL 
         WHERE COALESCE(user_id::text, '') = ''
     """)
-    
-    # Step 3: Copy data from string column to UUID column, converting the format
-    # Only convert valid UUID strings, skip NULL values
     op.execute("""
         UPDATE audit_logs
         SET user_id_temp = CASE
@@ -48,16 +66,10 @@ def upgrade():
             ELSE NULL
         END
     """)
-    
-    # Step 4: Drop the old string column
-    op.drop_index('idx_audit_user_event_time', table_name='audit_logs')
+    op.execute('DROP INDEX IF EXISTS public.idx_audit_user_event_time')
     op.drop_column('audit_logs', 'user_id')
-    
-    # Step 5: Rename the temp column to user_id
     op.alter_column('audit_logs', 'user_id_temp', new_column_name='user_id')
-    
-    # Step 6: Recreate the index
-    op.create_index('idx_audit_user_event_time', 'audit_logs', ['user_id', 'event_type', 'created_at'])
+    op.execute('CREATE INDEX IF NOT EXISTS idx_audit_user_event_time ON audit_logs (user_id, event_type, created_at)')
 
 
 def downgrade():
@@ -66,23 +78,38 @@ def downgrade():
     
     This converts UUID values back to string format.
     """
-    
-    # Step 1: Add a temporary string column
-    op.add_column('audit_logs', sa.Column('user_id_temp', sa.String(255), nullable=True))
-    
-    # Step 2: Copy data from UUID column to string column
+    conn = op.get_bind()
+    table_exists = conn.execute(sa.text("""
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'audit_logs'
+        )
+    """)).scalar()
+    if not table_exists:
+        return
+    user_id_type = conn.execute(sa.text("""
+        SELECT data_type
+        FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='audit_logs' AND column_name='user_id'
+    """)).scalar()
+    if user_id_type is None or user_id_type != 'uuid':
+        return
+
+    temp_exists = conn.execute(sa.text("""
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='audit_logs' AND column_name='user_id_temp'
+        )
+    """)).scalar()
+    if not temp_exists:
+        op.add_column('audit_logs', sa.Column('user_id_temp', sa.String(255), nullable=True))
+
     op.execute("""
         UPDATE audit_logs 
         SET user_id_temp = user_id::text 
         WHERE user_id IS NOT NULL
     """)
-    
-    # Step 3: Drop the UUID column and its index
-    op.drop_index('idx_audit_user_event_time', table_name='audit_logs')
+    op.execute("DROP INDEX IF EXISTS public.idx_audit_user_event_time")
     op.drop_column('audit_logs', 'user_id')
-    
-    # Step 4: Rename the temp column to user_id
     op.alter_column('audit_logs', 'user_id_temp', new_column_name='user_id')
-    
-    # Step 5: Recreate the index
-    op.create_index('idx_audit_user_event_time', 'audit_logs', ['user_id', 'event_type', 'created_at'])
+    op.execute('CREATE INDEX IF NOT EXISTS idx_audit_user_event_time ON audit_logs (user_id, event_type, created_at)')
