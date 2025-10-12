@@ -34,15 +34,19 @@ def upgrade():
     op.execute("""
         UPDATE audit_logs 
         SET user_id = NULL 
-        WHERE user_id = ''
+        WHERE COALESCE(user_id::text, '') = ''
     """)
     
     # Step 3: Copy data from string column to UUID column, converting the format
     # Only convert valid UUID strings, skip NULL values
     op.execute("""
-        UPDATE audit_logs 
-        SET user_id_temp = user_id::uuid 
-        WHERE user_id IS NOT NULL
+        UPDATE audit_logs
+        SET user_id_temp = CASE
+            WHEN user_id IS NULL THEN NULL
+            WHEN (user_id::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
+                THEN user_id::uuid
+            ELSE NULL
+        END
     """)
     
     # Step 4: Drop the old string column
