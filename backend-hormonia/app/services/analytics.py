@@ -149,12 +149,13 @@ class AnalyticsService:
         try:
             logger.info("Generating dashboard data")
 
-            # Get quick stats
+            # Get quick stats (consolidated query for better performance)
             with self.query_monitor.monitor_query("dashboard_quick_stats"):
-                total_patients = self._get_total_patients(doctor_id)
-                active_patients = self._get_active_patients(doctor_id)
-                messages_today = self._get_messages_today(doctor_id)
-                alerts_pending = self._get_pending_alerts(doctor_id)
+                quick_stats = self._get_quick_stats_consolidated(doctor_id)
+                total_patients = quick_stats['total_patients']
+                active_patients = quick_stats['active_patients']
+                messages_today = quick_stats['messages_today']
+                alerts_pending = quick_stats['alerts_pending']
 
             # Get recent activity
             with self.query_monitor.monitor_query("dashboard_recent_activity"):
@@ -643,6 +644,63 @@ class AnalyticsService:
             query = query.join(Patient).filter(Patient.doctor_id == doctor_id)
 
         return query.count()
+
+    def _get_quick_stats_consolidated(self, doctor_id: Optional[UUID]) -> Dict[str, int]:
+        """
+        Get all quick stats in a single optimized query using CTEs.
+        This reduces database round-trips from 4 separate queries to 1.
+        """
+        from sqlalchemy import text
+        
+        today = datetime.utcnow().date()
+        
+        # Build the consolidated query with CTEs (corrected enum values and columns)
+        if doctor_id:
+            query = text("""
+                WITH stats AS (
+                    SELECT 
+                        COUNT(DISTINCT p.id) as total_patients,
+                        COUNT(DISTINCT CASE WHEN p.flow_state = 'active' THEN p.id END) as active_patients,
+                        COUNT(DISTINCT CASE WHEN m.created_at >= :today THEN m.id END) as messages_today,
+                        COUNT(DISTINCT CASE WHEN a.acknowledged = false THEN a.id END) as alerts_pending
+                    FROM patients p
+                    LEFT JOIN messages m ON m.patient_id = p.id
+                    LEFT JOIN alerts a ON a.patient_id = p.id
+                    WHERE p.doctor_id = :doctor_id
+                )
+                SELECT total_patients, active_patients, messages_today, alerts_pending FROM stats
+            """)
+            result = self.db.execute(query, {"doctor_id": str(doctor_id), "today": today}).fetchone()
+        else:
+            query = text("""
+                WITH stats AS (
+                    SELECT 
+                        COUNT(DISTINCT p.id) as total_patients,
+                        COUNT(DISTINCT CASE WHEN p.flow_state = 'active' THEN p.id END) as active_patients,
+                        COUNT(DISTINCT CASE WHEN m.created_at >= :today THEN m.id END) as messages_today,
+                        COUNT(DISTINCT CASE WHEN a.acknowledged = false THEN a.id END) as alerts_pending
+                    FROM patients p
+                    LEFT JOIN messages m ON m.patient_id = p.id
+                    LEFT JOIN alerts a ON a.patient_id = p.id
+                )
+                SELECT total_patients, active_patients, messages_today, alerts_pending FROM stats
+            """)
+            result = self.db.execute(query, {"today": today}).fetchone()
+        
+        if result:
+            return {
+                'total_patients': int(result.total_patients or 0),
+                'active_patients': int(result.active_patients or 0),
+                'messages_today': int(result.messages_today or 0),
+                'alerts_pending': int(result.alerts_pending or 0)
+            }
+        else:
+            return {
+                'total_patients': 0,
+                'active_patients': 0,
+                'messages_today': 0,
+                'alerts_pending': 0
+            }
 
     def _get_recent_messages(self, doctor_id: Optional[UUID], limit: int = 10) -> List[Dict[str, Any]]:
         """

@@ -157,14 +157,15 @@ async def get_dashboard(
         "endpoint": "dashboard"
     }
 
-    # Try to get from cache first
+    # Try to get from cache first (optimized TTL for dashboard)
     def generate_dashboard_data():
         return analytics_service.get_dashboard_data(doctor_id)
 
     dashboard_data = cache_service.get_or_set(
         "dashboard", 
         cache_key_params, 
-        generate_dashboard_data
+        generate_dashboard_data,
+        ttl=120  # 2 minutes cache for dashboard (was default 300s)
     )
 
     logger.info(f"Dashboard data retrieved for user {current_user.id}")
