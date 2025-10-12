@@ -177,3 +177,132 @@ class DatabaseOptimizationMiddleware(BaseHTTPMiddleware):
             "connection_errors": 0
         }
         logger.info("Database optimization metrics reset")
+
+
+class QueryOptimizer:
+    """
+    Query optimization utilities for database performance enhancement.
+    """
+    
+    def __init__(self, db_engine: Optional[Engine] = None):
+        self.db_engine = db_engine
+        self.query_cache = {}
+        self.optimization_stats = {
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "optimized_queries": 0
+        }
+    
+    def optimize_query(self, query: str, params: Optional[Dict] = None) -> str:
+        """
+        Optimize a SQL query for better performance.
+        
+        Args:
+            query: SQL query string
+            params: Query parameters
+            
+        Returns:
+            Optimized query string
+        """
+        # Simple query optimization - add LIMIT if not present for SELECT queries
+        optimized_query = query.strip()
+        
+        if (optimized_query.upper().startswith('SELECT') and 
+            'LIMIT' not in optimized_query.upper() and
+            'COUNT(' not in optimized_query.upper()):
+            # Add reasonable limit to prevent runaway queries
+            optimized_query += ' LIMIT 1000'
+            self.optimization_stats["optimized_queries"] += 1
+            logger.debug(f"Added LIMIT to query: {query[:50]}...")
+        
+        return optimized_query
+    
+    def get_cached_result(self, query_key: str) -> Optional[Any]:
+        """
+        Get cached query result if available.
+        
+        Args:
+            query_key: Unique key for the query
+            
+        Returns:
+            Cached result or None
+        """
+        if query_key in self.query_cache:
+            self.optimization_stats["cache_hits"] += 1
+            return self.query_cache[query_key]
+        
+        self.optimization_stats["cache_misses"] += 1
+        return None
+    
+    def cache_result(self, query_key: str, result: Any, ttl: int = 300) -> None:
+        """
+        Cache query result for future use.
+        
+        Args:
+            query_key: Unique key for the query
+            result: Query result to cache
+            ttl: Time to live in seconds (default: 5 minutes)
+        """
+        # Simple in-memory cache (in production, use Redis)
+        self.query_cache[query_key] = {
+            "result": result,
+            "timestamp": time.time(),
+            "ttl": ttl
+        }
+        
+        # Clean expired entries
+        self._clean_expired_cache()
+    
+    def _clean_expired_cache(self) -> None:
+        """Remove expired entries from cache."""
+        current_time = time.time()
+        expired_keys = []
+        
+        for key, cached_data in self.query_cache.items():
+            if current_time - cached_data["timestamp"] > cached_data["ttl"]:
+                expired_keys.append(key)
+        
+        for key in expired_keys:
+            del self.query_cache[key]
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Get optimization statistics."""
+        return {
+            "optimization_stats": self.optimization_stats.copy(),
+            "cache_size": len(self.query_cache),
+            "cache_hit_ratio": (
+                self.optimization_stats["cache_hits"] / 
+                max(1, self.optimization_stats["cache_hits"] + self.optimization_stats["cache_misses"])
+            )
+        }
+
+
+# Global query optimizer instance
+_query_optimizer: Optional[QueryOptimizer] = None
+
+
+def get_db_optimizer() -> QueryOptimizer:
+    """
+    Get the global database query optimizer instance.
+    
+    Returns:
+        QueryOptimizer instance
+    """
+    global _query_optimizer
+    
+    if _query_optimizer is None:
+        try:
+            from app.database import engine
+            _query_optimizer = QueryOptimizer(db_engine=engine)
+        except ImportError:
+            # Fallback if database engine is not available
+            _query_optimizer = QueryOptimizer()
+            logger.warning("Database engine not available, using QueryOptimizer without engine")
+    
+    return _query_optimizer
+
+
+def reset_db_optimizer() -> None:
+    """Reset the global database optimizer (useful for testing)."""
+    global _query_optimizer
+    _query_optimizer = None
