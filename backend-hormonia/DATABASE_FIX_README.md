@@ -12,7 +12,18 @@ The patients endpoint was returning 500 errors due to:
 
 ## Usage
 
-### Option 1: Automated Python Script (Recommended)
+### Option 1: Complete Cleanup (Recommended for Migration Issues)
+```bash
+python backend-hormonia/clean_alembic_history.py
+```
+
+This script will:
+- ✅ Clean Alembic migration history (removes old migration records)
+- ✅ Add metadata column to patients table (if missing)
+- ✅ Reset circuit breaker to CLOSED state
+- ✅ Resolve "Can't locate revision" errors
+
+### Option 2: Direct Database Fix (For Schema Issues Only)
 ```bash
 python backend-hormonia/direct_database_fix.py
 ```
@@ -21,11 +32,16 @@ This script will:
 - ✅ Add metadata column to patients table (if missing)
 - ✅ Reset circuit breaker to CLOSED state
 - ✅ Test that patients queries work correctly
-- ✅ Provide detailed status reporting
 
-### Option 2: Manual SQL Execution
+### Option 3: Manual SQL Execution
 If you prefer to run SQL directly:
 
+**For complete cleanup (migration + schema):**
+```bash
+psql $DATABASE_URL -f backend-hormonia/clean_alembic_history.sql
+```
+
+**For schema fix only:**
 ```bash
 psql $DATABASE_URL -f backend-hormonia/add_metadata_column.sql
 ```
@@ -39,6 +55,7 @@ python backend-hormonia/reset_circuit_breaker.py
 
 ### Before Fix:
 ```
+❌ Container startup: FAILED (Can't locate revision '20251012_160000')
 ❌ GET /api/v1/patients → 500 Internal Server Error
 ❌ Error: column patients.metadata does not exist
 ❌ Circuit breaker: OPEN (blocking all DB operations)
@@ -46,6 +63,7 @@ python backend-hormonia/reset_circuit_breaker.py
 
 ### After Fix:
 ```
+✅ Container startup: SUCCESS (no migration errors)
 ✅ GET /api/v1/patients → 200 OK (returns patient list)
 ✅ metadata column exists in patients table
 ✅ Circuit breaker: CLOSED (allowing DB operations)
