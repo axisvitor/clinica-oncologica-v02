@@ -57,28 +57,36 @@ def apply_uuid_fix():
                 print("   1. Adding temporary UUID column...")
                 cur.execute("ALTER TABLE audit_logs ADD COLUMN user_id_temp UUID")
                 
-                # Step 2: Convert existing data
-                print("   2. Converting existing data to UUID format...")
+                # Step 2: Clean up empty string values
+                print("   2. Cleaning up empty string values...")
+                cur.execute("""
+                    UPDATE audit_logs 
+                    SET user_id = NULL 
+                    WHERE user_id = ''
+                """)
+                
+                # Step 3: Convert existing data
+                print("   3. Converting existing data to UUID format...")
                 cur.execute("""
                     UPDATE audit_logs 
                     SET user_id_temp = user_id::uuid 
-                    WHERE user_id IS NOT NULL AND user_id != ''
+                    WHERE user_id IS NOT NULL
                 """)
                 
                 affected_rows = cur.rowcount
                 print(f"      Converted {affected_rows} rows")
                 
-                # Step 3: Drop old column and index
-                print("   3. Dropping old column and index...")
+                # Step 4: Drop old column and index
+                print("   4. Dropping old column and index...")
                 cur.execute("DROP INDEX IF EXISTS idx_audit_user_event_time")
                 cur.execute("ALTER TABLE audit_logs DROP COLUMN user_id")
                 
-                # Step 4: Rename temp column
-                print("   4. Renaming temporary column...")
+                # Step 5: Rename temp column
+                print("   5. Renaming temporary column...")
                 cur.execute("ALTER TABLE audit_logs RENAME COLUMN user_id_temp TO user_id")
                 
-                # Step 5: Recreate index
-                print("   5. Recreating index...")
+                # Step 6: Recreate index
+                print("   6. Recreating index...")
                 cur.execute("CREATE INDEX idx_audit_user_event_time ON audit_logs (user_id, event_type, created_at)")
                 
                 # Verify the change

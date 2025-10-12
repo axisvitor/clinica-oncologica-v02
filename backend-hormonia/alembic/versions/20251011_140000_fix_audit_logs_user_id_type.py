@@ -30,21 +30,29 @@ def upgrade():
     # Step 1: Add a temporary UUID column
     op.add_column('audit_logs', sa.Column('user_id_temp', postgresql.UUID(as_uuid=True), nullable=True))
     
-    # Step 2: Copy data from string column to UUID column, converting the format
+    # Step 2: First, clean up any empty string values by setting them to NULL
+    op.execute("""
+        UPDATE audit_logs 
+        SET user_id = NULL 
+        WHERE user_id = ''
+    """)
+    
+    # Step 3: Copy data from string column to UUID column, converting the format
+    # Only convert valid UUID strings, skip NULL values
     op.execute("""
         UPDATE audit_logs 
         SET user_id_temp = user_id::uuid 
-        WHERE user_id IS NOT NULL AND user_id != ''
+        WHERE user_id IS NOT NULL
     """)
     
-    # Step 3: Drop the old string column
+    # Step 4: Drop the old string column
     op.drop_index('idx_audit_user_event_time', table_name='audit_logs')
     op.drop_column('audit_logs', 'user_id')
     
-    # Step 4: Rename the temp column to user_id
+    # Step 5: Rename the temp column to user_id
     op.alter_column('audit_logs', 'user_id_temp', new_column_name='user_id')
     
-    # Step 5: Recreate the index
+    # Step 6: Recreate the index
     op.create_index('idx_audit_user_event_time', 'audit_logs', ['user_id', 'event_type', 'created_at'])
 
 
