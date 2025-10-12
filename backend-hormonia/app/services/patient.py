@@ -234,7 +234,6 @@ class PatientService:
         """Get all patients for a doctor"""
         return self.repository.get_by_doctor(doctor_id, skip, limit)
     
-    @cache(ttl=300, key_prefix="patient_list")
     @with_db_retry(max_retries=3)
     def list_patients(
         self,

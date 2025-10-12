@@ -97,7 +97,9 @@ async def list_patients(
     try:
         # Get RLS-aware database session
         from app.core.database import get_db
-        async for db in get_db(jwt_token=jwt_token, user_id=user_context.get('user_id')):
+        db_generator = get_db(jwt_token=jwt_token, user_id=user_context.get('user_id'))
+        db = next(db_generator)
+        try:
             patient_service_with_rls = PatientService(db)
             patients, total = patient_service_with_rls.list_patients(
                 doctor_id=current_user.id,
@@ -109,14 +111,15 @@ async def list_patients(
                 start_date_from=start_date_from,
                 start_date_to=start_date_to,
             )
-            break
+        finally:
+            db.close()
     except RLSError as e:
         logger.error(f"RLS error in list_patients: {e}")
         raise rls_middleware.handle_rls_error(e, user_context)
     except Exception as e:
         logger.error(f"Error listing patients: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail="Failed to retrieve patients"
         )
 
@@ -148,31 +151,35 @@ async def pause_patient(
     try:
         # Get RLS-aware database session
         from app.core.database import get_db
-        async for db in get_db(jwt_token=jwt_token, user_id=user_context.get('user_id')):
+        db_generator = get_db(jwt_token=jwt_token, user_id=user_context.get('user_id'))
+        db = next(db_generator)
+        try:
             patient_service_with_rls = PatientService(db)
 
             patient = patient_service_with_rls.get_patient(patient_id)
             if not patient:
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
+                    status_code=404,
                     detail="Patient not found"
                 )
 
             # Check if current user is the patient's doctor
             if patient.doctor_id != current_user.id:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
+                    status_code=403,
                     detail="Not authorized to pause this patient"
                 )
 
             paused_patient = await patient_service_with_rls.pause_patient(patient_id)
             if not paused_patient:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
+                    status_code=400,
                     detail="Failed to pause patient"
                 )
 
             return PatientResponse.from_orm(paused_patient)
+        finally:
+            db.close()
 
     except RLSError as e:
         logger.error(f"RLS error in pause_patient: {e}")
@@ -182,7 +189,7 @@ async def pause_patient(
     except Exception as e:
         logger.error(f"Error pausing patient: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail="Failed to pause patient"
         )
 
@@ -200,7 +207,9 @@ async def get_patient_timeline(
     try:
         # Get RLS-aware database session
         from app.core.database import get_db
-        async for db in get_db(jwt_token=jwt_token, user_id=user_context.get('user_id')):
+        db_generator = get_db(jwt_token=jwt_token, user_id=user_context.get('user_id'))
+        db = next(db_generator)
+        try:
             patient_service_with_rls = PatientService(db)
 
             # Try to get from cache first
@@ -211,7 +220,7 @@ async def get_patient_timeline(
                 patient = patient_service_with_rls.get_patient(patient_id)
                 if not patient:
                     raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
+                        status_code=404,
                         detail="Patient not found"
                     )
                 # Cache patient data for future requests
@@ -221,10 +230,11 @@ async def get_patient_timeline(
             patient_dict = patient if isinstance(patient, dict) else patient.__dict__
             if patient_dict.get("doctor_id") != current_user.id:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
+                    status_code=403,
                     detail="Not authorized to access this patient's timeline"
                 )
-            break
+        finally:
+            db.close()
 
     except RLSError as e:
         logger.error(f"RLS error in get_patient_timeline: {e}")
@@ -234,7 +244,7 @@ async def get_patient_timeline(
     except Exception as e:
         logger.error(f"Error getting patient timeline: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail="Failed to retrieve patient timeline"
         )
 
@@ -267,14 +277,14 @@ async def get_patient(
     patient = patient_service.get_patient(patient_id)
     if not patient:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=404,
             detail="Patient not found"
         )
 
     # Check if current user is the patient's doctor
     if patient.doctor_id != current_user.id:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=403,
             detail="Not authorized to access this patient"
         )
 
@@ -284,7 +294,7 @@ async def get_patient(
 @router.post(
     "",
     response_model=PatientResponse,
-    status_code=status.HTTP_201_CREATED,
+    status_code=201,
     summary="Create Patient",
     description="Create a new patient"
 )
@@ -303,7 +313,7 @@ async def create_patient(
         return PatientResponse.from_orm(patient)
     except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=400,
             detail=str(e)
         )
 
@@ -324,14 +334,14 @@ async def update_patient(
     patient = patient_service.get_patient(patient_id)
     if not patient:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=404,
             detail="Patient not found"
         )
 
     # Check if current user is the patient's doctor
     if patient.doctor_id != current_user.id:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=403,
             detail="Not authorized to update this patient"
         )
 
@@ -347,14 +357,14 @@ async def update_patient(
         return PatientResponse.from_orm(updated_patient)
     except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=400,
             detail=str(e)
         )
 
 
 @router.delete(
     "/{patient_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=204,
     summary="Delete Patient",
     description="Delete a patient (soft delete)"
 )
@@ -367,14 +377,14 @@ async def delete_patient(
     patient = patient_service.get_patient(patient_id)
     if not patient:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=404,
             detail="Patient not found"
         )
 
     # Check if current user is the patient's doctor
     if patient.doctor_id != current_user.id:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=403,
             detail="Not authorized to delete this patient"
         )
 
@@ -399,14 +409,14 @@ async def activate_patient(
     patient = patient_service.get_patient(patient_id)
     if not patient:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=404,
             detail="Patient not found"
         )
 
     # Check if current user is the patient's doctor
     if patient.doctor_id != current_user.id:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=403,
             detail="Not authorized to activate this patient"
         )
 
@@ -419,7 +429,7 @@ async def activate_patient(
         return PatientResponse.from_orm(updated_patient)
     except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=400,
             detail=str(e)
         )
 
@@ -439,14 +449,14 @@ async def deactivate_patient(
     patient = patient_service.get_patient(patient_id)
     if not patient:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=404,
             detail="Patient not found"
         )
 
     # Check if current user is the patient's doctor
     if patient.doctor_id != current_user.id:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=403,
             detail="Not authorized to deactivate this patient"
         )
 
@@ -459,12 +469,12 @@ async def deactivate_patient(
         return PatientResponse.from_orm(updated_patient)
     except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=400,
             detail=str(e)
         )
 
 
-@router.post("/cache/invalidate/{patient_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/cache/invalidate/{patient_id}", status_code=204)
 async def invalidate_patient_cache_endpoint(
     patient_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -478,7 +488,7 @@ async def invalidate_patient_cache_endpoint(
     # Check if user has admin role
     if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=403,
             detail="Only administrators can invalidate cache"
         )
 
@@ -497,7 +507,7 @@ async def invalidate_patient_cache_endpoint(
     return None
 
 
-@router.post("/cache/invalidate-all", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/cache/invalidate-all", status_code=204)
 async def invalidate_all_patient_caches(
     current_user: User = Depends(get_current_user),
 ):
@@ -510,7 +520,7 @@ async def invalidate_all_patient_caches(
     # Check if user has admin role
     if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=403,
             detail="Only administrators can invalidate cache"
         )
 

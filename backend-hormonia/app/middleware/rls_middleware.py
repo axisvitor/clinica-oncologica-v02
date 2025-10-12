@@ -177,7 +177,7 @@ class RLSJWTMiddleware:
         """
         if isinstance(error, RLSAccessDeniedError):
             return HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=403,
                 detail={
                     "error": "Access denied by Row Level Security policy",
                     "message": "You don't have permission to access this resource",
@@ -186,7 +186,7 @@ class RLSJWTMiddleware:
             )
         elif isinstance(error, RLSContextError):
             return HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=400,
                 detail={
                     "error": "Invalid RLS context",
                     "message": "Authentication context is required for this operation",
@@ -195,7 +195,7 @@ class RLSJWTMiddleware:
             )
         elif isinstance(error, RLSError):
             return HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=500,
                 detail={
                     "error": "RLS operation failed",
                     "message": "Row Level Security operation encountered an error",
@@ -205,7 +205,7 @@ class RLSJWTMiddleware:
         else:
             # Generic database error
             return HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=500,
                 detail={
                     "error": "Database operation failed",
                     "message": "An error occurred while accessing the database",
@@ -264,7 +264,7 @@ async def require_authentication(request: Request) -> Dict[str, Any]:
 
     if not user_context:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=401,
             detail={
                 "error": "Authentication required",
                 "message": "Valid JWT token is required for this operation"
@@ -273,7 +273,7 @@ async def require_authentication(request: Request) -> Dict[str, Any]:
 
     if not rls_middleware.check_rls_permissions(user_context):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=403,
             detail={
                 "error": "Insufficient permissions",
                 "message": "You don't have permission to access this resource",

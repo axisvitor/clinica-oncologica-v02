@@ -56,7 +56,7 @@ from app.database import get_db as get_thread_safe_db
 # Thread-safe service provider implementation
 # Moved from app/dependencies.py to avoid package/module shadowing conflict
 from typing import Generator
-from fastapi import HTTPException, status
+from fastapi import HTTPException
 import logging
 
 logger = logging.getLogger(__name__)
@@ -85,7 +85,7 @@ def get_thread_safe_service_provider() -> Generator:
         except RuntimeError as factory_error:
             logger.error(f"Request factory not initialized: {factory_error}")
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=500,
                 detail="Session management system not initialized"
             ) from factory_error
 
@@ -102,7 +102,7 @@ def get_thread_safe_service_provider() -> Generator:
             except RuntimeError as validation_error:
                 logger.error(f"ServiceProvider session validation failed: {validation_error}")
                 raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    status_code=500,
                     detail="Database session validation failed - check database connectivity"
                 ) from validation_error
 
@@ -116,13 +116,13 @@ def get_thread_safe_service_provider() -> Generator:
     except ImportError as import_error:
         logger.error(f"Import error in service provider creation: {import_error}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail="Service provider dependencies not available"
         ) from import_error
     except ConnectionError as conn_error:
         logger.error(f"Database connection error in service provider: {conn_error}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail="Database connection failed"
         ) from conn_error
     except Exception as e:
@@ -136,7 +136,7 @@ def get_thread_safe_service_provider() -> Generator:
                 logger.error(f"Could not get provider state: {state_error}")
 
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail=f"Service provider initialization failed: {type(e).__name__}"
         ) from e
 
