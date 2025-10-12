@@ -85,6 +85,9 @@ async def _startup(app: FastAPI) -> object:
     # Initialize AI services
     await _initialize_ai_services(app, logger)
 
+    # Initialize enum validation middleware
+    await _initialize_enum_validation(app, logger)
+
     logger.info("Hormonia Backend System startup completed successfully")
     return logger
 
@@ -315,6 +318,19 @@ async def _initialize_ai_services(app: FastAPI, logger) -> None:
     except Exception as e:
         logger.error(f"Failed to initialize AI services: {e}")
         logger.info("Continuing without AI humanization features")
+
+
+async def _initialize_enum_validation(app: FastAPI, logger) -> None:
+    """Initialize enum validation middleware."""
+    try:
+        from app.middleware.enum_validation import setup_enum_validation
+
+        setup_enum_validation()
+        logger.info("✓ Enum validation middleware initialized")
+
+    except Exception as e:
+        logger.error(f"Failed to initialize enum validation: {e}")
+        logger.warning("Continuing without enum validation - database enum errors may occur")
 
 
 async def _cleanup_session_manager(app: FastAPI, logger) -> None:

@@ -22,6 +22,7 @@ from app.repositories.message import MessageRepository
 from app.repositories.quiz import QuizResponseRepository
 from app.repositories.alert import AlertRepository
 from app.utils.db_retry import with_db_retry
+from app.services.query_performance_monitor import QueryPerformanceMonitor, query_performance_decorator
 from app.schemas.report import (
     AnalyticsRequest,
     AnalyticsResponse,
@@ -69,6 +70,7 @@ class AnalyticsService:
         self.message_repo = MessageRepository(db)
         self.quiz_repo = QuizResponseRepository(db)
         self.alert_repo = AlertRepository(db)
+        self.query_monitor = QueryPerformanceMonitor(db)
 
         logger.info("Analytics service initialized")
 
@@ -89,34 +91,37 @@ class AnalyticsService:
             # Get patient analytics
             patient_analytics = []
             if request.patient_ids:
-                for patient_id in request.patient_ids:
-                    analytics = self._get_patient_analytics(
-                        patient_id,
-                        request.start_date,
-                        request.end_date,
-                        request.metrics
-                    )
-                    if analytics:
-                        patient_analytics.append(analytics)
+                with self.query_monitor.monitor_query("analytics_patient_specific"):
+                    for patient_id in request.patient_ids:
+                        analytics = self._get_patient_analytics(
+                            patient_id,
+                            request.start_date,
+                            request.end_date,
+                            request.metrics
+                        )
+                        if analytics:
+                            patient_analytics.append(analytics)
             else:
                 # Get analytics for all patients (filtered by doctor if specified)
                 # OPTIMIZATION: Use eager loading to prevent N+1 queries
-                patients = self._get_filtered_patients_with_relations(request.doctor_id)
-                for patient in patients:
-                    analytics = self._get_patient_analytics(
-                        patient.id,
-                        request.start_date,
-                        request.end_date,
-                        request.metrics
-                    )
-                    if analytics:
-                        patient_analytics.append(analytics)
+                with self.query_monitor.monitor_query("analytics_all_patients"):
+                    patients = self._get_filtered_patients_with_relations(request.doctor_id)
+                    for patient in patients:
+                        analytics = self._get_patient_analytics(
+                            patient.id,
+                            request.start_date,
+                            request.end_date,
+                            request.metrics
+                        )
+                        if analytics:
+                            patient_analytics.append(analytics)
 
             # Get system analytics
-            system_analytics = self._get_system_analytics(
-                request.start_date,
-                request.end_date
-            )
+            with self.query_monitor.monitor_query("analytics_system_metrics"):
+                system_analytics = self._get_system_analytics(
+                    request.start_date,
+                    request.end_date
+                )
 
             response = AnalyticsResponse(
                 patient_analytics=patient_analytics,
@@ -145,20 +150,23 @@ class AnalyticsService:
             logger.info("Generating dashboard data")
 
             # Get quick stats
-            total_patients = self._get_total_patients(doctor_id)
-            active_patients = self._get_active_patients(doctor_id)
-            messages_today = self._get_messages_today(doctor_id)
-            alerts_pending = self._get_pending_alerts(doctor_id)
+            with self.query_monitor.monitor_query("dashboard_quick_stats"):
+                total_patients = self._get_total_patients(doctor_id)
+                active_patients = self._get_active_patients(doctor_id)
+                messages_today = self._get_messages_today(doctor_id)
+                alerts_pending = self._get_pending_alerts(doctor_id)
 
             # Get recent activity
-            recent_messages = self._get_recent_messages(doctor_id, limit=10)
-            recent_alerts = self._get_recent_alerts(doctor_id, limit=10)
-            recent_quiz_completions = self._get_recent_quiz_completions(doctor_id, limit=10)
+            with self.query_monitor.monitor_query("dashboard_recent_activity"):
+                recent_messages = self._get_recent_messages(doctor_id, limit=10)
+                recent_alerts = self._get_recent_alerts(doctor_id, limit=10)
+                recent_quiz_completions = self._get_recent_quiz_completions(doctor_id, limit=10)
 
             # Get charts data and compute summary metrics
-            engagement_series = self._get_engagement_chart_data(doctor_id)
-            alert_severity_chart = self._get_alert_severity_chart_data(doctor_id)
-            treatment_progress_chart = self._get_treatment_progress_chart_data(doctor_id)
+            with self.query_monitor.monitor_query("dashboard_charts_data"):
+                engagement_series = self._get_engagement_chart_data(doctor_id)
+                alert_severity_chart = self._get_alert_severity_chart_data(doctor_id)
+                treatment_progress_chart = self._get_treatment_progress_chart_data(doctor_id)
 
             # Derive summary metrics used by frontend cards
             last7 = engagement_series.get("data", [])

@@ -29,6 +29,7 @@ from app.core.redis_unified import get_sync_redis
 from app.core.date_utils import coerce_to_date, validate_date_range, set_default_date_range
 from app.core.error_handler import error_handler
 from app.core.monitoring_logging import monitoring_logger, monitoring_decorator
+from app.services.analytics_cache import get_analytics_cache, cache_analytics_data
 import json
 
 
@@ -145,14 +146,29 @@ async def get_dashboard(
 ) -> DashboardResponse:
     """Get dashboard data with real-time updates."""
     analytics_service = AnalyticsService(db)
+    cache_service = get_analytics_cache()
 
     # Filter by doctor if user is not admin
     doctor_id = None if current_user.role == UserRole.ADMIN else current_user.id
 
-    dashboard_data = analytics_service.get_dashboard_data(doctor_id)
+    # Build cache key parameters
+    cache_key_params = {
+        "doctor_id": str(doctor_id) if doctor_id else "all",
+        "endpoint": "dashboard"
+    }
+
+    # Try to get from cache first
+    def generate_dashboard_data():
+        return analytics_service.get_dashboard_data(doctor_id)
+
+    dashboard_data = cache_service.get_or_set(
+        "dashboard", 
+        cache_key_params, 
+        generate_dashboard_data
+    )
 
     logger.info(f"Dashboard data retrieved for user {current_user.id}")
-    return dashboard_data
+    return DashboardResponse(**dashboard_data) if isinstance(dashboard_data, dict) else dashboard_data
 
 
 @router.get(
@@ -180,33 +196,26 @@ async def get_treatment_distribution(
     # Filter by doctor if user is not admin
     doctor_id = None if current_user.role == UserRole.ADMIN else current_user.id
 
-    # Build cache key
-    cache_key = f"analytics:treatment-distribution:{period}:{doctor_id or 'all'}"
+    # Use analytics cache service
+    cache_service = get_analytics_cache()
+    cache_key_params = {
+        "period": period,
+        "doctor_id": str(doctor_id) if doctor_id else "all"
+    }
 
-    # Try to get from cache
-    try:
-        redis_client = get_sync_redis()
-        cached = redis_client.get(cache_key)
-        if cached:
-            logger.info(f"Treatment distribution cache hit for period: {period}")
-            cached_data = json.loads(cached)
-            return TreatmentDistributionResponse(**cached_data)
-    except Exception as e:
-        logger.warning(f"Redis cache read failed: {e}")
+    # Try to get from cache first
+    def generate_treatment_distribution():
+        result = analytics_service.get_treatment_distribution(period, doctor_id)
+        return result
 
-    # Generate fresh data
-    result = analytics_service.get_treatment_distribution(period, doctor_id)
+    result = cache_service.get_or_set(
+        "treatment_distribution",
+        cache_key_params,
+        generate_treatment_distribution
+    )
 
     # Create response
     response = TreatmentDistributionResponse(**result)
-
-    # Cache for 5 minutes (300 seconds)
-    try:
-        redis_client = get_sync_redis()
-        redis_client.setex(cache_key, 300, response.model_dump_json())
-        logger.info(f"Treatment distribution cached for period: {period}")
-    except Exception as e:
-        logger.warning(f"Redis cache write failed: {e}")
 
     logger.info(f"Treatment distribution retrieved for user {current_user.id}, period: {period}")
     return response
@@ -293,6 +302,7 @@ async def get_engagement_range(
 ) -> dict[str, Any]:
     """Return engagement series and summary for the date range for current doctor or admin."""
     analytics_service = AnalyticsService(db)
+    cache_service = get_analytics_cache()
 
     # Convert string date parameters to date objects with error handling
     try:
@@ -314,55 +324,70 @@ async def get_engagement_range(
     # determine filter
     doctor_id = None if current_user.role == UserRole.ADMIN else current_user.id
 
-    # Build daily series similar to _get_engagement_chart_data
-    series = []
-    current = start_date_obj
-    while current <= end_date_obj:
-        # messages sent (outbound)
-        q_out = db.query(Message).join(Patient).filter(
-            and_(
-                Message.created_at >= current,
-                Message.created_at < current + timedelta(days=1),
-                Message.direction == MessageDirection.OUTBOUND
-            )
-        )
-        # responses received (inbound)
-        q_in = db.query(Message).join(Patient).filter(
-            and_(
-                Message.created_at >= current,
-                Message.created_at < current + timedelta(days=1),
-                Message.direction == MessageDirection.INBOUND
-            )
-        )
-        if doctor_id:
-            q_out = q_out.filter(Patient.doctor_id == doctor_id)
-            q_in = q_in.filter(Patient.doctor_id == doctor_id)
-        sent = q_out.count()
-        recv = q_in.count()
-        series.append({
-            "date": current.isoformat(),
-            "messages_sent": sent,
-            "responses_received": recv,
-            "response_rate": round((recv / sent) * 100, 2) if sent else 0.0
-        })
-        current += timedelta(days=1)
-
-    messages_sent = sum(d["messages_sent"] for d in series)
-    responses_received = sum(d["responses_received"] for d in series)
-    response_rate = round((responses_received / messages_sent) * 100, 2) if messages_sent else 0.0
-
-    return {
-        "period": {
-            "start_date": start_date_obj.isoformat(),
-            "end_date": end_date_obj.isoformat()
-        },
-        "series": series,
-        "summary": {
-            "messages_sent": messages_sent,
-            "responses_received": responses_received,
-            "response_rate": response_rate
-        }
+    # Build cache key parameters
+    cache_key_params = {
+        "start_date": start_date_obj.isoformat(),
+        "end_date": end_date_obj.isoformat(),
+        "doctor_id": str(doctor_id) if doctor_id else "all"
     }
+
+    # Try to get from cache first
+    def generate_engagement_data():
+        # Build daily series similar to _get_engagement_chart_data
+        series = []
+        current = start_date_obj
+        while current <= end_date_obj:
+            # messages sent (outbound)
+            q_out = db.query(Message).join(Patient).filter(
+                and_(
+                    Message.created_at >= current,
+                    Message.created_at < current + timedelta(days=1),
+                    Message.direction == MessageDirection.OUTBOUND
+                )
+            )
+            # responses received (inbound)
+            q_in = db.query(Message).join(Patient).filter(
+                and_(
+                    Message.created_at >= current,
+                    Message.created_at < current + timedelta(days=1),
+                    Message.direction == MessageDirection.INBOUND
+                )
+            )
+            if doctor_id:
+                q_out = q_out.filter(Patient.doctor_id == doctor_id)
+                q_in = q_in.filter(Patient.doctor_id == doctor_id)
+            sent = q_out.count()
+            recv = q_in.count()
+            series.append({
+                "date": current.isoformat(),
+                "messages_sent": sent,
+                "responses_received": recv,
+                "response_rate": round((recv / sent) * 100, 2) if sent else 0.0
+            })
+            current += timedelta(days=1)
+
+        messages_sent = sum(d["messages_sent"] for d in series)
+        responses_received = sum(d["responses_received"] for d in series)
+        response_rate = round((responses_received / messages_sent) * 100, 2) if messages_sent else 0.0
+
+        return {
+            "period": {
+                "start_date": start_date_obj.isoformat(),
+                "end_date": end_date_obj.isoformat()
+            },
+            "series": series,
+            "summary": {
+                "messages_sent": messages_sent,
+                "responses_received": responses_received,
+                "response_rate": response_rate
+            }
+        }
+
+    return cache_service.get_or_set(
+        "engagement_chart",
+        cache_key_params,
+        generate_engagement_data
+    )
 
 @router.get(
     "/patients",

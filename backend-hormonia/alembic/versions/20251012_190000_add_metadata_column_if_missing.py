@@ -5,7 +5,7 @@ The column should exist from the baseline migration, but this provides
 a safety net for databases that might be missing it.
 
 Revision ID: 20251012_190000
-Revises: 20251012_180000
+Revises: 20251012_170000
 Create Date: 2025-10-12 19:00:00.000000
 
 """
@@ -15,7 +15,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '20251012_190000'
-down_revision = '20251012_180000'
+down_revision = '20251012_170000'
 branch_labels = None
 depends_on = None
 
