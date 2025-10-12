@@ -24,9 +24,20 @@ Fixed critical database schema issues that were causing dashboard analytics fail
 - ✅ Renamed `session_id` to `quiz_session_id`
 - ✅ Added missing `other_text` column
 
+### 3. ValidationRule Schema Type Mismatch (Quiz Templates)
+**Error**: `10 validation errors for QuizTemplateResponse - dict values not accepted`
+
+**Root Cause**: The `ValidationRule` schema only accepted primitive types but database contained complex validation rules with dict values like `{'max': 5, 'min': 1}`.
+
+**Solution**: Updated `ValidationRule` schema to include `dict` type
+- ✅ Added `dict` to Union type for `value` field
+- ✅ Maintains backward compatibility with primitive values
+- ✅ Supports complex validation rules like range constraints
+
 ## Migration Timeline
 1. **20251012_150000** - Added delivery_status and related columns to messages table
 2. **20251012_160000** - Renamed session_id to quiz_session_id in quiz_responses table
+3. **Schema Fix** - Updated ValidationRule to accept dict values for complex validation rules
 
 ## Files Created
 ### Migrations
@@ -41,10 +52,13 @@ Fixed critical database schema issues that were causing dashboard analytics fail
 - `backend-hormonia/sql/check_schema_simple.py`
 - `backend-hormonia/sql/test_analytics_fix.py`
 - `backend-hormonia/sql/test_quiz_responses_fix.py`
+- `backend-hormonia/sql/check_quiz_templates_data.py`
+- `backend-hormonia/sql/test_validation_rule_schema.py`
 
 ### Documentation
 - `backend-hormonia/docs/DELIVERY_STATUS_FIX.md`
 - `backend-hormonia/docs/QUIZ_SESSION_ID_FIX.md`
+- `backend-hormonia/docs/VALIDATION_RULE_SCHEMA_FIX.md`
 
 ## Verification Results
 Both fixes have been verified:
@@ -54,10 +68,12 @@ Both fixes have been verified:
 - ✅ Database schema is consistent with models
 
 ## Impact
-These fixes resolve the dashboard analytics failures and enable:
+These fixes resolve multiple critical API failures and enable:
 - ✅ Dashboard data generation
 - ✅ Message delivery status tracking
 - ✅ Quiz completion analytics
+- ✅ Quiz templates endpoint functionality
+- ✅ Complex validation rules for quizzes
 - ✅ Recent activity displays
 - ✅ All analytics service operations
 
@@ -70,5 +86,6 @@ These fixes resolve the dashboard analytics failures and enable:
 ## Git Commits
 - `2988426` - fix: Add missing delivery_status column to messages table
 - `891ce05` - fix: Rename session_id to quiz_session_id in quiz_responses table
+- `ef64589` - fix: Add dict support to ValidationRule schema for complex validation rules
 
-The dashboard should now function properly without schema-related errors.
+The dashboard and quiz templates endpoints should now function properly without schema-related errors.
