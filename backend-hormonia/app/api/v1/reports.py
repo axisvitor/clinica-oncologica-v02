@@ -43,7 +43,7 @@ async def generate_report(
     """Generate a comprehensive medical report for a patient."""
     try:
         # Check permissions
-        if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+        if current_user.role != UserRole.ADMIN:
             from app.repositories.patient import PatientRepository
             patient_repo = PatientRepository(db)
             patient = patient_repo.get(request.patient_id)
@@ -85,7 +85,7 @@ async def preview_report(
     """Generate a report preview without saving to database."""
     try:
         # Check permissions
-        if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+        if current_user.role != UserRole.ADMIN:
             from app.repositories.patient import PatientRepository
             patient_repo = PatientRepository(db)
             patient = patient_repo.get(request.patient_id)
@@ -133,7 +133,7 @@ async def get_report(
             raise HTTPException(status_code=404, detail="Report not found")
         
         # Check permissions
-        if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+        if current_user.role != UserRole.ADMIN:
             from app.repositories.patient import PatientRepository
             patient_repo = PatientRepository(db)
             patient = patient_repo.get(report.patient_id)
@@ -176,7 +176,7 @@ async def download_report(
             raise HTTPException(status_code=404, detail="Report not found")
         
         # Check permissions
-        if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+        if current_user.role != UserRole.ADMIN:
             from app.repositories.patient import PatientRepository
             patient_repo = PatientRepository(db)
             patient = patient_repo.get(report.patient_id)
@@ -227,7 +227,7 @@ async def get_patient_reports(
     """Get all reports for a specific patient with pagination."""
     try:
         # Check permissions
-        if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+        if current_user.role != UserRole.ADMIN:
             from app.repositories.patient import PatientRepository
             patient_repo = PatientRepository(db)
             patient = patient_repo.get(patient_id)
@@ -283,7 +283,7 @@ async def delete_report(
     """Delete a medical report."""
     try:
         # Only admins can delete reports
-        if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+        if current_user.role != UserRole.ADMIN:
             raise HTTPException(
                 status_code=403,
                 detail="Access denied: Admin privileges required to delete reports"
@@ -331,7 +331,7 @@ async def list_reports(
         report_repo = MedicalReportRepository(db)
         
         # Filter by doctor if not admin
-        doctor_id = None if current_user.role in {UserRole.ADMIN, UserRole.SUPER_ADMIN} else current_user.id
+        doctor_id = None if current_user.role == UserRole.ADMIN else current_user.id
         
         # Get reports
         reports_data = report_repo.get_all_with_filters(

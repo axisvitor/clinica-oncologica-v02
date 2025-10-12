@@ -196,7 +196,54 @@ EVOLUTION_API_KEY=your-evolution-api-key
 # AI Services
 LANGCHAIN_API_KEY=your-langchain-key
 GOOGLE_API_KEY=your-google-key
+
+# Logging Configuration (Enhanced for Critical Bug Fixes)
+LOG_LEVEL=INFO
+MAX_LOGS_PER_SECOND=100
+ENABLE_REQUEST_LOGGING=true
+LOG_STACK_TRACES=true
+LOG_DEDUPLICATION_WINDOW=300
+
+# Error Tracking Configuration (Critical Bug Fixes)
+ENABLE_ERROR_TRACKING=true
+MAX_ERROR_LOGS=1000
+ERROR_DEDUPLICATION_WINDOW=3600
+ERROR_TRACKING_RATE_LIMIT=10
+CRITICAL_ERROR_NOTIFICATION=true
 ```
+
+### 🔧 Enhanced Configuration (Critical Bug Fixes)
+
+The system now includes enhanced logging and error tracking configuration to prevent and monitor critical issues:
+
+#### Logging Configuration
+- **`LOG_LEVEL`**: Controls logging verbosity (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+- **`MAX_LOGS_PER_SECOND`**: Rate limiting to prevent log flooding (Railway limit: 500/sec)
+- **`ENABLE_REQUEST_LOGGING`**: Toggle request logging (uses DEBUG level for routine operations)
+- **`LOG_STACK_TRACES`**: Enable/disable stack trace logging for errors
+- **`LOG_DEDUPLICATION_WINDOW`**: Time window for preventing duplicate log messages
+
+#### Error Tracking Configuration
+- **`ENABLE_ERROR_TRACKING`**: Centralized error tracking and database logging
+- **`MAX_ERROR_LOGS`**: Maximum error logs stored (prevents unbounded growth)
+- **`ERROR_DEDUPLICATION_WINDOW`**: Groups similar errors with count tracking
+- **`ERROR_TRACKING_RATE_LIMIT`**: Prevents error log flooding
+- **`CRITICAL_ERROR_NOTIFICATION`**: Alerts for critical errors (DI, role enum, schema issues)
+
+#### Deployment Validation
+Run validation scripts before deployment:
+```bash
+# Full validation
+python scripts/deployment_validation.py --base-url http://your-api-url
+
+# Quick health check
+python scripts/validate_deployment_health.py
+
+# Critical fixes validation
+python scripts/validate_critical_fixes.py
+```
+
+For complete configuration documentation, see [docs/DEPLOYMENT_CONFIGURATION.md](docs/DEPLOYMENT_CONFIGURATION.md).
 
 ---
 

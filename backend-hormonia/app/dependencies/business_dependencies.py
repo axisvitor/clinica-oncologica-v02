@@ -17,7 +17,7 @@ class _ThreadSafeProviderDependency:
     """Callable class for lazy importing to prevent circular import"""
     def __call__(self) -> Generator:
         from app.dependencies import get_thread_safe_service_provider
-        return get_thread_safe_service_provider()
+        yield from get_thread_safe_service_provider()
 
 _get_provider_dep = _ThreadSafeProviderDependency()
 
@@ -62,7 +62,7 @@ async def validate_patient_access(
         )
     
     # Implement role-based authorization
-    if current_user.role in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+    if current_user.role == UserRole.ADMIN:
         return patient
     elif current_user.role == UserRole.DOCTOR:
         if patient.doctor_id != current_user.id:
@@ -105,7 +105,7 @@ def verify_patient_access(
         raise patient_not_found_exception(str(patient_id))
     
     # Admin users can access all patients
-    if current_user.role in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+    if current_user.role == UserRole.ADMIN:
         return patient
     
     # Doctors can only access their assigned patients

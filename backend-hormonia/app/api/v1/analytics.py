@@ -26,6 +26,9 @@ from app.schemas.report import (
 )
 from app.schemas.common import ErrorResponse
 from app.core.redis_unified import get_sync_redis
+from app.core.date_utils import coerce_to_date, validate_date_range, set_default_date_range
+from app.core.error_handler import error_handler
+from app.core.monitoring_logging import monitoring_logger, monitoring_decorator
 import json
 
 
@@ -40,20 +43,65 @@ DAYS_PER_WEEK = 7
 
 
 def handle_analytics_errors(operation_name: str):
-    """Decorator to handle common analytics errors."""
+    """Decorator to handle common analytics errors with integrated error handling."""
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
             try:
-                return await func(*args, **kwargs)
+                with monitoring_logger.context(operation=operation_name, endpoint=func.__name__):
+                    return await func(*args, **kwargs)
+            except AttributeError as e:
+                # Handle role enum errors
+                if "UserRole" in str(e) or "role" in str(e).lower():
+                    await error_handler.handle_role_enum_error(
+                        e, 
+                        user_role=getattr(kwargs.get('current_user'), 'role', None),
+                        endpoint=f"analytics.{func.__name__}"
+                    )
+                # Handle dependency injection errors
+                elif "generator" in str(e) or "service" in str(e):
+                    await error_handler.handle_dependency_injection_error(
+                        e,
+                        {
+                            "operation": operation_name,
+                            "endpoint": f"analytics.{func.__name__}",
+                            "args": str(args)[:100]
+                        }
+                    )
+                else:
+                    await error_handler.handle_generic_error(
+                        e,
+                        error_type="ANALYTICS_ATTRIBUTE_ERROR",
+                        context={"operation": operation_name, "endpoint": func.__name__}
+                    )
+            except ValueError as e:
+                # Handle date parameter validation errors
+                if "date" in str(e).lower():
+                    await error_handler.handle_validation_error(
+                        e,
+                        field_name="date_parameter",
+                        context={"operation": operation_name}
+                    )
+                else:
+                    await error_handler.handle_validation_error(e, context={"operation": operation_name})
             except AnalyticsError as e:
                 logger.error(f"{operation_name} failed: {e}")
+                monitoring_logger.log_system_event(
+                    event_type="analytics_service_error",
+                    message=f"Analytics service error in {operation_name}: {e}",
+                    level="ERROR",
+                    context={"operation": operation_name, "error": str(e)}
+                )
                 raise HTTPException(status_code=500, detail=str(e))
             except HTTPException:
                 raise
             except Exception as e:
-                logger.error(f"Unexpected error in {operation_name}: {e}")
-                raise HTTPException(status_code=500, detail="Internal server error")
+                await error_handler.handle_generic_error(
+                    e,
+                    error_type="ANALYTICS_UNEXPECTED_ERROR",
+                    context={"operation": operation_name, "endpoint": func.__name__},
+                    user_message=f"Analytics operation '{operation_name}' failed. Please try again."
+                )
         return wrapper
     return decorator
 
@@ -99,7 +147,7 @@ async def get_dashboard(
     analytics_service = AnalyticsService(db)
 
     # Filter by doctor if user is not admin
-    doctor_id = None if current_user.role in {UserRole.ADMIN, UserRole.SUPER_ADMIN} else current_user.id
+    doctor_id = None if current_user.role == UserRole.ADMIN else current_user.id
 
     dashboard_data = analytics_service.get_dashboard_data(doctor_id)
 
@@ -130,7 +178,7 @@ async def get_treatment_distribution(
     analytics_service = AnalyticsService(db)
 
     # Filter by doctor if user is not admin
-    doctor_id = None if current_user.role in {UserRole.ADMIN, UserRole.SUPER_ADMIN} else current_user.id
+    doctor_id = None if current_user.role == UserRole.ADMIN else current_user.id
 
     # Build cache key
     cache_key = f"analytics:treatment-distribution:{period}:{doctor_id or 'all'}"
@@ -180,9 +228,9 @@ async def get_analytics(
     analytics_service = AnalyticsService(db)
 
     # Filter by doctor if user is not admin
-    if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN} and not request.doctor_id:
+    if current_user.role != UserRole.ADMIN and not request.doctor_id:
         request.doctor_id = current_user.id
-    elif current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN} and request.doctor_id != current_user.id:
+    elif current_user.role != UserRole.ADMIN and request.doctor_id != current_user.id:
         raise HTTPException(
             status_code=403,
             detail="Access denied: Cannot access other doctor's analytics"
@@ -219,7 +267,7 @@ async def detect_patterns(
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
 
-        if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN} and patient.doctor_id != current_user.id:
+        if current_user.role != UserRole.ADMIN and patient.doctor_id != current_user.id:
             raise HTTPException(
                 status_code=403,
                 detail="Access denied: Cannot access this patient's data"
@@ -238,26 +286,38 @@ async def detect_patterns(
 )
 @handle_analytics_errors("engagement range retrieval")
 async def get_engagement_range(
-    start_date: Optional[date] = Query(None, description="Start date (ISO)"),
-    end_date: Optional[date] = Query(None, description="End date (ISO)"),
+    start_date: Optional[str] = Query(None, description="Start date (ISO datetime or date string)"),
+    end_date: Optional[str] = Query(None, description="End date (ISO datetime or date string)"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> dict[str, Any]:
     """Return engagement series and summary for the date range for current doctor or admin."""
     analytics_service = AnalyticsService(db)
 
-    # determine filter
-    doctor_id = None if current_user.role in {UserRole.ADMIN, UserRole.SUPER_ADMIN} else current_user.id
+    # Convert string date parameters to date objects with error handling
+    try:
+        start_date_obj = coerce_to_date(start_date)
+        end_date_obj = coerce_to_date(end_date)
+        
+        # Validate date range
+        start_date_obj, end_date_obj = validate_date_range(start_date_obj, end_date_obj)
+        
+        # Set defaults if needed (last 7 days)
+        start_date_obj, end_date_obj = set_default_date_range(start_date_obj, end_date_obj, 7)
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid date format: {e}"
+        )
 
-    # default to last 7 days if not provided
-    today = datetime.utcnow().date()
-    end_date = end_date or today
-    start_date = start_date or (end_date - timedelta(days=6))
+    # determine filter
+    doctor_id = None if current_user.role == UserRole.ADMIN else current_user.id
 
     # Build daily series similar to _get_engagement_chart_data
     series = []
-    current = start_date
-    while current <= end_date:
+    current = start_date_obj
+    while current <= end_date_obj:
         # messages sent (outbound)
         q_out = db.query(Message).join(Patient).filter(
             and_(
@@ -293,8 +353,8 @@ async def get_engagement_range(
 
     return {
         "period": {
-            "start_date": start_date.isoformat(),
-            "end_date": end_date.isoformat()
+            "start_date": start_date_obj.isoformat(),
+            "end_date": end_date_obj.isoformat()
         },
         "series": series,
         "summary": {
@@ -312,24 +372,38 @@ async def get_engagement_range(
 )
 @handle_analytics_errors("patients analytics retrieval")
 async def get_patients_analytics(
-    start_date: Optional[date] = Query(None),
-    end_date: Optional[date] = Query(None),
+    start_date: Optional[str] = Query(None, description="Start date (ISO datetime or date string)"),
+    end_date: Optional[str] = Query(None, description="End date (ISO datetime or date string)"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> dict[str, Any]:
     analytics_service = AnalyticsService(db)
 
+    # Convert string date parameters to date objects with error handling
+    try:
+        start_date_obj = coerce_to_date(start_date)
+        end_date_obj = coerce_to_date(end_date)
+        
+        # Validate date range
+        start_date_obj, end_date_obj = validate_date_range(start_date_obj, end_date_obj)
+        
+        # Set defaults if needed (last 7 days)
+        start_date_obj, end_date_obj = set_default_date_range(start_date_obj, end_date_obj, 7)
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid date format: {e}"
+        )
+
     # apply doctor filter
-    doctor_id = None if current_user.role in {UserRole.ADMIN, UserRole.SUPER_ADMIN} else current_user.id
-    today = datetime.utcnow().date()
-    end_date = end_date or today
-    start_date = start_date or (end_date - timedelta(days=6))
+    doctor_id = None if current_user.role == UserRole.ADMIN else current_user.id
 
     # Build AnalyticsRequest for all patients of doctor
     request = AnalyticsRequest(
         doctor_id=doctor_id,
-        start_date=start_date,
-        end_date=end_date,
+        start_date=start_date_obj,
+        end_date=end_date_obj,
         metrics=["engagement", "quiz", "alerts"]
     )
     result = analytics_service.get_analytics(request)
@@ -337,8 +411,8 @@ async def get_patients_analytics(
     # Shape minimal response for frontend usage
     return {
         "period": {
-            "start_date": start_date.isoformat(),
-            "end_date": end_date.isoformat()
+            "start_date": start_date_obj.isoformat(),
+            "end_date": end_date_obj.isoformat()
         },
         "items": [pa.model_dump() for pa in result.patient_analytics],
         "total": len(result.patient_analytics)
@@ -368,7 +442,7 @@ async def get_patient_engagement(
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN} and patient.doctor_id != current_user.id:
+    if current_user.role != UserRole.ADMIN and patient.doctor_id != current_user.id:
         raise HTTPException(
             status_code=403,
             detail="Access denied: Cannot access this patient's data"
@@ -416,7 +490,7 @@ async def get_system_health(
 ) -> dict[str, Any]:
     """Get system health and performance metrics."""
     # Only admins can access system health
-    if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+    if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=403,
             detail="Access denied: Admin privileges required"
@@ -470,7 +544,7 @@ async def get_weekly_trends(
     start_date = end_date - timedelta(weeks=DEFAULT_WEEKS_BACK)
 
     # Filter by doctor if not admin
-    doctor_id = None if current_user.role in {UserRole.ADMIN, UserRole.SUPER_ADMIN} else current_user.id
+    doctor_id = None if current_user.role == UserRole.ADMIN else current_user.id
 
     # Get all data for the period at once
     request = AnalyticsRequest(

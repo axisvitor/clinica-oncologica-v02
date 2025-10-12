@@ -202,11 +202,49 @@ class Settings(BaseSettings):
         description="Supported language locales"
     )
 
-    # Logging
+    # Logging Configuration (Enhanced for Critical Bug Fixes)
     LOG_LEVEL: str = Field(default="INFO", description="Logging level")
     LOG_FORMAT: str = Field(
         default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         description="Log format"
+    )
+    MAX_LOGS_PER_SECOND: int = Field(
+        default=100, 
+        description="Maximum logs per second to prevent rate limiting (Railway limit: 500/sec)"
+    )
+    ENABLE_REQUEST_LOGGING: bool = Field(
+        default=True, 
+        description="Enable request logging middleware (uses DEBUG level for routine operations)"
+    )
+    LOG_STACK_TRACES: bool = Field(
+        default=True, 
+        description="Enable stack trace logging for errors"
+    )
+    LOG_DEDUPLICATION_WINDOW: int = Field(
+        default=300, 
+        description="Time window in seconds for log deduplication (5 minutes)"
+    )
+    
+    # Error Tracking Configuration (Critical Bug Fixes)
+    ENABLE_ERROR_TRACKING: bool = Field(
+        default=True, 
+        description="Enable centralized error tracking and logging"
+    )
+    MAX_ERROR_LOGS: int = Field(
+        default=1000, 
+        description="Maximum number of error logs to store in database"
+    )
+    ERROR_DEDUPLICATION_WINDOW: int = Field(
+        default=3600, 
+        description="Time window in seconds for error deduplication (1 hour)"
+    )
+    ERROR_TRACKING_RATE_LIMIT: int = Field(
+        default=10, 
+        description="Maximum error logs per minute for same error type"
+    )
+    CRITICAL_ERROR_NOTIFICATION: bool = Field(
+        default=True, 
+        description="Enable notifications for critical errors (DI, role enum, schema issues)"
     )
 
     # Monthly Quiz Configuration

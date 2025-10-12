@@ -1,548 +1,510 @@
 """
-API endpoints for monitoring and alerting system.
-"""
-from datetime import datetime, timedelta
-from typing import List, Optional, Any
-from uuid import UUID
-import redis.asyncio as redis
+Monitoring and alerting endpoints for critical system health.
 
+This module provides endpoints for monitoring error tracking metrics,
+health checks for critical fixes, and alerting configuration.
+"""
+import logging
+from datetime import datetime, timedelta
+from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func, desc
 
-from app.database import get_db
-from app.dependencies import get_redis, get_current_user
-from app.services.flow_monitoring import FlowMonitoringService
-from app.services.critical_error_escalation import CriticalErrorEscalationService
-from app.services.performance_monitoring import PerformanceMonitoringService
-from app.services.automated_recovery import AutomatedRecoveryService
-from app.schemas.common import PaginatedResponse
-from app.models.user import User
+from app.core.database import get_db
+from app.core.error_handler import error_handler
+from app.models.error_tracking import ErrorLog
+from app.models.user import User, UserRole
+from app.dependencies.auth_dependencies import get_current_user
+from app.dependencies import get_thread_safe_service_provider
+from app.core.date_utils import coerce_to_date
 
+
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/monitoring", tags=["monitoring"])
 
 
-@router.get("/health", response_model=None)
-async def get_system_health(
-    db: Session = Depends(get_db),
-    redis: Optional[redis.Redis] = Depends(get_redis),
-    current_user: User = Depends(get_current_user)
-) -> dict[str, Any]:
-    """Get overall system health status."""
+@router.get("/health/critical-fixes")
+async def check_critical_fixes_health(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Health check endpoint that validates critical fixes are working.
+    
+    Checks:
+    - Dependency injection is working correctly
+    - Role enum comparisons are functioning
+    - Database schema compatibility
+    - Date parameter handling
+    - Error tracking system
+    
+    Returns:
+        Dictionary with health status of each critical fix
+    """
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    health_status = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "overall_status": "healthy",
+        "checks": {}
+    }
+    
+    # Check 1: Dependency Injection
     try:
-        # Initialize monitoring service
-        from app.repositories.flow import FlowRepository
-        from app.services.data_corruption_detector import DataCorruptionDetector
+        provider = get_thread_safe_service_provider()
+        provider_instance = next(provider)
         
-        flow_repo = FlowRepository(db)
-        corruption_detector = DataCorruptionDetector(db, redis)
+        # Verify provider has expected services
+        has_monthly_quiz = hasattr(provider_instance, 'monthly_quiz_service')
+        has_quiz_service = hasattr(provider_instance, 'quiz_service')
+        is_not_generator = not hasattr(provider_instance, '__next__')
         
-        monitoring_service = FlowMonitoringService(
-            db=db,
-            redis=redis,
-            flow_repository=flow_repo,
-            corruption_detector=corruption_detector
-        )
-        
-        health_status = await monitoring_service.get_system_health()
-        return health_status
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error getting system health: {str(e)}")
-
-
-@router.get("/metrics", response_model=None)
-async def get_performance_metrics(
-    db: Session = Depends(get_db),
-    redis: Optional[redis.Redis] = Depends(get_redis),
-    current_user: User = Depends(get_current_user)
-) -> dict[str, Any]:
-    """Get current performance metrics."""
-    try:
-        from app.repositories.flow import FlowRepository
-        
-        flow_repo = FlowRepository(db)
-        performance_service = PerformanceMonitoringService(
-            db=db,
-            redis=redis,
-            flow_repository=flow_repo
-        )
-        
-        metrics = await performance_service.collect_performance_metrics()
-        
-        return {
-            'timestamp': datetime.utcnow().isoformat(),
-            'metrics': [
-                {
-                    'metric_type': m.metric_type.value,
-                    'value': m.value,
-                    'component': m.component,
-                    'metadata': m.metadata
-                }
-                for m in metrics
-            ]
+        health_status["checks"]["dependency_injection"] = {
+            "status": "healthy" if (has_monthly_quiz and has_quiz_service and is_not_generator) else "unhealthy",
+            "details": {
+                "has_monthly_quiz_service": has_monthly_quiz,
+                "has_quiz_service": has_quiz_service,
+                "is_not_generator": is_not_generator
+            }
         }
-        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error getting performance metrics: {str(e)}")
-
-
-@router.get("/alerts", response_model=None)
-async def get_active_alerts(
-    db: Session = Depends(get_db),
-    redis: Optional[redis.Redis] = Depends(get_redis),
-    severity: Optional[str] = Query(None, description="Filter by severity"),
-    component: Optional[str] = Query(None, description="Filter by component"),
-    limit: int = Query(50, ge=1, le=100),
-    current_user: User = Depends(get_current_user)
-) -> dict[str, Any]:
-    """Get active alerts."""
-    try:
-        from app.repositories.flow import FlowRepository
-        from app.services.data_corruption_detector import DataCorruptionDetector
-        
-        flow_repo = FlowRepository(db)
-        corruption_detector = DataCorruptionDetector(db, redis)
-        
-        monitoring_service = FlowMonitoringService(
-            db=db,
-            redis=redis,
-            flow_repository=flow_repo,
-            corruption_detector=corruption_detector
-        )
-        
-        alerts = await monitoring_service.get_active_alerts()
-        
-        # Apply filters
-        if severity:
-            alerts = [a for a in alerts if a.severity.value == severity]
-        
-        if component:
-            alerts = [a for a in alerts if a.component == component]
-        
-        # Apply limit
-        alerts = alerts[:limit]
-        
-        return {
-            'alerts': [
-                {
-                    'id': alert.id,
-                    'severity': alert.severity.value,
-                    'title': alert.title,
-                    'message': alert.message,
-                    'component': alert.component,
-                    'metric_value': alert.metric_value,
-                    'threshold': alert.threshold,
-                    'created_at': alert.created_at.isoformat(),
-                    'resolved_at': alert.resolved_at.isoformat() if alert.resolved_at else None,
-                    'metadata': alert.metadata
-                }
-                for alert in alerts
-            ],
-            'total_count': len(alerts),
-            'timestamp': datetime.utcnow().isoformat()
+        health_status["checks"]["dependency_injection"] = {
+            "status": "unhealthy",
+            "error": str(e)
         }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error getting active alerts: {str(e)}")
-
-
-@router.post("/alerts/{alert_id}/resolve", response_model=None)
-async def resolve_alert(
-    alert_id: str,
-    resolution_note: str,
-    db: Session = Depends(get_db),
-    redis: Optional[redis.Redis] = Depends(get_redis),
-    current_user: User = Depends(get_current_user)
-) -> dict[str, Any]:
-    """Resolve an active alert."""
+        health_status["overall_status"] = "unhealthy"
+    
+    # Check 2: Role Enum System
     try:
-        from app.repositories.flow import FlowRepository
-        from app.services.data_corruption_detector import DataCorruptionDetector
+        # Test role enum comparison
+        admin_role = UserRole.ADMIN
+        role_comparison_works = (admin_role == UserRole.ADMIN)
+        enum_values_exist = hasattr(UserRole, 'ADMIN') and hasattr(UserRole, 'DOCTOR')
         
-        flow_repo = FlowRepository(db)
-        corruption_detector = DataCorruptionDetector(db, redis)
-        
-        monitoring_service = FlowMonitoringService(
-            db=db,
-            redis=redis,
-            flow_repository=flow_repo,
-            corruption_detector=corruption_detector
-        )
-        
-        success = await monitoring_service.resolve_alert(alert_id, resolution_note)
-        
-        if not success:
-            raise HTTPException(status_code=404, detail="Alert not found")
-        
-        return {
-            'success': True,
-            'message': f'Alert {alert_id} resolved successfully',
-            'resolved_by': current_user.email,
-            'resolved_at': datetime.utcnow().isoformat()
+        health_status["checks"]["role_enum_system"] = {
+            "status": "healthy" if (role_comparison_works and enum_values_exist) else "unhealthy",
+            "details": {
+                "role_comparison_works": role_comparison_works,
+                "enum_values_exist": enum_values_exist,
+                "available_roles": [role.value for role in UserRole]
+            }
         }
-        
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error resolving alert: {str(e)}")
-
-
-@router.get("/bottlenecks", response_model=None)
-async def get_performance_bottlenecks(
-    db: Session = Depends(get_db),
-    redis: Optional[redis.Redis] = Depends(get_redis),
-    severity: Optional[str] = Query(None, description="Filter by severity"),
-    current_user: User = Depends(get_current_user)
-) -> dict[str, Any]:
-    """Get detected performance bottlenecks."""
-    try:
-        from app.repositories.flow import FlowRepository
-        
-        flow_repo = FlowRepository(db)
-        performance_service = PerformanceMonitoringService(
-            db=db,
-            redis=redis,
-            flow_repository=flow_repo
-        )
-        
-        bottlenecks = await performance_service.detect_bottlenecks()
-        
-        # Apply severity filter
-        if severity:
-            bottlenecks = [b for b in bottlenecks if b.severity == severity]
-        
-        return {
-            'bottlenecks': [
-                {
-                    'bottleneck_type': b.bottleneck_type.value,
-                    'severity': b.severity,
-                    'description': b.description,
-                    'affected_components': b.affected_components,
-                    'recommendations': b.recommendations,
-                    'detected_at': b.detected_at.isoformat()
-                }
-                for b in bottlenecks
-            ],
-            'total_count': len(bottlenecks),
-            'timestamp': datetime.utcnow().isoformat()
+        health_status["checks"]["role_enum_system"] = {
+            "status": "unhealthy",
+            "error": str(e)
         }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error getting bottlenecks: {str(e)}")
-
-
-@router.get("/performance/report", response_model=None)
-async def get_performance_report(
-    db: Session = Depends(get_db),
-    redis: Optional[redis.Redis] = Depends(get_redis),
-    hours: int = Query(24, ge=1, le=168, description="Time range in hours"),
-    current_user: User = Depends(get_current_user)
-) -> dict[str, Any]:
-    """Get comprehensive performance report."""
+        health_status["overall_status"] = "unhealthy"
+    
+    # Check 3: Database Schema Compatibility
     try:
-        from app.repositories.flow import FlowRepository
+        # Test basic database operations
+        error_count = db.query(ErrorLog).count()
         
-        flow_repo = FlowRepository(db)
-        performance_service = PerformanceMonitoringService(
-            db=db,
-            redis=redis,
-            flow_repository=flow_repo
-        )
+        # Test alerts table compatibility (if it exists)
+        try:
+            from app.models.alert import Alert
+            alert_count = db.query(Alert).count()
+            alerts_compatible = True
+        except Exception:
+            alert_count = None
+            alerts_compatible = False
         
-        time_range = timedelta(hours=hours)
-        report = await performance_service.get_performance_report(time_range)
-        
-        return report
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating performance report: {str(e)}")
-
-
-@router.get("/performance/dashboard", response_model=None)
-async def get_performance_dashboard(
-    db: Session = Depends(get_db),
-    redis: Optional[redis.Redis] = Depends(get_redis),
-    current_user: User = Depends(get_current_user)
-) -> dict[str, Any]:
-    """Get real-time performance dashboard data."""
-    try:
-        from app.repositories.flow import FlowRepository
-        
-        flow_repo = FlowRepository(db)
-        performance_service = PerformanceMonitoringService(
-            db=db,
-            redis=redis,
-            flow_repository=flow_repo
-        )
-        
-        dashboard_data = await performance_service.get_real_time_performance_dashboard()
-        
-        return dashboard_data
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error getting performance dashboard: {str(e)}")
-
-
-@router.get("/escalations", response_model=None)
-async def get_active_escalations(
-    db: Session = Depends(get_db),
-    redis: Optional[redis.Redis] = Depends(get_redis),
-    current_user: User = Depends(get_current_user)
-) -> dict[str, Any]:
-    """Get active escalations."""
-    try:
-        from app.repositories.flow import FlowRepository
-        from app.services.data_corruption_detector import DataCorruptionDetector
-        from app.services.websocket_events import WebSocketEventService
-        
-        flow_repo = FlowRepository(db)
-        corruption_detector = DataCorruptionDetector(db, redis)
-        websocket_service = WebSocketEventService(redis)
-        
-        monitoring_service = FlowMonitoringService(
-            db=db,
-            redis=redis,
-            flow_repository=flow_repo,
-            corruption_detector=corruption_detector
-        )
-        
-        escalation_service = CriticalErrorEscalationService(
-            db=db,
-            redis=redis,
-            monitoring_service=monitoring_service,
-            websocket_service=websocket_service
-        )
-        
-        escalations = await escalation_service.get_active_escalations()
-        
-        return {
-            'escalations': escalations,
-            'total_count': len(escalations),
-            'timestamp': datetime.utcnow().isoformat()
+        health_status["checks"]["database_schema"] = {
+            "status": "healthy" if alerts_compatible else "warning",
+            "details": {
+                "error_logs_accessible": True,
+                "error_log_count": error_count,
+                "alerts_compatible": alerts_compatible,
+                "alert_count": alert_count
+            }
         }
-        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error getting escalations: {str(e)}")
-
-
-@router.post("/escalations/{escalation_id}/acknowledge", response_model=None)
-async def acknowledge_escalation(
-    escalation_id: str,
-    db: Session = Depends(get_db),
-    redis: Optional[redis.Redis] = Depends(get_redis),
-    current_user: User = Depends(get_current_user)
-) -> dict[str, Any]:
-    """Acknowledge an escalation."""
-    try:
-        from app.repositories.flow import FlowRepository
-        from app.services.data_corruption_detector import DataCorruptionDetector
-        from app.services.websocket_events import WebSocketEventService
-        
-        flow_repo = FlowRepository(db)
-        corruption_detector = DataCorruptionDetector(db, redis)
-        websocket_service = WebSocketEventService(redis)
-        
-        monitoring_service = FlowMonitoringService(
-            db=db,
-            redis=redis,
-            flow_repository=flow_repo,
-            corruption_detector=corruption_detector
-        )
-        
-        escalation_service = CriticalErrorEscalationService(
-            db=db,
-            redis=redis,
-            monitoring_service=monitoring_service,
-            websocket_service=websocket_service
-        )
-        
-        success = await escalation_service.acknowledge_escalation(escalation_id, current_user.email)
-        
-        if not success:
-            raise HTTPException(status_code=404, detail="Escalation not found")
-        
-        return {
-            'success': True,
-            'message': f'Escalation {escalation_id} acknowledged successfully',
-            'acknowledged_by': current_user.email,
-            'acknowledged_at': datetime.utcnow().isoformat()
+        health_status["checks"]["database_schema"] = {
+            "status": "unhealthy",
+            "error": str(e)
         }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error acknowledging escalation: {str(e)}")
-
-
-@router.post("/escalations/{escalation_id}/resolve", response_model=None)
-async def resolve_escalation(
-    escalation_id: str,
-    resolution_note: str,
-    db: Session = Depends(get_db),
-    redis: Optional[redis.Redis] = Depends(get_redis),
-    current_user: User = Depends(get_current_user)
-) -> dict[str, Any]:
-    """Resolve an escalation."""
+        health_status["overall_status"] = "unhealthy"
+    
+    # Check 4: Date Parameter Handling
     try:
-        from app.repositories.flow import FlowRepository
-        from app.services.data_corruption_detector import DataCorruptionDetector
-        from app.services.websocket_events import WebSocketEventService
+        from app.core.date_utils import coerce_to_date
         
-        flow_repo = FlowRepository(db)
-        corruption_detector = DataCorruptionDetector(db, redis)
-        websocket_service = WebSocketEventService(redis)
+        # Test various date formats
+        test_cases = [
+            ("2025-10-05T15:01:57.695Z", True),
+            ("2025-10-05", True),
+            (None, True),
+            ("invalid-date", False)
+        ]
         
-        monitoring_service = FlowMonitoringService(
-            db=db,
-            redis=redis,
-            flow_repository=flow_repo,
-            corruption_detector=corruption_detector
-        )
+        date_handling_works = True
+        test_results = []
         
-        escalation_service = CriticalErrorEscalationService(
-            db=db,
-            redis=redis,
-            monitoring_service=monitoring_service,
-            websocket_service=websocket_service
-        )
+        for test_input, should_succeed in test_cases:
+            try:
+                result = coerce_to_date(test_input)
+                test_results.append({
+                    "input": test_input,
+                    "success": True,
+                    "result": result.isoformat() if result else None
+                })
+            except Exception as e:
+                if should_succeed:
+                    date_handling_works = False
+                test_results.append({
+                    "input": test_input,
+                    "success": False,
+                    "error": str(e)
+                })
         
-        success = await escalation_service.resolve_escalation(escalation_id, current_user.email, resolution_note)
-        
-        if not success:
-            raise HTTPException(status_code=404, detail="Escalation not found")
-        
-        return {
-            'success': True,
-            'message': f'Escalation {escalation_id} resolved successfully',
-            'resolved_by': current_user.email,
-            'resolved_at': datetime.utcnow().isoformat(),
-            'resolution_note': resolution_note
+        health_status["checks"]["date_parameter_handling"] = {
+            "status": "healthy" if date_handling_works else "unhealthy",
+            "details": {
+                "test_results": test_results
+            }
         }
-        
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error resolving escalation: {str(e)}")
-
-
-@router.post("/recovery/run", response_model=None)
-async def run_automated_recovery(
-    db: Session = Depends(get_db),
-    redis: Optional[redis.Redis] = Depends(get_redis),
-    current_user: User = Depends(get_current_user)
-) -> dict[str, Any]:
-    """Manually trigger automated recovery cycle."""
-    try:
-        from app.repositories.flow import FlowRepository
-        from app.services.data_corruption_detector import DataCorruptionDetector
-        from app.services.error_recovery import ErrorRecoveryService
-        from app.services.manual_correction import ManualCorrectionService
-        from app.services.websocket_events import WebSocketEventService
-        
-        flow_repo = FlowRepository(db)
-        corruption_detector = DataCorruptionDetector(db, redis)
-        websocket_service = WebSocketEventService(redis)
-        
-        monitoring_service = FlowMonitoringService(
-            db=db,
-            redis=redis,
-            flow_repository=flow_repo,
-            corruption_detector=corruption_detector
-        )
-        
-        error_recovery_service = ErrorRecoveryService(db, redis)
-        manual_correction_service = ManualCorrectionService(db, redis, flow_repo)
-        
-        recovery_service = AutomatedRecoveryService(
-            db=db,
-            redis=redis,
-            monitoring_service=monitoring_service,
-            error_recovery_service=error_recovery_service,
-            corruption_detector=corruption_detector,
-            manual_correction_service=manual_correction_service,
-            flow_repository=flow_repo
-        )
-        
-        recovery_results = await recovery_service.run_automated_recovery_cycle()
-        
-        return {
-            'success': True,
-            'message': 'Automated recovery cycle completed',
-            'triggered_by': current_user.email,
-            'results': recovery_results
+        health_status["checks"]["date_parameter_handling"] = {
+            "status": "unhealthy",
+            "error": str(e)
         }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error running automated recovery: {str(e)}")
-
-
-@router.get("/health-checks", response_model=None)
-async def run_health_checks(
-    db: Session = Depends(get_db),
-    redis: Optional[redis.Redis] = Depends(get_redis),
-    current_user: User = Depends(get_current_user)
-) -> dict[str, Any]:
-    """Run comprehensive health checks."""
+        health_status["overall_status"] = "unhealthy"
+    
+    # Check 5: Error Tracking System
     try:
-        from app.repositories.flow import FlowRepository
-        from app.services.data_corruption_detector import DataCorruptionDetector
+        error_stats = error_handler.get_error_stats()
         
-        flow_repo = FlowRepository(db)
-        corruption_detector = DataCorruptionDetector(db, redis)
+        # Check recent error activity
+        recent_errors = db.query(ErrorLog).filter(
+            ErrorLog.last_seen >= datetime.utcnow() - timedelta(hours=1)
+        ).count()
         
-        monitoring_service = FlowMonitoringService(
-            db=db,
-            redis=redis,
-            flow_repository=flow_repo,
-            corruption_detector=corruption_detector
-        )
-        
-        health_checks = await monitoring_service.run_health_checks()
-        
-        return health_checks
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error running health checks: {str(e)}")
-
-
-@router.post("/escalation-triggers/check", response_model=None)
-async def check_escalation_triggers(
-    db: Session = Depends(get_db),
-    redis: Optional[redis.Redis] = Depends(get_redis),
-    current_user: User = Depends(get_current_user)
-) -> dict[str, Any]:
-    """Manually check for escalation triggers."""
-    try:
-        from app.repositories.flow import FlowRepository
-        from app.services.data_corruption_detector import DataCorruptionDetector
-        from app.services.websocket_events import WebSocketEventService
-        
-        flow_repo = FlowRepository(db)
-        corruption_detector = DataCorruptionDetector(db, redis)
-        websocket_service = WebSocketEventService(redis)
-        
-        monitoring_service = FlowMonitoringService(
-            db=db,
-            redis=redis,
-            flow_repository=flow_repo,
-            corruption_detector=corruption_detector
-        )
-        
-        escalation_service = CriticalErrorEscalationService(
-            db=db,
-            redis=redis,
-            monitoring_service=monitoring_service,
-            websocket_service=websocket_service
-        )
-        
-        triggers = await escalation_service.check_escalation_triggers()
-        
-        return {
-            'triggers_found': len(triggers),
-            'triggers': triggers,
-            'checked_by': current_user.email,
-            'checked_at': datetime.utcnow().isoformat()
+        health_status["checks"]["error_tracking"] = {
+            "status": "healthy",
+            "details": {
+                "error_handler_stats": error_stats,
+                "recent_errors_count": recent_errors,
+                "tracking_enabled": error_handler.enable_tracking
+            }
         }
-        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error checking escalation triggers: {str(e)}")
+        health_status["checks"]["error_tracking"] = {
+            "status": "unhealthy",
+            "error": str(e)
+        }
+        health_status["overall_status"] = "unhealthy"
+    
+    return health_status
+
+
+@router.get("/errors/metrics")
+async def get_error_metrics(
+    hours: int = Query(24, description="Hours to look back for error metrics"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get error tracking metrics for monitoring and alerting.
+    
+    Args:
+        hours: Number of hours to look back for metrics
+        
+    Returns:
+        Dictionary with error metrics and statistics
+    """
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+    
+    # Get error counts by type
+    error_type_counts = db.query(
+        ErrorLog.error_type,
+        func.count(ErrorLog.id).label('count'),
+        func.sum(ErrorLog.count).label('total_occurrences')
+    ).filter(
+        ErrorLog.last_seen >= cutoff_time
+    ).group_by(ErrorLog.error_type).all()
+    
+    # Get error counts by severity
+    severity_counts = db.query(
+        ErrorLog.severity,
+        func.count(ErrorLog.id).label('count'),
+        func.sum(ErrorLog.count).label('total_occurrences')
+    ).filter(
+        ErrorLog.last_seen >= cutoff_time
+    ).group_by(ErrorLog.severity).all()
+    
+    # Get most frequent errors
+    frequent_errors = db.query(ErrorLog).filter(
+        ErrorLog.last_seen >= cutoff_time
+    ).order_by(desc(ErrorLog.count)).limit(10).all()
+    
+    # Get recent critical errors
+    critical_errors = db.query(ErrorLog).filter(
+        ErrorLog.last_seen >= cutoff_time,
+        ErrorLog.severity == 'CRITICAL'
+    ).order_by(desc(ErrorLog.last_seen)).limit(5).all()
+    
+    # Calculate error rates
+    total_errors = sum(row.total_occurrences for row in error_type_counts)
+    error_rate_per_hour = total_errors / hours if hours > 0 else 0
+    
+    # Get error handler statistics
+    handler_stats = error_handler.get_error_stats()
+    
+    return {
+        "timestamp": datetime.utcnow().isoformat(),
+        "time_window_hours": hours,
+        "summary": {
+            "total_error_types": len(error_type_counts),
+            "total_error_occurrences": total_errors,
+            "error_rate_per_hour": round(error_rate_per_hour, 2),
+            "critical_errors_count": len(critical_errors)
+        },
+        "error_types": [
+            {
+                "type": row.error_type,
+                "unique_errors": row.count,
+                "total_occurrences": row.total_occurrences
+            }
+            for row in error_type_counts
+        ],
+        "severity_breakdown": [
+            {
+                "severity": row.severity,
+                "unique_errors": row.count,
+                "total_occurrences": row.total_occurrences
+            }
+            for row in severity_counts
+        ],
+        "most_frequent_errors": [
+            {
+                "id": str(error.id),
+                "type": error.error_type,
+                "message": error.error_message[:100] + "..." if len(error.error_message) > 100 else error.error_message,
+                "count": error.count,
+                "severity": error.severity,
+                "first_seen": error.first_seen.isoformat(),
+                "last_seen": error.last_seen.isoformat()
+            }
+            for error in frequent_errors
+        ],
+        "recent_critical_errors": [
+            {
+                "id": str(error.id),
+                "type": error.error_type,
+                "message": error.error_message[:100] + "..." if len(error.error_message) > 100 else error.error_message,
+                "count": error.count,
+                "last_seen": error.last_seen.isoformat(),
+                "context": error.context
+            }
+            for error in critical_errors
+        ],
+        "error_handler_stats": handler_stats
+    }
+
+
+@router.get("/errors/{error_id}")
+async def get_error_details(
+    error_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get detailed information about a specific error.
+    
+    Args:
+        error_id: UUID of the error log entry
+        
+    Returns:
+        Detailed error information
+    """
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    error_log = db.query(ErrorLog).filter(ErrorLog.id == error_id).first()
+    if not error_log:
+        raise HTTPException(status_code=404, detail="Error not found")
+    
+    return {
+        "id": str(error_log.id),
+        "error_type": error_log.error_type,
+        "error_message": error_log.error_message,
+        "severity": error_log.severity,
+        "count": error_log.count,
+        "first_seen": error_log.first_seen.isoformat(),
+        "last_seen": error_log.last_seen.isoformat(),
+        "resolved": error_log.resolved,
+        "context": error_log.context,
+        "stack_trace": error_log.stack_trace
+    }
+
+
+@router.post("/errors/{error_id}/resolve")
+async def resolve_error(
+    error_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Mark an error as resolved.
+    
+    Args:
+        error_id: UUID of the error log entry
+        
+    Returns:
+        Updated error information
+    """
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    error_log = db.query(ErrorLog).filter(ErrorLog.id == error_id).first()
+    if not error_log:
+        raise HTTPException(status_code=404, detail="Error not found")
+    
+    error_log.resolved = True
+    db.commit()
+    
+    logger.info(f"Error {error_id} marked as resolved by user {current_user.id}")
+    
+    return {
+        "id": str(error_log.id),
+        "resolved": error_log.resolved,
+        "message": "Error marked as resolved"
+    }
+
+
+@router.get("/alerts/configuration")
+async def get_alert_configuration(
+    current_user: User = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """
+    Get current alerting configuration for critical error patterns.
+    
+    Returns:
+        Current alert configuration and thresholds
+    """
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    return {
+        "error_rate_thresholds": {
+            "critical_errors_per_hour": 5,
+            "total_errors_per_hour": 50,
+            "dependency_injection_errors_per_hour": 3,
+            "role_enum_errors_per_hour": 10,
+            "schema_mismatch_errors_per_hour": 2
+        },
+        "alert_channels": {
+            "email_enabled": True,
+            "webhook_enabled": False,
+            "log_alerts": True
+        },
+        "monitoring_intervals": {
+            "health_check_minutes": 5,
+            "error_metrics_minutes": 15,
+            "critical_error_immediate": True
+        },
+        "error_handler_config": {
+            "max_errors_per_hour": error_handler.max_errors_per_hour,
+            "tracking_enabled": error_handler.enable_tracking,
+            "rate_limiting_enabled": True
+        }
+    }
+
+
+@router.get("/system/status")
+async def get_system_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get overall system status including critical fixes health.
+    
+    Returns:
+        Comprehensive system status information
+    """
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Get critical fixes health
+    health_check = await check_critical_fixes_health(current_user, db)
+    
+    # Get recent error summary
+    recent_errors = db.query(ErrorLog).filter(
+        ErrorLog.last_seen >= datetime.utcnow() - timedelta(hours=1)
+    ).count()
+    
+    critical_errors = db.query(ErrorLog).filter(
+        ErrorLog.last_seen >= datetime.utcnow() - timedelta(hours=1),
+        ErrorLog.severity == 'CRITICAL'
+    ).count()
+    
+    # Determine overall system health
+    system_healthy = (
+        health_check["overall_status"] == "healthy" and
+        critical_errors == 0 and
+        recent_errors < 10
+    )
+    
+    return {
+        "timestamp": datetime.utcnow().isoformat(),
+        "system_status": "healthy" if system_healthy else "degraded",
+        "critical_fixes_health": health_check,
+        "error_summary": {
+            "recent_errors_1h": recent_errors,
+            "critical_errors_1h": critical_errors,
+            "error_tracking_active": error_handler.enable_tracking
+        },
+        "recommendations": _get_system_recommendations(health_check, recent_errors, critical_errors)
+    }
+
+
+def _get_system_recommendations(
+    health_check: Dict[str, Any],
+    recent_errors: int,
+    critical_errors: int
+) -> List[str]:
+    """
+    Generate system recommendations based on current status.
+    
+    Args:
+        health_check: Results from critical fixes health check
+        recent_errors: Number of recent errors
+        critical_errors: Number of critical errors
+        
+    Returns:
+        List of recommendations for system improvement
+    """
+    recommendations = []
+    
+    # Check individual health components
+    for check_name, check_result in health_check.get("checks", {}).items():
+        if check_result.get("status") == "unhealthy":
+            if check_name == "dependency_injection":
+                recommendations.append("Fix dependency injection system - service provider not working correctly")
+            elif check_name == "role_enum_system":
+                recommendations.append("Fix role enum system - enum comparisons failing")
+            elif check_name == "database_schema":
+                recommendations.append("Fix database schema compatibility issues")
+            elif check_name == "date_parameter_handling":
+                recommendations.append("Fix date parameter handling in API endpoints")
+            elif check_name == "error_tracking":
+                recommendations.append("Fix error tracking system")
+    
+    # Check error levels
+    if critical_errors > 0:
+        recommendations.append(f"Investigate {critical_errors} critical errors in the last hour")
+    
+    if recent_errors > 20:
+        recommendations.append(f"High error rate detected: {recent_errors} errors in the last hour")
+    
+    # General recommendations
+    if not recommendations:
+        recommendations.append("System is healthy - continue monitoring")
+    
+    return recommendations

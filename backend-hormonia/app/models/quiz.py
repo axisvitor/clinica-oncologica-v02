@@ -85,7 +85,7 @@ class QuizSession(BaseModel):
     patient = relationship("Patient", back_populates="quiz_sessions")
     quiz_template = relationship("QuizTemplate", back_populates="sessions")
     responses = relationship("QuizResponse", back_populates="quiz_session")
-    alerts = relationship("Alert", back_populates="quiz_session")
+    # Note: alerts relationship removed since quiz_session_id is stored in Alert.data JSONB field
 
     # Database constraints and indexes - FIX: Match actual database schema
     __table_args__ = (

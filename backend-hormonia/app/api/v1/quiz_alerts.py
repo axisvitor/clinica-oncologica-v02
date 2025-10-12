@@ -9,8 +9,8 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.dependencies.auth_dependencies import get_current_user
-from app.dependencies.database import get_db
-from app.models.user import User
+from app.database import get_db
+from app.models.user import User, UserRole
 from app.models.alert import AlertSeverity, AlertStatus
 from app.repositories.alert import AlertRepository
 from app.services.quiz_response_evaluator import QuizResponseEvaluator
@@ -53,7 +53,7 @@ async def get_patient_quiz_alerts(
     - List of alerts with pagination metadata
     """
     # Authorization check
-    if current_user.user_type not in ["medico", "admin"]:
+    if current_user.role not in {UserRole.DOCTOR, UserRole.ADMIN}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only medical staff can view patient alerts"
@@ -113,7 +113,7 @@ async def get_quiz_session_alerts(
     - List of alerts for the session
     """
     # Authorization check
-    if current_user.user_type not in ["medico", "admin"]:
+    if current_user.role not in {UserRole.DOCTOR, UserRole.ADMIN}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only medical staff can view quiz alerts"
@@ -163,7 +163,7 @@ async def get_patient_alert_summary(
     - Acknowledgement rate
     """
     # Authorization check
-    if current_user.user_type not in ["medico", "admin"]:
+    if current_user.role not in {UserRole.DOCTOR, UserRole.ADMIN}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only medical staff can view alert summaries"
@@ -205,7 +205,7 @@ async def acknowledge_quiz_alert(
     - Updated alert with acknowledgment details
     """
     # Authorization check
-    if current_user.user_type not in ["medico", "admin"]:
+    if current_user.role not in {UserRole.DOCTOR, UserRole.ADMIN}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only medical staff can acknowledge alerts"
@@ -263,7 +263,7 @@ async def get_critical_quiz_alerts(
     - List of CRITICAL alerts that are PENDING
     """
     # Authorization check
-    if current_user.user_type not in ["medico", "admin"]:
+    if current_user.role not in {UserRole.DOCTOR, UserRole.ADMIN}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only medical staff can view critical alerts"

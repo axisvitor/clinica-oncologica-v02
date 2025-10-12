@@ -15,7 +15,7 @@ from app.dependencies import (
     get_db, get_current_user, get_monthly_quiz_service,
     verify_monthly_quiz_token, get_request_context, RequestContext
 )
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.services.monthly_quiz_service import MonthlyQuizService
 from app.schemas.monthly_quiz import (
     MonthlyQuizLinkCreate, MonthlyQuizLinkResponse,
@@ -26,6 +26,8 @@ from app.schemas.monthly_quiz import (
 )
 from typing import List
 from app.utils.api_decorators import handle_service_exceptions
+from app.core.error_handler import error_handler
+from app.core.monitoring_logging import monitoring_logger
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -445,14 +447,36 @@ async def get_active_quiz_links_with_details(
     - List of active quiz links with patient names, template details, and access URLs
     """
     try:
-        # Pass user_id for filtering if needed (can be enhanced based on role)
-        user_id = None if current_user.role == "admin" else current_user.id
-        return await service.get_active_links_with_details(user_id=user_id)
+        with monitoring_logger.context(operation="get_active_quiz_links", user_id=str(current_user.id)):
+            # Pass user_id for filtering if needed (can be enhanced based on role)
+            user_id = None if current_user.role == UserRole.ADMIN else current_user.id
+            return await service.get_active_links_with_details(user_id=user_id)
+    except AttributeError as e:
+        # Handle role enum errors
+        if "UserRole" in str(e) or "role" in str(e).lower():
+            await error_handler.handle_role_enum_error(
+                e,
+                user_role=str(current_user.role) if hasattr(current_user, 'role') else None,
+                endpoint="monthly_quiz.get_active_quiz_links_with_details"
+            )
+        else:
+            await error_handler.handle_dependency_injection_error(
+                e,
+                {
+                    "operation": "get_active_quiz_links",
+                    "endpoint": "monthly_quiz.get_active_quiz_links_with_details",
+                    "user_id": str(current_user.id)
+                }
+            )
     except Exception as e:
-        logger.error(f"Error getting active quiz links: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get active quiz links: {str(e)}"
+        await error_handler.handle_generic_error(
+            e,
+            error_type="MONTHLY_QUIZ_LINKS_ERROR",
+            context={
+                "operation": "get_active_quiz_links",
+                "user_id": str(current_user.id)
+            },
+            user_message="Failed to get active quiz links. Please try again."
         )
 
 
@@ -472,14 +496,36 @@ async def get_dashboard_quiz_stats(
     - Comprehensive statistics with backward-compatible field names
     """
     try:
-        # Pass user_id for filtering if needed (can be enhanced based on role)
-        user_id = None if current_user.role == "admin" else current_user.id
-        return await service.get_quiz_stats(user_id=user_id)
+        with monitoring_logger.context(operation="get_dashboard_quiz_stats", user_id=str(current_user.id)):
+            # Pass user_id for filtering if needed (can be enhanced based on role)
+            user_id = None if current_user.role == UserRole.ADMIN else current_user.id
+            return await service.get_quiz_stats(user_id=user_id)
+    except AttributeError as e:
+        # Handle role enum errors
+        if "UserRole" in str(e) or "role" in str(e).lower():
+            await error_handler.handle_role_enum_error(
+                e,
+                user_role=str(current_user.role) if hasattr(current_user, 'role') else None,
+                endpoint="monthly_quiz.get_dashboard_quiz_stats"
+            )
+        else:
+            await error_handler.handle_dependency_injection_error(
+                e,
+                {
+                    "operation": "get_dashboard_quiz_stats",
+                    "endpoint": "monthly_quiz.get_dashboard_quiz_stats",
+                    "user_id": str(current_user.id)
+                }
+            )
     except Exception as e:
-        logger.error(f"Error getting dashboard statistics: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get dashboard statistics: {str(e)}"
+        await error_handler.handle_generic_error(
+            e,
+            error_type="MONTHLY_QUIZ_STATS_ERROR",
+            context={
+                "operation": "get_dashboard_quiz_stats",
+                "user_id": str(current_user.id)
+            },
+            user_message="Failed to get dashboard statistics. Please try again."
         )
 
 

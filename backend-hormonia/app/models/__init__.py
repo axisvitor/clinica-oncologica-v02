@@ -45,6 +45,9 @@ from app.models.consent import Consent, ConsentType, ConsentStatus
 from app.models.webhook_event import WebhookEvent
 from app.models.failed_message import FailedMessage, FailureReason, DLQStatus
 
+# Error tracking models
+from app.models.error_tracking import ErrorLog
+
 __all__ = [
     # Base
     "BaseModel",
@@ -130,4 +133,7 @@ __all__ = [
     "FailedMessage",
     "FailureReason",
     "DLQStatus",
+
+    # Error tracking models
+    "ErrorLog",
 ]

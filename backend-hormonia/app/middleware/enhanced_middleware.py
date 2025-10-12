@@ -20,6 +20,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.config import settings
 from app.utils.logging import get_logger
+from app.core.logging_config import OptimizedRequestLogger, RateLimitedLogger
 
 logger = get_logger(__name__)
 
@@ -141,7 +142,7 @@ class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
             # Add rate limit headers
             self._add_rate_limit_headers(response, request)
 
-            # Log successful request
+            # Log successful request with rate limiting
             process_time = time.time() - start_time
             await self._log_request(request, response, process_time)
 
@@ -284,9 +285,21 @@ class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
             response.headers["X-RateLimit-Policy"] = "sliding-window"
 
     async def _log_request(self, request: Request, response: Response, process_time: float) -> None:
-        """Log request details for monitoring."""
-        logger.info(
-            f"{request.method} {request.url.path} - {response.status_code}",
+        """Log request details for monitoring with rate limiting."""
+        log_key = f"rate_limit_request_{request.url.path}"
+        message = f"{request.method} {request.url.path} - {response.status_code}"
+        
+        # Use DEBUG level for successful requests to reduce log volume
+        level = logging.DEBUG if response.status_code < 400 else logging.INFO
+        
+        # Simple rate limiting check - log every 10th successful request for high-frequency endpoints
+        if response.status_code < 400 and request.url.path in ['/health', '/metrics', '/api/v1/health']:
+            # Skip logging for health checks and metrics to reduce noise
+            return
+        
+        logger.log(
+            level,
+            message,
             extra={
                 "event_type": "http_request",
                 "method": request.method,
@@ -487,7 +500,7 @@ class EnhancedSecurityMiddleware(BaseHTTPMiddleware):
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """
-    Comprehensive request/response logging middleware.
+    Comprehensive request/response logging middleware with rate limiting.
 
     Features:
     - Structured logging with correlation IDs
@@ -495,6 +508,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     - Performance metrics
     - Error tracking
     - Audit trail
+    - Rate limiting and log optimization
     """
 
     def __init__(
@@ -502,7 +516,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         app: ASGIApp,
         log_request_body: bool = False,
         log_response_body: bool = False,
-        sensitive_headers: Optional[list] = None
+        sensitive_headers: Optional[list] = None,
+        max_logs_per_second: int = 50,
+        enable_rate_limiting: bool = True
     ):
         super().__init__(app)
         self.log_request_body = log_request_body
@@ -510,17 +526,35 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         self.sensitive_headers = set(sensitive_headers or [
             "authorization", "cookie", "x-api-key", "x-auth-token"
         ])
+        
+        # Initialize rate-limited logger
+        if enable_rate_limiting:
+            self.rate_limiter = RateLimitedLogger(
+                max_logs_per_second=max_logs_per_second,
+                enable_deduplication=True
+            )
+            self.optimized_logger = OptimizedRequestLogger(self.rate_limiter)
+        else:
+            self.rate_limiter = None
+            self.optimized_logger = None
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """Process request with comprehensive logging."""
+        """Process request with comprehensive logging and rate limiting."""
         start_time = time.time()
 
         # Generate correlation ID
         correlation_id = self._generate_correlation_id(request)
         request.state.correlation_id = correlation_id
 
-        # Log incoming request
-        await self._log_request(request, correlation_id)
+        # Log incoming request with optimized logging
+        client_ip = request.client.host if request.client else "unknown"
+        
+        if self.optimized_logger:
+            self.optimized_logger.log_request_start(
+                request.method, request.url.path, client_ip, correlation_id
+            )
+        else:
+            await self._log_request(request, correlation_id)
 
         try:
             # Process request
@@ -533,15 +567,27 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             response.headers["X-Correlation-ID"] = correlation_id
             response.headers["X-Process-Time"] = str(round(process_time, 3))
 
-            # Log response
-            await self._log_response(request, response, process_time, correlation_id)
+            # Log response with optimized logging
+            if self.optimized_logger:
+                self.optimized_logger.log_request_complete(
+                    request.method, request.url.path, response.status_code,
+                    process_time, correlation_id
+                )
+            else:
+                await self._log_response(request, response, process_time, correlation_id)
 
             return response
 
         except Exception as e:
-            # Log error
+            # Log error with optimized logging
             process_time = time.time() - start_time
-            await self._log_error(request, e, process_time, correlation_id)
+            
+            if self.optimized_logger:
+                self.optimized_logger.log_request_error(
+                    request.method, request.url.path, e, process_time, correlation_id
+                )
+            else:
+                await self._log_error(request, e, process_time, correlation_id)
             raise
 
     def _generate_correlation_id(self, request: Request) -> str:
@@ -561,7 +607,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         return hashlib.md5(hash_input.encode()).hexdigest()[:12]
 
     async def _log_request(self, request: Request, correlation_id: str) -> None:
-        """Log incoming request details."""
+        """Log incoming request details (fallback when optimized logger not available)."""
         # Sanitize headers
         headers = dict(request.headers)
         for header in self.sensitive_headers:
@@ -591,9 +637,11 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                     else:
                         log_data["request_body_size"] = len(body)
             except Exception as e:
-                logger.warning(f"Failed to log request body: {str(e)}")
+                # Use DEBUG level for non-critical logging errors
+                logger.debug(f"Failed to log request body: {str(e)}")
 
-        logger.info(f"HTTP {request.method} {request.url.path}", extra=log_data)
+        # Use DEBUG level for routine requests to reduce log volume
+        logger.debug(f"HTTP {request.method} {request.url.path}", extra=log_data)
 
     async def _log_response(
         self,
@@ -602,7 +650,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         process_time: float,
         correlation_id: str
     ) -> None:
-        """Log response details."""
+        """Log response details (fallback when optimized logger not available)."""
         log_data = {
             "event_type": "http_request_complete",
             "correlation_id": correlation_id,
@@ -622,15 +670,17 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                     if "application/json" in content_type:
                         log_data["response_body"] = json.loads(response.body)
             except Exception as e:
-                logger.warning(f"Failed to log response body: {str(e)}")
+                # Use DEBUG level for non-critical logging errors
+                logger.debug(f"Failed to log response body: {str(e)}")
 
-        # Determine log level based on status code
+        # Use DEBUG level for routine requests, appropriate levels for errors
         if response.status_code >= 500:
             logger.error(f"HTTP {request.method} {request.url.path} - {response.status_code}", extra=log_data)
         elif response.status_code >= 400:
             logger.warning(f"HTTP {request.method} {request.url.path} - {response.status_code}", extra=log_data)
         else:
-            logger.info(f"HTTP {request.method} {request.url.path} - {response.status_code}", extra=log_data)
+            # Use DEBUG level for successful requests to reduce log volume
+            logger.debug(f"HTTP {request.method} {request.url.path} - {response.status_code}", extra=log_data)
 
     async def _log_error(
         self,
@@ -639,7 +689,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         process_time: float,
         correlation_id: str
     ) -> None:
-        """Log request error."""
+        """Log request error (fallback when optimized logger not available)."""
         log_data = {
             "event_type": "http_request_error",
             "correlation_id": correlation_id,
@@ -651,8 +701,22 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             "timestamp": datetime.utcnow().isoformat() + 'Z'
         }
 
-        logger.error(
-            f"HTTP {request.method} {request.url.path} - ERROR: {str(error)}",
-            extra=log_data,
-            exc_info=True
-        )
+        # Determine if we should include stack trace based on error type
+        error_type = type(error).__name__
+        expected_errors = {'ValidationError', 'HTTPException', 'AuthenticationError', 'AuthorizationError'}
+        include_stacktrace = error_type not in expected_errors
+
+        # Use appropriate log level based on error type
+        if hasattr(error, 'status_code') and 400 <= error.status_code < 500:
+            # Client errors - use WARNING level, no stack trace
+            logger.warning(
+                f"HTTP {request.method} {request.url.path} - {error_type}: {str(error)}",
+                extra=log_data
+            )
+        else:
+            # Server errors - use ERROR level with stack trace if appropriate
+            logger.error(
+                f"HTTP {request.method} {request.url.path} - ERROR: {str(error)}",
+                extra=log_data,
+                exc_info=include_stacktrace
+            )

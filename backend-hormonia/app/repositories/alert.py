@@ -62,6 +62,7 @@ class AlertRepository(BaseRepository[Alert]):
         Get unacknowledged alerts with pagination and eager loading.
 
         PERFORMANCE OPTIMIZATION: Eager loading enabled by default.
+        SCHEMA COMPATIBILITY: Uses acknowledged boolean field instead of status enum.
 
         Args:
             skip: Number of records to skip for pagination
@@ -75,7 +76,7 @@ class AlertRepository(BaseRepository[Alert]):
 
         query = (
             self.db.query(Alert)
-            .filter(Alert.status == AlertStatus.PENDING)
+            .filter(Alert.acknowledged == False)  # Use boolean field instead of status enum
             .order_by(Alert.created_at.desc(), Alert.id)
         )
 
@@ -125,6 +126,7 @@ class AlertRepository(BaseRepository[Alert]):
         Get critical unacknowledged alerts with compound filter and eager loading.
 
         PERFORMANCE OPTIMIZATION: Eager loading enabled by default.
+        SCHEMA COMPATIBILITY: Uses acknowledged boolean field instead of status enum.
 
         Args:
             skip: Number of records to skip for pagination
@@ -141,7 +143,7 @@ class AlertRepository(BaseRepository[Alert]):
             .filter(
                 and_(
                     Alert.severity == AlertSeverity.CRITICAL,
-                    Alert.status == AlertStatus.PENDING
+                    Alert.acknowledged == False  # Use boolean field instead of status enum
                 )
             )
             .order_by(Alert.created_at.desc(), Alert.id)
@@ -228,7 +230,8 @@ class AlertRepository(BaseRepository[Alert]):
     
     def get_active_alerts(self, skip: int = 0, limit: int = 100) -> List[Alert]:
         """
-        Get active (pending or acknowledged) alerts with pagination.
+        Get active (unacknowledged) alerts with pagination.
+        SCHEMA COMPATIBILITY: Uses acknowledged boolean field. Active = not acknowledged.
         
         Args:
             skip: Number of records to skip for pagination
@@ -239,12 +242,7 @@ class AlertRepository(BaseRepository[Alert]):
         """
         return (
             self.db.query(Alert)
-            .filter(
-                or_(
-                    Alert.status == AlertStatus.PENDING,
-                    Alert.status == AlertStatus.ACKNOWLEDGED
-                )
-            )
+            .filter(Alert.acknowledged == False)  # Active = not acknowledged
             .order_by(Alert.created_at.desc(), Alert.id)
             .offset(skip)
             .limit(limit)
@@ -270,13 +268,14 @@ class AlertRepository(BaseRepository[Alert]):
     def count_unacknowledged(self) -> int:
         """
         Count unacknowledged alerts.
+        SCHEMA COMPATIBILITY: Uses acknowledged boolean field instead of status enum.
         
         Returns:
-            Integer count of alerts with PENDING status
+            Integer count of alerts with acknowledged=false
         """
         return (
             self.db.query(Alert)
-            .filter(Alert.status == AlertStatus.PENDING)
+            .filter(Alert.acknowledged == False)
             .count()
         )
     
@@ -289,6 +288,7 @@ class AlertRepository(BaseRepository[Alert]):
     ) -> List[Alert]:
         """
         Get alerts for a patient filtered by status.
+        SCHEMA COMPATIBILITY: Maps status enum to acknowledged boolean field.
         
         Args:
             patient_id: UUID of the patient
@@ -299,12 +299,18 @@ class AlertRepository(BaseRepository[Alert]):
         Returns:
             List of alerts matching criteria
         """
+        # Map status enum to acknowledged boolean
+        if status == AlertStatus.ACKNOWLEDGED:
+            acknowledged = True
+        else:
+            acknowledged = False
+        
         return (
             self.db.query(Alert)
             .filter(
                 and_(
                     Alert.patient_id == patient_id,
-                    Alert.status == status
+                    Alert.acknowledged == acknowledged
                 )
             )
             .order_by(Alert.created_at.desc(), Alert.id)
@@ -316,6 +322,7 @@ class AlertRepository(BaseRepository[Alert]):
     def get_alerts_summary(self) -> dict:
         """
         Get comprehensive alert statistics.
+        SCHEMA COMPATIBILITY: Uses acknowledged boolean field to derive status.
         
         Returns:
             Dictionary containing alert counts by status, severity, and total
@@ -323,11 +330,11 @@ class AlertRepository(BaseRepository[Alert]):
         try:
             result = (
                 self.db.query(
-                    Alert.status,
+                    Alert.acknowledged,
                     Alert.severity,
                     func.count(Alert.id).label('count')
                 )
-                .group_by(Alert.status, Alert.severity)
+                .group_by(Alert.acknowledged, Alert.severity)
                 .all()
             )
             
@@ -337,8 +344,10 @@ class AlertRepository(BaseRepository[Alert]):
                 'total': 0
             }
             
-            for status, severity, count in result:
-                summary['by_status'][status.value] = summary['by_status'].get(status.value, 0) + count
+            for acknowledged, severity, count in result:
+                # Map acknowledged boolean to status string
+                status_str = "acknowledged" if acknowledged else "pending"
+                summary['by_status'][status_str] = summary['by_status'].get(status_str, 0) + count
                 summary['by_severity'][severity.value] = summary['by_severity'].get(severity.value, 0) + count
                 summary['total'] += count
             
@@ -354,6 +363,7 @@ class AlertRepository(BaseRepository[Alert]):
     ) -> int:
         """
         Bulk update status for multiple alerts.
+        SCHEMA COMPATIBILITY: Maps status enum to acknowledged boolean field.
         
         Args:
             alert_ids: List of alert IDs to update
@@ -371,12 +381,15 @@ class AlertRepository(BaseRepository[Alert]):
             raise ValidationError("Alert IDs list cannot be empty")
         
         try:
+            # Map status enum to acknowledged boolean
+            acknowledged = new_status == AlertStatus.ACKNOWLEDGED
+            
             update_data = {
-                'status': new_status,
+                'acknowledged': acknowledged,
                 'updated_at': datetime.utcnow()
             }
             
-            if acknowledged_by and new_status == AlertStatus.ACKNOWLEDGED:
+            if acknowledged_by and acknowledged:
                 update_data['acknowledged_by'] = acknowledged_by
                 update_data['acknowledged_at'] = datetime.utcnow()
             
@@ -412,11 +425,12 @@ class AlertRepository(BaseRepository[Alert]):
         try:
             cutoff_date = datetime.utcnow() - timedelta(days=days_old)
             
+            # Note: Using acknowledged field since status is virtual property
             result = (
                 self.db.query(Alert)
                 .filter(
                     and_(
-                        Alert.status == AlertStatus.RESOLVED,
+                        Alert.acknowledged == True,  # Resolved alerts are acknowledged
                         Alert.updated_at < cutoff_date
                     )
                 )
@@ -428,3 +442,198 @@ class AlertRepository(BaseRepository[Alert]):
         except Exception as e:
             self.db.rollback()
             raise DatabaseError(f"Failed to delete old resolved alerts: {str(e)}")
+    
+    def get_by_quiz_session(self, quiz_session_id: UUID) -> List[Alert]:
+        """
+        Get alerts by quiz session ID stored in data JSONB field.
+        
+        Args:
+            quiz_session_id: UUID of the quiz session
+            
+        Returns:
+            List of alerts related to the quiz session
+        """
+        try:
+            return (
+                self.db.query(Alert)
+                .filter(
+                    Alert.data.op('->>')('quiz_session_id') == str(quiz_session_id)
+                )
+                .order_by(Alert.created_at.desc(), Alert.id)
+                .all()
+            )
+        except Exception as e:
+            raise DatabaseError(f"Failed to retrieve alerts by quiz session: {str(e)}")
+    
+    def get_by_status(self, status: str) -> List[Alert]:
+        """
+        Get alerts by status (maps to acknowledged field).
+        
+        Args:
+            status: Status string ('acknowledged', 'pending', etc.)
+            
+        Returns:
+            List of alerts with the specified status
+        """
+        try:
+            # Map status to acknowledged boolean
+            if status == "acknowledged":
+                acknowledged = True
+            else:
+                acknowledged = False
+            
+            return (
+                self.db.query(Alert)
+                .filter(Alert.acknowledged == acknowledged)
+                .order_by(Alert.created_at.desc(), Alert.id)
+                .all()
+            )
+        except Exception as e:
+            raise DatabaseError(f"Failed to retrieve alerts by status: {str(e)}")
+    
+    def update_get_unacknowledged(self, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Alert]:
+        """
+        Updated version of get_unacknowledged using acknowledged boolean field.
+        
+        Args:
+            skip: Number of records to skip for pagination
+            limit: Maximum number of records to return
+            eager_load: Enable eager loading (default: True for performance)
+
+        Returns:
+            List of unacknowledged alerts ordered by creation time (newest first)
+        """
+        from sqlalchemy.orm import joinedload
+
+        query = (
+            self.db.query(Alert)
+            .filter(Alert.acknowledged == False)  # Use boolean field instead of status enum
+            .order_by(Alert.created_at.desc(), Alert.id)
+        )
+
+        if eager_load:
+            query = query.options(joinedload(Alert.patient))
+
+        return query.offset(skip).limit(limit).all()
+    
+    def update_count_unacknowledged(self) -> int:
+        """
+        Updated version of count_unacknowledged using acknowledged boolean field.
+        
+        Returns:
+            Integer count of alerts with acknowledged=false
+        """
+        return (
+            self.db.query(Alert)
+            .filter(Alert.acknowledged == False)
+            .count()
+        )
+    
+    def update_get_active_alerts(self, skip: int = 0, limit: int = 100) -> List[Alert]:
+        """
+        Updated version of get_active_alerts using acknowledged boolean field.
+        Active alerts are those that are not acknowledged.
+        
+        Args:
+            skip: Number of records to skip for pagination
+            limit: Maximum number of records to return
+            
+        Returns:
+            List of active (unacknowledged) alerts ordered by creation time (newest first)
+        """
+        return (
+            self.db.query(Alert)
+            .filter(Alert.acknowledged == False)
+            .order_by(Alert.created_at.desc(), Alert.id)
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+    
+    def update_get_alerts_by_patient_and_status(
+        self, 
+        patient_id: UUID, 
+        status: str,
+        skip: int = 0, 
+        limit: int = 100
+    ) -> List[Alert]:
+        """
+        Updated version using acknowledged boolean field instead of status enum.
+        
+        Args:
+            patient_id: UUID of the patient
+            status: Status string ('acknowledged', 'pending', etc.)
+            skip: Number of records to skip for pagination
+            limit: Maximum number of records to return
+            
+        Returns:
+            List of alerts matching criteria
+        """
+        # Map status to acknowledged boolean
+        if status == "acknowledged":
+            acknowledged = True
+        else:
+            acknowledged = False
+        
+        return (
+            self.db.query(Alert)
+            .filter(
+                and_(
+                    Alert.patient_id == patient_id,
+                    Alert.acknowledged == acknowledged
+                )
+            )
+            .order_by(Alert.created_at.desc(), Alert.id)
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+    
+    def update_bulk_update_status(
+        self, 
+        alert_ids: List[UUID], 
+        new_status: str,
+        acknowledged_by: Optional[UUID] = None
+    ) -> int:
+        """
+        Updated bulk update using acknowledged boolean field.
+        
+        Args:
+            alert_ids: List of alert IDs to update
+            new_status: New status to set ('acknowledged', 'pending', etc.)
+            acknowledged_by: User ID who acknowledged (if applicable)
+            
+        Returns:
+            Number of alerts updated
+            
+        Raises:
+            ValidationError: If alert_ids is empty
+            DatabaseError: If update operation fails
+        """
+        if not alert_ids:
+            raise ValidationError("Alert IDs list cannot be empty")
+        
+        try:
+            # Map status to acknowledged boolean
+            acknowledged = new_status == "acknowledged"
+            
+            update_data = {
+                'acknowledged': acknowledged,
+                'updated_at': datetime.utcnow()
+            }
+            
+            if acknowledged_by and acknowledged:
+                update_data['acknowledged_by'] = acknowledged_by
+                update_data['acknowledged_at'] = datetime.utcnow()
+            
+            result = (
+                self.db.query(Alert)
+                .filter(Alert.id.in_(alert_ids))
+                .update(update_data, synchronize_session=False)
+            )
+            
+            self.db.commit()
+            return result
+        except Exception as e:
+            self.db.rollback()
+            raise DatabaseError(f"Failed to bulk update alert status: {str(e)}")

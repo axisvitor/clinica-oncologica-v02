@@ -27,7 +27,7 @@ class _ThreadSafeProviderDependency:
     """
     def __call__(self) -> Generator:
         from app.dependencies import get_thread_safe_service_provider
-        return get_thread_safe_service_provider()
+        yield from get_thread_safe_service_provider()
 
 # Create singleton instance
 _get_provider_dep = _ThreadSafeProviderDependency()

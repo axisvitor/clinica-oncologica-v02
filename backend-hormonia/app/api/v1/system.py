@@ -199,7 +199,7 @@ async def initialize_system_endpoint(
     **Requires Admin privileges.**
     """
     # Check admin privileges
-    if current_user.role not in [UserRole.ADMIN, UserRole.SUPER_ADMIN]:
+    if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin privileges required for system initialization"
@@ -244,7 +244,7 @@ async def get_initialization_status(
     **Requires Admin privileges.**
     """
     # Check admin privileges
-    if current_user.role not in [UserRole.ADMIN, UserRole.SUPER_ADMIN]:
+    if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin privileges required to view initialization status"
@@ -327,7 +327,7 @@ async def validate_configuration(
     **Requires Admin privileges.**
     """
     # Check admin privileges
-    if current_user.role not in [UserRole.ADMIN, UserRole.SUPER_ADMIN]:
+    if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin privileges required for configuration validation"
@@ -410,11 +410,11 @@ async def restart_system_components(
     - firebase_service
     - monitoring_service
     """
-    # Check super admin privileges
-    if current_user.role != UserRole.SUPER_ADMIN:
+    # Check admin privileges
+    if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Super Admin privileges required for component restart"
+            detail="Admin privileges required for component restart"
         )
     
     try:

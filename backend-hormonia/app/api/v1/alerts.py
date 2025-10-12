@@ -19,6 +19,8 @@ from app.schemas.common import PaginationParams
 from app.services.alert import AlertService
 from app.services.alert_processor import AlertProcessor
 from app.utils.api_decorators import handle_service_exceptions, validate_pagination
+from app.core.error_handler import error_handler
+from app.core.monitoring_logging import monitoring_logger
 
 router = APIRouter()
 
@@ -35,28 +37,57 @@ async def list_alerts(
     current_user: User = Depends(get_current_user)
 ) -> AlertListResponse:
     """List system alerts with filtering and pagination."""
-    alert_system = AlertService(db)
-    
-    if patient_id:
-        alerts = alert_system.alert_repo.get_by_patient(patient_id, pagination.skip, pagination.limit)
-        total = len(alert_system.alert_repo.get_by_patient(patient_id, 0, 10000))  # Get total count
-    elif severity:
-        alerts = alert_system.alert_repo.get_by_severity(severity, pagination.skip, pagination.limit)
-        total = alert_system.alert_repo.count_by_severity(severity)
-    elif status == AlertStatus.PENDING:
-        alerts = alert_system.alert_repo.get_unacknowledged(pagination.skip, pagination.limit)
-        total = alert_system.alert_repo.count_unacknowledged()
-    else:
-        alerts = alert_system.alert_repo.get_active_alerts(pagination.skip, pagination.limit)
-        total = len(alert_system.alert_repo.get_active_alerts(0, 10000))  # Get total count
-    
-    return AlertListResponse(
-        items=[AlertResponse.from_orm(alert) for alert in alerts],
-        total=total,
-        page=pagination.page,
-        size=pagination.limit,
-        pages=(total + pagination.limit - 1) // pagination.limit
-    )
+    try:
+        with monitoring_logger.context(
+            operation="list_alerts",
+            user_id=str(current_user.id),
+            filters={"severity": severity, "status": status, "patient_id": str(patient_id) if patient_id else None}
+        ):
+            alert_system = AlertService(db)
+            
+            if patient_id:
+                alerts = alert_system.alert_repo.get_by_patient(patient_id, pagination.skip, pagination.limit)
+                total = len(alert_system.alert_repo.get_by_patient(patient_id, 0, 10000))  # Get total count
+            elif severity:
+                alerts = alert_system.alert_repo.get_by_severity(severity, pagination.skip, pagination.limit)
+                total = alert_system.alert_repo.count_by_severity(severity)
+            elif status == AlertStatus.PENDING:
+                alerts = alert_system.alert_repo.get_unacknowledged(pagination.skip, pagination.limit)
+                total = alert_system.alert_repo.count_unacknowledged()
+            else:
+                alerts = alert_system.alert_repo.get_active_alerts(pagination.skip, pagination.limit)
+                total = len(alert_system.alert_repo.get_active_alerts(0, 10000))  # Get total count
+            
+            return AlertListResponse(
+                items=[AlertResponse.from_orm(alert) for alert in alerts],
+                total=total,
+                page=pagination.page,
+                size=pagination.limit,
+                pages=(total + pagination.limit - 1) // pagination.limit
+            )
+    except Exception as e:
+        # Check if it's a schema compatibility error
+        if "column" in str(e).lower() or "table" in str(e).lower():
+            await error_handler.handle_schema_mismatch_error(
+                e,
+                table_name="alerts",
+                operation="list_alerts",
+                context={
+                    "filters": {"severity": severity, "status": status, "patient_id": str(patient_id) if patient_id else None},
+                    "pagination": {"skip": pagination.skip, "limit": pagination.limit}
+                }
+            )
+        else:
+            await error_handler.handle_generic_error(
+                e,
+                error_type="ALERTS_LIST_ERROR",
+                context={
+                    "operation": "list_alerts",
+                    "user_id": str(current_user.id),
+                    "filters": {"severity": severity, "status": status, "patient_id": str(patient_id) if patient_id else None}
+                },
+                user_message="Failed to retrieve alerts. Please try again."
+            )
 
 
 @router.get("/patient/{patient_id}", response_model=AlertListResponse)
@@ -69,18 +100,47 @@ async def get_patient_alerts(
     current_user: User = Depends(get_current_user)
 ) -> AlertListResponse:
     """Get alerts for specific patient."""
-    alert_system = AlertService(db)
-    
-    alerts = alert_system.alert_repo.get_by_patient(patient_id, pagination.skip, pagination.limit)
-    total = len(alert_system.alert_repo.get_by_patient(patient_id, 0, 10000))
-    
-    return AlertListResponse(
-        items=[AlertResponse.from_orm(alert) for alert in alerts],
-        total=total,
-        page=pagination.page,
-        size=pagination.limit,
-        pages=(total + pagination.limit - 1) // pagination.limit
-    )
+    try:
+        with monitoring_logger.context(
+            operation="get_patient_alerts",
+            user_id=str(current_user.id),
+            patient_id=str(patient_id)
+        ):
+            alert_system = AlertService(db)
+            
+            alerts = alert_system.alert_repo.get_by_patient(patient_id, pagination.skip, pagination.limit)
+            total = len(alert_system.alert_repo.get_by_patient(patient_id, 0, 10000))
+            
+            return AlertListResponse(
+                items=[AlertResponse.from_orm(alert) for alert in alerts],
+                total=total,
+                page=pagination.page,
+                size=pagination.limit,
+                pages=(total + pagination.limit - 1) // pagination.limit
+            )
+    except Exception as e:
+        # Check if it's a schema compatibility error
+        if "column" in str(e).lower() or "table" in str(e).lower():
+            await error_handler.handle_schema_mismatch_error(
+                e,
+                table_name="alerts",
+                operation="get_patient_alerts",
+                context={
+                    "patient_id": str(patient_id),
+                    "pagination": {"skip": pagination.skip, "limit": pagination.limit}
+                }
+            )
+        else:
+            await error_handler.handle_generic_error(
+                e,
+                error_type="PATIENT_ALERTS_ERROR",
+                context={
+                    "operation": "get_patient_alerts",
+                    "user_id": str(current_user.id),
+                    "patient_id": str(patient_id)
+                },
+                user_message="Failed to retrieve patient alerts. Please try again."
+            )
 
 
 @router.get("/patient/{patient_id}/summary", response_model=PatientAlertSummary)

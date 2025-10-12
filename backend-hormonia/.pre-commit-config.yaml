@@ -129,6 +129,51 @@ repos:
         pass_filenames: false
         stages: [commit]
 
+      # Critical bug pattern validation
+      - id: critical-pattern-validation
+        name: 🚨 Critical Bug Pattern Validation
+        entry: py scripts/validate_critical_patterns.py
+        language: system
+        files: ^app/.*\.py$
+        pass_filenames: false
+        stages: [commit]
+
+      # Dependency injection validation
+      - id: dependency-injection-check
+        name: 📦 Dependency Injection Pattern Check
+        entry: py scripts/validate_dependency_injection.py
+        language: system
+        files: ^app/(dependencies|api)/.*\.py$
+        pass_filenames: false
+        stages: [commit]
+
+      # Role enum validation
+      - id: role-enum-validation
+        name: 👤 Role Enum Usage Validation
+        entry: py scripts/validate_role_enums.py
+        language: system
+        files: ^app/.*\.py$
+        pass_filenames: false
+        stages: [commit]
+
+      # Database model compatibility check
+      - id: database-model-validation
+        name: 🗄️ Database Model Compatibility Check
+        entry: py scripts/validate_db_models.py
+        language: system
+        files: ^app/models/.*\.py$
+        pass_filenames: false
+        stages: [commit]
+
+      # Date parameter validation
+      - id: date-parameter-validation
+        name: 📅 Date Parameter Handling Validation
+        entry: py scripts/validate_date_parameters.py
+        language: system
+        files: ^app/api/.*\.py$
+        pass_filenames: false
+        stages: [commit]
+
       # Configuration validation
       - id: config-validation
         name: ⚙️ Configuration Validation
