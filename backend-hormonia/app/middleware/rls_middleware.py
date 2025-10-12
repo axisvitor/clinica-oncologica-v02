@@ -38,22 +38,22 @@ class RLSJWTMiddleware:
             JWT token string or None if not found
         """
         try:
-            # Try Authorization header first
-            auth_header = request.headers.get(settings.SUPABASE_JWT_HEADER_NAME)
+            # Try Authorization header first (Firebase/Bearer token)
+            auth_header = request.headers.get("Authorization")
             if auth_header:
-                if auth_header.startswith(f"{settings.SUPABASE_JWT_PREFIX} "):
-                    return auth_header[len(f"{settings.SUPABASE_JWT_PREFIX} "):].strip()
+                if auth_header.startswith("Bearer "):
+                    return auth_header[7:].strip()  # Remove "Bearer " prefix
                 elif not auth_header.startswith("Basic "):
                     # Assume it's a JWT token without Bearer prefix
                     return auth_header.strip()
 
-            # Try query parameter as fallback
+            # Try query parameter as fallback (for WebSocket connections)
             token = request.query_params.get("token")
             if token:
                 return token
 
-            # Try cookie as last resort
-            token = request.cookies.get("supabase_auth_token")
+            # Try cookie as last resort (for session-based auth)
+            token = request.cookies.get("auth_token")
             if token:
                 return token
 
