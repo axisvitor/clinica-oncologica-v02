@@ -1,5 +1,5 @@
 from typing import Optional, Dict, Any
-from datetime import date
+from datetime import date, datetime
 from uuid import UUID
 import re
 
@@ -64,6 +64,13 @@ class PatientBase(BaseModel):
         # Basic phone validation - can be enhanced
         if not v.startswith('+'):
             raise ValueError('Phone number must start with country code (+)')
+        return v
+
+    @validator('treatment_phase', pre=True)
+    def normalize_treatment_phase(cls, v):
+        # Normalize to lowercase to satisfy pattern and handle legacy uppercase values
+        if isinstance(v, str):
+            return v.strip().lower()
         return v
 
     @validator('cpf')
@@ -138,9 +145,16 @@ class PatientResponse(PatientBase):
     # Include metadata in response (for any additional fields)
     patient_data: Optional[Dict[str, Any]] = Field(
         None,
-        alias="metadata",
+        serialization_alias="metadata",
         description="Additional patient metadata"
     )
+
+    @validator('created_at', 'updated_at', pre=True)
+    def coerce_datetime_to_date(cls, v):
+        # Convert datetime to date for response schema compatibility
+        if isinstance(v, datetime):
+            return v.date()
+        return v
 
     class Config:
         from_attributes = True
