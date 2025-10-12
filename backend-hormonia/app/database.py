@@ -36,12 +36,7 @@ engine = create_optimized_engine(
     # Connection validation and cleanup
     connect_args={
         'connect_timeout': 10,      # TCP connection timeout
-        'sslmode': 'require',        # SECURITY FIX: Enforce SSL to prevent MITM
-        'application_name': 'hormonia_backend',  # Identify in pg_stat_activity
-        'keepalives_idle': 600,     # Keep-alive settings for network stability
-        'keepalives_interval': 30,
-        'keepalives_count': 3,
-        'options': '-c statement_timeout=30000',  # SECURITY FIX: 30s query timeout as session parameter
+        'application_name': 'hormonia_backend',
     },
 
     echo=settings.DEBUG,
@@ -214,11 +209,6 @@ def force_pool_recreation():
             connect_args={
                 'connect_timeout': 10,
                 'application_name': 'hormonia_backend',
-                'keepalives_idle': 600,
-                'sslmode': 'require',        # SECURITY FIX: Enforce SSL to prevent MITM
-                'keepalives_interval': 30,
-                'keepalives_count': 3,
-                'options': '-c statement_timeout=30000',  # SECURITY FIX: 30s query timeout as session parameter
             },
             echo=settings.DEBUG,
             echo_pool=settings.DEBUG if hasattr(settings, 'DEBUG') else False

@@ -15,6 +15,7 @@ from app.monitoring.service_health_monitor import service_health_monitor
 from app.monitoring.capacity_planner import capacity_planner
 from app.monitoring.alert_manager import alert_manager, AlertSeverity
 from app.config import settings
+from app.utils.db_retry import reset_circuit_breaker, db_circuit_breaker
 
 logger = logging.getLogger(__name__)
 
@@ -464,4 +465,61 @@ async def get_sla_metrics(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
+        )
+
+@rou
+ter.post("/circuit-breaker/reset")
+async def reset_database_circuit_breaker() -> Dict[str, Any]:
+    """
+    Emergency endpoint to reset the database circuit breaker.
+    Use this when the circuit breaker is stuck in OPEN state.
+    """
+    try:
+        # Get current state before reset
+        current_state = db_circuit_breaker.state
+        failure_count = db_circuit_breaker.failure_count
+        
+        # Reset the circuit breaker
+        reset_circuit_breaker()
+        
+        logger.info(f"Circuit breaker reset from {current_state} state with {failure_count} failures")
+        
+        return {
+            "success": True,
+            "message": "Database circuit breaker has been reset",
+            "previous_state": current_state,
+            "previous_failure_count": failure_count,
+            "current_state": "closed",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to reset circuit breaker: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to reset circuit breaker: {str(e)}"
+        )
+
+
+@router.get("/circuit-breaker/status")
+async def get_circuit_breaker_status() -> Dict[str, Any]:
+    """
+    Get current status of the database circuit breaker.
+    """
+    try:
+        return {
+            "state": db_circuit_breaker.state,
+            "failure_count": db_circuit_breaker.failure_count,
+            "failure_threshold": db_circuit_breaker.failure_threshold,
+            "recovery_timeout": db_circuit_breaker.recovery_timeout,
+            "last_failure_time": db_circuit_breaker.last_failure_time,
+            "is_healthy": db_circuit_breaker.state == "closed",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get circuit breaker status: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get circuit breaker status: {str(e)}"
         )

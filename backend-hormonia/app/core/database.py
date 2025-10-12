@@ -56,16 +56,8 @@ class RLSConnectionManager:
             pool_reset_on_return='commit',
             pool_logging_name='hormonia_service_role',
             connect_args={
-                'connect_timeout': 30,  # Aumentado de 10 para 30 para conexões lentas
-                'statement_timeout': 30000,  # SECURITY FIX: 30s query timeout prevents DoS
-                'sslmode': 'require',        # SECURITY FIX: Enforce SSL to prevent MITM
-                'prepare_threshold': 0,      # Evita problemas com prepared statements em SSL
-                'tcp_user_timeout': 30000,   # Previne timeouts silenciosos (30s)
+                'connect_timeout': 30,
                 'application_name': 'hormonia_service_role',
-                'keepalives': 1,             # Habilita TCP keepalive
-                'keepalives_idle': 30,       # Reduzido de 600 para detectar falhas mais rápido
-                'keepalives_interval': 10,   # Reduzido de 30 para detectar falhas mais rápido
-                'keepalives_count': 5,       # Aumentado de 3 para tolerar mais pacotes perdidos
             },
             echo=settings.DEBUG,
             echo_pool=settings.DEBUG if hasattr(settings, 'DEBUG') else False
@@ -83,16 +75,8 @@ class RLSConnectionManager:
             pool_reset_on_return='commit',
             pool_logging_name='hormonia_rls',
             connect_args={
-                'connect_timeout': 30,       # Aumentado de 10 para 30 para conexões lentas
-                'statement_timeout': 30000,  # SECURITY FIX: 30s query timeout prevents DoS
-                'sslmode': 'require',        # SECURITY FIX: Enforce SSL to prevent MITM
-                'prepare_threshold': 0,      # Evita problemas com prepared statements em SSL
-                'tcp_user_timeout': 30000,   # Previne timeouts silenciosos (30s)
+                'connect_timeout': 30,
                 'application_name': 'hormonia_rls',
-                'keepalives': 1,             # Habilita TCP keepalive
-                'keepalives_idle': 30,       # Reduzido de 600 para detectar falhas mais rápido
-                'keepalives_interval': 10,   # Reduzido de 30 para detectar falhas mais rápido
-                'keepalives_count': 5,       # Aumentado de 3 para tolerar mais pacotes perdidos
             },
             echo=settings.DEBUG,
             echo_pool=settings.DEBUG if hasattr(settings, 'DEBUG') else False
