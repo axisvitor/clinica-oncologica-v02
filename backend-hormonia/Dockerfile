@@ -39,6 +39,6 @@ ENV PYTHONDONTWRITEBYTECODE=1
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
-# Comando de inicialização: Migração → Uvicorn
-# Execute migração via Alembic primeiro, depois inicie o servidor
-CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --log-level info
+# Comando de inicialização: Apenas Uvicorn (SEM MIGRAÇÕES)
+# Schema já está correto, não precisamos executar migrações
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --log-level info
