@@ -6,6 +6,7 @@ import time
 import json
 import hashlib
 import asyncio
+import logging
 from typing import Dict, Any, Optional, Callable
 from datetime import datetime, timedelta
 from collections import defaultdict, deque
@@ -121,6 +122,7 @@ class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request with rate limiting."""
         start_time = time.time()
+        response: Optional[Response] = None
 
         try:
             # Check if IP is blacklisted
@@ -144,7 +146,10 @@ class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
 
             # Log successful request with rate limiting
             process_time = time.time() - start_time
-            await self._log_request(request, response, process_time)
+            try:
+                await self._log_request(request, response, process_time)
+            except Exception as le:
+                logger.debug(f"Suppressed rate-limit logging error: {le}")
 
             return response
 
@@ -163,7 +168,8 @@ class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
             raise
         except Exception as e:
             logger.error(f"Rate limit middleware error: {str(e)}", exc_info=True)
-            # Continue processing on middleware errors
+            if response is not None:
+                return response
             return await call_next(request)
 
     async def _check_rate_limit(self, request: Request) -> None:
