@@ -23,6 +23,7 @@ from app.utils.compression import EnhancedCompressionMiddleware
 from app.utils.logging import get_logger
 from app.middleware.query_logger import QueryPerformanceMiddleware
 from app.middleware.metrics import PerformanceMetricsMiddleware
+from app.middleware.request_validation_middleware import RequestValidationMiddleware
 
 
 def setup_middleware(app: FastAPI) -> None:
@@ -127,6 +128,13 @@ def setup_middleware(app: FastAPI) -> None:
         blacklist_ips=getattr(settings, 'RATE_LIMIT_BLACKLIST_IPS', [])
     )
     logger.info("Enhanced rate limiting middleware added")
+    
+    # Request validation middleware - validates and sanitizes request parameters
+    app.add_middleware(
+        RequestValidationMiddleware,
+        max_page_size=100
+    )
+    logger.info("Request validation middleware added")
     
     # Enhanced compression middleware
     # Remove InputSanitizationMiddleware as it's redundant with EnhancedSecurityMiddleware

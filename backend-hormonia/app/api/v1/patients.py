@@ -95,6 +95,15 @@ async def list_patients(
     jwt_token: Optional[str] = Depends(get_jwt_token),
 ):
     """List patients with pagination and optional filtering."""
+    
+    # Log request details for debugging
+    logger.info(f"List patients request - User: {current_user.id}, Page: {page}, Size: {size}, Search: {search}")
+    
+    # Additional validation to catch problematic requests
+    if size > 100:
+        logger.warning(f"Invalid size parameter: {size} from user {current_user.id}. Clamping to 100.")
+        size = 100
+    
     try:
         # Get RLS-aware database session
         from app.core.database import get_db
