@@ -9,6 +9,7 @@ import logging
 import math
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi.exceptions import RequestValidationError
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -100,8 +101,8 @@ async def list_patients(
         db_generator = get_db(jwt_token=jwt_token, user_id=user_context.get('user_id'))
         db = next(db_generator)
         try:
-            patient_service_with_rls = PatientService(db)
-            patients, total = patient_service_with_rls.list_patients(
+            # Use the existing patient_service from dependency injection
+            patients, total = patient_service.list_patients(
                 doctor_id=current_user.id,
                 page=page,
                 size=size,
@@ -116,6 +117,12 @@ async def list_patients(
     except RLSError as e:
         logger.error(f"RLS error in list_patients: {e}")
         raise rls_middleware.handle_rls_error(e, user_context)
+    except RequestValidationError as e:
+        logger.error(f"Validation error in list_patients: {e}")
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid request parameters: {e.errors()}"
+        )
     except Exception as e:
         logger.error(f"Error listing patients: {e}")
         raise HTTPException(
@@ -154,9 +161,8 @@ async def pause_patient(
         db_generator = get_db(jwt_token=jwt_token, user_id=user_context.get('user_id'))
         db = next(db_generator)
         try:
-            patient_service_with_rls = PatientService(db)
-
-            patient = patient_service_with_rls.get_patient(patient_id)
+            # Use the existing patient_service from dependency injection
+            patient = patient_service.get_patient(patient_id)
             if not patient:
                 raise HTTPException(
                     status_code=404,
@@ -170,7 +176,7 @@ async def pause_patient(
                     detail="Not authorized to pause this patient"
                 )
 
-            paused_patient = await patient_service_with_rls.pause_patient(patient_id)
+            paused_patient = await patient_service.pause_patient(patient_id)
             if not paused_patient:
                 raise HTTPException(
                     status_code=400,
@@ -210,14 +216,12 @@ async def get_patient_timeline(
         db_generator = get_db(jwt_token=jwt_token, user_id=user_context.get('user_id'))
         db = next(db_generator)
         try:
-            patient_service_with_rls = PatientService(db)
-
             # Try to get from cache first
             cached_data = get_cached_patient_data(str(patient_id))
             if cached_data:
                 patient = cached_data
             else:
-                patient = patient_service_with_rls.get_patient(patient_id)
+                patient = patient_service.get_patient(patient_id)
                 if not patient:
                     raise HTTPException(
                         status_code=404,
