@@ -17,7 +17,12 @@ class PatientFlowState(BaseModel):
     patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
     
     # Flow details - using versioned system only
-    template_version_id = Column(UUID(as_uuid=True), ForeignKey("flow_template_versions.id"), nullable=False)
+    template_version_id = Column(
+        "flow_template_version_id",  # actual column name in database
+        UUID(as_uuid=True), 
+        ForeignKey("flow_template_versions.id"), 
+        nullable=False
+    )
     current_step = Column(Integer, default=0, nullable=False)
     
     # Timing
@@ -25,7 +30,7 @@ class PatientFlowState(BaseModel):
     completed_at = Column(DateTime(timezone=True), nullable=True)
     
     # State-specific data
-    state_data = Column(JSONB, nullable=True, default=dict)
+    state_data = Column("step_data", JSONB, nullable=True, default=dict)
     
     # Relationships
     patient = relationship("Patient", back_populates="flow_states")

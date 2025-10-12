@@ -24,11 +24,50 @@ from sqlalchemy.exc import (
     OperationalError,
     TimeoutError as SQLTimeoutError,
     DBAPIError,
-    IntegrityError
+    IntegrityError,
+    ProgrammingError,
+    DataError
 )
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
+
+
+def _attempt_rollback(args, kwargs):
+    """Attempt to rollback database session from various sources
+    
+    Checks for session in kwargs['db'], args[0].db, or args[0].repository.db
+    """
+    # Check kwargs first
+    if 'db' in kwargs and isinstance(kwargs['db'], Session):
+        try:
+            kwargs['db'].rollback()
+            logger.debug("Rolled back session from kwargs['db']")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to rollback session from kwargs: {str(e)}")
+    
+    # Check self.db pattern (common in services)
+    if args and hasattr(args[0], 'db') and isinstance(args[0].db, Session):
+        try:
+            args[0].db.rollback()
+            logger.debug("Rolled back session from self.db")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to rollback session from self.db: {str(e)}")
+    
+    # Check self.repository.db pattern
+    if (args and hasattr(args[0], 'repository') and 
+        hasattr(args[0].repository, 'db') and 
+        isinstance(args[0].repository.db, Session)):
+        try:
+            args[0].repository.db.rollback()
+            logger.debug("Rolled back session from self.repository.db")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to rollback session from self.repository.db: {str(e)}")
+    
+    return False
 
 
 class DatabaseCircuitBreaker:
@@ -115,6 +154,9 @@ class DatabaseCircuitBreaker:
             self._record_success()
             return result
 
+        except (ProgrammingError, DataError):
+            # Don't count non-transitory errors for circuit breaker
+            raise
         except Exception as e:
             self._record_failure()
             raise
@@ -141,6 +183,9 @@ class DatabaseCircuitBreaker:
             self._record_success()
             return result
 
+        except (ProgrammingError, DataError):
+            # Don't count non-transitory errors for circuit breaker
+            raise
         except Exception as e:
             self._record_failure()
             raise
@@ -191,21 +236,23 @@ def with_db_retry(
                     result = await db_circuit_breaker.acall(func, *args, **kwargs)
                     return result
 
+                except (ProgrammingError, DataError) as e:
+                    # Non-transitory errors - rollback and fail immediately
+                    logger.error(f"Non-transitory database error in {func.__name__}: {str(e)}")
+                    _attempt_rollback(args, kwargs)
+                    raise
+                    
                 except (OperationalError, SQLTimeoutError, DBAPIError) as e:
                     last_exception = e
 
                     # Don't retry on integrity errors (data constraint violations)
                     if isinstance(e, IntegrityError):
                         logger.error(f"Integrity error in {func.__name__}: {str(e)}")
+                        _attempt_rollback(args, kwargs)
                         raise
 
-                    # Attempt to rollback session if available
-                    if 'db' in kwargs and isinstance(kwargs['db'], Session):
-                        try:
-                            kwargs['db'].rollback()
-                            logger.debug(f"Rolled back session after error in {func.__name__}")
-                        except Exception as rollback_error:
-                            logger.warning(f"Failed to rollback session: {str(rollback_error)}")
+                    # Attempt to rollback session
+                    _attempt_rollback(args, kwargs)
 
                     # Retry logic
                     if attempt < max_retries:
@@ -241,21 +288,23 @@ def with_db_retry(
                     result = db_circuit_breaker.call(func, *args, **kwargs)
                     return result
 
+                except (ProgrammingError, DataError) as e:
+                    # Non-transitory errors - rollback and fail immediately
+                    logger.error(f"Non-transitory database error in {func.__name__}: {str(e)}")
+                    _attempt_rollback(args, kwargs)
+                    raise
+                    
                 except (OperationalError, SQLTimeoutError, DBAPIError) as e:
                     last_exception = e
 
                     # Don't retry on integrity errors
                     if isinstance(e, IntegrityError):
                         logger.error(f"Integrity error in {func.__name__}: {str(e)}")
+                        _attempt_rollback(args, kwargs)
                         raise
 
-                    # Attempt to rollback session if available
-                    if 'db' in kwargs and isinstance(kwargs['db'], Session):
-                        try:
-                            kwargs['db'].rollback()
-                            logger.debug(f"Rolled back session after error in {func.__name__}")
-                        except Exception as rollback_error:
-                            logger.warning(f"Failed to rollback session: {str(rollback_error)}")
+                    # Attempt to rollback session
+                    _attempt_rollback(args, kwargs)
 
                     # Retry logic
                     if attempt < max_retries:

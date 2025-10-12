@@ -1,7 +1,7 @@
 """
 Message model for WhatsApp communication.
 """
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum, Integer
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum as SAEnum, Integer
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import enum
@@ -9,7 +9,7 @@ import enum
 from app.models.base import BaseModel
 
 
-class MessageDirection(enum.Enum):
+class MessageDirection(str, enum.Enum):
     """Message direction enumeration."""
     INBOUND = "inbound"
     OUTBOUND = "outbound"
@@ -65,8 +65,18 @@ class Message(BaseModel):
     patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
 
     # Message details
-    direction = Column(Enum(MessageDirection), nullable=False)
-    type = Column(Enum(MessageType), default=MessageType.TEXT, nullable=False)
+    direction = Column(
+        SAEnum(
+            MessageDirection,
+            name="message_direction",
+            native_enum=True,
+            create_type=False,
+            values_callable=lambda x: [e.value for e in x],
+            validate_strings=True,
+        ),
+        nullable=False,
+    )
+    type = Column(SAEnum(MessageType), default=MessageType.TEXT, nullable=False)
     content = Column(Text, nullable=True)
 
     # Metadata for buttons, media URLs, etc.
@@ -74,7 +84,7 @@ class Message(BaseModel):
 
     # WhatsApp integration
     whatsapp_id = Column(String(255), nullable=True, index=True)
-    status = Column(Enum(MessageStatus), default=MessageStatus.PENDING, nullable=False)
+    status = Column(SAEnum(MessageStatus), default=MessageStatus.PENDING, nullable=False)
 
     # Scheduling and delivery tracking
     scheduled_for = Column(DateTime(timezone=True), nullable=True)
@@ -83,7 +93,7 @@ class Message(BaseModel):
     read_at = Column(DateTime(timezone=True), nullable=True)
 
     # Delivery status tracking (new fields for P1 fix)
-    delivery_status = Column(Enum(DeliveryStatus), nullable=True)
+    delivery_status = Column(SAEnum(DeliveryStatus), nullable=True)
     retry_count = Column(Integer, nullable=False, default=0)
     last_retry_at = Column(DateTime(timezone=True), nullable=True)
     failure_reason = Column(Text, nullable=True)
