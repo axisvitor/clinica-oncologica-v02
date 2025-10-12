@@ -12,8 +12,9 @@ Features:
 - Integration with existing authentication flows
 """
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from datetime import datetime, timedelta
+from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func, and_, or_
 from fastapi import Request
@@ -77,7 +78,7 @@ class AuditLogService:
         self,
         event_type: AuditEventType,
         event_status: str = "success",
-        user_id: Optional[str] = None,
+        user_id: Optional[Union[str, UUID]] = None,
         user_email: Optional[str] = None,
         firebase_uid: Optional[str] = None,
         ip_address: Optional[str] = None,
@@ -164,7 +165,7 @@ class AuditLogService:
         return self.log_event(
             event_type=AuditEventType.LOGIN_SUCCESS,
             event_status="success",
-            user_id=str(user.id),
+            user_id=user.id,
             user_email=user.email,
             firebase_uid=user.firebase_uid,
             resource="/auth/login",
@@ -204,7 +205,7 @@ class AuditLogService:
         return self.log_event(
             event_type=AuditEventType.LOGOUT,
             event_status="success",
-            user_id=str(user.id),
+            user_id=user.id,
             user_email=user.email,
             firebase_uid=user.firebase_uid,
             resource="/auth/logout",
@@ -228,7 +229,7 @@ class AuditLogService:
         return self.log_event(
             event_type=AuditEventType.SESSION_CREATED,
             event_status="success",
-            user_id=str(user.id),
+            user_id=user.id,
             user_email=user.email,
             firebase_uid=user.firebase_uid,
             resource="/session",
@@ -240,7 +241,7 @@ class AuditLogService:
 
     def log_session_invalidated(
         self,
-        user_id: str,
+        user_id: Union[str, UUID],
         session_id: str,
         reason: str = "logout",
         request: Optional[Request] = None
@@ -267,7 +268,7 @@ class AuditLogService:
         return self.log_event(
             event_type=AuditEventType.PASSWORD_CHANGED,
             event_status="success",
-            user_id=str(user.id),
+            user_id=user.id,
             user_email=user.email,
             firebase_uid=user.firebase_uid,
             resource="/auth/password",
@@ -279,7 +280,7 @@ class AuditLogService:
 
     def log_access_denied(
         self,
-        user_id: Optional[str],
+        user_id: Optional[Union[str, UUID]],
         resource: str,
         reason: str,
         request: Optional[Request] = None
@@ -317,7 +318,7 @@ class AuditLogService:
 
     def get_user_audit_logs(
         self,
-        user_id: str,
+        user_id: Union[str, UUID],
         limit: int = 100,
         offset: int = 0,
         event_types: Optional[List[AuditEventType]] = None,

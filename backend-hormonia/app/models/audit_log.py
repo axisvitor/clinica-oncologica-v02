@@ -11,7 +11,7 @@ Events tracked:
 - Session management (session created, expired, invalidated)
 """
 from sqlalchemy import Column, String, Text, Index, Enum as SQLEnum
-from sqlalchemy.dialects.postgresql import JSONB, INET
+from sqlalchemy.dialects.postgresql import JSONB, INET, UUID
 from sqlalchemy.orm import relationship
 import enum
 
@@ -82,7 +82,7 @@ class AuditLog(BaseModel):
 
     # User identification
     user_id = Column(
-        String(255),
+        UUID(as_uuid=True),
         nullable=True,
         index=True,
         comment="User ID (may be null for failed login attempts)"
