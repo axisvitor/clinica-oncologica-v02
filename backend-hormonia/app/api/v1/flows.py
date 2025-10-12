@@ -1105,7 +1105,7 @@ async def check_redis_health(
 
 # Additional endpoints to address Frontend-v2 requirements
 
-@router.get("/", response_model=List[FlowStateResponse])
+@router.get("", response_model=List[FlowStateResponse])
 async def list_flows(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),

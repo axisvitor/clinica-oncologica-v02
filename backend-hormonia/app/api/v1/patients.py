@@ -35,7 +35,7 @@ router = APIRouter()
 
 
 @router.get(
-    "/", 
+    "", 
     response_model=PatientListResponse,
     summary="List Patients",
     description="""
@@ -282,7 +282,7 @@ async def get_patient(
 
 
 @router.post(
-    "/",
+    "",
     response_model=PatientResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create Patient",

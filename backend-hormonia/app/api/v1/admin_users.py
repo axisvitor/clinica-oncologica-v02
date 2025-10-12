@@ -39,7 +39,7 @@ def get_user_admin_service(db: Session = Depends(get_db)) -> UserAdminService:
     return UserAdminService(db)
 
 
-@router.post("/", response_model=UserSummary, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=UserSummary, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_data: UserCreateRequest,
     admin_user: User = Depends(get_current_admin_user),
@@ -76,7 +76,7 @@ async def create_user(
     return user_summary
 
 
-@router.get("/", response_model=PaginatedUsersResponse)
+@router.get("", response_model=PaginatedUsersResponse)
 async def list_users(
     page: int = Query(1, ge=1, description="Page number (1-based)"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),

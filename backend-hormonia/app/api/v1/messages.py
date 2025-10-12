@@ -32,7 +32,7 @@ from app.schemas.common import PaginationParams
 router = APIRouter()
 
 
-@router.get("/", response_model=MessageListResponse)
+@router.get("", response_model=MessageListResponse)
 async def get_messages(
     request: Request,
     skip: int = Query(0, ge=0),
