@@ -5,6 +5,7 @@ Integrates intelligent humanization into quiz questions for better patient exper
 
 import logging
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 from app.services.question_humanizer import get_question_humanizer
@@ -13,6 +14,8 @@ from app.models.patient import Patient
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
+
+_HUMANIZER_EXECUTOR = ThreadPoolExecutor(max_workers=4)
 
 class QuizQuestionHumanizerIntegration:
     """
@@ -121,19 +124,20 @@ class QuizQuestionHumanizerIntegration:
             if self._is_scored_question(question):
                 return question
 
-            # Run async humanization in sync context
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-            humanized_text = loop.run_until_complete(
-                self.question_humanizer.humanize_question(
+            async def _humanize():
+                return await self.question_humanizer.humanize_question(
                     question=question_text,
                     question_type=question_type,
                     patient=patient,
                     context=quiz_context
                 )
-            )
-            loop.close()
+
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                humanized_text = asyncio.run(_humanize())
+            else:
+                humanized_text = _HUMANIZER_EXECUTOR.submit(lambda: asyncio.run(_humanize())).result()
 
             # Return humanized question
             humanized_question = question.copy()

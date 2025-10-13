@@ -2,7 +2,7 @@
 Quiz and assessment schemas for Hormonia Backend System.
 """
 from datetime import datetime
-from typing import List, Optional, Any, Union
+from typing import List, Optional, Any, Union, Dict
 from uuid import UUID
 from enum import Enum
 
@@ -216,6 +216,10 @@ class QuizSessionResponse(BaseModel):
     patient_name: Optional[str] = Field(None, description="Patient name")
     template_name: Optional[str] = Field(None, description="Template name")
     template_version: Optional[str] = Field(None, description="Template version")
+    humanized_questions: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        description="Humanized variations of quiz questions for patient delivery"
+    )
 
     class Config:
         from_attributes = True
