@@ -15,7 +15,7 @@ class MessageDirection(str, enum.Enum):
     OUTBOUND = "outbound"
 
 
-class MessageType(enum.Enum):
+class MessageType(str, enum.Enum):
     """Message type enumeration."""
     TEXT = "text"
     BUTTON = "button"
@@ -76,7 +76,18 @@ class Message(BaseModel):
         ),
         nullable=False,
     )
-    type = Column(SAEnum(MessageType), default=MessageType.TEXT, nullable=False)
+    type = Column(
+        SAEnum(
+            MessageType,
+            name="messagetype",
+            native_enum=True,
+            create_type=False,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+            validate_strings=True,
+        ),
+        default=MessageType.TEXT,
+        nullable=False,
+    )
     content = Column(Text, nullable=True)
 
     # Metadata for buttons, media URLs, etc.

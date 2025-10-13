@@ -12,7 +12,7 @@ from datetime import datetime
 
 import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
-from sentry_sdk.integrations.sqlalchemy import SqlAlchemyIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 from sentry_sdk.integrations.httpx import HttpxIntegration
@@ -55,7 +55,7 @@ class SentryConfig:
                     transaction_style="endpoint",
                     failed_request_status_codes=[400, 401, 403, 404, 405, 500, 502, 503]
                 ),
-                SqlAlchemyIntegration(),
+                SqlalchemyIntegration(),
                 RedisIntegration(),
                 HttpxIntegration(),
                 logging_integration,
