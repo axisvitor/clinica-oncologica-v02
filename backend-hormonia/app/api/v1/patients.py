@@ -10,20 +10,20 @@ import math
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi.exceptions import RequestValidationError
-from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
-from app.dependencies import get_current_user, get_db, get_patient_service
+from app.dependencies import get_current_user, get_patient_service
 from app.models.patient import FlowState
 from app.models.user import User, UserRole
 from app.schemas.patient import PatientCreate, PatientUpdate, PatientResponse, PatientListResponse
 from app.services.patient import PatientService
 from app.middleware.rls_middleware import (
-    get_jwt_token, get_user_context, require_authentication,
-    optional_authentication, rls_middleware
+    get_jwt_token,
+    require_authentication,
+    rls_middleware
 )
-from app.core.database import get_db, RLSError, RLSAccessDeniedError
+from app.core.database import RLSError
 from app.utils.unified_cache import (
     cache_patient_data,
     get_cached_patient_data,
@@ -108,7 +108,6 @@ def _can_manage_patient(patient, user: User) -> bool:
     }
 )
 async def list_patients(
-    request: Request,
     page: int = Query(1, ge=1, description="Current page number"),
     size: int = Query(20, ge=1, le=100, description="Number of records per page"),
     search: Optional[str] = Query(None, description="Search by patient name, email, or phone number"),
@@ -119,7 +118,6 @@ async def list_patients(
     current_user: User = Depends(get_current_user),
     patient_service: PatientService = Depends(get_patient_service),
     user_context: dict = Depends(require_authentication),
-    jwt_token: Optional[str] = Depends(get_jwt_token),
 ):
     """List patients with pagination and optional filtering."""
     
@@ -132,24 +130,17 @@ async def list_patients(
         size = 100
     
     try:
-        # Get RLS-aware database session
-        from app.core.database import get_db
-        db_generator = get_db(jwt_token=jwt_token, user_id=user_context.get('user_id'))
-        db = next(db_generator)
-        try:
-            # Use the existing patient_service from dependency injection
-            patients, total = patient_service.list_patients(
-                doctor_id=current_user.id,
-                page=page,
-                size=size,
-                search=search,
-                flow_state=status,
-                treatment_type=treatment_type,
-                start_date_from=start_date_from,
-                start_date_to=start_date_to,
-            )
-        finally:
-            db.close()
+        patients, total = patient_service.list_patients(
+            doctor_id=current_user.id,
+            page=page,
+            size=size,
+            search=search,
+            flow_state=status,
+            treatment_type=treatment_type,
+            start_date_from=start_date_from,
+            start_date_to=start_date_to,
+            include_related=False,
+        )
     except RLSError as e:
         logger.error(f"RLS error in list_patients: {e}")
         raise rls_middleware.handle_rls_error(e, user_context)

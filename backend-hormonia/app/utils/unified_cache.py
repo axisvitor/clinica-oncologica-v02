@@ -28,6 +28,11 @@ import asyncio
 import inspect
 import time
 from typing import Any, Callable, Optional, Union, List, Dict, Pattern
+
+try:
+    from pydantic import BaseModel
+except ImportError:  # pragma: no cover - defensive import for older runtimes
+    BaseModel = None  # type: ignore
 from redis import Redis
 from redis.asyncio import Redis as AsyncRedis
 from datetime import timedelta, datetime
@@ -162,6 +167,8 @@ class UnifiedCacheManager:
             return str(obj)
         elif isinstance(obj, Decimal):
             return float(obj)
+        elif BaseModel is not None and isinstance(obj, BaseModel):
+            return obj.model_dump(mode="json")
         elif hasattr(obj, '__dict__'):
             # For SQLAlchemy models or complex objects
             return {k: v for k, v in obj.__dict__.items() if not k.startswith('_')}
@@ -174,6 +181,8 @@ class UnifiedCacheManager:
             if method == SerializationMethod.JSON:
                 if isinstance(obj, str):
                     return obj
+                if BaseModel is not None and isinstance(obj, BaseModel):
+                    return json.dumps(obj.model_dump(mode="json"), default=self._json_serializer)
                 elif hasattr(obj, '__dict__'):
                     # For SQLAlchemy models or complex objects
                     data = {}

@@ -82,10 +82,17 @@ async def verify_physician_or_admin(
     Raises:
         HTTPException: 403 if user is not physician or admin
     """
-    if current_user.role not in [UserRole.DOCTOR, UserRole.ADMIN]:
+    role_value = (
+        current_user.role.value
+        if isinstance(current_user.role, UserRole)
+        else str(current_user.role or "").lower()
+    )
+
+    if role_value not in {UserRole.DOCTOR.value, UserRole.ADMIN.value}:
         logger.warning(
-            f"Unauthorized AI access attempt by user {current_user.id} "
-            f"with role {current_user.role}"
+            "Unauthorized AI access attempt by user %s with role %s",
+            current_user.id,
+            current_user.role,
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

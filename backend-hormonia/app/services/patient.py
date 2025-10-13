@@ -246,6 +246,7 @@ class PatientService:
         treatment_type: Optional[str] = None,
         start_date_from: Optional[date] = None,
         start_date_to: Optional[date] = None,
+        include_related: bool = False,
     ) -> tuple[list[Patient], int]:
         """List patients with pagination and optional filtering (cached 5 min)."""
         logger.debug(f"Fetching patient list for doctor: {doctor_id}")
@@ -258,6 +259,7 @@ class PatientService:
             treatment_type=treatment_type,
             start_date_from=start_date_from,
             start_date_to=start_date_to,
+            eager_load=include_related,
         )
     @with_db_retry(max_retries=3)
     async def activate_patient(self, patient_id: UUID) -> Optional[Patient]:
@@ -743,5 +745,4 @@ class PatientIntegrityService:
             logger.error(f"Soft delete failed: {e}")
             self.db.rollback()
             raise
-
 
