@@ -12,7 +12,7 @@ from typing import Dict, Any
 
 from app.jobs.audit_cleanup import AuditCleanupJob
 from app.dependencies import get_current_user
-from app.models.user import User
+from app.models.user import User, UserRole
 
 router = APIRouter()
 
@@ -33,7 +33,7 @@ async def get_audit_stats(
         - table_size: Current size of table
     """
     # Check admin permission
-    if current_user.role != "admin":
+    if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=403,
             detail="Admin access required"
@@ -67,7 +67,8 @@ async def trigger_cleanup(
         - success: Whether cleanup succeeded
         - timestamp: When cleanup was executed
         - total_deleted: Total records deleted
-    if current_user.role != "admin":
+    """
+    if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=403,
             detail="Admin access required"
@@ -100,7 +101,7 @@ async def trigger_vacuum(
     Requires admin role.
     """
     # Check admin permission
-    if current_user.role != "admin":
+    if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=403,
             detail="Admin access required"
