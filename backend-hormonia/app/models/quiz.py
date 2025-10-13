@@ -143,6 +143,27 @@ class QuizSession(BaseModel):
     def __repr__(self):
         return f"<QuizSession(patient_id='{self.patient_id}', template_id='{self.quiz_template_id}')>"
 
+    @property
+    def current_question_index(self) -> int:
+        """Backward-compatible alias for current question pointer."""
+        return self.current_question or 0
+
+    @current_question_index.setter
+    def current_question_index(self, value: int) -> None:
+        self.current_question = value
+
+    @property
+    def is_completed(self) -> bool:
+        """Compatibility flag mapping to status column."""
+        return self.status == "completed"
+
+    @is_completed.setter
+    def is_completed(self, value: bool) -> None:
+        if value:
+            self.status = "completed"
+        elif self.status == "completed":
+            self.status = "started"
+
 
 
 # Partial unique index ensures at most one started session per patient and template.
