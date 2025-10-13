@@ -43,16 +43,6 @@ class FailedMessage(BaseModel):
     def dlq_data(self, value: Dict[str, Any]) -> None:
         self.dlq_metadata = value
 
-    @property
-    def metadata(self) -> Dict[str, Any]:
-        """Backward compatibility for metadata access."""
-        return self.dlq_data
-
-    @metadata.setter
-    def metadata(self, value: Dict[str, Any]) -> None:
-        """Backward compatibility for metadata setting."""
-        self.dlq_data = value
-
     # Relationships
     original_message = relationship("Message", foreign_keys=[original_message_id], backref="dlq_entries")
     patient = relationship("Patient", foreign_keys=[patient_id], backref="failed_messages")
@@ -81,7 +71,7 @@ class FailedMessage(BaseModel):
         }
 
         if include_sensitive:
-            result["dlq_data"] = self.dlq_metadata
+            result["dlq_data"] = self.dlq_data
 
         if self.original_message_id:
             result["original_message_id"] = str(self.original_message_id)
