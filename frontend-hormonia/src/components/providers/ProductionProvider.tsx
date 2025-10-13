@@ -7,7 +7,7 @@
 
 import React, { useEffect, memo, Suspense } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+// import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { Toaster } from '@/components/ui/toaster'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { HealthStatusMonitor } from '@/components/system/HealthStatusMonitor'
@@ -70,6 +70,9 @@ const PerformanceWrapper = memo<{ children: React.ReactNode }>(({ children }) =>
 
       return () => observer.disconnect()
     }
+    
+    // Return cleanup function even when performance monitoring is disabled
+    return () => {}
   }, [])
 
   return <>{children}</>
@@ -162,8 +165,8 @@ export const ProductionProvider = memo<ProductionProviderProps>(({ children }) =
 
       if (environment.enableErrorReporting) {
         // Report to monitoring service
-        if (window.Sentry) {
-          window.Sentry.captureException(event.reason)
+        if ((window as any).Sentry) {
+          (window as any).Sentry.captureException(event.reason)
         }
       }
     }
@@ -173,8 +176,8 @@ export const ProductionProvider = memo<ProductionProviderProps>(({ children }) =
 
       if (environment.enableErrorReporting) {
         // Report to monitoring service
-        if (window.Sentry) {
-          window.Sentry.captureException(event.error)
+        if ((window as any).Sentry) {
+          (window as any).Sentry.captureException(event.error)
         }
       }
     }
@@ -210,9 +213,10 @@ export const ProductionProvider = memo<ProductionProviderProps>(({ children }) =
             <Toaster />
 
             {/* React Query DevTools (development only) */}
-            {environment.isDevelopment && PRODUCTION_FLAGS.ENABLE_DEVTOOLS && (
+            {/* ReactQueryDevtools disabled due to module not found */}
+            {/* {environment.isDevelopment && PRODUCTION_FLAGS.ENABLE_DEVTOOLS && (
               <ReactQueryDevtools initialIsOpen={false} />
-            )}
+            )} */}
           </Suspense>
         </PerformanceWrapper>
       </QueryClientProvider>

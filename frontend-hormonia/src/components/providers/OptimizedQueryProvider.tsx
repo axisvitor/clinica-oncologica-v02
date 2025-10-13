@@ -1,6 +1,6 @@
 import React, { memo, useMemo } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+// import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { createOptimizedQueryClient } from '../../lib/react-optimizations'
 import { environment } from '../../lib/environment'
 
@@ -15,13 +15,14 @@ export const OptimizedQueryProvider = memo<OptimizedQueryProviderProps>(({ child
   return (
     <QueryClientProvider client={queryClient}>
       {children}
-      {environment.isDevelopment && (
+      {/* ReactQueryDevtools disabled due to module not found */}
+      {/* {environment.isDevelopment && (
         <ReactQueryDevtools
           initialIsOpen={false}
           position="bottom-right"
           buttonPosition="bottom-right"
         />
-      )}
+      )} */}
     </QueryClientProvider>
   )
 })

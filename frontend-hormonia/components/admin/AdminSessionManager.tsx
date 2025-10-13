@@ -13,7 +13,7 @@ import {
 } from '../ui/dialog'
 import { Badge } from '../ui/badge'
 import { SessionWarning } from '../../types/admin'
-import { useAdminAuth } from '../../contexts/AdminAuthContext'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface AdminSessionManagerProps {
   className?: string
@@ -25,7 +25,7 @@ const SESSION_REFRESH_INTERVAL = 60 * 1000 // Check every minute
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000 // 30 minutes of inactivity
 
 export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ className }) => {
-  const { state, extendSession, logout, refreshToken } = useAdminAuth()
+  const { user, isLoading, logout, refreshToken } = useAuth()
   const [sessionWarning, setSessionWarning] = useState<SessionWarning | null>(null)
   const [lastActivity, setLastActivity] = useState<Date>(new Date())
   const [isExtending, setIsExtending] = useState(false)
@@ -34,9 +34,11 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
 
   // Calculate time remaining until session expires
   const getTimeRemaining = useCallback((): number => {
-    if (!state.sessionExpiry) return 0
-    return Math.max(0, state.sessionExpiry.getTime() - Date.now())
-  }, [state.sessionExpiry])
+    // Simplified: assume 1 hour session
+    const sessionDuration = 60 * 60 * 1000 // 1 hour
+    const sessionStart = lastActivity.getTime()
+    return Math.max(0, sessionStart + sessionDuration - Date.now())
+  }, [lastActivity])
 
   // Calculate time since last activity
   const getTimeSinceActivity = useCallback((): number => {
@@ -78,7 +80,7 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
 
   // Monitor session expiry and inactivity
   useEffect(() => {
-    if (!state.isAuthenticated || !state.sessionExpiry) return
+    if (!user) return
 
     const checkSession = () => {
       const timeRemaining = getTimeRemaining()
@@ -121,8 +123,7 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
     const interval = setInterval(checkSession, SESSION_REFRESH_INTERVAL)
     return () => clearInterval(interval)
   }, [
-    state.isAuthenticated,
-    state.sessionExpiry,
+    user,
     sessionWarning,
     showInactivityDialog,
     getTimeRemaining,
@@ -167,7 +168,7 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
 
   // Auto-refresh token when close to expiry
   useEffect(() => {
-    if (!state.isAuthenticated || !state.sessionExpiry) return
+    if (!user) return
 
     const timeRemaining = getTimeRemaining()
     const shouldRefresh = timeRemaining <= SESSION_WARNING_TIME && timeRemaining > 0
@@ -177,7 +178,7 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
         console.error('Auto token refresh failed:', error)
       })
     }
-  }, [state.isAuthenticated, state.sessionExpiry, sessionWarning, refreshToken, getTimeRemaining])
+  }, [user, sessionWarning, refreshToken, getTimeRemaining])
 
   const formatTime = (milliseconds: number): string => {
     const totalSeconds = Math.floor(milliseconds / 1000)
@@ -195,7 +196,7 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
     return 'text-green-600'
   }
 
-  if (!state.isAuthenticated) {
+  if (!user) {
     return null
   }
 
@@ -213,7 +214,7 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
               </Badge>
             </div>
 
-            {state.sessionExpiry && (
+            {user && (
               <div className="flex items-center space-x-2 text-sm text-gray-600">
                 <Clock className="h-4 w-4" />
                 <span>

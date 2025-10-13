@@ -141,7 +141,7 @@ export function useTemplates() {
   const createFlowTemplate = useCallback(async (data: FlowTemplateCreate): Promise<FlowTemplate | null> => {
     setLoading(true);
     try {
-      const response = await apiClient.post<FlowTemplate>('/templates/flows', data);
+      const response = await apiClient.post<FlowTemplate>('/api/v1/templates/flows', data);
 
       toast({
         title: 'Template criado',
@@ -170,7 +170,7 @@ export function useTemplates() {
   }): Promise<PaginatedResponse<FlowTemplate> | null> => {
     setLoading(true);
     try {
-      const response = await apiClient.get<PaginatedResponse<FlowTemplate>>('/templates/flows', {
+      const response = await apiClient.get<PaginatedResponse<FlowTemplate>>('/api/v1/templates/flows', {
         params: params || {},
       });
 
@@ -190,7 +190,7 @@ export function useTemplates() {
   const getFlowTemplate = useCallback(async (templateId: string): Promise<FlowTemplate | null> => {
     setLoading(true);
     try {
-      const response = await apiClient.get<FlowTemplate>(`/templates/flows/${templateId}`);
+      const response = await apiClient.get<FlowTemplate>(`/api/v1/templates/flows/${templateId}`);
       return response;
     } catch (error: any) {
       toast({
@@ -210,7 +210,7 @@ export function useTemplates() {
   ): Promise<FlowTemplate | null> => {
     setLoading(true);
     try {
-      const response = await apiClient.put<FlowTemplate>(`/templates/flows/${templateId}`, data);
+      const response = await apiClient.put<FlowTemplate>(`/api/v1/templates/flows/${templateId}`, data);
 
       toast({
         title: 'Template atualizado',
@@ -236,7 +236,7 @@ export function useTemplates() {
   ): Promise<boolean> => {
     setLoading(true);
     try {
-      await apiClient.delete(`/templates/flows/${templateId}`, {
+      await apiClient.delete(`/api/v1/templates/flows/${templateId}`, {
         params: { soft_delete: softDelete },
       });
 
@@ -263,7 +263,7 @@ export function useTemplates() {
   const createQuizTemplate = useCallback(async (data: QuizTemplateCreate): Promise<QuizTemplate | null> => {
     setLoading(true);
     try {
-      const response = await apiClient.post<QuizTemplate>('/templates/quiz', data);
+      const response = await apiClient.post<QuizTemplate>('/api/v1/templates/quiz', data);
 
       toast({
         title: 'Quiz criado',
@@ -291,7 +291,7 @@ export function useTemplates() {
   }): Promise<PaginatedResponse<QuizTemplate> | null> => {
     setLoading(true);
     try {
-      const response = await apiClient.get<PaginatedResponse<QuizTemplate>>('/templates/quiz', {
+      const response = await apiClient.get<PaginatedResponse<QuizTemplate>>('/api/v1/templates/quiz', {
         params: params || {},
       });
 
@@ -311,7 +311,7 @@ export function useTemplates() {
   const getQuizTemplate = useCallback(async (quizId: string): Promise<QuizTemplate | null> => {
     setLoading(true);
     try {
-      const response = await apiClient.get<QuizTemplate>(`/templates/quiz/${quizId}`);
+      const response = await apiClient.get<QuizTemplate>(`/api/v1/templates/quiz/${quizId}`);
       return response;
     } catch (error: any) {
       toast({
@@ -331,7 +331,7 @@ export function useTemplates() {
   ): Promise<QuizTemplate | null> => {
     setLoading(true);
     try {
-      const response = await apiClient.put<QuizTemplate>(`/templates/quiz/${quizId}`, data);
+      const response = await apiClient.put<QuizTemplate>(`/api/v1/templates/quiz/${quizId}`, data);
 
       toast({
         title: 'Quiz atualizado',
@@ -357,7 +357,7 @@ export function useTemplates() {
   ): Promise<boolean> => {
     setLoading(true);
     try {
-      await apiClient.delete(`/templates/quiz/${quizId}`, {
+      await apiClient.delete(`/api/v1/templates/quiz/${quizId}`, {
         params: { soft_delete: softDelete },
       });
 

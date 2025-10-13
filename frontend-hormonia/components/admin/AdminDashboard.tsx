@@ -44,7 +44,7 @@ import {
   AuditLogEntry,
   AdminUser
 } from '../../types/admin'
-import { useAdminAuth } from '../../contexts/AdminAuthContext'
+import { useAuth } from '../../contexts/AuthContext'
 import AdminNavigationMenu from './AdminNavigationMenu'
 import AdminSessionManager from './AdminSessionManager'
 import AdminUserActivityMonitor from './AdminUserActivityMonitor'
@@ -134,7 +134,7 @@ const securityTrendData = [
 const COLORS = ['#10B981', '#F59E0B', '#EF4444', '#3B82F6']
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
-  const { state } = useAdminAuth()
+  const { user, isLoading } = useAuth()
   const location = useLocation()
   const [dashboardStats, setDashboardStats] = useState<AdminDashboardStats>(mockDashboardStats)
   const [securityMetrics, setSecurityMetrics] = useState<SecurityMetrics>(mockSecurityMetrics)
@@ -212,14 +212,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-              <p className="text-gray-600">Welcome back, {state.user?.full_name}</p>
+              <p className="text-gray-600">Welcome back, {user?.full_name}</p>
             </div>
             <div className="flex items-center space-x-4">
               <Badge variant="outline" className="flex items-center space-x-1">
                 <Clock className="h-3 w-3" />
                 <span>Uptime: {formatUptime(securityMetrics.system_uptime)}</span>
               </Badge>
-              {state.user?.role === 'admin' && (
+              {user?.role === 'admin' && (
                 <Badge variant="secondary">Administrador</Badge>
               )}
             </div>

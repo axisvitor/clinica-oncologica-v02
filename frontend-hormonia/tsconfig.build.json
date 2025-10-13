@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "es2020",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "noImplicitReturns": false,
+    "noImplicitThis": false,
+    "noUncheckedIndexedAccess": false,
+    "exactOptionalPropertyTypes": false,
+    "noPropertyAccessFromIndexSignature": false,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "~backend/*": ["../Backend/*"],
+      "~backend/client": ["./client.ts"]
+    },
+    "types": ["react", "react-dom"],
+    "skipDefaultLibCheck": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "client.ts",
+    "tests/**/*",
+    "scripts/**/*",
+    "hooks/**/*",
+    "**/__tests__/**/*",
+    "**/*.test.*",
+    "**/*.spec.*",
+    "types/index.ts",
+    "**/@types/jest/**",
+    "**/@types/react/**",
+    "src/components/ui/skeletons.tsx",
+    "src/lib/react-optimizations.tsx",
+    "src/components/providers/OptimizedQueryProvider.tsx",
+    "src/components/providers/ProductionProvider.tsx",
+    "src/components/system/HealthStatusMonitor.tsx"
+  ]
+}

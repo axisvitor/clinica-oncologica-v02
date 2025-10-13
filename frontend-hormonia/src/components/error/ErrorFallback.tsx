@@ -126,7 +126,7 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
             </div>
           </div>
           <Badge variant="secondary" className={severityInfo.color}>
-            {level === 'critical' ? 'Crítico' : level === 'page' ? 'Página' : 'Componente'}
+            {(level as string) === 'critical' ? 'Crítico' : (level as string) === 'page' ? 'Página' : 'Componente'}
           </Badge>
         </div>
 

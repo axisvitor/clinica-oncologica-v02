@@ -56,7 +56,7 @@ const BaseSkeleton = memo<SkeletonProps>(({
 BaseSkeleton.displayName = 'BaseSkeleton'
 
 // Card skeleton
-export const CardSkeleton = memo<{ className?: string }>(({ className }) => (
+const CardSkeleton = memo<{ className?: string }>(({ className }) => (
   <div className={cn('border rounded-lg p-6 space-y-4', className)}>
     <div className="flex items-center space-x-4">
       <Skeleton className="h-12 w-12 rounded-full" />
@@ -80,7 +80,7 @@ export const CardSkeleton = memo<{ className?: string }>(({ className }) => (
 CardSkeleton.displayName = 'CardSkeleton'
 
 // Table skeleton
-export const TableSkeleton = memo<{
+const TableSkeleton = memo<{
   rows?: number
   columns?: number
   className?: string
@@ -110,7 +110,7 @@ export const TableSkeleton = memo<{
 TableSkeleton.displayName = 'TableSkeleton'
 
 // List skeleton
-export const ListSkeleton = memo<{
+const ListSkeleton = memo<{
   items?: number
   showAvatar?: boolean
   className?: string
@@ -131,7 +131,7 @@ export const ListSkeleton = memo<{
 ListSkeleton.displayName = 'ListSkeleton'
 
 // Form skeleton
-export const FormSkeleton = memo<{
+const FormSkeleton = memo<{
   fields?: number
   className?: string
 }>(({ fields = 4, className }) => (
@@ -152,7 +152,7 @@ export const FormSkeleton = memo<{
 FormSkeleton.displayName = 'FormSkeleton'
 
 // Dashboard stats skeleton
-export const StatsSkeleton = memo<{
+const StatsSkeleton = memo<{
   stats?: number
   className?: string
 }>(({ stats = 4, className }) => (
@@ -176,7 +176,7 @@ export const StatsSkeleton = memo<{
 StatsSkeleton.displayName = 'StatsSkeleton'
 
 // Chart skeleton
-export const ChartSkeleton = memo<{
+const ChartSkeleton = memo<{
   height?: number | string
   className?: string
 }>(({ height = 300, className }) => (
@@ -219,7 +219,7 @@ export const ChartSkeleton = memo<{
 ChartSkeleton.displayName = 'ChartSkeleton'
 
 // Navigation skeleton
-export const NavigationSkeleton = memo<{ className?: string }>(({ className }) => (
+const NavigationSkeleton = memo<{ className?: string }>(({ className }) => (
   <div className={cn('space-y-2', className)}>
     {Array.from({ length: 6 }, (_, i) => (
       <div key={`nav-${i}`} className="flex items-center space-x-3 p-2">
@@ -233,7 +233,7 @@ export const NavigationSkeleton = memo<{ className?: string }>(({ className }) =
 NavigationSkeleton.displayName = 'NavigationSkeleton'
 
 // Header skeleton
-export const HeaderSkeleton = memo<{ className?: string }>(({ className }) => (
+const HeaderSkeleton = memo<{ className?: string }>(({ className }) => (
   <div className={cn('flex items-center justify-between p-4 border-b', className)}>
     <div className="flex items-center space-x-4">
       <Skeleton className="h-8 w-8" /> {/* Logo */}
@@ -250,7 +250,7 @@ export const HeaderSkeleton = memo<{ className?: string }>(({ className }) => (
 HeaderSkeleton.displayName = 'HeaderSkeleton'
 
 // Patient card skeleton (specific to oncology app)
-export const PatientCardSkeleton = memo<{ className?: string }>(({ className }) => (
+const PatientCardSkeleton = memo<{ className?: string }>(({ className }) => (
   <div className={cn('border rounded-lg p-4 space-y-4', className)}>
     <div className="flex items-start justify-between">
       <div className="flex items-center space-x-3">
@@ -284,7 +284,7 @@ export const PatientCardSkeleton = memo<{ className?: string }>(({ className }) 
 PatientCardSkeleton.displayName = 'PatientCardSkeleton'
 
 // Quiz skeleton (specific to oncology app)
-export const QuizSkeleton = memo<{ className?: string }>(({ className }) => (
+const QuizSkeleton = memo<{ className?: string }>(({ className }) => (
   <div className={cn('border rounded-lg p-6 space-y-6', className)}>
     <div className="space-y-2">
       <Skeleton className="h-6 w-3/4" /> {/* Question */}
@@ -310,7 +310,7 @@ export const QuizSkeleton = memo<{ className?: string }>(({ className }) => (
 QuizSkeleton.displayName = 'QuizSkeleton'
 
 // Page skeleton wrapper
-export const PageSkeleton = memo<{
+const PageSkeleton = memo<{
   children?: React.ReactNode
   className?: string
   showHeader?: boolean

@@ -63,7 +63,7 @@ const AppErrorFallback = memo<{ error: Error }>(({ error }) => (
       >
         Recarregar Página
       </button>
-      {process.env.NODE_ENV === 'development' && (
+      {process.env['NODE_ENV'] === 'development' && (
         <details className="mt-4 text-left">
           <summary className="cursor-pointer text-sm text-gray-500">
             Detalhes do erro (desenvolvimento)

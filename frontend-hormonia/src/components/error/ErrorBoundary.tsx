@@ -85,7 +85,7 @@ export class ErrorBoundary extends Component<Props, State> {
     });
 
     // Report error in production
-    if (enableReporting && process.env.NODE_ENV === 'production') {
+    if (enableReporting && process.env['NODE_ENV'] === 'production') {
       this.reportError(error, errorInfo, level);
     }
 
@@ -98,8 +98,8 @@ export class ErrorBoundary extends Component<Props, State> {
   private reportError = (error: Error, errorInfo: ErrorInfo, level: string) => {
     try {
       // Report to Sentry if available
-      if (typeof window !== 'undefined' && window.Sentry) {
-        window.Sentry.withScope((scope) => {
+      if (typeof window !== 'undefined' && (window as any).Sentry) {
+        (window as any).Sentry.withScope((scope: any) => {
           scope.setTag('errorBoundary', true);
           scope.setLevel(level === 'critical' ? 'error' : 'warning');
           scope.setContext('errorInfo', {
@@ -107,7 +107,7 @@ export class ErrorBoundary extends Component<Props, State> {
             errorBoundaryLevel: level,
             errorId: this.state.errorId
           });
-          window.Sentry.captureException(error);
+          (window as any).Sentry.captureException(error);
         });
       }
 
@@ -203,7 +203,7 @@ export class ErrorBoundary extends Component<Props, State> {
           error={this.state.error}
           errorInfo={this.state.errorInfo}
           errorId={this.state.errorId}
-          level={this.props.level}
+          level={this.props.level || 'component'}
           retryCount={retryCount}
           maxRetries={maxRetries}
           onReset={this.handleReset}
@@ -234,12 +234,12 @@ export function withErrorBoundary<P extends object>(
 // Hook for reporting errors manually
 export function useErrorReporting() {
   const reportError = (error: Error, context?: Record<string, any>) => {
-    if (process.env.NODE_ENV === 'production' && typeof window !== 'undefined' && window.Sentry) {
-      window.Sentry.withScope((scope) => {
+    if (process.env['NODE_ENV'] === 'production' && typeof window !== 'undefined' && (window as any).Sentry) {
+      (window as any).Sentry.withScope((scope: any) => {
         if (context) {
           scope.setContext('manual_report', context);
         }
-        window.Sentry.captureException(error);
+        (window as any).Sentry.captureException(error);
       });
     } else {
       console.error('Manual error report:', error, context);

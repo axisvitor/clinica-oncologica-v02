@@ -584,7 +584,7 @@ class ApiClient {
           // Handle other network/connection errors
           const genericError = new ApiError(
             500,
-            { message: 'Unknown network error', originalError: error.message },
+            { message: 'Unknown network error', originalError: error instanceof Error ? error.message : String(error) },
             'Unknown error occurred',
             'Erro de conexão inesperado. Verifique sua internet e tente novamente.'
           )

@@ -24,13 +24,13 @@ interface EnvironmentConfig {
  */
 function detectEnvironment(): string {
   // Vite environment variable
-  if (import.meta.env.NODE_ENV) {
-    return import.meta.env.NODE_ENV
+  if (import.meta.env['NODE_ENV']) {
+    return import.meta.env['NODE_ENV']
   }
 
   // Railway environment detection
-  if (import.meta.env.VITE_RAILWAY_ENVIRONMENT) {
-    return import.meta.env.VITE_RAILWAY_ENVIRONMENT
+  if (import.meta.env['VITE_RAILWAY_ENVIRONMENT']) {
+    return import.meta.env['VITE_RAILWAY_ENVIRONMENT']
   }
 
   // Check hostname patterns
@@ -62,9 +62,9 @@ function detectEnvironment(): string {
  */
 function detectRailway(): boolean {
   // Railway environment variables
-  if (import.meta.env.VITE_RAILWAY_PROJECT_ID ||
-      import.meta.env.VITE_RAILWAY_SERVICE_ID ||
-      import.meta.env.RAILWAY_PROJECT_ID) {
+  if (import.meta.env['VITE_RAILWAY_PROJECT_ID'] ||
+      import.meta.env['VITE_RAILWAY_SERVICE_ID'] ||
+      import.meta.env['RAILWAY_PROJECT_ID']) {
     return true
   }
 
@@ -87,8 +87,8 @@ function getApiUrl(): string {
   }
 
   // Railway environment variables
-  if (import.meta.env.VITE_RAILWAY_BACKEND_URL) {
-    return import.meta.env.VITE_RAILWAY_BACKEND_URL
+  if (import.meta.env['VITE_RAILWAY_BACKEND_URL']) {
+    return import.meta.env['VITE_RAILWAY_BACKEND_URL']
   }
 
   // Auto-detect based on current URL (for Railway)
@@ -115,8 +115,8 @@ function getApiUrl(): string {
  * Get app version from package.json or build
  */
 function getAppVersion(): string {
-  return import.meta.env.VITE_APP_VERSION ||
-         import.meta.env.PACKAGE_VERSION ||
+  return import.meta.env['VITE_APP_VERSION'] ||
+         import.meta.env['PACKAGE_VERSION'] ||
          '1.0.0'
 }
 
@@ -124,8 +124,8 @@ function getAppVersion(): string {
  * Get build timestamp
  */
 function getBuildTime(): string {
-  return import.meta.env.VITE_BUILD_TIME ||
-         import.meta.env.BUILD_TIME ||
+  return import.meta.env['VITE_BUILD_TIME'] ||
+         import.meta.env['BUILD_TIME'] ||
          new Date().toISOString()
 }
 
@@ -149,7 +149,7 @@ function createEnvironmentConfig(): EnvironmentConfig {
     appVersion: getAppVersion(),
     buildTime: getBuildTime(),
     enableDebugLogs: isDevelopment || env === 'staging',
-    enableMockApi: isDevelopment && import.meta.env.VITE_ENABLE_MOCK_API === 'true',
+    enableMockApi: isDevelopment && import.meta.env['VITE_ENABLE_MOCK_API'] === 'true',
     enableErrorReporting: isProduction || env === 'staging',
     enablePerformanceMonitoring: isProduction || env === 'staging'
   }
@@ -220,8 +220,8 @@ export const RAILWAY_CONFIG = {
   DEPLOYMENT_PLATFORM: environment.isRailway ? 'railway' : 'local',
 
   // Railway environment variables
-  PROJECT_ID: import.meta.env.VITE_RAILWAY_PROJECT_ID || null,
-  SERVICE_ID: import.meta.env.VITE_RAILWAY_SERVICE_ID || null
+  PROJECT_ID: import.meta.env['VITE_RAILWAY_PROJECT_ID'] || null,
+  SERVICE_ID: import.meta.env['VITE_RAILWAY_SERVICE_ID'] || null
 } as const
 
 // Feature flags for React 19 compatibility

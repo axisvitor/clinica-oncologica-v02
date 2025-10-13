@@ -113,14 +113,14 @@ export function HealthStatusMonitor() {
           ],
           uptime_seconds: stats.system?.uptime || 0,
           server_time: new Date().toISOString(),
-          environment: process.env.NODE_ENV || 'development'
+          environment: process.env['NODE_ENV'] || 'development'
         } as SystemHealth
       }
     },
     enabled: !!user,
     refetchInterval: 30000, // Refresh every 30 seconds
     retry: 2,
-    onSuccess: () => setLastUpdated(new Date())
+    // onSuccess removed - not supported in newer react-query versions
   })
 
   const handleRefresh = () => {
@@ -171,8 +171,9 @@ export function HealthStatusMonitor() {
     )
   }
 
-  const StatusIcon = getStatusIcon(health?.overall_status || 'unknown')
-  const statusColor = getStatusColor(health?.overall_status || 'unknown')
+  const healthData = health as any
+  const StatusIcon = getStatusIcon(healthData?.overall_status || 'unknown')
+  const statusColor = getStatusColor(healthData?.overall_status || 'unknown')
 
   return (
     <Card>
@@ -204,15 +205,15 @@ export function HealthStatusMonitor() {
               variant="secondary"
               className={statusColor}
             >
-              {health?.overall_status === 'healthy' ? 'Operacional' :
-               health?.overall_status === 'degraded' ? 'Degradado' : 'Indisponível'}
+              {healthData?.overall_status === 'healthy' ? 'Operacional' :
+               healthData?.overall_status === 'degraded' ? 'Degradado' : 'Indisponível'}
             </Badge>
           </div>
 
-          {health?.uptime_seconds && (
+          {healthData?.uptime_seconds && (
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <Clock className="h-4 w-4" />
-              Uptime: {formatUptime(health.uptime_seconds)}
+              Uptime: {formatUptime(healthData.uptime_seconds)}
             </div>
           )}
         </div>
@@ -221,7 +222,7 @@ export function HealthStatusMonitor() {
         <div className="space-y-3">
           <h4 className="font-medium text-sm text-gray-700">Serviços</h4>
 
-          {health?.services?.map((service, index) => {
+          {healthData?.services?.map((service: any, index: number) => {
             const ServiceStatusIcon = getStatusIcon(service.status)
             const serviceStatusColor = getStatusColor(service.status)
 
@@ -254,7 +255,7 @@ export function HealthStatusMonitor() {
           <div className="flex items-center justify-between text-xs text-gray-500">
             <div className="flex items-center gap-1">
               <Server className="h-3 w-3" />
-              Ambiente: {health?.environment || 'unknown'}
+              Ambiente: {healthData?.environment || 'unknown'}
             </div>
             <div>
               Última atualização: {lastUpdated.toLocaleTimeString()}

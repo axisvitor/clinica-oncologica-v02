@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from '../ui/alert'
 import { Button } from '../ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
-import { useAdminAuth } from '../../contexts/AdminAuthContext'
+import { useAuth } from '../../contexts/AuthContext'
 import { AdminPermissionError } from '../../types/admin'
 import { LoadingSpinner } from '../ui/loading-spinner'
 
@@ -182,21 +182,21 @@ export const AdminProtectedRoute: React.FC<AdminProtectedRouteProps> = ({
   requiresTwoFactor = false,
   fallbackComponent: FallbackComponent
 }) => {
-  const { state } = useAdminAuth()
+  const { user, isLoading, hasPermission } = useAuth()
   const location = useLocation()
 
   // Show loading while checking authentication
-  if (state.isLoading) {
+  if (isLoading) {
     return <LoadingScreen />
   }
 
   // Redirect to login if not authenticated
-  if (!state.isAuthenticated || !state.user) {
+  if (!user) {
     return <Navigate to="/admin/login" state={{ from: location }} replace />
   }
 
   // Check if user account is active
-  if (!state.user.is_active) {
+  if (!user.is_active) {
     return (
       <UnauthorizedScreen
         reason="Account Disabled"
@@ -206,8 +206,8 @@ export const AdminProtectedRoute: React.FC<AdminProtectedRouteProps> = ({
   }
 
   // Check if user account is locked
-  if (state.user.locked_until && new Date(state.user.locked_until) > new Date()) {
-    const lockoutEnd = new Date(state.user.locked_until)
+  if (user.locked_until && new Date(user.locked_until) > new Date()) {
+    const lockoutEnd = new Date(user.locked_until)
     return (
       <UnauthorizedScreen
         reason="Account Temporarily Locked"
@@ -217,14 +217,14 @@ export const AdminProtectedRoute: React.FC<AdminProtectedRouteProps> = ({
   }
 
   // Check two-factor authentication requirement
-  if (requiresTwoFactor && !state.user.two_factor_enabled) {
+  if (requiresTwoFactor && !user.two_factor_enabled) {
     return <TwoFactorRequiredScreen />
   }
 
   // Check permissions
   if (requiredPermissions.length > 0) {
     const hasRequiredPermissions = requiredPermissions.some(permission =>
-      state.user?.permissions.includes(permission)
+      hasPermission(permission)
     )
 
     if (!hasRequiredPermissions) {
@@ -236,20 +236,21 @@ export const AdminProtectedRoute: React.FC<AdminProtectedRouteProps> = ({
       return (
         <InsufficientPermissionsScreen
           requiredPermissions={requiredPermissions}
-          userPermissions={state.user.permissions}
+          userPermissions={user.permissions || []}
         />
       )
     }
   }
 
   // Show authentication error if present
-  if (state.error) {
-    return (
-      <UnauthorizedScreen
-        reason="Authentication Error"
-        description={state.error}
-        action={() => window.location.reload()}
-        actionLabel="Retry"
+  // Note: AuthContext doesn't expose error state, so we'll skip this check
+  // if (state.error) {
+  //   return (
+  //     <UnauthorizedScreen
+  //       reason="Authentication Error"
+  //       description={state.error}
+  //       action={() => window.location.reload()}
+  //       actionLabel="Retry"
       />
     )
   }

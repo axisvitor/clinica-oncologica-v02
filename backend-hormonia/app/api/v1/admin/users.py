@@ -131,6 +131,11 @@ def build_user_filters(filters: UserFilterParams, query):
     "/",
     response_model=UserListResponse,
     summary="List All Users",
+)
+@router.get(
+    "",
+    response_model=UserListResponse,
+    summary="List All Users",
     description="""
     Retrieve a paginated list of all users in the system with optional filtering.
 
@@ -220,6 +225,10 @@ async def list_users(
 
 @router.post(
     "/",
+    response_model=UserResponse,
+)
+@router.post(
+    "",
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create New User",

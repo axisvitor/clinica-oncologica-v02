@@ -4,12 +4,12 @@
  * Provides improved toast notifications with better UX and error handling
  */
 
-import { toast as baseToast, type ToastProps } from '../hooks/use-toast'
+import { toast as baseToast } from '../hooks/use-toast'
 import { createLogger } from './logger'
 
 const logger = createLogger('Toast')
 
-interface EnhancedToastOptions extends Omit<ToastProps, 'title' | 'description'> {
+interface EnhancedToastOptions {
   title: string
   description?: string
   duration?: number
@@ -23,55 +23,52 @@ interface EnhancedToastOptions extends Omit<ToastProps, 'title' | 'description'>
 export const enhancedToast = {
   // Success notifications
   success: (options: Omit<EnhancedToastOptions, 'variant'>) => {
-    logger.debug('Success toast:', options.title)
+    logger.debug('Success toast:', options['title'])
     return baseToast({
       ...options,
       variant: 'default',
-      duration: options.duration || 4000,
-      className: 'border-green-200 bg-green-50 text-green-800'
+      duration: options['duration'] || 4000
     })
   },
 
   // Error notifications
   error: (options: Omit<EnhancedToastOptions, 'variant'>) => {
-    logger.debug('Error toast:', options.title)
+    logger.debug('Error toast:', options['title'])
     return baseToast({
       ...options,
       variant: 'destructive',
-      duration: options.persistent ? undefined : (options.duration || 8000)
+      duration: options['persistent'] ? 0 : (options['duration'] || 8000)
     })
   },
 
   // Warning notifications
   warning: (options: Omit<EnhancedToastOptions, 'variant'>) => {
-    logger.debug('Warning toast:', options.title)
+    logger.debug('Warning toast:', options['title'])
     return baseToast({
       ...options,
       variant: 'default',
-      duration: options.duration || 6000,
-      className: 'border-yellow-200 bg-yellow-50 text-yellow-800'
+      duration: options['duration'] || 6000
     })
   },
 
   // Info notifications
   info: (options: Omit<EnhancedToastOptions, 'variant'>) => {
-    logger.debug('Info toast:', options.title)
+    logger.debug('Info toast:', options['title'])
     return baseToast({
       ...options,
       variant: 'default',
-      duration: options.duration || 5000,
-      className: 'border-blue-200 bg-blue-50 text-blue-800'
+      duration: options['duration'] || 5000
     })
   },
 
   // Loading notifications with progress
   loading: (options: Omit<EnhancedToastOptions, 'variant'>) => {
-    logger.debug('Loading toast:', options.title)
+    logger.debug('Loading toast:', options['title'])
     return baseToast({
       ...options,
       variant: 'default',
-      duration: undefined, // Don't auto-dismiss loading toasts
-      className: 'border-gray-200 bg-gray-50 text-gray-800'
+      duration: 0 // Don't auto-dismiss loading toasts
+      // className removed due to type incompatibility
     })
   },
 
@@ -81,10 +78,12 @@ export const enhancedToast = {
       title: 'Erro de Conexão',
       description: 'Não foi possível conectar ao servidor. Verifique sua conexão.',
       persistent: true,
-      action: retryFn ? {
-        label: 'Tentar Novamente',
-        onClick: retryFn
-      } : undefined
+      ...(retryFn ? {
+        action: {
+          label: 'Tentar Novamente',
+          onClick: retryFn
+        }
+      } : {})
     })
   },
 

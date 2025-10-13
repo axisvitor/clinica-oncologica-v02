@@ -34,7 +34,7 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu'
 import { AdminNavItem, AdminUser } from '../../types/admin'
-import { useAdminAuth } from '../../contexts/AdminAuthContext'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface AdminNavigationMenuProps {
   className?: string
@@ -136,6 +136,27 @@ const adminNavItems: AdminNavItem[] = [
     ]
   },
   {
+    id: 'templates',
+    label: 'Templates',
+    path: '/admin/templates',
+    icon: 'FileTemplate',
+    requiredPermissions: ['admin.templates.read'],
+    children: [
+      {
+        id: 'templates-flows',
+        label: 'Flow Templates',
+        path: '/admin/templates/flows',
+        requiredPermissions: ['admin.templates.read']
+      },
+      {
+        id: 'templates-quiz',
+        label: 'Quiz Templates',
+        path: '/admin/templates/quiz',
+        requiredPermissions: ['admin.templates.read']
+      }
+    ]
+  },
+  {
     id: 'reports',
     label: 'Reports',
     path: '/admin/reports',
@@ -206,7 +227,7 @@ const iconMap = {
 }
 
 export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ className }) => {
-  const { state, logout } = useAdminAuth()
+  const { user, isLoading, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
@@ -251,10 +272,10 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
     setFilteredNavItems(filtered)
   }, [searchQuery])
 
-  const hasPermission = (requiredPermissions?: string[]): boolean => {
-    if (!requiredPermissions || !state.user) return true
+  const hasPermissionLocal = (requiredPermissions?: string[]): boolean => {
+    if (!requiredPermissions || !user) return true
     return requiredPermissions.some(permission =>
-      state.user?.permissions.includes(permission)
+      user?.permissions?.includes(permission)
     )
   }
 
@@ -344,7 +365,7 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
     )
   }
 
-  if (!state.user) {
+  if (!user) {
     return null
   }
 
@@ -374,7 +395,7 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
               <div>
                 <h1 className="text-lg font-bold text-gray-900">Admin Panel</h1>
                 <p className="text-xs text-gray-500">
-                  {state.user['role'] === 'admin' ? 'Administrador' : 'Médico'}
+                  {user['role'] === 'admin' ? 'Administrador' : 'Médico'}
                 </p>
               </div>
             </div>
@@ -426,14 +447,14 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
                 <Button variant="ghost" className="w-full justify-start p-2">
                   <div className="flex items-center space-x-3">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src="" alt={state.user['full_name']} />
+                      <AvatarImage src="" alt={user['full_name']} />
                       <AvatarFallback>
-                        {state.user['full_name'].split(' ').map(n => n[0]).join('').toUpperCase()}
+                        {user['full_name'].split(' ').map(n => n[0]).join('').toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 text-left">
-                      <p className="text-sm font-medium text-gray-700">{state.user['full_name']}</p>
-                      <p className="text-xs text-gray-500">{state.user['email']}</p>
+                      <p className="text-sm font-medium text-gray-700">{user['full_name']}</p>
+                      <p className="text-xs text-gray-500">{user['email']}</p>
                     </div>
                   </div>
                 </Button>
