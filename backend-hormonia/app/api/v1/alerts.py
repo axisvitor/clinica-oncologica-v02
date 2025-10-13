@@ -25,12 +25,14 @@ from app.core.monitoring_logging import monitoring_logger
 
 def _convert_pagination(pagination: PaginationParams) -> dict:
     """Convert PaginationParams to page/size format for compatibility."""
-    page = (_convert_pagination(pagination)["skip"] // _convert_pagination(pagination)["limit"]) + 1 if _convert_pagination(pagination)["limit"] > 0 else 1
+    skip = max(pagination.skip, 0)
+    limit = pagination.limit if pagination.limit > 0 else 1
+    page = (skip // limit) + 1
     return {
         "page": page,
-        "size": _convert_pagination(pagination)["limit"],
-        "skip": _convert_pagination(pagination)["skip"],
-        "limit": _convert_pagination(pagination)["limit"]
+        "size": limit,
+        "skip": skip,
+        "limit": limit
     }
 
 router = APIRouter()

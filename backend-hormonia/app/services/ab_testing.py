@@ -340,7 +340,7 @@ class ABTestingService:
             logger.error(f"Error assigning patient {patient_id} to variant: {str(e)}")
             return None
 
-    def create_experiment_message(
+    async def create_experiment_message(
         self,
         patient_id: UUID,
         experiment_id: str,
@@ -386,14 +386,22 @@ class ABTestingService:
                     final_content = base_content
                     metadata['fallback_reason'] = 'medical_content_safety'
                 else:
-                    # Apply AI humanization
-                    humanized_content = self.ai_service.humanize_message(
+                    # Apply AI humanization (await coroutine)
+                    humanized_result = await self.ai_service.humanize_message(
                         base_content,
                         context={"patient_id": str(patient_id), "template": message_template.value}
                     )
-                    final_content = humanized_content if humanized_content else base_content
 
-                    if not humanized_content:
+                    if hasattr(humanized_result, "humanized_message"):
+                        final_content = humanized_result.humanized_message
+                        metadata["ai_processing"] = {
+                            "confidence_score": getattr(humanized_result, "confidence_score", None),
+                            "personalization_notes": getattr(humanized_result, "personalization_notes", [])
+                        }
+                    else:
+                        final_content = humanized_result if humanized_result else base_content
+
+                    if not final_content or final_content == base_content:
                         metadata['fallback_reason'] = 'ai_service_failure'
 
             except Exception as e:

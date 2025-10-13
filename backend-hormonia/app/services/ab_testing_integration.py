@@ -58,7 +58,7 @@ class ABTestingIntegration:
         self._active_experiments = {}
         self._last_cache_refresh = None
 
-    def create_ab_test_message(
+    async def create_ab_test_message(
         self,
         patient_id: UUID,
         template: MessageTemplate,
@@ -116,7 +116,7 @@ class ABTestingIntegration:
                 )
 
             # Create A/B test message
-            message = self.ab_service.create_experiment_message(
+            message = await self.ab_service.create_experiment_message(
                 patient_id=patient_id,
                 experiment_id=active_experiment["id"],
                 variant=variant,
