@@ -33,7 +33,7 @@ class MessageType(str, enum.Enum):
     MONTHLY_QUIZ_COMPLETED = "monthly_quiz_completed"
 
 
-class MessageStatus(enum.Enum):
+class MessageStatus(str, enum.Enum):
     """Message status enumeration."""
     PENDING = "pending"
     SCHEDULED = "scheduled"
@@ -45,7 +45,7 @@ class MessageStatus(enum.Enum):
     CANCELLED = "cancelled"
 
 
-class DeliveryStatus(enum.Enum):
+class DeliveryStatus(str, enum.Enum):
     """Detailed delivery status tracking for WhatsApp messages."""
     SCHEDULED = "scheduled"
     QUEUED = "queued"
@@ -95,7 +95,18 @@ class Message(BaseModel):
 
     # WhatsApp integration
     whatsapp_id = Column(String(255), nullable=True, index=True)
-    status = Column(SAEnum(MessageStatus), default=MessageStatus.PENDING, nullable=False)
+    status = Column(
+        SAEnum(
+            MessageStatus,
+            name="message_status",
+            native_enum=True,
+            create_type=False,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+            validate_strings=True,
+        ),
+        default=MessageStatus.PENDING,
+        nullable=False,
+    )
 
     # Scheduling and delivery tracking
     scheduled_for = Column(DateTime(timezone=True), nullable=True)
@@ -104,7 +115,17 @@ class Message(BaseModel):
     read_at = Column(DateTime(timezone=True), nullable=True)
 
     # Delivery status tracking (new fields for P1 fix)
-    delivery_status = Column(SAEnum(DeliveryStatus), nullable=True)
+    delivery_status = Column(
+        SAEnum(
+            DeliveryStatus,
+            name="message_delivery_status",
+            native_enum=True,
+            create_type=False,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+            validate_strings=True,
+        ),
+        nullable=True,
+    )
     retry_count = Column(Integer, nullable=False, default=0)
     last_retry_at = Column(DateTime(timezone=True), nullable=True)
     failure_reason = Column(Text, nullable=True)
