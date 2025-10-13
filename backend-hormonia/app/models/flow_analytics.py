@@ -13,7 +13,7 @@ class FlowAnalytics(BaseModel):
     __tablename__ = "flow_analytics"
     
     # References
-    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
     flow_template_version_id = Column(UUID(as_uuid=True), ForeignKey("flow_template_versions.id"), nullable=True)
     
     # Metrics
@@ -47,7 +47,7 @@ class FlowAnalytics(BaseModel):
     avg_response_time_seconds = Column(Integer, nullable=True)
     
     # Relationships
-    patient = relationship("Patient", backref="analytics")
+    patient = relationship("Patient", back_populates="analytics", lazy="select")
     
     def __repr__(self):
         return f"<FlowAnalytics(patient_id='{self.patient_id}', engagement={self.engagement_score})>"

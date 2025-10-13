@@ -94,6 +94,7 @@ class Patient(BaseModel):
     medications = relationship("Medication", back_populates="patient", lazy="select", passive_deletes=True)
     notifications = relationship("Notification", back_populates="related_patient", lazy="select", passive_deletes=True)
     consents = relationship("Consent", back_populates="patient", foreign_keys="[Consent.patient_id]", lazy="select", passive_deletes=True)
+    analytics = relationship("FlowAnalytics", back_populates="patient", lazy="select", passive_deletes=True)
 
     # Constraints and indexes to match DB uniques
     __table_args__ = (
