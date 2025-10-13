@@ -371,7 +371,7 @@ async def list_reports(
         response = ReportListResponse(
             reports=reports,
             total=total,
-            page=pagination.page,
+            page=_convert_pagination(pagination)["page"],
             size=_convert_pagination(pagination)["limit"],
             pages=(total + _convert_pagination(pagination)["limit"] - 1) // _convert_pagination(pagination)["limit"]
         )

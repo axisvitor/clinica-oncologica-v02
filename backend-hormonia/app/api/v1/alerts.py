@@ -67,14 +67,7 @@ async def list_alerts(
             elif status == AlertStatus.PENDING:
                 alerts = alert_system.alert_repo.get_unacknowledged(_convert_pagination(pagination)["skip"], _convert_pagination(pagination)["limit"])
                 total = alert_system.alert_repo.count_unacknowledged()
-            else:
-                alerts = alert_system.alert_repo.get_active_alerts(_convert_pagination(pagination)["skip"], _convert_pagination(pagination)["limit"])
-                total = len(alert_system.alert_repo.get_active_alerts(0, 10000))  # Get total count
-            
-            return AlertListResponse(
-                items=[AlertResponse.from_orm(alert) for alert in alerts],
-                total=total,
-                page=pagination.page,
+                page=_convert_pagination(pagination)["page"],
                 size=_convert_pagination(pagination)["limit"],
                 pages=(total + _convert_pagination(pagination)["limit"] - 1) // _convert_pagination(pagination)["limit"]
             )
@@ -127,7 +120,7 @@ async def get_patient_alerts(
             return AlertListResponse(
                 items=[AlertResponse.from_orm(alert) for alert in alerts],
                 total=total,
-                page=pagination.page,
+                page=_convert_pagination(pagination)["page"],
                 size=_convert_pagination(pagination)["limit"],
                 pages=(total + _convert_pagination(pagination)["limit"] - 1) // _convert_pagination(pagination)["limit"]
             )
