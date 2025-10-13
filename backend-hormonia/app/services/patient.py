@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 import hashlib
@@ -551,8 +551,11 @@ class PatientIntegrityService:
 
             # Validate treatment data consistency
             if patient_data.treatment_type and patient_data.treatment_start_date:
-                if patient_data.treatment_start_date > date.today():
-                    raise ValidationError("Treatment start date cannot be in the future")
+                max_future_days = getattr(settings, "PATIENT_TREATMENT_START_MAX_FUTURE_DAYS", 30)
+                if patient_data.treatment_start_date > date.today() + timedelta(days=max_future_days):
+                    raise ValidationError(
+                        f"Treatment start date cannot be more than {max_future_days} days in the future"
+                    )
 
         except ValidationError:
             raise
@@ -745,4 +748,3 @@ class PatientIntegrityService:
             logger.error(f"Soft delete failed: {e}")
             self.db.rollback()
             raise
-
