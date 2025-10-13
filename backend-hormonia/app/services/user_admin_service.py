@@ -597,10 +597,19 @@ class UserAdminService(AdminAuditMixin):
             )
 
         # Prevent deactivation of the last admin
-                    if user.role == UserRole.ADMIN:
-                        admin_count = self.db.query(User).filter(
-                            and_(User.role == UserRole.ADMIN, User.is_active == True, User.id != user_id)
-                        ).count()            if admin_count == 0:
+        if user.role == UserRole.ADMIN:
+            admin_count = (
+                self.db.query(User)
+                .filter(
+                    and_(
+                        User.role == UserRole.ADMIN,
+                        User.is_active == True,
+                        User.id != user_id,
+                    )
+                )
+                .count()
+            )
+            if admin_count == 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Cannot deactivate the last active admin user"
