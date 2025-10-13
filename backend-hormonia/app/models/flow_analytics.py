@@ -58,7 +58,7 @@ class FlowMessage(BaseModel):
     __tablename__ = "flow_messages"
     
     # References
-    flow_template_id = Column(UUID(as_uuid=True), ForeignKey("flow_templates.id"), nullable=False)
+    flow_template_id = Column(UUID(as_uuid=True), ForeignKey("flow_template_versions.id"), nullable=False)
     patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=True)
     message_id = Column(UUID(as_uuid=True), ForeignKey("messages.id"), nullable=True)
     

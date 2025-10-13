@@ -21,3 +21,4 @@ COMMIT;
 --   • The FailedMessage model will work without SQLAlchemy conflicts
 --   • Application will continue to work normally
 -- ====================================================================================
+

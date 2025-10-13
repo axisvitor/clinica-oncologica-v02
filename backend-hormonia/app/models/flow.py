@@ -14,7 +14,7 @@ class PatientFlowState(BaseModel):
     __tablename__ = "patient_flow_states"  # Changed to match actual table name
     
     # Patient reference
-    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
     
     # Flow details - using versioned system only
     template_version_id = Column(
@@ -37,7 +37,7 @@ class PatientFlowState(BaseModel):
     flow_metadata = Column(JSONB, nullable=True)
     
     # Relationships
-    patient = relationship("Patient", back_populates="flow_states")
+    patient = relationship("Patient", back_populates="flow_states", cascade="all, delete-orphan")
     template_version = relationship("FlowTemplateVersion", back_populates="flow_states")
     
     # Constraints and indexes to match DB

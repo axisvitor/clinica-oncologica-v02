@@ -82,7 +82,7 @@ class Patient(BaseModel):
     # Relationships
     doctor = relationship("User", back_populates="patients")
     messages = relationship("Message", back_populates="patient")
-    flow_states = relationship("PatientFlowState", back_populates="patient")
+    flow_states = relationship("PatientFlowState", back_populates="patient", cascade="all, delete-orphan")
     quiz_responses = relationship("QuizResponse", back_populates="patient")
     quiz_sessions = relationship("QuizSession", back_populates="patient")
     medical_reports = relationship("MedicalReport", back_populates="patient")
