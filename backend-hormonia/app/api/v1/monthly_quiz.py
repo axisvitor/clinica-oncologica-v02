@@ -389,14 +389,7 @@ async def get_patient_latest_quiz_status(
     **Returns**:
     - Latest quiz link status for the patient
     """
-    try:
-        return await service.get_patient_latest_status(patient_id)
-    except Exception as e:
-        logger.error(f"Error getting patient latest quiz status: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get patient quiz status: {str(e)}"
-        )
+    return await service.get_patient_latest_status(patient_id)
 
 
 @router.get("/patients/{patient_id}/history", response_model=List[MonthlyQuizLinkResponse])

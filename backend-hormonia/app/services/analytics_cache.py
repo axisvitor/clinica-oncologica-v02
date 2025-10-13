@@ -123,7 +123,7 @@ class AnalyticsCacheService:
             logger.error(f"Error getting from cache: {e}")
             return None
     
-    def set(self, cache_type: str, key_params: Dict[str, Any], data: Any) -> bool:
+    def set(self, cache_type: str, key_params: Dict[str, Any], data: Any, ttl: Optional[int] = None) -> bool:
         """
         Set data in cache.
         
@@ -131,6 +131,7 @@ class AnalyticsCacheService:
             cache_type: Type of cached data
             key_params: Parameters to build cache key
             data: Data to cache
+            ttl: Optional TTL override (seconds). If not provided, uses default for cache_type
             
         Returns:
             True if successful, False otherwise
@@ -139,13 +140,16 @@ class AnalyticsCacheService:
             config = self.CACHE_CONFIGS.get(cache_type, CacheConfig(ttl_seconds=300))
             cache_key = self._build_cache_key(cache_type, key_params)
             
+            # Use provided TTL or default from config
+            ttl_seconds = ttl if ttl is not None else config.ttl_seconds
+            
             # Serialize data
             serialized_data = json.dumps(data, default=str)
             
             # Set in Redis with TTL
             success = self.redis_client.setex(
                 cache_key,
-                config.ttl_seconds,
+                ttl_seconds,
                 serialized_data
             )
             
@@ -157,7 +161,7 @@ class AnalyticsCacheService:
                     context={
                         "cache_type": cache_type,
                         "cache_key": cache_key,
-                        "ttl_seconds": config.ttl_seconds,
+                        "ttl_seconds": ttl_seconds,
                         "data_size_bytes": len(serialized_data)
                     }
                 )
@@ -258,7 +262,7 @@ class AnalyticsCacheService:
             return False
     
     def get_or_set(self, cache_type: str, key_params: Dict[str, Any], 
-                   data_generator: Callable[[], Any]) -> Any:
+                   data_generator: Callable[[], Any], ttl: Optional[int] = None) -> Any:
         """
         Get data from cache or generate and cache if not found.
         
@@ -266,6 +270,7 @@ class AnalyticsCacheService:
             cache_type: Type of cached data
             key_params: Parameters to build cache key
             data_generator: Function to generate fresh data if cache miss
+            ttl: Optional TTL override (seconds). If not provided, uses default for cache_type
             
         Returns:
             Cached or freshly generated data
@@ -280,8 +285,11 @@ class AnalyticsCacheService:
         try:
             fresh_data = data_generator()
             
-            # Cache the fresh data
-            self.set(cache_type, key_params, fresh_data)
+            # Cache the fresh data with optional TTL override
+            if ttl is not None:
+                self.set(cache_type, key_params, fresh_data, ttl=ttl)
+            else:
+                self.set(cache_type, key_params, fresh_data)
             
             return fresh_data
             
