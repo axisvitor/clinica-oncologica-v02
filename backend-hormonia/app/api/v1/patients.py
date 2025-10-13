@@ -512,6 +512,12 @@ async def deactivate_patient(
 
 @router.post("/cache/invalidate/{patient_id}", status_code=204)
 async def invalidate_patient_cache_endpoint(
+    patient_id: UUID,
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """
+    Invalidate cache entries for a specific patient (admin only).
+    """
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=403,
@@ -529,7 +535,7 @@ async def invalidate_patient_cache_endpoint(
     # Invalidate HTTP response cache
     invalidate_http_cache_for_path(f"/api/v1/patients/{patient_id}")
 
-    logger.info(f"Cache invalidated for patient {patient_id} by admin {current_user.email}")
+    logger.info("Cache invalidated for patient %s by admin %s", patient_id, current_user.email)
     return None
 
 
