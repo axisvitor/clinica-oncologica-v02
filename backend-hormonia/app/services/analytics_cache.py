@@ -8,7 +8,7 @@ import hashlib
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Callable, Union
 from functools import wraps
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, is_dataclass
 
 from app.core.redis_unified import get_sync_redis
 from app.core.monitoring_logging import monitoring_logger
@@ -144,7 +144,8 @@ class AnalyticsCacheService:
             ttl_seconds = ttl if ttl is not None else config.ttl_seconds
             
             # Serialize data
-            serialized_data = json.dumps(data, default=str)
+            payload = self._to_serializable(data)
+            serialized_data = json.dumps(payload, default=str)
             
             # Set in Redis with TTL
             success = self.redis_client.setex(
@@ -286,12 +287,13 @@ class AnalyticsCacheService:
             fresh_data = data_generator()
             
             # Cache the fresh data with optional TTL override
+            payload = self._to_serializable(fresh_data)
             if ttl is not None:
-                self.set(cache_type, key_params, fresh_data, ttl=ttl)
+                self.set(cache_type, key_params, payload, ttl=ttl)
             else:
-                self.set(cache_type, key_params, fresh_data)
+                self.set(cache_type, key_params, payload)
             
-            return fresh_data
+            return payload
             
         except Exception as e:
             logger.error(f"Error generating fresh data for cache: {e}")
@@ -403,6 +405,30 @@ class AnalyticsCacheService:
             self.redis_client.setex(self.METRICS_KEY, 86400, metrics_data)  # 24 hours
         except Exception as e:
             logger.warning(f"Could not save cache metrics: {e}")
+    
+    def _to_serializable(self, data: Any) -> Any:
+        """Convert data to a JSON-serializable structure (dict/list/primitives)."""
+        try:
+            # Pydantic v2 BaseModel
+            if hasattr(data, "model_dump") and callable(getattr(data, "model_dump")):
+                return data.model_dump()
+            # Pydantic v1 compatibility
+            if hasattr(data, "dict") and callable(getattr(data, "dict")):
+                return data.dict()
+            # Dataclasses
+            if is_dataclass(data):
+                return asdict(data)
+            # Lists/Tuples
+            if isinstance(data, (list, tuple)):
+                return [self._to_serializable(item) for item in data]
+            # Dicts
+            if isinstance(data, dict):
+                return {k: self._to_serializable(v) for k, v in data.items()}
+            # Primitives or already serializable types
+            return data
+        except Exception:
+            # Fallback: stringify as last resort
+            return str(data)
 
 
 def cache_analytics_data(cache_type: str, key_params: Optional[Dict[str, Any]] = None):
