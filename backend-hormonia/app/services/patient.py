@@ -50,7 +50,10 @@ class PatientService:
             patient_dict["doctor_id"] = doctor_id
 
             # Generate data integrity checksum
-            patient_dict["integrity_hash"] = self.integrity_service.generate_patient_hash(patient_dict)
+            integrity_hash = self.integrity_service.generate_patient_hash(patient_dict)
+            patient_metadata = patient_dict.get("patient_data") or {}
+            patient_metadata["integrity_hash"] = integrity_hash
+            patient_dict["patient_data"] = patient_metadata
 
             patient = self.repository.create(patient_dict)
 
