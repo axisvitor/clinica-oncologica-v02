@@ -62,7 +62,11 @@ class Message(BaseModel):
     __tablename__ = "messages"
 
     # Patient reference
-    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    patient_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("patients.id", ondelete="CASCADE"),
+        nullable=False
+    )
 
     # Message details
     direction = Column(
@@ -132,7 +136,11 @@ class Message(BaseModel):
     next_retry_at = Column(DateTime(timezone=True), nullable=True)
     
     # Relationships
-    patient = relationship("Patient", back_populates="messages")
+    patient = relationship(
+        "Patient",
+        back_populates="messages",
+        passive_deletes=True
+    )
     status_events = relationship(
         "MessageStatusEvent",
         back_populates="message",
