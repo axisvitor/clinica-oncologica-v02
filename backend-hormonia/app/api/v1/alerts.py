@@ -50,6 +50,13 @@ async def list_alerts(
     current_user: User = Depends(get_current_user)
 ) -> AlertListResponse:
     """List system alerts with filtering and pagination."""
+    pagination_data = _convert_pagination(pagination)
+    skip = pagination_data["skip"]
+    limit = pagination_data["limit"]
+    page = pagination_data["page"]
+    size = pagination_data["limit"]
+    pages = 0
+
     try:
         with monitoring_logger.context(
             operation="list_alerts",
@@ -57,19 +64,32 @@ async def list_alerts(
             filters={"severity": severity, "status": status, "patient_id": str(patient_id) if patient_id else None}
         ):
             alert_system = AlertService(db)
-            
+
             if patient_id:
-                alerts = alert_system.alert_repo.get_by_patient(patient_id, _convert_pagination(pagination)["skip"], _convert_pagination(pagination)["limit"])
-                total = len(alert_system.alert_repo.get_by_patient(patient_id, 0, 10000))  # Get total count
+                alerts = alert_system.alert_repo.get_by_patient(patient_id, skip, limit)
+                total = alert_system.alert_repo.count(patient_id=patient_id)
             elif severity:
-                alerts = alert_system.alert_repo.get_by_severity(severity, _convert_pagination(pagination)["skip"], _convert_pagination(pagination)["limit"])
+                alerts = alert_system.alert_repo.get_by_severity(severity, skip, limit)
                 total = alert_system.alert_repo.count_by_severity(severity)
             elif status == AlertStatus.PENDING:
-                alerts = alert_system.alert_repo.get_unacknowledged(_convert_pagination(pagination)["skip"], _convert_pagination(pagination)["limit"])
+                alerts = alert_system.alert_repo.get_unacknowledged(skip, limit)
                 total = alert_system.alert_repo.count_unacknowledged()
-                page=_convert_pagination(pagination)["page"],
-                size=_convert_pagination(pagination)["limit"],
-                pages=(total + _convert_pagination(pagination)["limit"] - 1) // _convert_pagination(pagination)["limit"]
+            elif status:
+                status_value = status.value if isinstance(status, AlertStatus) else str(status)
+                all_alerts = alert_system.alert_repo.get_by_status(status_value)
+                total = len(all_alerts)
+                alerts = all_alerts[skip:skip + limit]
+            else:
+                alerts, total = alert_system.alert_repo.get_paginated(skip=skip, limit=limit)
+
+            pages = (total + limit - 1) // limit if limit else 0
+
+            return AlertListResponse(
+                items=[AlertResponse.from_orm(alert) for alert in alerts],
+                total=total,
+                page=page,
+                size=size,
+                pages=pages,
             )
     except Exception as e:
         # Check if it's a schema compatibility error
