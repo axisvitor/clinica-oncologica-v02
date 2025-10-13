@@ -6,8 +6,29 @@ from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from typing import Dict, Any
+from enum import Enum
 
 from app.models.base import BaseModel
+
+
+class FailureReason(str, Enum):
+    """Reasons why a message failed delivery."""
+    NETWORK_ERROR = "network_error"
+    TIMEOUT = "timeout"
+    INVALID_PHONE = "invalid_phone"
+    BLOCKED_NUMBER = "blocked_number"
+    RATE_LIMIT = "rate_limit"
+    API_ERROR = "api_error"
+    MAX_RETRIES_EXCEEDED = "max_retries_exceeded"
+    UNKNOWN = "unknown"
+
+
+class DLQStatus(str, Enum):
+    """Status of items in the Dead Letter Queue."""
+    PENDING_REVIEW = "pending_review"
+    UNDER_REVIEW = "under_review"
+    RESOLVED = "resolved"
+    DISCARDED = "discarded"
 
 
 class FailedMessage(BaseModel):
