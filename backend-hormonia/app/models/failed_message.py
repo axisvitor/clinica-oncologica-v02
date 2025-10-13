@@ -35,13 +35,23 @@ class FailedMessage(BaseModel):
     original_message_id = Column(UUID(as_uuid=True), ForeignKey("messages.id", ondelete="SET NULL"), nullable=True, index=True)
 
     @property
-    def metadata(self) -> Dict[str, Any]:
+    def dlq_data(self) -> Dict[str, Any]:
         """Access to DLQ metadata."""
         return self.dlq_metadata or {}
 
+    @dlq_data.setter
+    def dlq_data(self, value: Dict[str, Any]) -> None:
+        self.dlq_metadata = value
+
+    @property
+    def metadata(self) -> Dict[str, Any]:
+        """Backward compatibility for metadata access."""
+        return self.dlq_data
+
     @metadata.setter
     def metadata(self, value: Dict[str, Any]) -> None:
-        self.dlq_metadata = value
+        """Backward compatibility for metadata setting."""
+        self.dlq_data = value
 
     # Relationships
     original_message = relationship("Message", foreign_keys=[original_message_id], backref="dlq_entries")
@@ -71,7 +81,7 @@ class FailedMessage(BaseModel):
         }
 
         if include_sensitive:
-            result["metadata"] = self.dlq_metadata
+            result["dlq_data"] = self.dlq_metadata
 
         if self.original_message_id:
             result["original_message_id"] = str(self.original_message_id)
