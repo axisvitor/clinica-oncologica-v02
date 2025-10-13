@@ -35,6 +35,33 @@ from app.middleware.cache_middleware import invalidate_http_cache_for_path
 router = APIRouter()
 
 
+def _role_value(user: User) -> str:
+    """Return normalized role string for the given user."""
+    role = getattr(user, "role", None)
+    if isinstance(role, UserRole):
+        return role.value
+    return str(role or "").lower()
+
+
+def _can_manage_patient(patient, user: User) -> bool:
+    """
+    Determine if the current user can manage (update/delete/state-change) the patient.
+
+    - Treating doctor always has access.
+    - Admin users have system-wide access, including unassigned patients.
+    """
+    if patient is None or user is None:
+        return False
+
+    if patient.doctor_id == user.id:
+        return True
+
+    if _role_value(user) == UserRole.ADMIN.value:
+        return True
+
+    return False
+
+
 @router.get(
     "", 
     response_model=PatientListResponse,
@@ -351,8 +378,7 @@ async def update_patient(
             detail="Patient not found"
         )
 
-    # Check if current user is the patient's doctor
-    if patient.doctor_id != current_user.id:
+    if not _can_manage_patient(patient, current_user):
         raise HTTPException(
             status_code=403,
             detail="Not authorized to update this patient"
@@ -394,8 +420,7 @@ async def delete_patient(
             detail="Patient not found"
         )
 
-    # Check if current user is the patient's doctor
-    if patient.doctor_id != current_user.id:
+    if not _can_manage_patient(patient, current_user):
         raise HTTPException(
             status_code=403,
             detail="Not authorized to delete this patient"
@@ -426,8 +451,7 @@ async def activate_patient(
             detail="Patient not found"
         )
 
-    # Check if current user is the patient's doctor
-    if patient.doctor_id != current_user.id:
+    if not _can_manage_patient(patient, current_user):
         raise HTTPException(
             status_code=403,
             detail="Not authorized to activate this patient"
@@ -466,8 +490,7 @@ async def deactivate_patient(
             detail="Patient not found"
         )
 
-    # Check if current user is the patient's doctor
-    if patient.doctor_id != current_user.id:
+    if not _can_manage_patient(patient, current_user):
         raise HTTPException(
             status_code=403,
             detail="Not authorized to deactivate this patient"
