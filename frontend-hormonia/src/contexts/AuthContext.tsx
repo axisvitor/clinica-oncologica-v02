@@ -53,10 +53,43 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (isMockAuthEnabled()) {
       return mockAuthService.hasPermission(permission)
     }
-    if (!user || !user['permissions'] || !Array.isArray(user['permissions'])) {
+
+    if (!user) {
       return false
     }
-    return user['permissions'].includes(permission)
+
+    const role = String(user['role'] ?? '').toLowerCase()
+    if (role === 'admin') {
+      return true
+    }
+
+    const rawPermissions = Array.isArray(user['permissions']) ? user['permissions'] : []
+    if (rawPermissions.length === 0) {
+      return false
+    }
+
+    const normalizedPermission = String(permission).toLowerCase()
+
+    return rawPermissions.some(userPermission => {
+      if (!userPermission) {
+        return false
+      }
+      const normalizedUserPermission = String(userPermission).toLowerCase()
+
+      if (normalizedUserPermission === normalizedPermission) {
+        return true
+      }
+
+      if (normalizedUserPermission.endsWith('.*')) {
+        const basePermission = normalizedUserPermission.slice(0, -2)
+        return (
+          normalizedPermission === basePermission ||
+          normalizedPermission.startsWith(`${basePermission}.`)
+        )
+      }
+
+      return false
+    })
   }, [user])
 
   const hasRole = useCallback((role: string): boolean => {
