@@ -30,6 +30,11 @@ from app.services.encryption_service import get_encryption_service
 from app.services.question_humanizer import get_question_humanizer
 from app.config import is_ai_humanization_enabled
 from app.monitoring.business_metrics import BusinessMetricsCollector
+import time
+import logging
+from sqlalchemy import text
+
+logger = logging.getLogger(__name__)
 
 
 class MonthlyQuizService:
@@ -46,6 +51,15 @@ class MonthlyQuizService:
         self.audit_service = AuditService(db)
         self.encryption_service = get_encryption_service()
         self.metrics_collector = BusinessMetricsCollector()
+        
+        # Initialize Redis for fast patient checking
+        try:
+            from app.core.redis_manager import get_redis_manager
+            self.redis_manager = get_redis_manager()
+            self.redis_client = self.redis_manager.get_compatible_client('sync')
+        except Exception as e:
+            logger.warning(f"Redis not available for fast patient checking: {e}")
+            self.redis_client = None
 
     def _generate_token(self, patient_id: UUID, quiz_template_id: UUID, expires_at: datetime, rotation_count: int = 0) -> str:
         """Generate secure JWT token for quiz access with rotation support."""
@@ -73,6 +87,73 @@ class MonthlyQuizService:
         )
 
         return token
+
+    def _check_patient_exists_fast(self, patient_id: str) -> bool:
+        """
+        Ultra-fast patient existence check with negative caching.
+        
+        PERFORMANCE OPTIMIZATION: 
+        - Cache hit: ~2ms (Redis lookup)
+        - Cache miss: ~10-20ms (indexed DB query + cache write)
+        - Prevents 7-8s delays on 404 responses
+        
+        Args:
+            patient_id: Patient UUID as string
+            
+        Returns:
+            True if patient exists, False otherwise
+        """
+        if not self.redis_client:
+            # Fallback to direct DB query if Redis unavailable
+            return self._check_patient_exists_db_only(patient_id)
+            
+        cache_key = f"patient_not_found:{patient_id}"
+        
+        # 1. Check negative cache (2ms)
+        if self.redis_client.exists(cache_key):
+            logger.debug(f"Fast 404: Patient {patient_id[:8]}... cached as not found")
+            return False
+        
+        # 2. Check database with indexed query (10-20ms)
+        start_time = time.time()
+        
+        try:
+            result = self.db.execute(text("""
+                SELECT 1 FROM patients 
+                WHERE id = :patient_id 
+                LIMIT 1
+            """), {"patient_id": patient_id})
+            
+            exists = result.fetchone() is not None
+            query_time = (time.time() - start_time) * 1000
+            
+            if exists:
+                logger.debug(f"Patient {patient_id[:8]}... found ({query_time:.1f}ms)")
+                return True
+            else:
+                # 3. Cache negative result (TTL 60s to handle edge cases)
+                self.redis_client.setex(cache_key, 60, "1")
+                logger.debug(f"Patient {patient_id[:8]}... not found - cached ({query_time:.1f}ms)")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error checking patient existence: {e}")
+            # Fallback to DB-only check
+            return self._check_patient_exists_db_only(patient_id)
+    
+    def _check_patient_exists_db_only(self, patient_id: str) -> bool:
+        """Fallback method for patient existence check without Redis."""
+        try:
+            result = self.db.execute(text("""
+                SELECT 1 FROM patients 
+                WHERE id = :patient_id 
+                LIMIT 1
+            """), {"patient_id": patient_id})
+            
+            return result.fetchone() is not None
+        except Exception as e:
+            logger.error(f"Database error checking patient existence: {e}")
+            return False
 
     def _verify_token(self, token: str) -> Dict[str, Any]:
         """Verify and decode quiz access token."""
@@ -830,6 +911,8 @@ class MonthlyQuizService:
     async def get_patient_latest_status(self, patient_id: UUID) -> MonthlyQuizLinkResponse:
         """
         Get the latest quiz link status for a specific patient.
+        
+        PERFORMANCE OPTIMIZED: Fast 404 check prevents 7-8s delays.
 
         Args:
             patient_id: UUID of the patient
@@ -838,8 +921,16 @@ class MonthlyQuizService:
             MonthlyQuizLinkResponse: Latest quiz link status
 
         Raises:
-            NotFoundError: If no quiz sessions found for patient
+            NotFoundError: If patient or quiz sessions not found
         """
+        start_time = time.time()
+        
+        # FAST 404 CHECK: Verify patient exists before heavy queries (10-50ms vs 7-8s)
+        if not self._check_patient_exists_fast(str(patient_id)):
+            elapsed = (time.time() - start_time) * 1000
+            logger.info(f"Fast 404 for patient {str(patient_id)[:8]}... ({elapsed:.1f}ms)")
+            raise NotFoundError(f"Patient {patient_id} not found")
+        
         # Get the most recent session for the patient
         session = self.db.query(QuizSession).filter(
             and_(
@@ -856,6 +947,8 @@ class MonthlyQuizService:
     async def get_patient_history(self, patient_id: UUID, limit: int = 10, offset: int = 0) -> List[MonthlyQuizLinkResponse]:
         """
         Get quiz session history for a specific patient.
+        
+        PERFORMANCE OPTIMIZED: Fast 404 check prevents unnecessary queries.
 
         Args:
             patient_id: UUID of the patient
@@ -865,6 +958,11 @@ class MonthlyQuizService:
         Returns:
             List[MonthlyQuizLinkResponse]: List of quiz sessions for the patient
         """
+        # FAST 404 CHECK: Verify patient exists before querying sessions
+        if not self._check_patient_exists_fast(str(patient_id)):
+            logger.info(f"Fast 404 for patient history {str(patient_id)[:8]}...")
+            return []  # Return empty list instead of error for history endpoint
+        
         # Get sessions for the patient, ordered by creation date (newest first)
         sessions = self.db.query(QuizSession).filter(
             and_(

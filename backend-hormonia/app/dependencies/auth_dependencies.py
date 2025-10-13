@@ -55,28 +55,6 @@ def _get_service_provider():
     yield from get_thread_safe_service_provider()
 
 
-def _get_user_from_db(db_session, firebase_uid: str) -> Optional[User]:
-    """
-    Thread-safe helper to get user from database synchronously.
-
-    This function is designed to be called from async context using asyncio.to_thread()
-    to prevent blocking the event loop with synchronous database operations.
-
-    Args:
-        db_session: Synchronous SQLAlchemy Session
-        firebase_uid: Firebase user ID
-
-    Returns:
-        User model or None if not found
-    """
-    from app.models.user import User
-    from sqlalchemy import select
-
-    stmt = select(User).where(User.firebase_uid == firebase_uid)
-    result = db_session.execute(stmt)
-    return result.scalar_one_or_none()
-
-
 def get_permissions_for_role(role: str) -> List[str]:
     """
     Get permissions list for user role.
@@ -375,9 +353,8 @@ async def get_current_user(
         logger.debug(f"❌ User cache MISS - querying PostgreSQL for {firebase_uid}")
 
         # THREAD-SAFE FIX: Use asyncio.to_thread to run sync DB operation
-        # services.db is a synchronous Session, running it directly in async context
-        # blocks the event loop and causes thread-safety issues
-        user = await asyncio.to_thread(_get_user_from_db, services.db, firebase_uid)
+        # _get_user_from_db creates its own session to avoid thread-safety issues
+        user = await asyncio.to_thread(_get_user_from_db, firebase_uid)
 
         if user:
             # User exists - cache and return

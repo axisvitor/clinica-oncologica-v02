@@ -22,6 +22,17 @@ from app.utils.api_decorators import handle_service_exceptions, validate_paginat
 from app.core.error_handler import error_handler
 from app.core.monitoring_logging import monitoring_logger
 
+
+def _convert_pagination(pagination: PaginationParams) -> dict:
+    """Convert PaginationParams to page/size format for compatibility."""
+    page = (_convert_pagination(pagination)["skip"] // _convert_pagination(pagination)["limit"]) + 1 if _convert_pagination(pagination)["limit"] > 0 else 1
+    return {
+        "page": page,
+        "size": _convert_pagination(pagination)["limit"],
+        "skip": _convert_pagination(pagination)["skip"],
+        "limit": _convert_pagination(pagination)["limit"]
+    }
+
 router = APIRouter()
 
 
@@ -46,24 +57,24 @@ async def list_alerts(
             alert_system = AlertService(db)
             
             if patient_id:
-                alerts = alert_system.alert_repo.get_by_patient(patient_id, pagination.skip, pagination.limit)
+                alerts = alert_system.alert_repo.get_by_patient(patient_id, _convert_pagination(pagination)["skip"], _convert_pagination(pagination)["limit"])
                 total = len(alert_system.alert_repo.get_by_patient(patient_id, 0, 10000))  # Get total count
             elif severity:
-                alerts = alert_system.alert_repo.get_by_severity(severity, pagination.skip, pagination.limit)
+                alerts = alert_system.alert_repo.get_by_severity(severity, _convert_pagination(pagination)["skip"], _convert_pagination(pagination)["limit"])
                 total = alert_system.alert_repo.count_by_severity(severity)
             elif status == AlertStatus.PENDING:
-                alerts = alert_system.alert_repo.get_unacknowledged(pagination.skip, pagination.limit)
+                alerts = alert_system.alert_repo.get_unacknowledged(_convert_pagination(pagination)["skip"], _convert_pagination(pagination)["limit"])
                 total = alert_system.alert_repo.count_unacknowledged()
             else:
-                alerts = alert_system.alert_repo.get_active_alerts(pagination.skip, pagination.limit)
+                alerts = alert_system.alert_repo.get_active_alerts(_convert_pagination(pagination)["skip"], _convert_pagination(pagination)["limit"])
                 total = len(alert_system.alert_repo.get_active_alerts(0, 10000))  # Get total count
             
             return AlertListResponse(
                 items=[AlertResponse.from_orm(alert) for alert in alerts],
                 total=total,
                 page=pagination.page,
-                size=pagination.limit,
-                pages=(total + pagination.limit - 1) // pagination.limit
+                size=_convert_pagination(pagination)["limit"],
+                pages=(total + _convert_pagination(pagination)["limit"] - 1) // _convert_pagination(pagination)["limit"]
             )
     except Exception as e:
         # Check if it's a schema compatibility error
@@ -74,7 +85,7 @@ async def list_alerts(
                 operation="list_alerts",
                 context={
                     "filters": {"severity": severity, "status": status, "patient_id": str(patient_id) if patient_id else None},
-                    "pagination": {"skip": pagination.skip, "limit": pagination.limit}
+                    "pagination": {"skip": _convert_pagination(pagination)["skip"], "limit": _convert_pagination(pagination)["limit"]}
                 }
             )
         else:
@@ -108,15 +119,15 @@ async def get_patient_alerts(
         ):
             alert_system = AlertService(db)
             
-            alerts = alert_system.alert_repo.get_by_patient(patient_id, pagination.skip, pagination.limit)
+            alerts = alert_system.alert_repo.get_by_patient(patient_id, _convert_pagination(pagination)["skip"], _convert_pagination(pagination)["limit"])
             total = len(alert_system.alert_repo.get_by_patient(patient_id, 0, 10000))
             
             return AlertListResponse(
                 items=[AlertResponse.from_orm(alert) for alert in alerts],
                 total=total,
                 page=pagination.page,
-                size=pagination.limit,
-                pages=(total + pagination.limit - 1) // pagination.limit
+                size=_convert_pagination(pagination)["limit"],
+                pages=(total + _convert_pagination(pagination)["limit"] - 1) // _convert_pagination(pagination)["limit"]
             )
     except Exception as e:
         # Check if it's a schema compatibility error
@@ -127,7 +138,7 @@ async def get_patient_alerts(
                 operation="get_patient_alerts",
                 context={
                     "patient_id": str(patient_id),
-                    "pagination": {"skip": pagination.skip, "limit": pagination.limit}
+                    "pagination": {"skip": _convert_pagination(pagination)["skip"], "limit": _convert_pagination(pagination)["limit"]}
                 }
             )
         else:

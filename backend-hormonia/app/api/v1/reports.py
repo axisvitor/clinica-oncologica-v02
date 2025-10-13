@@ -25,6 +25,17 @@ from app.utils.api_decorators import handle_service_exceptions
 
 
 logger = logging.getLogger(__name__)
+
+def _convert_pagination(pagination: PaginationParams) -> dict:
+    """Convert PaginationParams to page/size format for compatibility."""
+    page = (_convert_pagination(pagination)["skip"] // _convert_pagination(pagination)["limit"]) + 1 if _convert_pagination(pagination)["limit"] > 0 else 1
+    return {
+        "page": page,
+        "size": _convert_pagination(pagination)["limit"],
+        "skip": _convert_pagination(pagination)["skip"],
+        "limit": _convert_pagination(pagination)["limit"]
+    }
+
 router = APIRouter(tags=["reports"])
 
 
@@ -241,8 +252,8 @@ async def get_patient_reports(
         report_service = ReportService(db)
         reports = report_service.get_reports_by_patient(
             patient_id,
-            skip=pagination.skip,
-            limit=pagination.limit
+            skip=_convert_pagination(pagination)["skip"],
+            limit=_convert_pagination(pagination)["limit"]
         )
         
         # Get total count for pagination
@@ -254,8 +265,8 @@ async def get_patient_reports(
             reports=reports,
             total=total,
             page=pagination.page,
-            size=pagination.limit,
-            pages=(total + pagination.limit - 1) // pagination.limit
+            size=_convert_pagination(pagination)["limit"],
+            pages=(total + _convert_pagination(pagination)["limit"] - 1) // _convert_pagination(pagination)["limit"]
         )
         
         logger.info(f"Patient reports retrieved: {patient_id}, count: {len(reports)}")
@@ -341,8 +352,8 @@ async def list_reports(
         
         # Get reports
         reports_data = report_repo.get_all_with_filters(
-            skip=pagination.skip,
-            limit=pagination.limit,
+            skip=_convert_pagination(pagination)["skip"],
+            limit=_convert_pagination(pagination)["limit"],
             patient_id=patient_id,
             doctor_id=doctor_id
         )
@@ -359,8 +370,8 @@ async def list_reports(
             reports=reports,
             total=total,
             page=pagination.page,
-            size=pagination.limit,
-            pages=(total + pagination.limit - 1) // pagination.limit
+            size=_convert_pagination(pagination)["limit"],
+            pages=(total + _convert_pagination(pagination)["limit"] - 1) // _convert_pagination(pagination)["limit"]
         )
         
         logger.info(f"Reports listed: count={len(reports)}, total={total}")

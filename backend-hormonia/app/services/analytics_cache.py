@@ -65,6 +65,9 @@ class AnalyticsCacheService:
         "system_analytics": CacheConfig(ttl_seconds=120, warm_on_miss=True),  # 2 minutes
         "query_performance": CacheConfig(ttl_seconds=60, warm_on_miss=False),  # 1 minute
         "patterns": CacheConfig(ttl_seconds=900, warm_on_miss=False),  # 15 minutes
+        
+        # Monthly quiz stats (5 minutes - high cache for performance)
+        "monthly_quiz_stats": CacheConfig(ttl_seconds=300, warm_on_miss=True),
     }
     
     def __init__(self):
@@ -302,6 +305,79 @@ class AnalyticsCacheService:
     def get_metrics(self) -> CacheMetrics:
         """Get cache performance metrics."""
         return self._metrics
+    
+    def cache_monthly_quiz_stats(self, patient_id: str, stats: Dict[str, Any]) -> bool:
+        """
+        Cache monthly quiz statistics for a patient.
+        
+        PERFORMANCE OPTIMIZATION: Cache quiz stats for 5 minutes to prevent
+        repeated expensive calculations on every request.
+        
+        Args:
+            patient_id: Patient UUID
+            stats: Quiz statistics to cache
+            
+        Returns:
+            True if cached successfully
+        """
+        try:
+            return self.set(
+                cache_type="monthly_quiz_stats",
+                key_params={"patient_id": patient_id},
+                data=stats
+            )
+        except Exception as e:
+            logger.error(f"Failed to cache monthly quiz stats for {patient_id}: {e}")
+            return False
+    
+    def get_monthly_quiz_stats(self, patient_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get cached monthly quiz statistics for a patient.
+        
+        Args:
+            patient_id: Patient UUID
+            
+        Returns:
+            Cached stats or None if not found/expired
+        """
+        try:
+            return self.get(
+                cache_type="monthly_quiz_stats",
+                key_params={"patient_id": patient_id}
+            )
+        except Exception as e:
+            logger.error(f"Failed to get cached monthly quiz stats for {patient_id}: {e}")
+            return None
+    
+    def invalidate_monthly_quiz_stats(self, patient_id: str) -> bool:
+        """
+        Invalidate cached monthly quiz statistics for a patient.
+        
+        Call this when quiz responses are updated.
+        
+        Args:
+            patient_id: Patient UUID
+            
+        Returns:
+            True if invalidated successfully
+        """
+        try:
+            cache_key = self._build_cache_key(
+                "monthly_quiz_stats", 
+                {"patient_id": patient_id}
+            )
+            
+            result = self.redis_client.delete(cache_key)
+            
+            if result:
+                self._metrics.invalidations += 1
+                logger.debug(f"Invalidated monthly quiz stats cache for patient {patient_id}")
+            
+            return bool(result)
+            
+        except Exception as e:
+            logger.error(f"Failed to invalidate monthly quiz stats for {patient_id}: {e}")
+            return False
     
     def clear_all(self) -> int:
         """
