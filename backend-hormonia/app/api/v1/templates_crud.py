@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies import get_current_admin_user
+from app.dependencies import get_admin_user
 from app.models.user import User
 from app.models.flow import FlowKind, FlowTemplateVersion
 from app.models.quiz import QuizTemplate
@@ -40,7 +40,7 @@ router = APIRouter(prefix="/templates", tags=["templates"])
 async def create_flow_template(
     template: FlowTemplateCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
+    current_user: User = Depends(get_admin_user)
 ) -> FlowTemplateResponse:
     """
     Create a new flow template version.
@@ -128,7 +128,7 @@ async def list_flow_templates(
     page: int = Query(1, ge=1, description="Page number"),
     size: int = Query(20, ge=1, le=100, description="Page size"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
+    current_user: User = Depends(get_admin_user)
 ) -> FlowTemplateListResponse:
     """
     List flow templates with pagination and filtering.
@@ -192,7 +192,7 @@ async def list_flow_templates(
 async def get_flow_template(
     template_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
+    current_user: User = Depends(get_admin_user)
 ) -> FlowTemplateResponse:
     """
     Get specific flow template by ID.
@@ -225,7 +225,7 @@ async def update_flow_template(
     template_id: UUID,
     updates: FlowTemplateUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
+    current_user: User = Depends(get_admin_user)
 ) -> FlowTemplateResponse:
     """
     Update flow template.
@@ -287,7 +287,7 @@ async def delete_flow_template(
     template_id: UUID,
     soft_delete: bool = Query(True, description="Soft delete (deactivate) vs hard delete"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
+    current_user: User = Depends(get_admin_user)
 ):
     """
     Delete flow template (soft or hard delete).
@@ -327,7 +327,7 @@ async def delete_flow_template(
 async def create_quiz_template(
     quiz: QuizTemplateCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
+    current_user: User = Depends(get_admin_user)
 ) -> QuizTemplateResponse:
     """
     Create a new quiz template.
@@ -392,7 +392,7 @@ async def list_quiz_templates(
     page: int = Query(1, ge=1, description="Page number"),
     size: int = Query(20, ge=1, le=100, description="Page size"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
+    current_user: User = Depends(get_admin_user)
 ) -> QuizTemplateListResponse:
     """
     List quiz templates with pagination and filtering.
@@ -454,7 +454,7 @@ async def list_quiz_templates(
 async def get_quiz_template(
     quiz_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
+    current_user: User = Depends(get_admin_user)
 ) -> QuizTemplateResponse:
     """
     Get specific quiz template by ID.
@@ -486,7 +486,7 @@ async def update_quiz_template(
     quiz_id: UUID,
     updates: QuizTemplateUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
+    current_user: User = Depends(get_admin_user)
 ) -> QuizTemplateResponse:
     """
     Update quiz template.
@@ -551,7 +551,7 @@ async def delete_quiz_template(
     quiz_id: UUID,
     soft_delete: bool = Query(True, description="Soft delete (deactivate) vs hard delete"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
+    current_user: User = Depends(get_admin_user)
 ):
     """
     Delete quiz template (soft or hard delete).
@@ -590,7 +590,7 @@ async def delete_quiz_template(
 async def list_flow_kinds(
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
+    current_user: User = Depends(get_admin_user)
 ) -> FlowKindListResponse:
     """
     List all flow kinds (flow types).

@@ -36,7 +36,7 @@ def register_routers(app: FastAPI) -> None:
             auth, patients, messages, flows, quiz, reports, alerts, webhooks,
             tasks, localization, analytics, dashboard, docs, health, performance,
             platform_sync, template_management, template_versioning, monthly_quiz, monthly_quiz_public, ai, metrics, debug, config, admin_users, admin_roles,
-            health_rls, upload, medico, physician, system  # RLS endpoints, upload, medico dashboard, physician endpoints, and system management
+            health_rls, upload, medico, physician, system, templates_crud  # RLS endpoints, upload, medico dashboard, physician endpoints, system management, and templates CRUD
         )
         from app.api.v1.health import router as comprehensive_health_router
         from app.routers.quiz_auth import router as quiz_auth
@@ -101,6 +101,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(upload.router, prefix="/api/v1/upload", tags=["Upload"])
     app.include_router(template_management.router, prefix="/api/v1/template-management", tags=["Template Management"])
     app.include_router(template_versioning.router, prefix="/api/v1/flows/templates", tags=["Template Versioning"])
+    app.include_router(templates_crud.router, prefix="/api/v1", tags=["Templates CRUD"])  # Frontend integration: /templates/flows, /templates/quiz
     app.include_router(quiz.router, prefix="/api/v1/quiz", tags=["Quiz"])
     app.include_router(monthly_quiz.router, prefix="/api/v1/monthly-quiz", tags=["Monthly Quiz"])
 
