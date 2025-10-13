@@ -30,9 +30,18 @@ class FailedMessage(BaseModel):
     last_retry_at = Column(DateTime, nullable=True)
     status = Column(String(20), nullable=False, default='pending')
     resolved_at = Column(DateTime, nullable=True)
-    metadata = Column(JSONB, nullable=True, default=dict)
+    dlq_metadata = Column(JSONB, nullable=True, default=dict)
     reviewed_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     original_message_id = Column(UUID(as_uuid=True), ForeignKey("messages.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    @property
+    def metadata(self) -> Dict[str, Any]:
+        """Access to DLQ metadata."""
+        return self.dlq_metadata or {}
+
+    @metadata.setter
+    def metadata(self, value: Dict[str, Any]) -> None:
+        self.dlq_metadata = value
 
     # Relationships
     original_message = relationship("Message", foreign_keys=[original_message_id], backref="dlq_entries")
@@ -62,7 +71,7 @@ class FailedMessage(BaseModel):
         }
 
         if include_sensitive:
-            result["metadata"] = self.metadata
+            result["metadata"] = self.dlq_metadata
 
         if self.original_message_id:
             result["original_message_id"] = str(self.original_message_id)
