@@ -94,7 +94,12 @@ class Patient(BaseModel):
         passive_deletes=True
     )
     quiz_responses = relationship("QuizResponse", back_populates="patient")
-    quiz_sessions = relationship("QuizSession", back_populates="patient")
+    quiz_sessions = relationship(
+        "QuizSession",
+        back_populates="patient",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
     medical_reports = relationship("MedicalReport", back_populates="patient")
     alerts = relationship("Alert", back_populates="patient")
 

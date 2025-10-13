@@ -88,7 +88,7 @@ class QuizSession(BaseModel):
     session_metadata = Column(JSONB, nullable=True, default=dict)
 
     # Relationships
-    patient = relationship("Patient", back_populates="quiz_sessions", cascade="all, delete-orphan")
+    patient = relationship("Patient", back_populates="quiz_sessions")
     quiz_template = relationship("QuizTemplate", back_populates="sessions")
     responses = relationship("QuizResponse", back_populates="quiz_session")
     # Note: alerts relationship removed since quiz_session_id is stored in Alert.data JSONB field
