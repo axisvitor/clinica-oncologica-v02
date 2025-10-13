@@ -37,7 +37,7 @@ class PatientFlowState(BaseModel):
     flow_metadata = Column(JSONB, nullable=True)
     
     # Relationships
-    patient = relationship("Patient", back_populates="flow_states", cascade="all, delete-orphan")
+    patient = relationship("Patient", back_populates="flow_states")
     template_version = relationship("FlowTemplateVersion", back_populates="flow_states")
     
     # Constraints and indexes to match DB
