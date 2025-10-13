@@ -236,6 +236,7 @@ async def get_analytics(
 ) -> AnalyticsResponse:
     """Get comprehensive analytics data."""
     analytics_service = AnalyticsService(db)
+    cache_service = get_analytics_cache()
 
     # Filter by doctor if user is not admin
     if current_user.role != UserRole.ADMIN and not request.doctor_id:
@@ -246,7 +247,30 @@ async def get_analytics(
             detail="Access denied: Cannot access other doctor's analytics"
         )
 
-    analytics_data = analytics_service.get_analytics(request)
+    # Build stable cache key using request parameters
+    cache_key_params = {
+        "doctor_id": str(request.doctor_id) if request.doctor_id else "all",
+        "start_date": request.start_date.isoformat() if request.start_date else "none",
+        "end_date": request.end_date.isoformat() if request.end_date else "none",
+        "metrics": ",".join(sorted(request.metrics)) if request.metrics else "all",
+        "patients": ",".join(sorted(str(pid) for pid in request.patient_ids)) if request.patient_ids else "all",
+    }
+
+    def generate_analytics_payload():
+        result = analytics_service.get_analytics(request)
+        return result
+
+    cached_payload = cache_service.get_or_set(
+        "patient_analytics",
+        cache_key_params,
+        generate_analytics_payload
+    )
+
+    analytics_data = (
+        AnalyticsResponse(**cached_payload)
+        if isinstance(cached_payload, dict)
+        else cached_payload
+    )
 
     logger.info(f"Analytics data retrieved for user {current_user.id}")
     return analytics_data
