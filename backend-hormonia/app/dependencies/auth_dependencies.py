@@ -67,30 +67,46 @@ def get_permissions_for_role(role: str) -> List[str]:
     """
     role = role.upper() if role else ""
 
-    # Admin has all permissions
+    # Admin has all permissions (using dot notation for frontend compatibility)
     if role in ["ADMIN", "SUPER_ADMIN"]:
         return [
-            "patients:read", "patients:write", "patients:delete",
-            "appointments:read", "appointments:write", "appointments:delete",
-            "treatments:read", "treatments:write", "treatments:delete",
-            "users:read", "users:write", "users:delete",
-            "reports:read", "reports:write", "reports:delete",
-            "settings:read", "settings:write",
-            "billing:read", "billing:write",
-            "analytics:read", "analytics:write"
+            # Core admin permissions
+            "admin.read", "admin.write", "admin.delete",
+            "admin.templates.read", "admin.templates.write",
+            
+            # User management
+            "users.read", "users.write", "users.delete",
+            
+            # Security and monitoring
+            "security.read", "security.write",
+            
+            # Reports and analytics
+            "reports.read", "reports.write", "reports.delete",
+            "analytics.read", "analytics.write",
+            
+            # Settings and configuration
+            "settings.read", "settings.write",
+            
+            # Clinical data
+            "patients.read", "patients.write", "patients.delete",
+            "appointments.read", "appointments.write", "appointments.delete",
+            "treatments.read", "treatments.write", "treatments.delete",
+            
+            # Billing
+            "billing.read", "billing.write"
         ]
 
     # Doctor has clinical permissions
     elif role == "DOCTOR":
         return [
-            "patients:read", "patients:write",
-            "appointments:read", "appointments:write",
-            "treatments:read", "treatments:write",
-            "reports:read", "reports:write"
+            "patients.read", "patients.write",
+            "appointments.read", "appointments.write",
+            "treatments.read", "treatments.write",
+            "reports.read", "reports.write"
         ]
 
     # Default: minimal read permissions
-    return ["patients:read", "appointments:read"]
+    return ["patients.read", "appointments.read"]
 
 
 async def get_redis_cache() -> 'FirebaseRedisCache':
