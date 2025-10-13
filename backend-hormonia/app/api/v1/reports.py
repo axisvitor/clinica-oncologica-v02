@@ -318,6 +318,12 @@ async def delete_report(
     summary="List all reports",
     description="Get all reports with pagination and filtering"
 )
+@router.get(
+    "",
+    response_model=ReportListResponse,
+    summary="List all reports",
+    description="Get all reports with pagination and filtering"
+)
 @handle_service_exceptions
 async def list_reports(
     pagination: PaginationParams = Depends(),
