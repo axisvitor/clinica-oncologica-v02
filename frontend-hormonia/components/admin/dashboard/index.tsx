@@ -70,8 +70,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ children }) => {
     )
   }
 
-  // Redirect if not authenticated or not admin
-  if (!user || !user.permissions?.includes('admin.access')) {
+  // Redirect if not authenticated or lacks admin.read permission
+  if (!user || !user.permissions?.includes('admin.read')) {
     return <Navigate to="/admin/login" replace />
   }
 

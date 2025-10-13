@@ -46,19 +46,11 @@ const AdminReportsPage = () => (
   </div>
 )
 
+import TemplateManagementPage from '@/pages/TemplateManagementPage'
+
 const AdminTemplatesPage = () => (
-  <div className="p-6">
-    <h1 className="text-2xl font-bold mb-4">Template Management</h1>
-    <p className="text-gray-600">Template management interface for flows and quiz templates.</p>
-    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-      <h3 className="font-semibold text-blue-800">Available Features:</h3>
-      <ul className="mt-2 text-blue-700 list-disc list-inside">
-        <li>Create and edit flow templates</li>
-        <li>Manage quiz templates</li>
-        <li>Template versioning and history</li>
-        <li>Import/Export templates</li>
-      </ul>
-    </div>
+  <div className="p-0">
+    <TemplateManagementPage />
   </div>
 )
 
@@ -248,6 +240,22 @@ export const AdminRoutes: React.FC = () => {
 
         <Route
           path="templates"
+          element={
+            <AdminProtectedRoute requiredPermissions={['admin.templates.read']}>
+              <AdminTemplatesPage />
+            </AdminProtectedRoute>
+          }
+        />
+        <Route
+          path="templates/flows"
+          element={
+            <AdminProtectedRoute requiredPermissions={['admin.templates.read']}>
+              <AdminTemplatesPage />
+            </AdminProtectedRoute>
+          }
+        />
+        <Route
+          path="templates/quiz"
           element={
             <AdminProtectedRoute requiredPermissions={['admin.templates.read']}>
               <AdminTemplatesPage />

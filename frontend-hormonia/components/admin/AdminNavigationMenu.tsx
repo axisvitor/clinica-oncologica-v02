@@ -306,7 +306,7 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
   }
 
   const renderNavItem = (item: AdminNavItem, depth: number = 0) => {
-    if (!hasPermission(item.requiredPermissions)) {
+    if (!hasPermissionLocal(item.requiredPermissions)) {
       return null
     }
 

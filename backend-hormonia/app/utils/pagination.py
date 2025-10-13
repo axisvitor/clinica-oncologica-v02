@@ -52,3 +52,16 @@ def convert_pagination_params(pagination: PaginationParams) -> dict:
         "offset": pagination.skip,
         "count": pagination.limit
     }
+
+def paginate_query(query, pagination: PaginationParams):
+    """
+    Apply pagination to a SQLAlchemy query.
+    
+    Args:
+        query: SQLAlchemy query object
+        pagination: PaginationParams with skip and limit
+        
+    Returns:
+        Paginated query with offset and limit applied
+    """
+    return query.offset(pagination.skip).limit(pagination.limit)
