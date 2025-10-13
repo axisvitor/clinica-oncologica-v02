@@ -71,7 +71,7 @@ class Treatment(BaseModel):
     is_active = Column(Boolean, default=True, nullable=False, index=True)
 
     # Relationships (optimized for eager loading)
-    patient = relationship("Patient", back_populates="treatments", lazy="select")
+    patient = relationship("Patient", back_populates="treatments", lazy="select", passive_deletes=True)
     doctor = relationship("User", back_populates="treatments_managed", foreign_keys=[doctor_id], lazy="select")
     medications = relationship("Medication", back_populates="treatment", cascade="all, delete-orphan", lazy="select")
 

@@ -89,11 +89,11 @@ class Patient(BaseModel):
     alerts = relationship("Alert", back_populates="patient")
 
     # New relationships for Sprint 1 eager loading optimization
-    treatments = relationship("Treatment", back_populates="patient", lazy="select")
-    appointments = relationship("Appointment", back_populates="patient", lazy="select")
-    medications = relationship("Medication", back_populates="patient", lazy="select")
-    notifications = relationship("Notification", back_populates="related_patient", lazy="select")
-    consents = relationship("Consent", back_populates="patient", foreign_keys="[Consent.patient_id]", lazy="select")
+    treatments = relationship("Treatment", back_populates="patient", lazy="select", passive_deletes=True)
+    appointments = relationship("Appointment", back_populates="patient", lazy="select", passive_deletes=True)
+    medications = relationship("Medication", back_populates="patient", lazy="select", passive_deletes=True)
+    notifications = relationship("Notification", back_populates="related_patient", lazy="select", passive_deletes=True)
+    consents = relationship("Consent", back_populates="patient", foreign_keys="[Consent.patient_id]", lazy="select", passive_deletes=True)
 
     # Constraints and indexes to match DB uniques
     __table_args__ = (

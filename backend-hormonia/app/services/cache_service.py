@@ -155,6 +155,20 @@ class CacheService:
 
         return results
 
+    def invalidate_by_tag(self, tag: str) -> int:
+        """
+        Invalidate cache entries associated with a specific tag.
+
+        Args:
+            tag: Cache tag identifier
+
+        Returns:
+            Number of entries invalidated
+        """
+        count = self.cache.invalidate_by_tag(tag)
+        logger.debug(f"Cache invalidated by tag {tag}: {count} entries")
+        return count
+
     # ==========================
     # CACHE WARMING METHODS
     # ==========================
