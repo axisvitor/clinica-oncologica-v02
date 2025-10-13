@@ -392,6 +392,9 @@ class EnhancedFlowEngine(FlowCore):
             # This would typically query the messages table
             # For now, return empty list as placeholder
             return []
+        except Exception as e:  # pylint: disable=broad-except
+            logger.error(f"Failed to get conversation history: {e}")
+            return []
 
     def _tone_for_time_of_day(self) -> str:
         """Derive a gentle tone based on time of day to help variation."""
@@ -401,9 +404,6 @@ class EnhancedFlowEngine(FlowCore):
         if hour < 18:
             return "friendly"
         return "calm"
-        except Exception as e:
-            logger.error(f"Failed to get conversation history: {e}")
-            return []
 
 
 # =============================================================================
