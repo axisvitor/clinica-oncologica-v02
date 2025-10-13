@@ -518,7 +518,7 @@ async def admin_token_management(
     """
     try:
         # Check admin privileges
-        if not hasattr(current_user, 'role') or current_user.role not in ['admin', 'super_admin']:
+        if not hasattr(current_user, 'role') or current_user.role != 'admin':
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Admin access required"

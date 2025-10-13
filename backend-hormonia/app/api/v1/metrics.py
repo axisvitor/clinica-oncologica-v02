@@ -236,7 +236,7 @@ async def get_engagement_metrics(
         engagement_data = await metrics_service.get_detailed_engagement_metrics(
             start_date=start_date,
             end_date=end_date,
-            doctor_id=current_user.id if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN} else None
+            doctor_id=current_user.id if current_user.role != UserRole.ADMIN else None
         )
 
         return {
@@ -274,8 +274,7 @@ async def get_quiz_performance(
         quiz_data = await metrics_service.get_quiz_performance_metrics(
             start_date=start_date,
             end_date=end_date,
-            quiz_type=quiz_type,
-            doctor_id=current_user.id if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN} else None
+            doctor_id=current_user.id if current_user.role != UserRole.ADMIN else None
         )
 
         return {
@@ -315,7 +314,7 @@ async def get_ai_personalization_metrics(
         ai_data = await metrics_service.get_ai_personalization_analytics(
             start_date=start_date,
             end_date=end_date,
-            doctor_id=current_user.id if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN} else None
+            doctor_id=current_user.id if current_user.role != UserRole.ADMIN else None
         )
 
         return {
@@ -465,7 +464,7 @@ async def metrics_websocket(
         from app.dependencies import get_current_user_websocket
         user = await get_current_user_websocket(websocket)
 
-        if not user or user.role not in {UserRole.DOCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.NURSE, UserRole.RESEARCHER}:
+        if not user or user.role not in {UserRole.DOCTOR, UserRole.ADMIN, UserRole.NURSE, UserRole.RESEARCHER}:
             await websocket.close(code=4001, reason="Unauthorized")
             return
 

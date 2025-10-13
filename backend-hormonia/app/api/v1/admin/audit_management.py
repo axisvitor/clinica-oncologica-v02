@@ -33,7 +33,7 @@ async def get_audit_stats(
         - table_size: Current size of table
     """
     # Check admin permission
-    if current_user.role not in ["admin", "super_admin"]:
+    if current_user.role != "admin":
         raise HTTPException(
             status_code=403,
             detail="Admin access required"
@@ -67,10 +67,7 @@ async def trigger_cleanup(
         - success: Whether cleanup succeeded
         - timestamp: When cleanup was executed
         - total_deleted: Total records deleted
-        - details: Per-table cleanup results
-    """
-    # Check admin permission
-    if current_user.role not in ["admin", "super_admin"]:
+    if current_user.role != "admin":
         raise HTTPException(
             status_code=403,
             detail="Admin access required"
@@ -103,7 +100,7 @@ async def trigger_vacuum(
     Requires admin role.
     """
     # Check admin permission
-    if current_user.role not in ["admin", "super_admin"]:
+    if current_user.role != "admin":
         raise HTTPException(
             status_code=403,
             detail="Admin access required"

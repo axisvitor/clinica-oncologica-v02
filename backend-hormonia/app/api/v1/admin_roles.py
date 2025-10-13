@@ -452,9 +452,9 @@ async def validate_role_assignment(
             }
 
         # Check if this would remove the last admin
-        if user.role in {UserRole.ADMIN, UserRole.SUPER_ADMIN} and target_role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+        if user.role == UserRole.ADMIN and target_role != UserRole.ADMIN:
             admin_count = db.query(User).filter(
-                User.role.in_([UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+                User.role == UserRole.ADMIN,
                 User.is_active == True,
                 User.id != user_id
             ).count()
@@ -467,7 +467,7 @@ async def validate_role_assignment(
                 }
 
         # Check if user is currently inactive and target role is admin
-        if not user.is_active and target_role in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+        if not user.is_active and target_role == UserRole.ADMIN:
             return {
                 "valid": False,
                 "reason": "inactive_user_admin",

@@ -399,7 +399,7 @@ class FirebaseUserSyncService:
         role_str = self._extract_role_from_claims(custom_claims)
 
         # Map to UserRole (only ADMIN and DOCTOR supported)
-        if role_str in ['admin', 'super_admin']:
+        if role_str == 'admin':
             role = UserRole.ADMIN
         else:
             role = UserRole.DOCTOR  # Default to doctor for all other roles
@@ -486,7 +486,7 @@ class FirebaseUserSyncService:
             user.firebase_custom_claims = new_claims
             # Update role if changed in custom claims
             role_str = self._extract_role_from_claims(new_claims)
-            if role_str in ['admin', 'super_admin']:
+            if role_str == 'admin':
                 new_role = UserRole.ADMIN
             elif role_str in ['doctor', 'medico']:
                 new_role = UserRole.DOCTOR

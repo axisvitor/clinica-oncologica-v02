@@ -144,7 +144,7 @@ async def get_rls_performance(
     Requires admin role.
     Returns query performance statistics for RLS-protected tables.
     """
-    if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+    if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
@@ -245,13 +245,7 @@ async def get_rls_alerts(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> List[Dict[str, Any]]:
-    """
-    Get active RLS alerts and warnings.
-
-    Requires admin role.
-    Returns list of current issues that need attention.
-    """
-    if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+    if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
@@ -406,7 +400,7 @@ async def verify_rls_context(
                 comparison = {
                     "rls_patient_count": rls_count,
                     "normal_patient_count": normal_count,
-                    "filtering_active": normal_count is None or rls_count < normal_count if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN} else True
+                    "filtering_active": normal_count is None or rls_count < normal_count if current_user.role != UserRole.ADMIN else True
                 }
             except Exception as e:
                 comparison = {"error": str(e)}
@@ -448,7 +442,7 @@ async def check_rls_readiness(
     Requires admin role.
     Evaluates current state and provides recommendations.
     """
-    if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+    if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"

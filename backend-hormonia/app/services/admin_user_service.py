@@ -262,7 +262,7 @@ class UserAdminService(AdminAuditMixin):
         if not admin_user:
             raise AuthorizationError("Admin user required")
 
-        if admin_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+        if admin_user.role != UserRole.ADMIN:
             raise AuthorizationError(f"Admin role required for {operation}")
 
         if not admin_user.is_active:
@@ -597,10 +597,9 @@ class UserAdminService(AdminAuditMixin):
                     user.is_active = True
 
                 elif bulk_request.operation == "deactivate":
-                    # Prevent deactivating the last admin
-                    if user.role in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+                    if user.role == UserRole.ADMIN:
                         admin_count = self.db.query(User).filter(
-                            and_(User.role.in_([UserRole.ADMIN, UserRole.SUPER_ADMIN]), User.is_active == True, User.id != user_id)
+                            and_(User.role == UserRole.ADMIN, User.is_active == True, User.id != user_id)
                         ).count()
                         if admin_count == 0:
                             failed.append({
@@ -619,9 +618,9 @@ class UserAdminService(AdminAuditMixin):
 
                 elif bulk_request.operation == "delete":
                     # Prevent deleting the last admin
-                    if user.role in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+                    if user.role == UserRole.ADMIN:
                         admin_count = self.db.query(User).filter(
-                            and_(User.role.in_([UserRole.ADMIN, UserRole.SUPER_ADMIN]), User.is_active == True, User.id != user_id)
+                            and_(User.role == UserRole.ADMIN, User.is_active == True, User.id != user_id)
                         ).count()
                         if admin_count == 0:
                             failed.append({
@@ -1086,9 +1085,9 @@ class UserAdminService(AdminAuditMixin):
             )
 
         # Prevent deactivation of the last admin
-        if user.role in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+        if user.role == UserRole.ADMIN:
             admin_count = self.db.query(User).filter(
-                and_(User.role.in_([UserRole.ADMIN, UserRole.SUPER_ADMIN]), User.is_active == True, User.id != user_id)
+                and_(User.role == UserRole.ADMIN, User.is_active == True, User.id != user_id)
             ).count()
             if admin_count == 0:
                 raise HTTPException(

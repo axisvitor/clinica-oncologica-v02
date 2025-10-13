@@ -58,7 +58,7 @@ class Settings(BaseSettings):
         description="Require valid custom claims (role) before creating user"
     )
     FIREBASE_ALLOWED_ROLES: List[str] = Field(
-        default=['admin', 'super_admin', 'doctor', 'medico'],
+        default=['admin', 'doctor', 'medico'],
         description="Allowed roles in Firebase custom claims"
     )
     FIREBASE_ENABLE_AUDIT_LOGGING: bool = Field(

@@ -72,7 +72,7 @@ class AlertProcessor:
             AlertSeverity.CRITICAL: EscalationRule(
                 severity=AlertSeverity.CRITICAL,
                 escalation_delay_minutes=15,
-                escalation_roles=[UserRole.DOCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN],
+                escalation_roles=[UserRole.DOCTOR, UserRole.ADMIN],
                 max_escalations=3
             ),
             AlertSeverity.HIGH: EscalationRule(
@@ -161,7 +161,7 @@ class AlertProcessor:
         if alert.severity == AlertSeverity.CRITICAL:
             admins = (
                 self.db.query(User)
-                .filter(User.role.in_([UserRole.ADMIN, UserRole.SUPER_ADMIN]))
+                .filter(User.role == UserRole.ADMIN)
                 .filter(User.is_active == True)
                 .all()
             )

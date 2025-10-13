@@ -457,10 +457,9 @@ class UserAdminService(AdminAuditMixin):
                 detail=f"User with ID {user_id} not found"
             )
 
-        # Prevent deletion of the last admin
-        if user.role in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+        if user.role == UserRole.ADMIN:
             admin_count = self.db.query(User).filter(
-                and_(User.role.in_([UserRole.ADMIN, UserRole.SUPER_ADMIN]), User.is_active == True, User.id != user_id)
+                and_(User.role == UserRole.ADMIN, User.is_active == True, User.id != user_id)
             ).count()
             if admin_count == 0:
                 raise HTTPException(
@@ -598,11 +597,10 @@ class UserAdminService(AdminAuditMixin):
             )
 
         # Prevent deactivation of the last admin
-        if user.role in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
-            admin_count = self.db.query(User).filter(
-                and_(User.role.in_([UserRole.ADMIN, UserRole.SUPER_ADMIN]), User.is_active == True, User.id != user_id)
-            ).count()
-            if admin_count == 0:
+                    if user.role == UserRole.ADMIN:
+                        admin_count = self.db.query(User).filter(
+                            and_(User.role == UserRole.ADMIN, User.is_active == True, User.id != user_id)
+                        ).count()            if admin_count == 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Cannot deactivate the last active admin user"
@@ -776,9 +774,9 @@ class UserAdminService(AdminAuditMixin):
         original_role = user.role
 
         # Check if this would remove the last admin
-        if original_role in {UserRole.ADMIN, UserRole.SUPER_ADMIN} and new_role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+        if original_role == UserRole.ADMIN and new_role != UserRole.ADMIN:
             admin_count = self.db.query(User).filter(
-                and_(User.role.in_([UserRole.ADMIN, UserRole.SUPER_ADMIN]), User.is_active == True, User.id != user_id)
+                and_(User.role == UserRole.ADMIN, User.is_active == True, User.id != user_id)
             ).count()
             if admin_count == 0:
                 raise HTTPException(

@@ -164,7 +164,7 @@ async def create_patient_with_rls(
     """
     try:
         # For non-admin users, force doctor_id to be themselves
-        if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+        if current_user.role != UserRole.ADMIN:
             patient_data.doctor_id = str(current_user.id)
         elif not patient_data.doctor_id:
             # Admin creating without specifying doctor
@@ -231,7 +231,7 @@ async def update_patient_with_rls(
         update_data = patient_update.model_dump(exclude_unset=True)
 
         # Non-admins cannot change doctor_id
-        if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN} and "doctor_id" in update_data:
+        if current_user.role != UserRole.ADMIN and "doctor_id" in update_data:
             del update_data["doctor_id"]
 
         for field, value in update_data.items():

@@ -139,15 +139,6 @@ class RoleDefinition(BaseModel):
 
 # Secure role definitions with principle of least privilege
 ROLE_DEFINITIONS: Dict[UserRole, RoleDefinition] = {
-    UserRole.SUPER_ADMIN: RoleDefinition(
-        name="Super Administrator",
-        permissions={perm for perm in Permission},  # All permissions
-        security_level=SecurityLevel.RESTRICTED,
-        description="Full system access - should be minimal",
-        requires_verification=True,
-        allowed_domains=["founders.hormonia.io", "sys.hormonia.io"],  # Restricted domains only
-    ),
-
     UserRole.ADMIN: RoleDefinition(
         name="Administrator",
         permissions={
@@ -489,12 +480,8 @@ class SecureRoleDeterminer:
         if not assigner_def or not target_def:
             return False
 
-        # Super admin can assign any role
-        if assigner_role == UserRole.SUPER_ADMIN:
-            return True
-
         # Admin can assign non-admin roles
-        if assigner_role == UserRole.ADMIN and target_role not in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
+        if assigner_role == UserRole.ADMIN and target_role != UserRole.ADMIN:
             return True
 
         # Coordinator can assign patient role only

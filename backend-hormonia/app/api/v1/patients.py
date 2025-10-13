@@ -512,17 +512,7 @@ async def deactivate_patient(
 
 @router.post("/cache/invalidate/{patient_id}", status_code=204)
 async def invalidate_patient_cache_endpoint(
-    patient_id: UUID,
-    current_user: User = Depends(get_current_user),
-):
-    """
-    Invalidate cache for a specific patient (Admin only).
-
-    This endpoint allows administrators to manually clear cached data
-    for a specific patient when needed.
-    """
-    # Check if user has admin role
-    if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+    if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=403,
             detail="Only administrators can invalidate cache"
@@ -554,7 +544,7 @@ async def invalidate_all_patient_caches(
     across the system. Use with caution as it may impact performance.
     """
     # Check if user has admin role
-    if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+    if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=403,
             detail="Only administrators can invalidate cache"

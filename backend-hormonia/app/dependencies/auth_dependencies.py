@@ -68,7 +68,7 @@ def get_permissions_for_role(role: str) -> List[str]:
     role = role.upper() if role else ""
 
     # Admin has all permissions (using dot notation for frontend compatibility)
-    if role in ["ADMIN", "SUPER_ADMIN"]:
+    if role == "ADMIN":
         return [
             # Core admin permissions
             "admin.read", "admin.write", "admin.delete",
@@ -477,7 +477,7 @@ async def get_admin_user(
     current_user: User = Depends(get_current_active_user)
 ) -> User:
     """Get current user with admin privileges"""
-    if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+    if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -489,7 +489,7 @@ async def get_doctor_user(
     current_user: User = Depends(get_current_active_user)
 ) -> User:
     """Get current user with doctor privileges"""
-    if current_user.role not in [UserRole.DOCTOR, UserRole.ADMIN, UserRole.SUPER_ADMIN]:
+    if current_user.role not in [UserRole.DOCTOR, UserRole.ADMIN]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"

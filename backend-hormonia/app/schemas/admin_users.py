@@ -15,7 +15,7 @@ from app.schemas.common import PaginatedResponse
 
 class UserRole(str, enum.Enum):
     """User role enumeration for admin management."""
-    SUPER_ADMIN = "super_admin"
+
     ADMIN = "admin"
     DOCTOR = "doctor"
     NURSE = "nurse"
@@ -285,7 +285,7 @@ class UserStatsResponse(BaseModel):
                 "active_users": 142,
                 "inactive_users": 8,
                 "users_by_role": {
-                    "super_admin": 2,
+
                     "admin": 15,
                     "doctor": 90,
                     "nurse": 25,

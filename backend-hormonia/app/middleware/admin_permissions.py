@@ -53,7 +53,7 @@ class AdminPermissions:
                     detail="Authentication required"
                 )
 
-            if current_user.role not in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+            if current_user.role != UserRole.ADMIN:
                 # Log unauthorized access attempt
                 audit_service = AuditService(db)
                 audit_service.log_event(
@@ -119,7 +119,7 @@ class AdminPermissions:
                 )
 
             # Admin can access everything
-            if current_user.role in {UserRole.ADMIN, UserRole.SUPER_ADMIN}:
+            if current_user.role == UserRole.ADMIN:
                 return current_user
 
             # If target_user_id is provided, check if user is accessing their own data
