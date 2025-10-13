@@ -42,6 +42,10 @@ class MonthlyQuizLinkCreate(BaseModel):
         None,
         description="Custom message to send with the link"
     )
+    send_immediately: bool = Field(
+        default=True,
+        description="Automatically send the quiz link to the patient via the configured delivery method"
+    )
 
 
 class MonthlyQuizLinkResponse(BaseModel):
@@ -58,6 +62,18 @@ class MonthlyQuizLinkResponse(BaseModel):
     accessed_at: Optional[datetime] = Field(None, description="First access timestamp")
     completed_at: Optional[datetime] = Field(None, description="Completion timestamp")
     access_count: int = Field(default=0, description="Number of times link was accessed")
+    delivery_attempts: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        description="History of delivery attempts with timestamps and statuses"
+    )
+    last_delivery_status: Optional[str] = Field(
+        default=None,
+        description="Most recent delivery status"
+    )
+    last_delivery_method: Optional[str] = Field(
+        default=None,
+        description="Most recent delivery method used"
+    )
 
     # Dashboard fields
     patient_name: Optional[str] = Field(None, description="Patient name for dashboard")
@@ -133,6 +149,10 @@ class BulkQuizLinkCreate(BaseModel):
     custom_message: Optional[str] = Field(
         None,
         description="Custom message to send with links"
+    )
+    send_immediately: bool = Field(
+        default=True,
+        description="Automatically send each quiz link after creation"
     )
 
     @validator('patient_ids')

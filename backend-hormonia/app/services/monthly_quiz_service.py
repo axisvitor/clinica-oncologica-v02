@@ -17,6 +17,8 @@ from app.models.quiz import QuizSession, QuizTemplate, QuizResponse
 from app.models.patient import Patient
 from app.repositories.quiz import QuizTemplateRepository, QuizSessionRepository, QuizResponseRepository
 from app.services.quiz import QuizSessionService, QuizResponseService
+from app.services.message_factory import MessageFactory
+from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
 from app.core.monthly_quiz_config import get_monthly_quiz_config
 from app.exceptions import NotFoundError, ValidationError, ConflictError
 from app.schemas.monthly_quiz import (
@@ -60,6 +62,84 @@ class MonthlyQuizService:
         except Exception as e:
             logger.warning(f"Redis not available for fast patient checking: {e}")
             self.redis_client = None
+
+    async def _send_quiz_link_notification(
+        self,
+        patient: Patient,
+        template: QuizTemplate,
+        session: QuizSession,
+        link_url: str,
+        delivery_method: DeliveryMethod,
+        expiry_hours: int,
+        custom_message: Optional[str]
+    ) -> Dict[str, Any]:
+        """
+        Send the monthly quiz link to the patient via WhatsApp using the unified service.
+        """
+        try:
+            message_factory = MessageFactory(self.db)
+            message = message_factory.create_monthly_quiz_link_message(
+                patient_id=patient.id,
+                patient_name=patient.name,
+                link_url=link_url,
+                quiz_session_id=str(session.id),
+                expiry_hours=expiry_hours,
+                delivery_method=delivery_method.value,
+                custom_message=custom_message
+            )
+
+            whatsapp_service = UnifiedWhatsAppService(
+                db=self.db,
+                messaging_mode=MessagingMode.HYBRID
+            )
+            sent = await whatsapp_service.send_message(message)
+
+            return {
+                "sent": sent,
+                "message_id": str(message.id)
+            }
+        except Exception as exc:
+            logger.error(
+                "Failed to send monthly quiz link message",
+                extra={
+                    "patient_id": str(patient.id),
+                    "quiz_session_id": str(session.id),
+                    "delivery_method": delivery_method.value,
+                    "error": str(exc)
+                }
+            )
+            raise
+
+    def _record_delivery_attempt(
+        self,
+        session: QuizSession,
+        delivery_method: DeliveryMethod,
+        status: str,
+        message_id: Optional[str] = None,
+        error: Optional[str] = None,
+        action: Optional[str] = None
+    ) -> None:
+        """Append delivery attempt details to session metadata."""
+        metadata = session.session_metadata or {}
+        attempts: List[Dict[str, Any]] = metadata.get("delivery_attempts", [])
+
+        attempt: Dict[str, Any] = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "method": delivery_method.value,
+            "status": status,
+        }
+        if message_id:
+            attempt["message_id"] = message_id
+        if error:
+            attempt["error"] = error
+        if action:
+            attempt["action"] = action
+
+        attempts.append(attempt)
+        metadata["delivery_attempts"] = attempts
+        metadata["last_delivery_status"] = status
+        metadata["last_delivery_method"] = delivery_method.value
+        session.session_metadata = metadata
 
     def _generate_token(self, patient_id: UUID, quiz_template_id: UUID, expires_at: datetime, rotation_count: int = 0) -> str:
         """Generate secure JWT token for quiz access with rotation support."""
@@ -250,6 +330,37 @@ class MonthlyQuizService:
         self.db.commit()
         self.db.refresh(session_model)
 
+        delivery_record: Optional[Dict[str, Any]] = None
+        last_status = "pending"
+        last_error: Optional[str] = None
+
+        if link_data.send_immediately:
+            try:
+                delivery_record = await self._send_quiz_link_notification(
+                    patient=patient,
+                    template=template,
+                    session=session_model,
+                    link_url=link_url,
+                    delivery_method=link_data.delivery_method,
+                    expiry_hours=expiry_hours,
+                    custom_message=link_data.custom_message
+                )
+                last_status = "sent" if delivery_record.get("sent") else "pending"
+            except Exception as exc:  # pylint: disable=broad-except
+                last_status = "failed"
+                last_error = str(exc)
+            finally:
+                self._record_delivery_attempt(
+                    session=session_model,
+                    delivery_method=link_data.delivery_method,
+                    status=last_status,
+                    message_id=delivery_record.get("message_id") if delivery_record else None,
+                    error=last_error,
+                    action="send"
+                )
+                self.db.commit()
+                self.db.refresh(session_model)
+
         # Audit log link creation
         if self.config.MONTHLY_QUIZ_AUDIT_ENABLED:
             self.audit_service.log_link_created(
@@ -272,6 +383,8 @@ class MonthlyQuizService:
         )
 
         # Build response
+        metadata = session_model.session_metadata or {}
+
         return MonthlyQuizLinkResponse(
             id=session.id,
             patient_id=link_data.patient_id,
@@ -284,7 +397,10 @@ class MonthlyQuizService:
             created_at=session.started_at,
             accessed_at=None,
             completed_at=None,
-            access_count=0
+            access_count=metadata.get("access_count", 0),
+            delivery_attempts=metadata.get("delivery_attempts"),
+            last_delivery_status=metadata.get("last_delivery_status"),
+            last_delivery_method=metadata.get("last_delivery_method")
         )
 
     async def access_quiz_via_token(
@@ -578,7 +694,10 @@ class MonthlyQuizService:
             created_at=session.started_at,
             accessed_at=datetime.fromisoformat(metadata["accessed_at"]) if metadata.get("accessed_at") else None,
             completed_at=session.completed_at,
-            access_count=metadata.get("access_count", 0)
+            access_count=metadata.get("access_count", 0),
+            delivery_attempts=metadata.get("delivery_attempts"),
+            last_delivery_status=metadata.get("last_delivery_status"),
+            last_delivery_method=metadata.get("last_delivery_method")
         )
 
     async def get_monthly_quiz_stats(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> MonthlyQuizStats:
@@ -650,7 +769,8 @@ class MonthlyQuizService:
                     quiz_template_id=bulk_data.quiz_template_id,
                     delivery_method=bulk_data.delivery_method,
                     expiry_hours=bulk_data.expiry_hours,
-                    custom_message=bulk_data.custom_message
+                    custom_message=bulk_data.custom_message,
+                    send_immediately=bulk_data.send_immediately
                 )
 
                 link = await self.create_quiz_link(
@@ -723,9 +843,54 @@ class MonthlyQuizService:
         session.session_metadata = metadata
         self.db.commit()
 
+        patient = self.db.query(Patient).filter(Patient.id == session.patient_id).first()
+        if not patient:
+            raise NotFoundError(f"Patient with ID {session.patient_id} not found")
+
+        template = self.template_repository.get(session.quiz_template_id)
+        if not template:
+            raise NotFoundError(f"Quiz template with ID {session.quiz_template_id} not found")
+
+        remaining_hours = max(
+            int((expires_at - datetime.utcnow()).total_seconds() // 3600),
+            0
+        ) if expires_at else self.config.MONTHLY_QUIZ_TOKEN_EXPIRY_HOURS
+
+        delivery_record: Optional[Dict[str, Any]] = None
+        last_status = "pending"
+        last_error: Optional[str] = None
+
+        try:
+            delivery_record = await self._send_quiz_link_notification(
+                patient=patient,
+                template=template,
+                session=session,
+                link_url=link_url,
+                delivery_method=delivery_method,
+                expiry_hours=remaining_hours,
+                custom_message=metadata.get("custom_message")
+            )
+            last_status = "sent" if delivery_record.get("sent") else "pending"
+        except Exception as exc:  # pylint: disable=broad-except
+            last_status = "failed"
+            last_error = str(exc)
+        finally:
+            self._record_delivery_attempt(
+                session=session,
+                delivery_method=delivery_method,
+                status=last_status,
+                message_id=delivery_record.get("message_id") if delivery_record else None,
+                error=last_error,
+                action="resend"
+            )
+            self.db.commit()
+            self.db.refresh(session)
+
         # Build response
         link_url = f"{self.config.MONTHLY_QUIZ_BASE_URL}?token={token}"
         status = QuizLinkStatus.ACTIVE
+
+        updated_metadata = session.session_metadata or {}
 
         return MonthlyQuizLinkResponse(
             id=session.id,
@@ -737,9 +902,12 @@ class MonthlyQuizService:
             status=status,
             expires_at=expires_at,
             created_at=session.started_at,
-            accessed_at=datetime.fromisoformat(metadata["accessed_at"]) if metadata.get("accessed_at") else None,
+            accessed_at=datetime.fromisoformat(updated_metadata["accessed_at"]) if updated_metadata.get("accessed_at") else None,
             completed_at=session.completed_at,
-            access_count=metadata.get("access_count", 0)
+            access_count=updated_metadata.get("access_count", 0),
+            delivery_attempts=updated_metadata.get("delivery_attempts"),
+            last_delivery_status=updated_metadata.get("last_delivery_status"),
+            last_delivery_method=updated_metadata.get("last_delivery_method")
         )
 
     async def handle_expired_token(
@@ -1136,6 +1304,9 @@ class MonthlyQuizService:
                         accessed_at=datetime.fromisoformat(metadata["accessed_at"]) if metadata.get("accessed_at") else None,
                         completed_at=session.completed_at,
                         access_count=metadata.get("access_count", 0),
+                        delivery_attempts=metadata.get("delivery_attempts"),
+                        last_delivery_status=metadata.get("last_delivery_status"),
+                        last_delivery_method=metadata.get("last_delivery_method"),
                         # Dashboard-specific fields
                         patient_name=patient.name if patient else None,
                         patient_phone=patient.phone if patient else None,

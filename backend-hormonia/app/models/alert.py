@@ -2,6 +2,7 @@
 Alert and notification models.
 """
 from sqlalchemy import Column, String, Text, Boolean, DateTime, ForeignKey, Enum
+from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from typing import Optional
@@ -52,6 +53,10 @@ class Alert(BaseModel):
     acknowledged = Column(Boolean, default=False, nullable=False)
     acknowledged_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     acknowledged_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Timestamps: align with DB (server_default now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     # Relationships
     patient = relationship("Patient", back_populates="alerts")

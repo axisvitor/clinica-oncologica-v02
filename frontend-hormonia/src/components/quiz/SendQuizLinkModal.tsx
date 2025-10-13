@@ -61,12 +61,31 @@ export function SendQuizLinkModal({
       delivery_method: string
       expiry_hours: number
       custom_message?: string
+      send_immediately?: boolean
     }) => apiClient.monthlyQuiz.createLink(data),
-    onSuccess: () => {
-      toast({
-        title: 'Link enviado com sucesso',
-        description: `Link do quiz mensal enviado para ${patientName}`
-      })
+    onSuccess: (response: any) => {
+      const attempts = response?.delivery_attempts as Array<{ status?: string }> | undefined
+      const lastAttempt = attempts?.[attempts.length - 1]
+      const deliveryStatus = lastAttempt?.status || response?.last_delivery_status || 'pending'
+
+      if (deliveryStatus === 'sent') {
+        toast({
+          title: 'Link enviado via WhatsApp',
+          description: `O quiz foi enviado para ${patientName} no WhatsApp.`,
+        })
+      } else if (deliveryStatus === 'failed') {
+        toast({
+          title: 'Link gerado, envio pendente',
+          description: 'Não foi possível entregar via WhatsApp agora; o sistema tentará novamente.',
+          variant: 'destructive'
+        })
+      } else {
+        toast({
+          title: 'Link gerado',
+          description: `Link criado para ${patientName}. O envio via WhatsApp ocorrerá em breve.`,
+        })
+      }
+
       queryClient.invalidateQueries({ queryKey: ['monthly-quiz-status', patientId] })
       queryClient.invalidateQueries({ queryKey: ['patients'] })
       onSuccess?.()
@@ -106,7 +125,8 @@ export function SendQuizLinkModal({
       quiz_template_id: templateId,
       delivery_method: deliveryMethod,
       expiry_hours: parseInt(validityHours, 10),
-      ...(customMessage ? { custom_message: customMessage } : {})
+      ...(customMessage ? { custom_message: customMessage } : {}),
+      send_immediately: true
     })
   }
 

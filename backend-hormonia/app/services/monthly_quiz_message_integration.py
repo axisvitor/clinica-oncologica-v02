@@ -75,7 +75,8 @@ class MonthlyQuizMessageIntegration:
             quiz_template_id=quiz_template_id,
             delivery_method=delivery_method,
             expiry_hours=expiry_hours,
-            custom_message=custom_message
+            custom_message=custom_message,
+            send_immediately=False  # Integration handles delivery manually
         )
 
         quiz_link = await self.monthly_quiz_service.create_quiz_link(link_data)

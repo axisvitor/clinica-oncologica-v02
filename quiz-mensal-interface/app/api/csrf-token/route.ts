@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
-import { storeCSRFToken, TOKEN_EXPIRY } from '@/lib/csrf'
+import { TOKEN_EXPIRY, CSRF_COOKIE_NAME, buildCSRFCookie } from '@/lib/csrf'
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic'
@@ -17,10 +17,6 @@ export async function GET(request: NextRequest) {
   try {
     // Generate secure random token
     const csrfToken = randomBytes(32).toString('hex')
-    const sessionId = randomBytes(16).toString('hex')
-
-    // Store token with expiry
-    storeCSRFToken(sessionId, csrfToken)
 
     // Create response with CSRF token
     const response = NextResponse.json({
@@ -28,12 +24,13 @@ export async function GET(request: NextRequest) {
       message: 'CSRF token generated successfully'
     })
 
-    // Set httpOnly cookie with session ID
-    response.cookies.set('csrf-session', sessionId, {
+    const cookie = buildCSRFCookie(csrfToken)
+
+    response.cookies.set(CSRF_COOKIE_NAME, cookie.value, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: TOKEN_EXPIRY / 1000,
+      maxAge: cookie.maxAge,
       path: '/'
     })
 

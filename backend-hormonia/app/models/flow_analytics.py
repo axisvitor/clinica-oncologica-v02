@@ -1,7 +1,7 @@
 """
 Flow Analytics model for tracking flow performance metrics.
 """
-from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, Boolean, Text
+from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, Boolean, Text, Numeric
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 
@@ -14,7 +14,7 @@ class FlowAnalytics(BaseModel):
     
     # References
     patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
-    flow_template_id = Column(UUID(as_uuid=True), ForeignKey("flow_templates.id"), nullable=True)
+    flow_template_version_id = Column(UUID(as_uuid=True), ForeignKey("flow_template_versions.id"), nullable=True)
     
     # Metrics
     total_messages_sent = Column(Integer, default=0, nullable=False)
@@ -35,12 +35,16 @@ class FlowAnalytics(BaseModel):
     last_interaction_at = Column(DateTime(timezone=True), nullable=True)
     
     # Additional analytics data
-    analytics_data = Column(JSONB, nullable=True, default=dict)
+    analytics_data = Column("interaction_patterns", JSONB, nullable=True, default=dict)
     
     # Period tracking
-    period = Column(String(50), nullable=True)  # daily, weekly, monthly
     period_start = Column(DateTime(timezone=True), nullable=True)
     period_end = Column(DateTime(timezone=True), nullable=True)
+    success_rate = Column(Numeric, nullable=True)
+    completed_steps = Column(Integer, nullable=True)
+    total_steps = Column(Integer, nullable=True)
+    step_analytics = Column(JSONB, nullable=True)
+    avg_response_time_seconds = Column(Integer, nullable=True)
     
     # Relationships
     patient = relationship("Patient", backref="analytics")

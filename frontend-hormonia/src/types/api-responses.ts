@@ -333,6 +333,9 @@ export interface MonthlyQuizLink {
   expires_at: string
   created_at: string
   completed_at?: string
+  delivery_attempts?: Array<Record<string, unknown>>
+  last_delivery_status?: string
+  last_delivery_method?: string
 }
 
 export interface CreateQuizLinkRequest {
@@ -341,6 +344,7 @@ export interface CreateQuizLinkRequest {
   delivery_method?: string
   expiry_hours?: number
   custom_message?: string
+  send_immediately?: boolean
 }
 
 export interface BulkCreateQuizLinkRequest {
@@ -349,6 +353,7 @@ export interface BulkCreateQuizLinkRequest {
   delivery_method?: string
   expiry_hours?: number
   custom_message?: string
+  send_immediately?: boolean
 }
 
 export interface QuizLinkStatus {
@@ -359,6 +364,9 @@ export interface QuizLinkStatus {
   expires_at: string
   completed_at?: string
   responses?: Record<string, unknown>
+  delivery_attempts?: Array<Record<string, unknown>>
+  last_delivery_status?: string
+  last_delivery_method?: string
 }
 
 export interface MonthlyQuizStats {

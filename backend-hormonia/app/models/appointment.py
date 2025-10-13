@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 from uuid import UUID
 
-from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Boolean, Enum as SQLEnum
+from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Boolean, Enum as SQLEnum, Integer
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import relationship
 import enum
@@ -51,24 +51,24 @@ class Appointment(BaseModel):
     # Foreign Keys
     patient_id = Column(PGUUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
     practitioner_id = Column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
-    location_id = Column(PGUUID(as_uuid=True), nullable=True, index=True)  # Location table not yet implemented
 
     # Appointment Details
-    appointment_type = Column(SQLEnum(AppointmentType), nullable=False, index=True)
-    status = Column(SQLEnum(AppointmentStatus), nullable=False, default=AppointmentStatus.SCHEDULED, index=True)
+    appointment_type = Column(String(50), nullable=False, index=True)
+    status = Column(String(50), nullable=False, default=AppointmentStatus.SCHEDULED.value, index=True)
 
     # Date and Time
-    scheduled_start = Column(DateTime(timezone=True), nullable=False, index=True)
-    scheduled_end = Column(DateTime(timezone=True), nullable=False)
-    actual_start = Column(DateTime(timezone=True), nullable=True)
-    actual_end = Column(DateTime(timezone=True), nullable=True)
+    scheduled_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    duration_minutes = Column(Integer, nullable=True)
+    cancelled_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
 
     # Additional Information
-    reason = Column(Text, nullable=True)
-    notes = Column(Text, nullable=True)
-    cancellation_reason = Column(Text, nullable=True)
+    pre_appointment_notes = Column(Text, nullable=True)
+    post_appointment_notes = Column(Text, nullable=True)
+    appointment_metadata = Column("appointment_metadata", Text, nullable=True)
 
     # Contact Information
+    # Flags kept for potential future use
     reminder_sent = Column(Boolean, default=False, nullable=False)
     confirmation_sent = Column(Boolean, default=False, nullable=False)
 

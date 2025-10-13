@@ -4,6 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { SESSION_COOKIE_NAME } from '@/lib/quiz-session'
+import { CSRF_COOKIE_NAME } from '@/lib/csrf'
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic'
@@ -18,23 +20,22 @@ export async function POST(request: NextRequest) {
       message: 'Session cleared successfully'
     })
 
-    // Clear quiz session cookie
-    response.cookies.set('quiz-session', '', {
+    const commonCookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'strict' as const,
       maxAge: 0,
-      path: '/'
-    })
+      path: '/' as const
+    }
 
-    // Clear CSRF session cookie
-    response.cookies.set('csrf-session', '', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 0,
-      path: '/'
-    })
+    // Clear new session cookie
+    response.cookies.set(SESSION_COOKIE_NAME, '', commonCookieOptions)
+
+    // Clear legacy session cookie if present
+    response.cookies.set('quiz-session', '', commonCookieOptions)
+
+    // Clear CSRF token cookie
+    response.cookies.set(CSRF_COOKIE_NAME, '', commonCookieOptions)
 
     return response
   } catch (error) {

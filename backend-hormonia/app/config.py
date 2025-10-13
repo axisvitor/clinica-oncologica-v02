@@ -322,7 +322,7 @@ class Settings(BaseSettings):
         description="Initial delay in seconds before retrying failed messages (uses exponential backoff)"
     )
     CLINIC_NAME: str = Field(
-        default="Clínica Oncológica Hormonia",
+        default="Neoplasias Litoral",
         description="Clinic name for WhatsApp messages"
     )
     CLINIC_SUPPORT_PHONE: Optional[str] = Field(

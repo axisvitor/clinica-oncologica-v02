@@ -87,6 +87,7 @@ CREATE TYPE flow_state AS ENUM (
     'active',
     'paused',
     'completed',
+    'cancelled',
     'inactive'
 );
 
@@ -241,6 +242,7 @@ CREATE TABLE IF NOT EXISTS patients (
 
     -- Metadata legacy
     patient_metadata JSONB DEFAULT '{}',
+    metadata JSONB DEFAULT '{}',
 
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,

@@ -16,6 +16,13 @@ class QuizTemplate(BaseModel):
     version = Column(String(50), nullable=False)
     questions = Column(JSONB, nullable=False)  # Array of questions
     is_active = Column(Boolean, default=True, nullable=False)
+    # Align to DB extras
+    description = Column(Text, nullable=True)
+    category = Column(String(100), nullable=True, index=True)
+    passing_score = Column(Integer, nullable=True)
+    time_limit_minutes = Column(Integer, nullable=True)
+    randomize_questions = Column(Boolean, nullable=True)
+    tags = Column(JSONB, nullable=True)  # stored as array in DB
 
     # Relationships
     responses = relationship("QuizResponse", back_populates="quiz_template")
@@ -27,9 +34,8 @@ class QuizTemplate(BaseModel):
         CheckConstraint('LENGTH(name) >= 1', name='ck_quiz_template_name_not_empty'),
         CheckConstraint('LENGTH(version) >= 1', name='ck_quiz_template_version_not_empty'),
         CheckConstraint('questions IS NOT NULL', name='ck_quiz_template_questions_not_null'),
-        Index('idx_quiz_template_name', 'name'),
-        Index('idx_quiz_template_active', 'is_active'),
-        Index('idx_quiz_template_name_active', 'name', 'is_active'),
+        Index('idx_quiz_templates_category', 'category'),
+        Index('idx_quiz_templates_is_active', 'is_active'),
     )
 
     @validates('name')
@@ -68,8 +74,8 @@ class QuizSession(BaseModel):
     total_questions = Column(Integer, nullable=True)
     answered_questions = Column(Integer, nullable=True, default=0)
 
-    # Scores - FIX: Match actual database schema (DECIMAL not INTEGER)
-    score = Column(Numeric(5, 2), nullable=True)  # FIX: Renamed from total_score
+    # Scores - DECIMAL (align with DB)
+    score = Column(Numeric(5, 2), nullable=True)
     max_score = Column(Numeric(5, 2), nullable=True)
     passed = Column(Boolean, nullable=True)
 
@@ -105,14 +111,13 @@ class QuizSession(BaseModel):
             name='ck_quiz_session_completed_timing'
         ),
         # Performance indexes
-        Index('idx_quiz_session_patient_id', 'patient_id'),
-        Index('idx_quiz_session_template_id', 'quiz_template_id'),
-        Index('idx_quiz_session_status', 'status'),
-        Index('idx_quiz_session_patient_status', 'patient_id', 'status'),
-        Index('idx_quiz_session_template_status', 'quiz_template_id', 'status'),
-        Index('idx_quiz_session_started_at', 'started_at'),
-        Index('idx_quiz_session_completed_at', 'completed_at'),
-        Index('idx_quiz_session_active', 'patient_id', 'quiz_template_id', 'status'),
+        Index('idx_quiz_sessions_patient_id_v2', 'patient_id'),
+        Index('idx_quiz_sessions_quiz_template_id_v2', 'quiz_template_id'),
+        Index('idx_quiz_sessions_status_v2', 'status'),
+        Index('idx_quiz_sessions_patient_status_v2', 'patient_id', 'status'),
+        Index('idx_quiz_sessions_template_status_v2', 'quiz_template_id', 'status'),
+        Index('idx_quiz_sessions_created_at_v2', 'created_at'),
+        Index('idx_quiz_sessions_completed_at_v2', 'completed_at'),
     )
 
     @validates('status')
@@ -142,7 +147,7 @@ class QuizSession(BaseModel):
 
 # Partial unique index ensures at most one started session per patient and template.
 Index(
-    'ix_quiz_session_active_unique',
+    'idx_quiz_session_unique_active',
     QuizSession.patient_id,
     QuizSession.quiz_template_id,
     unique=True,
@@ -191,14 +196,12 @@ class QuizResponse(BaseModel):
             name='ck_quiz_response_type_valid'
         ),
         # Performance indexes
-        Index('idx_quiz_response_patient_id', 'patient_id'),
-        Index('idx_quiz_response_template_id', 'quiz_template_id'),
+        Index('idx_quiz_responses_patient_id', 'patient_id'),
+        Index('idx_quiz_responses_quiz_template_id', 'quiz_template_id'),
         Index('idx_quiz_response_session_id', 'quiz_session_id'),
-        Index('idx_quiz_response_question_id', 'question_id'),
-        Index('idx_quiz_response_type', 'response_type'),
-        Index('idx_quiz_response_responded_at', 'responded_at'),
-        Index('idx_quiz_response_patient_template', 'patient_id', 'quiz_template_id'),
-        Index('idx_quiz_response_session_question', 'quiz_session_id', 'question_id'),
+        Index('idx_quiz_responses_responded_at', 'responded_at'),
+        Index('idx_quiz_response_analytics_covering_index', 'quiz_template_id', 'question_id', 'response_value', 'responded_at'),
+        Index('idx_quiz_response_patient_template_index', 'patient_id', 'quiz_template_id', 'responded_at'),
     )
 
     @validates('response_type')

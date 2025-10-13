@@ -2,7 +2,7 @@
 Patient model for hormone therapy patients.
 Corresponds to the actual Supabase schema structure.
 """
-from sqlalchemy import Column, String, Date, Integer, ForeignKey, Enum
+from sqlalchemy import Column, String, Date, Integer, ForeignKey, Enum, Text, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import enum
@@ -17,7 +17,8 @@ class FlowState(enum.Enum):
     ACTIVE = "active"
     PAUSED = "paused"
     COMPLETED = "completed"
-    INACTIVE = "inactive"
+    CANCELLED = "cancelled"
+    INACTIVE = "cancelled"  # Legacy alias maintained for backward compatibility
 
 
 class Patient(BaseModel):
@@ -49,7 +50,7 @@ class Patient(BaseModel):
     
     # Basic information (matches Supabase schema exactly)
     doctor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    phone = Column(String, unique=True, nullable=False, index=True)
+    phone = Column(String, nullable=False, index=True)
     name = Column(String, nullable=False)
     email = Column(String, nullable=True)
     birth_date = Column(Date, nullable=True)
@@ -67,14 +68,16 @@ class Patient(BaseModel):
     # Brazilian healthcare specific fields (now in dedicated columns after migration)
     # Migration: add_dedicated_patient_columns
     cpf = Column(String(11), nullable=True, index=True)
-    diagnosis = Column(String(500), nullable=True, index=True)
+    diagnosis = Column(Text, nullable=True, index=True)
     treatment_phase = Column(String(100), nullable=True, index=True)
-    doctor_notes = Column(String, nullable=True)
+    doctor_notes = Column(Text, nullable=True)
 
     # Flexible metadata storage (matches Supabase column name)
     # Note: Using 'patient_data' as attribute name since 'metadata' is reserved by SQLAlchemy
     # Now only stores additional/dynamic fields not covered by dedicated columns
     patient_data = Column('metadata', JSONB, nullable=True, default=dict)
+    # Legacy alias present in DB
+    patient_metadata = Column('patient_metadata', JSONB, nullable=True)
 
     # Relationships
     doctor = relationship("User", back_populates="patients")
@@ -91,6 +94,12 @@ class Patient(BaseModel):
     medications = relationship("Medication", back_populates="patient", lazy="select")
     notifications = relationship("Notification", back_populates="related_patient", lazy="select")
     consents = relationship("Consent", back_populates="patient", foreign_keys="[Consent.patient_id]", lazy="select")
+
+    # Constraints and indexes to match DB uniques
+    __table_args__ = (
+        UniqueConstraint('cpf', name='patients_cpf_key'),
+        UniqueConstraint('phone', name='patients_phone_key'),
+    )
 
     # NOTE: cpf, diagnosis, treatment_phase, doctor_notes are now dedicated columns
     # No property accessors needed - they are direct column attributes

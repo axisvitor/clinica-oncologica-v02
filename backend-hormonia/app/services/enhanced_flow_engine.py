@@ -98,6 +98,16 @@ class EnhancedFlowEngine(FlowCore):
 
         logger.info("Enhanced FlowEngine initialized with AI integration")
 
+        # Intents related to quiz invitation/warmup to enforce light variation
+        self.QUIZ_INVITE_INTENTS: set[str] = {
+            "quiz_preparation_gentle",
+            "quiz_warmup_final",
+            "monthly_quiz_trigger",
+            "quiz_invitation",
+            "quiz_intro",
+            "quiz_reminder",
+        }
+
     def _get_flow_type_from_state(self, flow_state: PatientFlowState) -> str:
         """
         Helper method to get flow_type from a PatientFlowState using template_version_id.
@@ -218,6 +228,22 @@ class EnhancedFlowEngine(FlowCore):
                     conversation_history=conversation_history,
                     personalization_hints=getattr(message_template, 'personalization_hints', [])
                 )
+
+            # Enforce small variation for quiz invitations to reduce repetition
+            intent = getattr(message_template, 'intent', '') or ''
+            if intent in self.QUIZ_INVITE_INTENTS:
+                try:
+                    tone_hint = self._tone_for_time_of_day()
+                    varied = await self.gemini_client.generate_varied_question(
+                        personalized_message or message_template.base_content,
+                        conversation_history[-5:],
+                        {**flow_context.to_dict(), "tone_hint": tone_hint, "variation_target": "quiz_invite"}
+                    )
+                    if varied:
+                        personalized_message = varied
+                except Exception as _:
+                    # Keep original personalized_message on any AI variation failure
+                    pass
 
             # Store message pattern for future anti-repetition
             await self.conversation_memory.store_message_pattern(patient_id, personalized_message)
@@ -366,6 +392,15 @@ class EnhancedFlowEngine(FlowCore):
             # This would typically query the messages table
             # For now, return empty list as placeholder
             return []
+
+    def _tone_for_time_of_day(self) -> str:
+        """Derive a gentle tone based on time of day to help variation."""
+        hour = datetime.utcnow().hour
+        if hour < 12:
+            return "cheerful"
+        if hour < 18:
+            return "friendly"
+        return "calm"
         except Exception as e:
             logger.error(f"Failed to get conversation history: {e}")
             return []

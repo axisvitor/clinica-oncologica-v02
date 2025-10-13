@@ -10,6 +10,7 @@ interface CreateQuizLinkData {
   delivery_method: string
   expiry_hours: number
   custom_message?: string
+  send_immediately?: boolean
 }
 
 interface BulkCreateQuizLinkData {
@@ -18,6 +19,7 @@ interface BulkCreateQuizLinkData {
   delivery_method: string
   expiry_hours: number
   custom_message?: string
+  send_immediately?: boolean
 }
 
 export function useMonthlyQuizAdminSecure() {

@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { validateCSRF } from '@/lib/csrf'
-import { storeSession } from '@/lib/quiz-session'
+import { createSessionCookie, SESSION_COOKIE_NAME } from '@/lib/quiz-session'
 import { quizAPI } from '@/lib/api'
 
 // Force dynamic rendering for this route
@@ -37,16 +37,7 @@ export async function POST(request: NextRequest) {
 
     // Access quiz with token via backend API
     const session = await quizAPI.accessQuiz(token)
-
-    // Generate secure session ID
-    const sessionId = require('crypto').randomBytes(32).toString('hex')
-
-    // Store session data
-    storeSession(
-      sessionId,
-      session.new_token || token, // Use rotated token if available
-      session
-    )
+    const sessionCookie = createSessionCookie(session.new_token || token, session)
 
     // Create response
     const response = NextResponse.json({
@@ -54,12 +45,11 @@ export async function POST(request: NextRequest) {
       message: 'Session initialized successfully'
     })
 
-    // Set secure httpOnly cookie (4 hours)
-    response.cookies.set('quiz-session', sessionId, {
+    response.cookies.set(SESSION_COOKIE_NAME, sessionCookie.value, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 4 * 60 * 60, // 4 hours in seconds
+      maxAge: sessionCookie.maxAge,
       path: '/'
     })
 

@@ -313,10 +313,11 @@ class QuizResponseService:
         # Serialize response value for storage (preserves lists as JSON)
         stored_value = serialize_response_value(normalized_value)
 
-        # Create response
+        # Create response (link to active session if present)
         response = QuizResponse(
             patient_id=response_data.patient_id,
             quiz_template_id=response_data.quiz_template_id,
+            quiz_session_id=session_id,
             question_id=response_data.question_id,
             question_text=response_data.question_text or target_question.get('text', ''),
             response_type=response_data.response_type.value,

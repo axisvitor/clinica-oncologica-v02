@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { validateCSRF } from '@/lib/csrf'
-import { getSessionData, updateSessionToken } from '@/lib/quiz-session'
+import { getSessionData, rotateSessionCookie, SESSION_COOKIE_NAME } from '@/lib/quiz-session'
 import { quizAPI } from '@/lib/api'
 
 // Force dynamic rendering for this route
@@ -45,24 +45,33 @@ export async function POST(request: NextRequest) {
     }
 
     // Submit answer using the session token
-    const response = await quizAPI.submitAnswer(
+    const submission = await quizAPI.submitAnswer(
       sessionData.token,
       question_id,
       response_value,
       { other_text, ...response_metadata }
     )
 
+    const response = NextResponse.json({
+      success: true,
+      message: submission.message || 'Answer submitted successfully',
+      response_id: submission.response_id,
+      is_last_question: submission.is_last_question
+    })
+
     // Handle token rotation if new token is provided
-    if (response.new_token) {
-      updateSessionToken(request, response.new_token)
+    if (submission.new_token) {
+      const rotated = rotateSessionCookie(sessionData, submission.new_token)
+      response.cookies.set(SESSION_COOKIE_NAME, rotated.value, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: rotated.maxAge,
+        path: '/'
+      })
     }
 
-    return NextResponse.json({
-      success: true,
-      message: response.message || 'Answer submitted successfully',
-      response_id: response.response_id,
-      is_last_question: response.is_last_question
-    })
+    return response
   } catch (error) {
     console.error('Answer submission error:', error)
 

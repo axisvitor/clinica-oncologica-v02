@@ -9,7 +9,7 @@ from typing import Optional
 
 def get_welcome_message(
     patient_name: str,
-    clinic_name: str = "Clínica Oncológica Hormonia",
+    clinic_name: str = "Neoplasias Litoral",
     support_phone: Optional[str] = None
 ) -> str:
     """
@@ -30,19 +30,17 @@ def get_welcome_message(
     # Base welcome message
     message = f"""Olá {patient_name}! 👋
 
-Seja bem-vindo(a) à {clinic_name}!
+Eu sou a Hormonia, sua IA de cuidado da {clinic_name}. Vou te acompanhar com carinho nesta jornada. 💜
 
-Estamos muito felizes em tê-lo(a) conosco nesta jornada de cuidado e tratamento oncológico.
-
-📱 *O que esperar deste canal:*
-• Mensagens de acompanhamento diárias
+📱 *O que você pode esperar por aqui:*
+• Mensagens de acompanhamento personalizadas
 • Lembretes de medicação e consultas
-• Questionários mensais de avaliação
-• Orientações educacionais sobre seu tratamento
-• Dicas de bem-estar e autocuidado
+• Questionários mensais de bem‑estar
+• Orientações úteis sobre seu tratamento
+• Dicas de autocuidado e motivação
 
-💬 *Você pode sempre contar conosco!*
-Responda a qualquer momento com suas dúvidas, preocupações ou sintomas. Nossa equipe médica está disponível para auxiliá-lo(a).
+💬 *Conte comigo sempre!*
+Pode me mandar mensagem quando quiser com dúvidas, preocupações ou sintomas. Se eu não souber, nossa equipe entra para te apoiar.
 """
 
     # Add support phone if provided
@@ -51,10 +49,10 @@ Responda a qualquer momento com suas dúvidas, preocupações ou sintomas. Nossa
 
     # Closing
     message += f"""
-🏥 *Juntos nessa jornada!*
+🏥 *Estamos juntos nessa!* 
 Sua saúde e bem-estar são nossa prioridade.
 
-_Equipe {clinic_name}_
+— Hormonia (IA), em parceria com a equipe {clinic_name}
 """
 
     return message.strip()
@@ -72,13 +70,12 @@ def get_welcome_message_brief(patient_name: str) -> str:
     """
     return f"""Olá {patient_name}! 👋
 
-Bem-vindo(a) à Clínica Oncológica Hormonia!
+Eu sou a Hormonia, sua IA de cuidado da Neoplasias Litoral.
+Vou te enviar lembretes, acompanhamentos e orientações por aqui.
 
-Você receberá mensagens de acompanhamento, lembretes e orientações sobre seu tratamento por este canal.
+💬 Me chama quando precisar.
 
-💬 Responda a qualquer momento se precisar de ajuda.
-
-_Equipe Hormonia_
+— Hormonia (IA) • Neoplasias Litoral
 """.strip()
 
 
@@ -98,13 +95,13 @@ def get_registration_confirmation(
     Returns:
         Registration confirmation message
     """
-    message = f"""✅ *Cadastro Confirmado*
+    message = f"""✅ *Cadastro confirmado*
 
 Olá {patient_name}!
 
-Seu cadastro foi realizado com sucesso.
+Eu sou a Hormonia (IA). Seu cadastro foi concluído com sucesso e vamos começar seu acompanhamento por aqui.
 
-👨‍⚕️ *Médico Responsável:* Dr(a). {doctor_name}
+👨‍⚕️ *Médico responsável:* Dr(a). {doctor_name}
 """
 
     if treatment_type:

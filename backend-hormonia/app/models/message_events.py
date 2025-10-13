@@ -3,7 +3,7 @@ Message Event Tracking Models for WhatsApp Status and Webhook Events.
 
 Tracks message delivery status changes and Evolution API webhook events for debugging.
 """
-from sqlalchemy import Column, String, Text, DateTime, Boolean, Integer, ForeignKey, Index
+from sqlalchemy import Column, String, Text, DateTime, Boolean, Integer, ForeignKey, Index, text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -42,7 +42,7 @@ class MessageStatusEvent(BaseModel):
     # Error tracking
     error_code = Column(String(50), nullable=True, index=True)  # Error code from Evolution API
     error_message = Column(Text, nullable=True)  # Detailed error message
-    retry_count = Column(Integer, default=0, nullable=False)  # Number of retry attempts
+    retry_count = Column(Integer, nullable=True)  # DB allows null
 
     # Event metadata
     event_metadata = Column("metadata", JSONB, nullable=True, default=dict)  # Additional event data
@@ -65,13 +65,13 @@ class MessageStatusEvent(BaseModel):
     # Composite indexes for common queries
     __table_args__ = (
         # Query messages by status timeline
-        Index('ix_msg_status_msg_created', 'message_id', 'created_at'),
+        Index('idx_msg_status_msg_created', 'message_id', 'created_at'),
         # Query recent status changes by type
-        Index('ix_msg_status_type_time', 'status', 'created_at'),
+        Index('idx_msg_status_type_time', 'status', 'created_at'),
         # Track errors by code and time
-        Index('ix_msg_status_error_time', 'error_code', 'created_at'),
+        Index('idx_msg_status_error_time', 'error_code', 'created_at', postgresql_where=text('error_code IS NOT NULL')),
         # WhatsApp ID lookup
-        Index('ix_msg_status_whatsapp', 'whatsapp_id', 'status'),
+        Index('idx_msg_status_whatsapp', 'whatsapp_id', 'status'),
     )
 
     def __repr__(self):
@@ -100,22 +100,22 @@ class EvolutionWebhookEvent(BaseModel):
 
     Note: Renamed from WebhookEvent to avoid conflict with idempotency tracking.
     """
-    __tablename__ = "evolution_webhook_events"
+    __tablename__ = "webhook_events"
 
     # Event classification
     event_type = Column(String(100), nullable=False, index=True)  # message.sent, message.delivered, etc.
     source = Column(String(100), nullable=False, index=True)  # evolution_api, whatsapp, system
 
     # Event payload
-    payload = Column(JSONB, nullable=False)  # Full webhook payload
+    payload = Column(JSONB, nullable=False)  # DB requires payload
 
     # Processing status
     processed = Column(Boolean, default=False, index=True, nullable=False)  # Has event been processed
     processed_at = Column(DateTime(timezone=True), nullable=True)  # When was it processed
 
     # Retry mechanism
-    retry_count = Column(Integer, default=0, nullable=False)  # Number of processing attempts
-    max_retries = Column(Integer, default=3, nullable=False)  # Maximum retry attempts
+    retry_count = Column(Integer, default=0, nullable=True)  # DB nullable
+    max_retries = Column(Integer, default=3, nullable=True)  # DB nullable
     next_retry_at = Column(DateTime(timezone=True), nullable=True, index=True)  # Scheduled retry time
 
     # Error tracking
@@ -127,7 +127,7 @@ class EvolutionWebhookEvent(BaseModel):
     related_patient_id = Column(UUID(as_uuid=True), nullable=True, index=True)  # Related patient if identified
 
     # Deduplication
-    event_hash = Column(String(64), nullable=True, unique=True, index=True)  # SHA-256 hash for deduplication
+    event_hash = Column(String(64), nullable=False, unique=True, index=True)  # SHA-256 hash for deduplication
     is_duplicate = Column(Boolean, default=False, index=True)  # Marked as duplicate
     original_event_id = Column(UUID(as_uuid=True), nullable=True)  # Reference to original if duplicate
 

@@ -466,7 +466,7 @@ class PatientService:
         Maps to actual flow_types in database (hormone_therapy_1, etc.)
         """
         if not cancer_or_treatment_type:
-            return "initial_15_days"  # Default generic flow
+            return "day_1_15"  # Default to daily cadence flow
 
         # Normalize the type for matching
         type_lower = cancer_or_treatment_type.lower().strip()
@@ -485,8 +485,8 @@ class PatientService:
             "quimioterapia": "chemotherapy_cycle_1",
 
             # Initial onboarding
-            "initial": "initial_15_days",
-            "onboarding": "initial_15_days",
+            "initial": "day_1_15",
+            "onboarding": "day_1_15",
 
             # Monthly follow-up
             "monthly": "days_16_45",
@@ -500,8 +500,8 @@ class PatientService:
                 return template
 
         # Default template if no specific match
-        logger.info(f"Using default template 'initial_15_days' for type '{cancer_or_treatment_type}'")
-        return "initial_15_days"
+        logger.info(f"Using default template 'day_1_15' for type '{cancer_or_treatment_type}'")
+        return "day_1_15"
 
 
 class PatientIntegrityService:
