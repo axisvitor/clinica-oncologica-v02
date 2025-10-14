@@ -1,8 +1,6 @@
-"""
-"""
-Database connection and session management for AWS RDS PostgreSQL with performance optimizations.
-FIX #5: Enhanced database optimization with comprehensive indexing strategy.
-"""
+"""Database connection and session management for AWS RDS PostgreSQL with performance optimizations.
+
+FIX #5: Enhanced database optimization with comprehensive indexing strategy."""
 from sqlalchemy import create_engine, event, Index, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
@@ -55,10 +53,7 @@ Base = declarative_base()
 
 
 def get_db() -> Generator[Session, None, None]:
-    """
-    Dependency to get database session.
-    Used with FastAPI's dependency injection system.
-    """
+    """Dependency to get a database session for FastAPI."""
     db = SessionLocal()
     try:
         yield db
@@ -227,12 +222,7 @@ def force_pool_recreation():
 
 
 def get_engine_info():
-    """
-    Get detailed information about the database engine configuration.
-
-    Returns:
-        dict: Engine configuration details
-    """
+    """Get detailed information about the database engine configuration."""
     return {
         "url": str(engine.url).replace(engine.url.password or '', '***'),
         "driver": engine.driver,
