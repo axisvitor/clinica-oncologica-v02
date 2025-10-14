@@ -190,7 +190,11 @@ class UnifiedWhatsAppService:
         self.flow_message_callbacks[callback_type] = callback
         logger.info(f"Registered flow callback: {callback_type}")
 
-    def _determine_messaging_mode(self, message: Union[Message, Dict[str, Any]]) -> MessagingMode:
+    def _determine_messaging_mode(
+        self,
+        message: Union[Message, Dict[str, Any]],
+        flow_context: Optional[Dict[str, Any]] = None
+    ) -> MessagingMode:
         """
         Determine appropriate messaging mode based on message characteristics.
 
@@ -211,10 +215,13 @@ class UnifiedWhatsAppService:
             metadata = message.get('metadata', {})
             message_type = message.get('type')
 
+        flow_context = flow_context or metadata.get('flow_context', {})
+
         # Use queue for bulk messages, scheduled messages, or high-priority flows
         if (metadata.get('is_bulk', False) or
             metadata.get('scheduled_for') or
-            metadata.get('flow_context', {}).get('priority') == 'high' or
+            flow_context.get('priority') == 'high' or
+            flow_context.get('requires_queue', False) or
             metadata.get('requires_queue', False)):
             return MessagingMode.QUEUE
 
@@ -232,10 +239,12 @@ class UnifiedWhatsAppService:
         Returns:
             True if message was sent successfully
         """
-        send_start = datetime.utcnow()
         try:
-            # Determine messaging mode
-            mode = self._determine_messaging_mode(message)
+            send_start = datetime.utcnow()
+            flow_context = kwargs.get('flow_context')
+
+            # Determine messaging mode with context awareness
+            mode = self._determine_messaging_mode(message, flow_context)
 
             # Track metrics
             self.metrics['messages_sent'] += 1

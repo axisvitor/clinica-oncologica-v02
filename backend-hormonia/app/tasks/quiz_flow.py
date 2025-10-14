@@ -576,9 +576,12 @@ def send_quiz_link_reminder_task(self, quiz_session_id: str, hours_before_expiry
 
             quiz_integration = MonthlyQuizMessageIntegration(db)
 
-            result = quiz_integration.send_quiz_reminder(
-                quiz_session_id=UUID(quiz_session_id),
-                hours_before_expiry=hours_before_expiry
+            import asyncio
+            result = asyncio.run(
+                quiz_integration.send_quiz_reminder(
+                    quiz_session_id=UUID(quiz_session_id),
+                    hours_before_expiry=hours_before_expiry
+                )
             )
 
             if result.get('reminder_sent'):

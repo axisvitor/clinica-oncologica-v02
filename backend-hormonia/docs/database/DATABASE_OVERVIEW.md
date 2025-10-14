@@ -1,249 +1,119 @@
-# Database Overview - Clínica Oncológica
+# Database Overview – Clínica Oncológica
 
-## Visão Geral
-
-O banco de dados PostgreSQL da Clínica Oncológica possui **50 tabelas** organizadas em módulos funcionais:
-
-### Módulos Principais
-
-1. **Gestão de Pacientes** (10 tabelas)
-   - `patients` - Dados dos pacientes (0 registros ativos, 10 inseridos, 11 deletados)
-   - `patient_flow_states` - Estados dos fluxos dos pacientes (0 registros ativos, 12 inseridos, 10 deletados)
-   - `contacts` - Contatos relacionados (0 registros)
-   - `medical_reports` - Relatórios médicos (0 registros)
-   - `appointments` - Agendamentos (0 registros)
-   - `alerts` - Alertas do sistema (0 registros)
-
-2. **Sistema de Fluxos** (7 tabelas)
-   - `flow_kinds` - Tipos de fluxos (4 registros)
-   - `flow_template_versions` - Versões dos templates de fluxo (7 registros)
-   - `flow_messages` - Mensagens dos fluxos (0 registros)
-   - `flow_analytics` - Analytics dos fluxos (0 registros)
-   - `flow_template_categories` - Categorias dos templates (0 registros)
-   - `flow_template_shares` - Compartilhamento de templates (0 registros)
-   - `flow_template_stats` - Estatísticas dos templates (0 registros)
-   - `flow_states` - Estados dos fluxos (0 registros)
-
-3. **Sistema de Quiz** (8 tabelas)
-   - `quiz_templates` - Templates de quiz (1 registro)
-   - `quiz_sessions` - Sessões de quiz (0 registros ativos, 10 inseridos, 10 deletados)
-   - `quiz_responses` - Respostas dos pacientes (0 registros)
-   - `quiz_template_versions_v2` - Versões v2 dos templates (0 registros)
-   - `quiz_sessions_v2` - Sessões v2 (0 registros)
-   - `quiz_template_performance_metrics` - Métricas de performance (0 registros)
-   - `quiz_template_usage_stats` - Estatísticas de uso (0 registros)
-   - `quiz_daily_activity_summary` - Resumo diário de atividades (0 registros)
-   - `quiz_patient_engagement_stats` - Estatísticas de engajamento (0 registros)
-   - `quiz_patient_latest_responses` - Últimas respostas dos pacientes (0 registros)
-
-4. **Integração WhatsApp** (3 tabelas)
-   - `whatsapp_instances` - Instâncias WhatsApp (1 registro)
-   - `whatsapp_contacts` - Contatos WhatsApp (0 registros)
-   - `whatsapp_messages` - Mensagens WhatsApp (0 registros)
-   - `whatsapp_delivery_failures` - Falhas de entrega WhatsApp (0 registros)
-
-5. **Sistema de Mensagens** (2 tabelas)
-   - `messages` - Mensagens do sistema (0 registros ativos, 10 inseridos, 10 deletados)
-   - `message_status_events` - Eventos de status das mensagens (0 registros)
-
-6. **Gestão de Usuários** (3 tabelas)
-   - `users` - Usuários do sistema (1 registro)
-   - `user_profiles` - Perfis dos usuários (0 registros)
-   - `user_sync_log` - Log de sincronização (0 registros)
-
-7. **Sistema Administrativo** (10 tabelas)
-   - `admin_users` - Usuários administrativos (0 registros)
-   - `admin_roles` - Roles administrativos (0 registros)
-   - `admin_permissions` - Permissões (0 registros)
-   - `admin_sessions` - Sessões administrativas (0 registros)
-   - `admin_audit_log` - Log de auditoria administrativa (0 registros)
-   - `admin_security_events` - Eventos de segurança (0 registros)
-   - `admin_ip_blacklist` - Lista negra de IPs (0 registros)
-   - `admin_ip_whitelist` - Lista branca de IPs (0 registros)
-   - `admin_role_permissions` - Permissões por role (0 registros)
-   - `admin_user_permissions` - Permissões por usuário (0 registros)
-
-8. **Auditoria e Logs** (4 tabelas)
-   - `audit_logs` - Logs de auditoria (40 registros)
-   - `audit_log_entries` - Entradas de auditoria (0 registros)
-   - `audit_trail` - Trilha de auditoria (0 registros)
-   - `security_audit_log` - Log de auditoria de segurança (0 registros)
-   - `error_logs` - Logs de erro (3 registros)
-
-9. **Webhooks e Eventos** (1 tabela)
-   - `webhook_events` - Eventos de webhook (0 registros)
-
-10. **Sistema de Migração** (1 tabela)
-    - `alembic_version` - Controle de versões do Alembic (1 registro)
-
-## Status Atual dos Dados
-
-### Dados Críticos Ativos
-- ✅ **1 template de quiz ativo**
-- ✅ **7 versões de templates de fluxo ativas**
-- ✅ **4 tipos de fluxos ativos**
-- ✅ **1 usuário ativo**
-- ✅ **1 instância WhatsApp configurada**
-- ✅ **40 logs de auditoria**
-- ✅ **3 logs de erro**
-
-### Distribuição de Dados
-- **Logs de Auditoria**: 40 registros
-- **Versões de Templates de Fluxo**: 7 registros
-- **Tipos de Fluxos**: 4 registros
-- **Logs de Erro**: 3 registros
-- **Templates de Quiz**: 1 registro
-- **Usuários**: 1 registro
-- **Instâncias WhatsApp**: 1 registro
-- **Controle de Migração**: 1 registro
-
-### Dados de Teste Removidos
-- **Pacientes**: 10 inseridos, 11 deletados (CASCADE DELETE funcionando)
-- **Sessões de Quiz**: 10 inseridos, 10 deletados
-- **Estados de Fluxo**: 12 inseridos, 10 deletados
-- **Mensagens**: 10 inseridos, 10 deletados
-
-## Arquitetura de Dados
-
-### Chaves Primárias
-- Todas as tabelas usam **UUID** como chave primária
-- Geração automática com `gen_random_uuid()`
-
-### Chaves Estrangeiras
-- **53 relacionamentos** bem definidos entre módulos
-- **Integridade referencial** mantida com CASCADE DELETE aplicado
-- **Índices otimizados** para consultas de relacionamento
-
-### Campos JSONB
-- `patient_metadata` - Metadados dos pacientes
-- `flow_metadata` - Metadados dos fluxos
-- `message_metadata` - Metadados das mensagens
-- `session_metadata` - Metadados das sessões
-- `questions` - Questões dos quizzes (JSONB)
-
-### Enums Personalizados (12 tipos)
-- `admin_role_type`: super_admin, admin, manager, supervisor
-- `alert_severity`: low, medium, high, critical
-- `auth_provider`: local, firebase, google, apple
-- `deliverystatus`: scheduled, queued, sending, sent, delivered, read, failed, cancelled
-- `flow_state`: onboarding, active, paused, completed, inactive, cancelled
-- `http_method_type`: GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD
-- `message_direction`: inbound, outbound
-- `message_status`: pending, sent, delivered, read, failed, scheduled, sending
-- `message_type`: text, button, list, media, location, quiz_intro, quiz_question, quiz_encouragement, quiz_completion, monthly_quiz_link, monthly_quiz_reminder, monthly_quiz_expired, monthly_quiz_completed
-- `messagestatus`: pending, scheduled, sending, sent, failed, delivered, read
-- `severity_type`: low, medium, high, critical
-- `user_role`: doctor, admin
-
-## Performance e Otimização
-
-### Tamanho Total do Banco
-- **3.17 MB** de dados totais
-- **Maior tabela**: messages (272 kB)
-- **Tabelas principais**: error_logs (224 kB), patients (200 kB), audit_logs (192 kB)
-
-### Índices Críticos (Top 10 mais utilizados)
-1. `error_logs.idx_error_logs_deduplication`: 56 leituras, 31 fetches
-2. `error_logs.error_logs_pkey`: 53 leituras, 28 fetches
-3. `users.idx_users_email`: 43 leituras, 43 fetches
-4. `alembic_version.alembic_version_pkc`: 43 leituras, 43 fetches
-5. `audit_logs.audit_logs_pkey`: 40 leituras, 40 fetches
-6. `users.idx_users_firebase_uid`: 18 leituras, 18 fetches
-7. `flow_kinds.flow_kinds_pkey`: 12 leituras, 11 fetches
-8. `patients.idx_patients_pagination`: 10 leituras, 0 fetches
-9. `flow_template_versions.idx_flow_template_versions_version`: 8 leituras, 8 fetches
-10. `whatsapp_instances.whatsapp_instances_name_key`: 2 leituras, 0 fetches
-
-### Otimizações Aplicadas
-- Índices em foreign keys
-- Índices em campos de data/hora
-- Índices em campos de status
-- Índices únicos para campos críticos (CPF, telefone, email)
-- Índices de paginação para consultas eficientes
-
-## Segurança
-
-### Auditoria Completa
-- **40 logs de auditoria** ativos
-- Logs de todas as operações administrativas
-- Trilha de auditoria para mudanças de dados
-- Eventos de segurança monitorados
-- Controle de acesso por IP
-
-### Validações de Integridade
-- Constraints de unicidade
-- Validações de dados obrigatórios
-- Relacionamentos referenciais com CASCADE DELETE
-- Campos de timestamp automáticos
-- **14 triggers** para atualização automática de timestamps
-
-## Relacionamentos Principais
-
-### CASCADE DELETE Aplicado
-- `alerts.patient_id` → `patients.id` (CASCADE)
-- `appointments.patient_id` → `patients.id` (CASCADE)
-- `contacts.related_patient_id` → `patients.id` (CASCADE)
-- `flow_analytics.patient_id` → `patients.id` (CASCADE)
-- `flow_states.patient_id` → `patients.id` (CASCADE)
-- `medical_reports.patient_id` → `patients.id` (CASCADE)
-- `messages.patient_id` → `patients.id` (CASCADE)
-- `patient_flow_states.patient_id` → `patients.id` (CASCADE)
-- `quiz_responses.patient_id` → `patients.id` (CASCADE)
-- `quiz_sessions.patient_id` → `patients.id` (CASCADE)
-- `quiz_sessions_v2.patient_id` → `patients.id` (CASCADE)
-- `security_audit_log.patient_id` → `patients.id` (CASCADE)
-- `whatsapp_delivery_failures.patient_id` → `patients.id` (CASCADE)
-
-### Relacionamentos de Usuários
-- `patients.doctor_id` → `users.id` (NO ACTION)
-- `audit_logs.user_id` → `users.id` (SET NULL)
-- `contacts.related_user_id` → `users.id` (NO ACTION)
-- `flow_template_versions.created_by` → `users.id` (NO ACTION)
-- `flow_template_shares.shared_by` → `users.id` (NO ACTION)
-- `flow_template_shares.shared_with` → `users.id` (NO ACTION)
-- `medical_reports.generated_by` → `users.id` (NO ACTION)
-- `quiz_template_versions_v2.created_by` → `users.id` (NO ACTION)
-- `user_profiles.user_id` → `users.id` (NO ACTION)
-- `user_sync_log.supabase_user_id` → `users.id` (NO ACTION)
-
-## Monitoramento
-
-### Métricas Disponíveis
-- Estatísticas de uso de templates
-- Métricas de performance de quiz
-- Analytics de fluxos
-- Logs de erro centralizados
-- Resumos de atividade diária
-
-### Alertas Configurados
-- Sistema de alertas por paciente
-- Monitoramento de eventos de segurança
-- Tracking de falhas de mensagens
-- Logs de sincronização de usuários
-
-### Views do Sistema
-- `pg_stat_statements` - Estatísticas de consultas SQL
-- `pg_stat_statements_info` - Informações sobre estatísticas
-
-## Status de Funcionamento
-
-### ✅ Operacional
-- **CASCADE DELETE** funcionando corretamente
-- **Relacionamentos** íntegros
-- **Índices** otimizados e funcionais
-- **Triggers** atualizando timestamps automaticamente
-- **Enums** bem definidos e utilizados
-
-### 🔧 Melhorias Implementadas
-- **Exclusão em cascata** para pacientes e dados relacionados
-- **Validação flexível** de datas de tratamento (até 30 dias no futuro)
-- **Hash de integridade** nos metadados dos pacientes
-- **Paginação corrigida** nos endpoints de alerts e reports
+> Atualizado em **14/10/2025** com base no snapshot do ambiente de _staging_.  
+> O banco de produção utiliza **AWS RDS PostgreSQL**; a estrutura descrita abaixo é a mesma em todos os ambientes.
 
 ---
 
-**Última atualização**: 2025-10-13 20:12:25
-**Total de tabelas**: 50
-**Total de registros ativos**: 58
-**Tamanho total**: 3.17 MB
-**Status geral**: ✅ Operacional e bem estruturado
+## Visão Geral
+
+- **Motor**: AWS RDS PostgreSQL 14  
+- **Quantidade aproximada de tabelas**: 50  
+- **Principais módulos**: pacientes, fluxos, quiz mensal, mensagens/WhatsApp, administração, auditoria  
+- **Chaves primárias**: todas as tabelas utilizam `UUID` (`gen_random_uuid()`)  
+- **Relacionamentos**: 53 chaves estrangeiras ativas, com políticas `CASCADE`, `SET NULL` ou `NO ACTION` conforme a criticidade
+- **Triggers**: 14 gatilhos mantêm carimbos de data/hora e integridade auxiliar
+- **Enums personalizados**: 12 tipos (fluxos, severidade, status de mensagens, papéis de usuário, etc.)
+
+---
+
+## Módulos Principais
+
+1. **Gestão de Pacientes** (10 tabelas)  
+   `patients`, `patient_flow_states`, `contacts`, `medical_reports`, `appointments`, `alerts`…  
+   - *Registros ativos no snapshot*: 0 pacientes (dados de teste removidos), 1 médico vinculado
+2. **Sistema de Fluxos** (7 tabelas)  
+   `flow_kinds`, `flow_template_versions`, `flow_messages`, `flow_analytics`…  
+   - 4 tipos de fluxo e 7 versões de templates ativas
+3. **Quiz Mensal** (até 10 tabelas)  
+   `quiz_templates`, `quiz_sessions`, `quiz_responses`, tabelas de métricas e históricos  
+   - 1 template de quiz ativo; sessões de teste foram excluídas após validações
+4. **Integração WhatsApp** (3 tabelas)  
+   `whatsapp_instances`, `whatsapp_contacts`, `whatsapp_messages`, `whatsapp_delivery_failures`
+5. **Mensagens & Comunicação** (2 tabelas)  
+   `messages`, `message_status_events`
+6. **Gestão de Usuários** (3 tabelas)  
+   `users`, `user_profiles`, `user_sync_log` (coluna legada `supabase_user_id` será renomeada)
+7. **Administração** (10 tabelas)  
+   `admin_users`, `admin_roles`, `admin_permissions`, `admin_sessions`, `admin_audit_log`…
+8. **Auditoria e Logs** (5 tabelas)  
+   `audit_logs`, `audit_log_entries`, `audit_trail`, `security_audit_log`, `error_logs`
+9. **Webhooks & Eventos**  
+   `webhook_events`
+10. **Migrações**  
+    `alembic_version`
+
+---
+
+## Status dos Dados (snapshot staging)
+
+| Item                                    | Valor |
+|-----------------------------------------|-------|
+| Pacientes ativos                        | 0     |
+| Templates de quiz                       | 1     |
+| Tipos de fluxo                          | 4     |
+| Versões de templates de fluxo           | 7     |
+| Usuários ativos                         | 1     |
+| Instâncias WhatsApp configuradas        | 1     |
+| Logs de auditoria                       | 40    |
+| Logs de erro                            | 3     |
+| Total de registros ativos (aprox.)      | 58    |
+| Tamanho estimado do banco (staging)     | 3.17 MB |
+
+> **Observação:** os números acima representam o estado de staging usado para validação automatizada. Em produção os volumes variam conforme o uso real.
+
+### Dados de teste removidos recentemente
+- Pacientes: 10 inserções / 11 exclusões (validação do CASCADE)
+- Sessões de quiz: 10 inserções / 10 exclusões
+- Estados de fluxo: 12 inserções / 10 exclusões
+- Mensagens: 10 inserções / 10 exclusões
+
+---
+
+## Arquitetura e Integridade
+
+- **Metadados em JSONB**: campos `patient_data`, `flow_metadata`, `message_metadata`, `session_metadata`, `questions`
+- **Relacionamentos relevantes**
+  - `patients` é pai cascata para alerts, appointments, flow_states, quiz_responses/sessions, mensagens e logs
+  - `users` relaciona-se com pacientes (médico responsável) e audit trails
+- **Índices críticos (uso recente)**
+  1. `error_logs.idx_error_logs_deduplication`
+  2. `users.idx_users_email`
+  3. `users.idx_users_firebase_uid`
+  4. `alembic_version` PK
+  5. Índices de paginação em `patients`
+- **Políticas de segurança**
+  - Auditoria completa (`audit_logs`, `admin_audit_log`, `security_audit_log`)
+  - Controle por IP (`admin_ip_blacklist/whitelist`)
+  - RLS configurado para sessões autenticadas (contexto JWT definido na aplicação)
+
+---
+
+## Notas sobre a Migração para AWS
+
+- O cliente Supabase foi desativado; todas as conexões utilizam SQLAlchemy diretamente no RDS.
+- Variáveis de ambiente `SUPABASE_*` permanecem apenas por compatibilidade com scripts antigos e serão eliminadas quando possível.
+- A autenticação e autorização agora dependem exclusivamente do **Firebase Admin SDK** (tokens RS256). A coluna `user_sync_log.supabase_user_id` será renomeada em futura migração para refletir a nova origem do dado.
+
+---
+
+## Monitoramento e Métricas
+
+- Métricas de quiz, fluxos e mensagens consolidadas em views e tabelas dedicadas.
+- `pg_stat_statements` habilitado para análise de performance.
+- Job de auditoria (`audit_cleanup`) revisa periodicamente os registros do módulo administrativo.
+- Alertas automáticos para falhas de WhatsApp, eventos de segurança e integrações.
+
+---
+
+## Resumo Final
+
+- **Motor**: AWS RDS PostgreSQL  
+- **Estado geral**: ✅ operacional e consistente  
+- **Última atualização**: 2025-10-14 21:00:00  
+- **Tamanho (snapshot staging)**: 3.17 MB  
+- **Próximos passos recomendados**:
+  1. Renomear colunas herdadas de Supabase (ex.: `user_sync_log.supabase_user_id`).
+  2. Ampliar métricas reais em produção (dashboards de auditoria e quiz).
+  3. Automatizar export periódico de estatísticas (`pg_stat_statements`) para acompanhamento de performance.
+

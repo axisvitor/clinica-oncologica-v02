@@ -417,7 +417,7 @@ async def websocket_endpoint(
         # Accept WebSocket connection first
         await websocket.accept()
 
-        # Try to authenticate user (Supabase token validation)
+        # Try to authenticate user (Firebase token validation)
         user = await get_current_user_websocket(websocket)
         if not user:
             # Send authentication error message instead of closing immediately
@@ -425,7 +425,7 @@ async def websocket_endpoint(
                 "type": "error",
                 "data": {
                     "error": "authentication_required",
-                    "message": "Authentication required. Provide a valid Supabase access token via 'token' query parameter or 'Authorization' header.",
+                    "message": "Authentication required. Provide a valid Firebase access token via 'token' query parameter or 'Authorization' header.",
                     "code": 4001
                 }
             }

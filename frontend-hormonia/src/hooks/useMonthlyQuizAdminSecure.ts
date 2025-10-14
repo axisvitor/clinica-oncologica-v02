@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '@/components/ui/use-toast'
 import { apiClient } from '@/lib/api-client'
-import { useAuth } from '@/hooks/useAuth'
+import { useAuth } from '@/contexts/AuthContext'
 import { quizPermissions, getPermissionErrorMessage } from '@/utils/quizPermissions'
 
 interface CreateQuizLinkData {

@@ -46,12 +46,20 @@ class PatientService:
             # FIX #1: Validate for duplicates and data integrity
             await self.integrity_service.validate_patient_creation(patient_data, doctor_id)
 
-            patient_dict = patient_data.dict()
+            patient_dict = patient_data.dict(exclude_unset=True)
+
+            # Normalize metadata field name from schema to model attribute
+            metadata_payload = patient_dict.pop("metadata", None)
+
+            # Ensure doctor association persists for integrity hash and persistence
             patient_dict["doctor_id"] = doctor_id
 
-            # Generate data integrity checksum
+            # Normalize metadata before hash calculation
+            patient_metadata = dict(metadata_payload or {})
+            patient_dict["patient_data"] = patient_metadata
+
+            # Prepare metadata (patient_data) with integrity hash
             integrity_hash = self.integrity_service.generate_patient_hash(patient_dict)
-            patient_metadata = patient_dict.get("patient_data") or {}
             patient_metadata["integrity_hash"] = integrity_hash
             patient_dict["patient_data"] = patient_metadata
 

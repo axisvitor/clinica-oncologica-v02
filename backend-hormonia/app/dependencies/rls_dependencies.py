@@ -71,18 +71,17 @@ def get_rls_db(
                 logger.debug(f"RLS context set for user {current_user.id} with role {current_user.role}")
         else:
             # For public endpoints, set anonymous context
-            if settings.SUPABASE_ANON_KEY:
-                claims = {
-                    "role": "anon",
-                    "aud": "public"
-                }
-                db.execute(
-                    "SELECT set_config('request.jwt.claims', :claims, true)",
-                    {"claims": json.dumps(claims)}
-                )
+            claims = {
+                "role": "anon",
+                "aud": "public"
+            }
+            db.execute(
+                "SELECT set_config('request.jwt.claims', :claims, true)",
+                {"claims": json.dumps(claims)}
+            )
 
-                if settings.DEBUG:
-                    logger.debug("RLS context set for anonymous user")
+            if settings.DEBUG:
+                logger.debug("RLS context set for anonymous user")
 
         yield db
 

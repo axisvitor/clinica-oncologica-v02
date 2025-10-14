@@ -145,7 +145,7 @@ export function createMockApiClient() {
       getAnalytics: vi.fn(),
     },
     setAuthToken: vi.fn(),
-    setSupabaseToken: vi.fn(),
+    setSessionToken: vi.fn(),
   }
 }
 

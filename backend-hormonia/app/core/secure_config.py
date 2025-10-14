@@ -192,9 +192,11 @@ class SecureConfigManager:
         """Validate that all required environment variables are set."""
         required_vars = [
             "DATABASE_URL",
-            "SUPABASE_URL",
             "REDIS_URL",
-            "SECRET_KEY"
+            "SECRET_KEY",
+            "FIREBASE_ADMIN_PROJECT_ID",
+            "FIREBASE_ADMIN_CLIENT_EMAIL",
+            "FIREBASE_ADMIN_PRIVATE_KEY"
         ]
 
         validation_results = {}
@@ -202,9 +204,14 @@ class SecureConfigManager:
             validation_results[var] = bool(os.getenv(var))
 
         # Check security settings
+        auto_provision_flag = os.getenv(
+            "AUTO_PROVISION_IDENTITY_USERS",
+            os.getenv("AUTO_PROVISION_SUPABASE_USERS", "true")
+        )
+
         security_checks = {
             "REDIS_SSL": os.getenv("REDIS_SSL", "false").lower() == "true",
-            "AUTO_PROVISION_SUPABASE_USERS": os.getenv("AUTO_PROVISION_SUPABASE_USERS", "true").lower() == "false",
+            "AUTO_PROVISION_IDENTITY_USERS": auto_provision_flag.lower() == "false",
             "ENABLE_AUDIT_LOGGING": os.getenv("ENABLE_AUDIT_LOGGING", "false").lower() == "true",
             "ENABLE_EVOLUTION": os.getenv("ENABLE_EVOLUTION", "false").lower() == "true",
             "FORCE_HTTPS_QUIZ_LINKS": os.getenv("FORCE_HTTPS_QUIZ_LINKS", "false").lower() == "true"

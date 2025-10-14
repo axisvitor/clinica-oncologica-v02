@@ -3,6 +3,8 @@
  * Implements secure token storage and management with automatic cleanup
  */
 
+const TOKEN_STORAGE_KEY = 'quiz_access_token'
+
 class SecureTokenManager {
     private static instance: SecureTokenManager
     private tokenSymbol = Symbol('quiz-token')
@@ -14,6 +16,63 @@ class SecureTokenManager {
         if (typeof window !== 'undefined') {
             window.addEventListener('beforeunload', this.cleanup.bind(this))
             window.addEventListener('pagehide', this.cleanup.bind(this))
+        }
+    }
+
+    private persistToken(): void {
+        if (typeof window === 'undefined' || !this.tokenData) {
+            return
+        }
+        try {
+            window.sessionStorage.setItem(
+                TOKEN_STORAGE_KEY,
+                JSON.stringify(this.tokenData)
+            )
+        } catch (error) {
+            console.warn('[SecureTokenManager] Failed to persist token:', error)
+        }
+    }
+
+    private restoreFromStorage(): void {
+        if (typeof window === 'undefined' || this.tokenData) {
+            return
+        }
+
+        try {
+            const stored = window.sessionStorage.getItem(TOKEN_STORAGE_KEY)
+            if (!stored) {
+                return
+            }
+
+            const parsed = JSON.parse(stored)
+            if (
+                typeof parsed === 'object' &&
+                parsed !== null &&
+                typeof parsed.value === 'string' &&
+                typeof parsed.expires === 'number'
+            ) {
+                this.tokenData = parsed
+            } else {
+                window.sessionStorage.removeItem(TOKEN_STORAGE_KEY)
+            }
+        } catch (error) {
+            console.warn('[SecureTokenManager] Failed to restore token:', error)
+            try {
+                window.sessionStorage.removeItem(TOKEN_STORAGE_KEY)
+            } catch {
+                // ignore
+            }
+        }
+    }
+
+    private clearStorage(): void {
+        if (typeof window === 'undefined') {
+            return
+        }
+        try {
+            window.sessionStorage.removeItem(TOKEN_STORAGE_KEY)
+        } catch (error) {
+            console.warn('[SecureTokenManager] Failed to clear token storage:', error)
         }
     }
 
@@ -39,6 +98,7 @@ class SecureTokenManager {
 
             // Store token with expiration
             this.tokenData = { value: token, expires }
+            this.persistToken()
 
             // Set automatic cleanup timer
             const timeUntilExpiry = expires - Date.now()
@@ -67,6 +127,10 @@ class SecureTokenManager {
      */
     getToken(): string | null {
         try {
+            if (!this.tokenData) {
+                this.restoreFromStorage()
+            }
+
             if (!this.tokenData) {
                 return null
             }
@@ -126,6 +190,8 @@ class SecureTokenManager {
                 clearTimeout(this.cleanupTimer)
                 this.cleanupTimer = null
             }
+
+            this.clearStorage()
 
             if (process.env.NODE_ENV === 'development') {
                 console.log('[SecureTokenManager] Token cleared securely')

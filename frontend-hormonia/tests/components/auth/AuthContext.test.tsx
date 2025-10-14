@@ -17,7 +17,7 @@ const mockRealtimeManager = {
 
 const mockApiClient = {
   setAuthToken: vi.fn(),
-  setSupabaseToken: vi.fn(),
+  setSessionToken: vi.fn(),
 }
 
 vi.mock('../../../lib/supabase-client', () => ({
@@ -136,7 +136,7 @@ describe('AuthContext', () => {
         expect(result.current.isLoading).toBe(false)
       })
 
-      expect(mockApiClient.setSupabaseToken).toHaveBeenCalledWith(mockSession)
+      expect(mockApiClient.setSessionToken).toHaveBeenCalledWith(mockSession)
     })
 
     it('should handle SIGNED_OUT event', async () => {

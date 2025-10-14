@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import QuizInterface from "@/components/quiz-interface"
 import { extractTokenFromURL, isTokenExpired } from "@/lib/auth-utils"
+import { secureTokenManager } from "@/lib/secure-token-manager"
 import { quizAPI } from "@/lib/api"
 import type { QuizSession, QuizError } from "@/types/quiz"
 import { Card } from "@/components/ui/card"
@@ -52,6 +53,9 @@ export default function Home() {
       if (!session.new_token) {
         session.new_token = urlToken
       }
+
+      // Persist token locally for refresh scenarios
+      secureTokenManager.updateToken(session.new_token, session.expires_at)
 
       setQuizSession(session)
     } catch (err) {

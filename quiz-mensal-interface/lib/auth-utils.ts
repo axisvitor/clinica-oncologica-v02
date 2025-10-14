@@ -4,6 +4,7 @@
  */
 
 import { QuizSession } from "@/types/quiz"
+import { secureTokenManager } from "./secure-token-manager"
 
 /**
  * CSRF Token management
@@ -218,7 +219,9 @@ export function isTokenExpired(expiresAt: string): boolean {
  * Secure token extraction from URL with immediate cleanup
  */
 export function extractTokenFromURL(): string | null {
-  if (typeof window === 'undefined') return null
+  if (typeof window === 'undefined') {
+    return secureTokenManager.getToken()
+  }
 
   const params = new URLSearchParams(window.location.search)
   const token = params.get('token')
@@ -228,9 +231,14 @@ export function extractTokenFromURL(): string | null {
     const url = new URL(window.location.href)
     url.searchParams.delete('token')
     window.history.replaceState({}, '', url.toString())
+
+     // Store token in secure manager for future reloads
+     secureTokenManager.setToken(token)
+     return token
   }
 
-  return token
+  // Fallback to previously stored token (e.g., after refresh)
+  return secureTokenManager.getToken()
 }
 
 /**

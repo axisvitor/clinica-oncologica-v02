@@ -1,36 +1,93 @@
 import React from 'react'
-import { useAuth } from '@/hooks/useAuth'
+import { useAuth } from '@/contexts/AuthContext'
+
+const RESTRICTED_ADMIN_PERMISSIONS = [
+  'admin.system.delete',
+  'admin.users.delete_admin',
+  'admin.backup.delete'
+]
+
+type PermissionLevel = 'none' | 'read' | 'write' | 'admin'
 
 interface PermissionGuardProps {
-  /** Array of permissions required to show the children */
   permissions?: string[]
-  /** Array of roles that can access the content */
   roles?: string[]
-  /** Resource name for context-specific permissions */
   resource?: string
-  /** Action for resource-based permissions (e.g., 'read', 'write', 'delete') */
   action?: string
-  /** Require all permissions/roles instead of any */
   requireAll?: boolean
-  /** Function to determine access based on user */
   customCheck?: (user: any) => boolean
-  /** Fallback component to render when access is denied */
   fallback?: React.ReactNode
-  /** Children to render when access is granted */
   children: React.ReactNode
-  /** Render children even if not authenticated (for public components) */
   allowUnauthenticated?: boolean
 }
 
-/**
- * PermissionGuard component for protecting UI elements based on user permissions and roles
- *
- * Examples:
- * - <PermissionGuard permissions={['admin.users.create']}>Create User Button</PermissionGuard>
- * - <PermissionGuard roles={['admin']}>Admin Panel</PermissionGuard>
- * - <PermissionGuard resource="patients" action="delete">Delete Button</PermissionGuard>
- * - <PermissionGuard customCheck={(user) => user?.id === patient.createdBy}>Edit My Patient</PermissionGuard>
- */
+interface AccessHelpers {
+  hasAnyPermission: (permissions: string[]) => boolean
+  hasAllPermissions: (permissions: string[]) => boolean
+  hasAnyRole: (roles: string[]) => boolean
+  isAdminUser: () => boolean
+  isSuperAdminUser: () => boolean
+  canAccessResource: (resource?: string, action?: string) => boolean
+  getPermissionLevel: (resource: string) => PermissionLevel
+}
+
+const createHelpers = (hasPermission: (permission: string) => boolean, hasRole: (role: string) => boolean): AccessHelpers => {
+  const hasAnyPermission = (permissions: string[]) => permissions.some(permission => hasPermission(permission))
+  const hasAllPermissions = (permissions: string[]) => permissions.every(permission => hasPermission(permission))
+  const hasAnyRole = (roles: string[]) => roles.some(role => hasRole(role))
+  const isAdminUser = () => hasRole('admin')
+  const isSuperAdminUser = () => hasRole('super_admin') || hasRole('superadmin')
+  const canAccessResource = (resource?: string, action: string = 'read') => {
+    if (!resource) {
+      return false
+    }
+    return hasPermission(`${resource}.${action}`) || hasPermission(`${resource}.*`)
+  }
+  const getPermissionLevel = (resource: string): PermissionLevel => {
+    if (!resource) {
+      return 'none'
+    }
+
+    if (isSuperAdminUser()) {
+      return 'admin'
+    }
+
+    if (
+      isAdminUser() ||
+      hasPermission(`${resource}.admin`) ||
+      hasPermission(`${resource}.manage`)
+    ) {
+      return 'admin'
+    }
+
+    if (
+      hasPermission(`${resource}.write`) ||
+      hasPermission(`${resource}.edit`)
+    ) {
+      return 'write'
+    }
+
+    if (
+      hasPermission(`${resource}.read`) ||
+      hasPermission(`${resource}.view`)
+    ) {
+      return 'read'
+    }
+
+    return 'none'
+  }
+
+  return {
+    hasAnyPermission,
+    hasAllPermissions,
+    hasAnyRole,
+    isAdminUser,
+    isSuperAdminUser,
+    canAccessResource,
+    getPermissionLevel
+  }
+}
+
 export function PermissionGuard({
   permissions = [],
   roles = [],
@@ -42,25 +99,28 @@ export function PermissionGuard({
   children,
   allowUnauthenticated = false
 }: PermissionGuardProps) {
+  const auth = useAuth()
   const {
     user,
     isAuthenticated,
+    isLoading,
     hasPermission,
-    hasRole,
-    hasAnyRole,
-    hasAllPermissions,
-    hasAnyPermission,
-    canAccessResource,
-    isAdmin,
-    isSuperAdmin
-  } = useAuth()
+    hasRole
+  } = auth
 
-  // If not authenticated and not allowing unauthenticated access
+  const helpers = React.useMemo(
+    () => createHelpers(hasPermission, hasRole),
+    [hasPermission, hasRole]
+  )
+
+  if (isLoading && !allowUnauthenticated) {
+    return <>{fallback}</>
+  }
+
   if (!allowUnauthenticated && !isAuthenticated) {
     return <>{fallback}</>
   }
 
-  // If no conditions specified, allow access
   if (
     permissions.length === 0 &&
     roles.length === 0 &&
@@ -70,53 +130,38 @@ export function PermissionGuard({
     return <>{children}</>
   }
 
-  // Super admin bypass (optional - can be configured)
-  if (user && isSuperAdmin()) {
+  if (user && helpers.isSuperAdminUser()) {
     return <>{children}</>
   }
 
   let hasAccess = false
 
-  // Custom check has highest priority
   if (customCheck) {
     hasAccess = customCheck(user)
   } else {
-    // Resource-based check
     if (resource) {
-      hasAccess = canAccessResource(resource, action)
+      hasAccess = helpers.canAccessResource(resource, action)
     }
 
-    // Permission-based check
     if (permissions.length > 0) {
-      if (requireAll) {
-        hasAccess = hasAccess || hasAllPermissions(permissions)
-      } else {
-        hasAccess = hasAccess || hasAnyPermission(permissions)
-      }
+      hasAccess =
+        hasAccess ||
+        (requireAll
+          ? helpers.hasAllPermissions(permissions)
+          : helpers.hasAnyPermission(permissions))
     }
 
-    // Role-based check
     if (roles.length > 0) {
-      if (requireAll) {
-        // For requireAll with roles, check if user has all specified roles
-        // Note: This is unusual as users typically have one role
-        hasAccess = hasAccess || roles.every(role => hasRole(role))
-      } else {
-        hasAccess = hasAccess || hasAnyRole(roles)
-      }
+      hasAccess =
+        hasAccess ||
+        (requireAll
+          ? roles.every(role => hasRole(role))
+          : helpers.hasAnyRole(roles))
     }
 
-    // Admin override for basic admin permissions
-    if (!hasAccess && isAdmin()) {
-      // Admins can access most resources unless explicitly restricted
-      const restrictedPermissions = [
-        'admin.system.delete',
-        'admin.users.delete_admin',
-        'admin.backup.delete'
-      ]
-
-      const hasRestrictedPermission = permissions.some(p =>
-        restrictedPermissions.includes(p)
+    if (!hasAccess && helpers.isAdminUser()) {
+      const hasRestrictedPermission = permissions.some(permission =>
+        RESTRICTED_ADMIN_PERMISSIONS.includes(permission)
       )
 
       if (!hasRestrictedPermission) {
@@ -132,9 +177,6 @@ export function PermissionGuard({
   return <>{fallback}</>
 }
 
-/**
- * Higher-order component version of PermissionGuard
- */
 export function withPermissionGuard<T extends object>(
   Component: React.ComponentType<T>,
   guardProps: Omit<PermissionGuardProps, 'children'>
@@ -148,125 +190,99 @@ export function withPermissionGuard<T extends object>(
   }
 }
 
-/**
- * Hook for checking permissions in component logic
- */
 export function usePermissionGuard() {
   const auth = useAuth()
+  const helpers = React.useMemo(
+    () => createHelpers(auth.hasPermission, auth.hasRole),
+    [auth.hasPermission, auth.hasRole]
+  )
 
-  const checkAccess = React.useCallback((guardProps: Omit<PermissionGuardProps, 'children' | 'fallback'>) => {
-    const {
-      permissions = [],
-      roles = [],
-      resource,
-      action = 'read',
-      requireAll = false,
-      customCheck,
-      allowUnauthenticated = false
-    } = guardProps
+  const checkAccess = React.useCallback(
+    (guardProps: Omit<PermissionGuardProps, 'children' | 'fallback'>) => {
+      const {
+        permissions = [],
+        roles = [],
+        resource,
+        action = 'read',
+        requireAll = false,
+        customCheck,
+        allowUnauthenticated = false
+      } = guardProps
 
-    const {
-      user,
-      isAuthenticated,
-      hasPermission,
-      hasRole,
-      hasAnyRole,
-      hasAllPermissions,
-      hasAnyPermission,
-      canAccessResource,
-      isAdmin,
-      isSuperAdmin
-    } = auth
+      const { user, isAuthenticated } = auth
 
-    // If not authenticated and not allowing unauthenticated access
-    if (!allowUnauthenticated && !isAuthenticated) {
-      return false
-    }
-
-    // If no conditions specified, allow access
-    if (
-      permissions.length === 0 &&
-      roles.length === 0 &&
-      !resource &&
-      !customCheck
-    ) {
-      return true
-    }
-
-    // Super admin bypass
-    if (user && isSuperAdmin()) {
-      return true
-    }
-
-    let hasAccess = false
-
-    // Custom check has highest priority
-    if (customCheck) {
-      hasAccess = customCheck(user)
-    } else {
-      // Resource-based check
-      if (resource) {
-        hasAccess = canAccessResource(resource, action)
+      if (!allowUnauthenticated && !isAuthenticated) {
+        return false
       }
 
-      // Permission-based check
-      if (permissions.length > 0) {
-        if (requireAll) {
-          hasAccess = hasAccess || hasAllPermissions(permissions)
-        } else {
-          hasAccess = hasAccess || hasAnyPermission(permissions)
+      if (
+        permissions.length === 0 &&
+        roles.length === 0 &&
+        !resource &&
+        !customCheck
+      ) {
+        return true
+      }
+
+      if (user && helpers.isSuperAdminUser()) {
+        return true
+      }
+
+      let hasAccess = false
+
+      if (customCheck) {
+        hasAccess = customCheck(user)
+      } else {
+        if (resource) {
+          hasAccess = helpers.canAccessResource(resource, action)
+        }
+
+        if (permissions.length > 0) {
+          hasAccess =
+            hasAccess ||
+            (requireAll
+              ? helpers.hasAllPermissions(permissions)
+              : helpers.hasAnyPermission(permissions))
+        }
+
+        if (roles.length > 0) {
+          hasAccess =
+            hasAccess ||
+            (requireAll
+              ? roles.every(role => auth.hasRole(role))
+              : helpers.hasAnyRole(roles))
+        }
+
+        if (!hasAccess && helpers.isAdminUser()) {
+          const hasRestrictedPermission = permissions.some(permission =>
+            RESTRICTED_ADMIN_PERMISSIONS.includes(permission)
+          )
+
+          if (!hasRestrictedPermission) {
+            hasAccess = true
+          }
         }
       }
 
-      // Role-based check
-      if (roles.length > 0) {
-        if (requireAll) {
-          hasAccess = hasAccess || roles.every(role => hasRole(role))
-        } else {
-          hasAccess = hasAccess || hasAnyRole(roles)
-        }
-      }
+      return hasAccess
+    },
+    [auth, helpers]
+  )
 
-      // Admin override
-      if (!hasAccess && isAdmin()) {
-        const restrictedPermissions = [
-          'admin.system.delete',
-          'admin.users.delete_admin',
-          'admin.backup.delete'
-        ]
-
-        const hasRestrictedPermission = permissions.some(p =>
-          restrictedPermissions.includes(p)
-        )
-
-        if (!hasRestrictedPermission) {
-          hasAccess = true
-        }
-      }
-    }
-
-    return hasAccess
-  }, [auth])
-
-  return {
-    checkAccess,
-    ...auth
-  }
+  return React.useMemo(
+    () => ({
+      checkAccess,
+      ...auth
+    }),
+    [auth, checkAccess]
+  )
 }
 
-/**
- * Component for displaying different content based on permission levels
- */
 interface PermissionLevelProps {
-  /** Content for users with read permission */
   read?: React.ReactNode
-  /** Content for users with write permission */
   write?: React.ReactNode
-  /** Content for users with admin permission */
   admin?: React.ReactNode
-  /** Base permission to check (e.g., 'users' will check 'users.read', 'users.write', 'users.admin') */
   resource: string
-  /** Default content for users without any permission */
   fallback?: React.ReactNode
 }
 
@@ -277,9 +293,13 @@ export function PermissionLevel({
   resource,
   fallback = null
 }: PermissionLevelProps) {
-  const { getPermissionLevel } = useAuth()
+  const auth = useAuth()
+  const helpers = React.useMemo(
+    () => createHelpers(auth.hasPermission, auth.hasRole),
+    [auth.hasPermission, auth.hasRole]
+  )
 
-  const level = getPermissionLevel(resource)
+  const level = helpers.getPermissionLevel(resource)
 
   switch (level) {
     case 'admin':

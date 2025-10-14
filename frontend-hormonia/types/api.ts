@@ -704,7 +704,7 @@ export interface ApiClient {
 
   // Utility methods
   readonly setAuthToken: (token: string | null) => void
-  readonly setSupabaseToken: (session: unknown) => void
+  readonly setSessionToken: (session: unknown) => void
   readonly request: <T>(endpoint: string, options?: RequestInit & { params?: Record<string, unknown> }) => Promise<T>
 }
 

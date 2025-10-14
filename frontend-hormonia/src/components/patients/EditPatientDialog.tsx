@@ -26,14 +26,32 @@ import {
 import { useToast } from '@/components/ui/use-toast'
 import { LoadingSpinner } from '../ui/loading-spinner'
 
+const normalizePhoneNumber = (value: string | undefined) => {
+  if (!value) return value
+  const digits = value.replace(/\D/g, '')
+  if (!digits) return value
+
+  if (value.trim().startsWith('+')) {
+    return `+${digits}`
+  }
+
+  if (digits.length === 11) {
+    return `+55${digits}`
+  }
+
+  return `+${digits}`
+}
+
 const updatePatientSchema = z.object({
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres').optional(),
-  phone: z.string().min(10, 'Telefone deve ter pelo menos 10 dígitos').optional(),
+  phone: z.string().min(10, 'Telefone deve ter pelo menos 10 dígitos').optional()
+    .transform(value => normalizePhoneNumber(value))
+    .refine((value) => !value || /^\+[1-9]\d{9,14}$/.test(value), 'Telefone deve incluir código do país (ex: +5511999999999)'),
   email: z.string().email('Email inválido').optional().or(z.literal('')),
   birth_date: z.string().optional(),
   treatment_type: z.string().optional(),
   treatment_start_date: z.string().optional(),
-  notes: z.string().optional()
+  doctor_notes: z.string().optional()
 })
 
 type UpdatePatientFormData = z.infer<typeof updatePatientSchema>
@@ -46,7 +64,7 @@ interface Patient {
   birth_date?: string
   treatment_type: string
   treatment_start_date?: string
-  notes?: string
+  doctor_notes?: string
   status: string
   current_day?: number
   created_at: string
@@ -79,7 +97,7 @@ export function EditPatientDialog({ open, onOpenChange, patient }: EditPatientDi
       birth_date: patient.birth_date || '',
       treatment_type: patient.treatment_type,
       treatment_start_date: patient.treatment_start_date || '',
-      notes: patient.notes || ''
+      doctor_notes: patient.doctor_notes || ''
     } : {}
   })
 
@@ -132,7 +150,7 @@ export function EditPatientDialog({ open, onOpenChange, patient }: EditPatientDi
         birth_date: patient.birth_date || '',
         treatment_type: patient.treatment_type,
         treatment_start_date: patient.treatment_start_date || '',
-        notes: patient.notes || ''
+      doctor_notes: patient?.doctor_notes || ''
       })
     }
   }, [patient, reset])
@@ -239,12 +257,12 @@ export function EditPatientDialog({ open, onOpenChange, patient }: EditPatientDi
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="notes">Observações</Label>
+            <Label htmlFor="doctor_notes">Observações</Label>
             <Textarea
-              id="notes"
+              id="doctor_notes"
               placeholder="Observações sobre o paciente ou tratamento..."
               rows={3}
-              {...register('notes')}
+              {...register('doctor_notes')}
             />
           </div>
 

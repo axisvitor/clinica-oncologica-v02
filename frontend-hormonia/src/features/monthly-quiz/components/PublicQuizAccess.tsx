@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Public Quiz Access Component
  *
  * Public-facing component for patients to access and complete quizzes via link.
@@ -16,6 +16,7 @@ export const PublicQuizAccess: React.FC = () => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [isCompleted, setIsCompleted] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   const token = searchParams.get('token');
 
@@ -28,6 +29,7 @@ export const PublicQuizAccess: React.FC = () => {
   const loadQuiz = async () => {
     if (!token) return;
 
+    setSubmissionError(null);
     const data = await accessQuiz(token);
     if (data) {
       setQuizData(data);
@@ -44,18 +46,23 @@ export const PublicQuizAccess: React.FC = () => {
 
     const currentQuestion = quizData.questions[currentQuestionIndex];
 
-    const success = await submitQuizResponse({
+    const response = await submitQuizResponse({
       token,
       question_id: currentQuestion.id,
       response_value: answers[currentQuestion.id] || ''
     });
 
-    if (success) {
-      if (currentQuestionIndex < quizData.total_questions - 1) {
-        setCurrentQuestionIndex(currentQuestionIndex + 1);
-      } else {
-        setIsCompleted(true);
-      }
+    if (!response || !response.success) {
+      setSubmissionError(response?.message || 'Não foi possível registrar sua resposta. Tente novamente.');
+      return;
+    }
+
+    setSubmissionError(null);
+
+    if (currentQuestionIndex < quizData.total_questions - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    } else {
+      setIsCompleted(true);
     }
   };
 
@@ -193,6 +200,10 @@ export const PublicQuizAccess: React.FC = () => {
             </div>
           )}
 
+          {submissionError && (
+            <p className="mt-4 text-sm text-red-600">{submissionError}</p>
+          )}
+
           {/* Submit Button */}
           <button
             onClick={handleSubmit}
@@ -206,3 +217,4 @@ export const PublicQuizAccess: React.FC = () => {
     </div>
   );
 };
+

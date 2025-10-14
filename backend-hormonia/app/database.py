@@ -1,5 +1,6 @@
 """
-Database connection and session management for Supabase PostgreSQL with performance optimizations.
+"""
+Database connection and session management for AWS RDS PostgreSQL with performance optimizations.
 FIX #5: Enhanced database optimization with comprehensive indexing strategy.
 """
 from sqlalchemy import create_engine, event, Index, text
@@ -17,7 +18,7 @@ from app.utils.query_performance import QueryPerformanceMonitor, IndexManager
 
 logger = logging.getLogger(__name__)
 
-# SQLAlchemy engine for Supabase PostgreSQL with enhanced optimizations
+# SQLAlchemy engine for AWS RDS PostgreSQL with enhanced optimizations
 # Configuration optimized for thread-safe multi-worker production deployment
 engine = create_optimized_engine(
     settings.DATABASE_URL,
@@ -25,7 +26,7 @@ engine = create_optimized_engine(
     # Core pool configuration for production workloads
     pool_size=40,          # SECURITY FIX: Increased from 25 to 40 - increased for better concurrency
     max_overflow=60,       # SECURITY FIX: Increased from 35 to 60 under high load
-    pool_pre_ping=True,    # Test connections before use (critical for Supabase)
+    pool_pre_ping=True,    # Test connections before use (critical for long-lived connections)
     pool_recycle=3600,     # Recycle connections every hour (network timeouts)
     pool_timeout=30,       # Wait time for connection from pool
 
@@ -89,15 +90,9 @@ def drop_tables():
         raise
 
 
-# Supabase client REMOVED - migrated to AWS RDS PostgreSQL (2025-10-07)
-# This legacy file delegates to app.core.database for all database operations
-# Authentication now uses Firebase Admin SDK (not Supabase Auth)
-# Database access uses SQLAlchemy directly with AWS RDS credentials
-#
-# MIGRATION NOTE:
-# - get_supabase() and init_supabase_client() are NO LONGER AVAILABLE
-# - Use get_db() for direct database access via SQLAlchemy
-# - All Supabase-specific code has been removed from app.core.database
+# Legacy Supabase client REMOVED - migrated to AWS RDS PostgreSQL (2025-10-07)
+# This module now delegates to SQLAlchemy sessions only. Authentication flows
+# rely on Firebase Admin SDK rather than Supabase Auth.
 
 
 def get_pool_status():

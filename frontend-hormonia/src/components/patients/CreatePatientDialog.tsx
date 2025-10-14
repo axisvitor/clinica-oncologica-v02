@@ -26,14 +26,34 @@ import {
 import { useToast } from '@/components/ui/use-toast'
 import { LoadingSpinner } from '../ui/loading-spinner'
 
+const normalizePhoneNumber = (value: string) => {
+  if (!value) return value
+  const digits = value.replace(/\D/g, '')
+  if (!digits) return value
+
+  if (value.trim().startsWith('+')) {
+    return `+${digits}`
+  }
+
+  // Default to Brazil country code if none provided
+  if (digits.length === 11) {
+    return `+55${digits}`
+  }
+
+  return `+${digits}`
+}
+
 const createPatientSchema = z.object({
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
-  phone: z.string().min(10, 'Telefone deve ter pelo menos 10 dígitos'),
+  phone: z.string()
+    .min(10, 'Telefone deve ter pelo menos 10 dígitos')
+    .transform(normalizePhoneNumber)
+    .refine((value) => /^\+[1-9]\d{9,14}$/.test(value), 'Telefone deve incluir código do país (ex: +5511999999999)'),
   email: z.string().email('Email inválido').optional().or(z.literal('')),
   birth_date: z.string().optional(),
   treatment_type: z.string().min(1, 'Selecione um tipo de tratamento'),
   treatment_start_date: z.string().optional(),
-  notes: z.string().optional()
+  doctor_notes: z.string().optional()
 })
 
 type CreatePatientFormData = z.infer<typeof createPatientSchema>
@@ -71,7 +91,7 @@ export function CreatePatientDialog({ open, onOpenChange }: CreatePatientDialogP
       if (data['email']) cleanData.email = data['email']
       if (data.birth_date) cleanData.birth_date = data.birth_date
       if (data.treatment_start_date) cleanData.treatment_start_date = data.treatment_start_date
-      if (data.notes) cleanData.notes = data.notes
+      if (data.doctor_notes) cleanData.doctor_notes = data.doctor_notes
 
       return apiClient.patients.create(cleanData)
     },
@@ -201,14 +221,14 @@ export function CreatePatientDialog({ open, onOpenChange }: CreatePatientDialogP
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="notes">Observações</Label>
-            <Textarea
-              id="notes"
-              placeholder="Observações sobre o paciente ou tratamento..."
-              rows={3}
-              {...register('notes')}
-            />
-          </div>
+              <Label htmlFor="doctor_notes">Observações</Label>
+              <Textarea
+                id="doctor_notes"
+                placeholder="Observações sobre o paciente ou tratamento..."
+                rows={3}
+                {...register('doctor_notes')}
+              />
+            </div>
 
           <DialogFooter>
             <Button

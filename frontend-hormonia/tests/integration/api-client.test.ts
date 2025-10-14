@@ -276,20 +276,20 @@ describe('ApiClient Integration Tests', () => {
       )
     })
 
-    it('should handle supabase token setting', () => {
+    it('should handle session token setting', () => {
       const session = {
-        access_token: 'supabase-token',
+        access_token: 'session-token',
         refresh_token: 'refresh-token'
       }
 
-      apiClient.setSupabaseToken(session)
+      apiClient.setSessionToken(session)
 
       // Verify internal auth token was set
-      expect(apiClient['authToken']).toBe('supabase-token')
+      expect(apiClient['authToken']).toBe('session-token')
     })
 
     it('should clear token when session is null', () => {
-      apiClient.setSupabaseToken(null)
+      apiClient.setSessionToken(null)
       expect(apiClient['authToken']).toBe(null)
     })
   })

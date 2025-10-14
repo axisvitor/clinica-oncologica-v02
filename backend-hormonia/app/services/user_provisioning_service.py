@@ -1,8 +1,8 @@
 """
-User Provisioning Service - Automatic user provisioning from Supabase Auth.
+User Provisioning Service - Automatic user provisioning from Firebase Auth.
 
 This service handles:
-- Auto-provisioning users from Supabase authentication
+- Auto-provisioning users from identity provider authentication (Firebase)
 - Email domain validation for access control
 - Default role assignment based on domain
 - Integration with existing UserRepository
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 class UserProvisioningService:
     """
-    Service for automatic user provisioning from Supabase Auth.
+    Service for automatic user provisioning from Firebase (or compatible) identity providers.
 
     Features:
     - Email domain whitelist validation
@@ -46,10 +46,10 @@ class UserProvisioningService:
     async def provision_user(
         self,
         email: str,
-        supabase_user: Dict[str, Any]
+        identity_profile: Dict[str, Any]
     ) -> Optional[User]:
         """
-        Provision user from Supabase authentication data.
+        Provision user from identity provider authentication data.
 
         Process:
         1. Validate email domain
@@ -59,7 +59,7 @@ class UserProvisioningService:
 
         Args:
             email: User email address
-            supabase_user: Supabase user data dict
+            identity_profile: Identity provider user data dict
 
         Returns:
             Created User object or None if provisioning fails
@@ -76,10 +76,10 @@ class UserProvisioningService:
             raise ValueError("Access denied. Only authorized medical professionals can access this system.")
 
         # Determine role
-        role = self.assign_default_role(email_lower, supabase_user)
+        role = self.assign_default_role(email_lower, identity_profile)
 
         # Extract metadata
-        metadata = supabase_user.get('user_metadata') or {}
+        metadata = identity_profile.get('user_metadata') or {}
         full_name = metadata.get('full_name') or email_lower
 
         # Generate secure random password (not used, but required by schema)
@@ -133,10 +133,10 @@ class UserProvisioningService:
     def assign_default_role(
         self,
         email: str,
-        supabase_user: Optional[Dict[str, Any]] = None
+        identity_profile: Optional[Dict[str, Any]] = None
     ) -> str:
         """
-        Assign default role based on email domain and Supabase metadata.
+        Assign default role based on email domain and identity metadata.
 
         Rules:
         - Admin role CANNOT be auto-provisioned (security)
@@ -145,23 +145,23 @@ class UserProvisioningService:
 
         Args:
             email: User email address
-            supabase_user: Optional Supabase user data with metadata
+            identity_profile: Optional identity user data with metadata
 
         Returns:
             Role string (always "doctor" for auto-provisioning)
         """
-        # Check Supabase metadata for role hint
-        if supabase_user:
-            metadata = supabase_user.get('user_metadata') or {}
-            supabase_role = metadata.get('role', '').lower()
+        # Check identity provider metadata for role hint
+        if identity_profile:
+            metadata = identity_profile.get('user_metadata') or {}
+            identity_role = metadata.get('role', '').lower()
 
             # Admin role cannot be auto-provisioned (security policy)
-            if supabase_role == 'admin':
+            if identity_role == 'admin':
                 logger.warning(f"Admin role requested for {email} - denied (manual creation required)")
                 return UserRole.DOCTOR  # Always downgrade to doctor
 
             # Patient role is explicitly rejected
-            if supabase_role == 'patient':
+            if identity_role == 'patient':
                 logger.error(f"Patient role attempt for {email} - patients don't have system access")
                 raise ValueError("Patients access the system via WhatsApp and Quiz links only.")
 
@@ -169,23 +169,23 @@ class UserProvisioningService:
         logger.info(f"Assigning default DOCTOR role to {email}")
         return UserRole.DOCTOR
 
-    async def update_user_from_supabase(
+    async def update_user_from_identity(
         self,
         user: User,
-        supabase_user: Dict[str, Any]
+        identity_profile: Dict[str, Any]
     ) -> User:
         """
-        Update existing user with latest Supabase data.
+        Update existing user with latest identity provider data.
 
         Args:
             user: Existing User object
-            supabase_user: Latest Supabase user data
+            identity_profile: Latest identity provider user data
 
         Returns:
             Updated User object
         """
         try:
-            metadata = supabase_user.get('user_metadata') or {}
+            metadata = identity_profile.get('user_metadata') or {}
 
             # Update full name if changed
             new_full_name = metadata.get('full_name')
@@ -199,8 +199,16 @@ class UserProvisioningService:
             return user
 
         except Exception as e:
-            logger.error(f"Failed to update user from Supabase: {e}")
+            logger.error(f"Failed to update user from identity provider: {e}")
             return user
+
+    # Backward compatibility alias
+    async def update_user_from_supabase(
+        self,
+        user: User,
+        supabase_user: Dict[str, Any]
+    ) -> User:
+        return await self.update_user_from_identity(user, supabase_user)
 
 
 # Global service instance (initialized with repository)

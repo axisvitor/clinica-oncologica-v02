@@ -303,9 +303,12 @@ class ApiClient {
     }
   }
 
-  setSupabaseToken(session: any) {
+  setSessionToken(session: { access_token?: string } | null) {
     if (session?.access_token) {
       this.setAuthToken(session.access_token)
+    } else {
+      this.setAuthToken(null)
+      this.clearCache()
     }
   }
 

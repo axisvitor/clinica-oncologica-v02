@@ -25,7 +25,7 @@ vi.mock('@/src/lib/api-client', () => ({
       logout: vi.fn()
     },
     setAuthToken: vi.fn(),
-    setSupabaseToken: vi.fn()
+    setSessionToken: vi.fn()
   }
 }))
 
@@ -169,7 +169,7 @@ describe('AuthContext - Comprehensive Tests', () => {
       })
 
       expect(mockAuth.signIn).toHaveBeenCalledWith('test@example.com', 'password123')
-      expect(mockApiClient.setSupabaseToken).toHaveBeenCalledWith(mockSession)
+      expect(mockApiClient.setSessionToken).toHaveBeenCalledWith(mockSession)
       expect(result.current.isAuthenticated).toBe(true)
     })
 
@@ -446,7 +446,7 @@ describe('AuthContext - Comprehensive Tests', () => {
       })
 
       await waitFor(() => {
-        expect(mockApiClient.setSupabaseToken).toHaveBeenCalledWith(newSession)
+        expect(mockApiClient.setSessionToken).toHaveBeenCalledWith(newSession)
       })
     })
   })

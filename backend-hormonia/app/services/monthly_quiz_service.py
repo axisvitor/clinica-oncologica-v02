@@ -429,13 +429,25 @@ class MonthlyQuizService:
             raise NotFoundError("Quiz session not found for this token")
 
         session = sessions[0]
+        metadata = session.session_metadata or {}
+
+        # Enforce single-use token policy
+        if (
+            getattr(self.config, "MONTHLY_QUIZ_SINGLE_USE_TOKENS", False)
+            and metadata.get("access_count", 0) > 0
+        ):
+            raise ValidationError("This quiz link has already been used")
+
+        # Enforce maximum access attempts per token
+        max_attempts = getattr(self.config, "MONTHLY_QUIZ_MAX_ATTEMPTS", 0)
+        if max_attempts and metadata.get("access_count", 0) >= max_attempts:
+            raise ValidationError("This quiz link is no longer available")
 
         # Check if already completed
         if session.status == 'completed':
             raise ValidationError("This quiz has already been completed")
 
         # Update access count and timestamp
-        metadata = session.session_metadata or {}
         metadata["access_count"] = metadata.get("access_count", 0) + 1
         if not metadata.get("accessed_at"):
             metadata["accessed_at"] = datetime.utcnow().isoformat()

@@ -1,10 +1,10 @@
 // API Configuration
-// The backend API URL - read from Vite env or fallback to production Railway URL
-export const API_BASE_URL = import.meta.env['VITE_API_BASE_URL'] || 'https://clinica-oncologica-v02-production.up.railway.app'
+// The backend API URL - read from Vite env or fallback to local development URL
+export const API_BASE_URL = import.meta.env['VITE_API_BASE_URL'] || 'http://localhost:8000'
 
 // WebSocket Configuration
-// The backend WebSocket URL - read from Vite env or fallback to production Railway WSS URL
-export const WS_BASE_URL = import.meta.env['VITE_WS_BASE_URL'] || 'wss://clinica-oncologica-v02-production.up.railway.app/ws'
+// The backend WebSocket URL - read from Vite env or fallback to local development WSS URL
+export const WS_BASE_URL = import.meta.env['VITE_WS_BASE_URL'] || 'ws://localhost:8000/ws'
 
 // WhatsApp Configuration
 export const WHATSAPP_INSTANCE_NAME = import.meta.env['VITE_WHATSAPP_INSTANCE_NAME'] || 'hormonia-instance'

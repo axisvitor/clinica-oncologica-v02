@@ -12,7 +12,7 @@ from enum import Enum
 from dataclasses import dataclass
 
 from app.config import settings
-from app.core.circuit_breaker import CircuitBreaker
+from app.services.circuit_breaker import CircuitBreaker
 from app.exceptions import ServiceError, ValidationError
 from app.services.encryption_service import get_encryption_service
 

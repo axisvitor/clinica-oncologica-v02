@@ -282,15 +282,15 @@ class SecureRoleDeterminer:
     def determine_role_from_email(
         self,
         email: str,
-        supabase_claims: Optional[Dict[str, Any]] = None,
+        identity_claims: Optional[Dict[str, Any]] = None,
         request_context: Optional[Dict[str, Any]] = None
     ) -> Tuple[UserRole, str]:
         """
-        Securely determine user role based on email domain and Supabase claims.
+        Securely determine user role based on email domain and custom identity claims.
 
         Args:
             email: User email address
-            supabase_claims: Claims from Supabase JWT token
+            identity_claims: Claims from identity provider token (Firebase)
             request_context: Additional request context for auditing
 
         Returns:
@@ -303,22 +303,22 @@ class SecureRoleDeterminer:
             "timestamp": datetime.utcnow(),
             "email": email,
             "domain": domain,
-            "supabase_claims": supabase_claims or {},
+            "identity_claims": identity_claims or {},
             "request_context": request_context or {},
         }
 
         try:
-            # Priority 1: Explicit role from Supabase user metadata
-            if supabase_claims:
-                explicit_role = self._get_role_from_supabase_claims(supabase_claims)
+            # Priority 1: Explicit role from custom claims
+            if identity_claims:
+                explicit_role = self._get_role_from_claims(identity_claims)
                 if explicit_role:
                     audit_entry.update({
                         "role_assigned": explicit_role,
-                        "assignment_reason": "supabase_explicit_claim",
+                        "assignment_reason": "identity_explicit_claim",
                         "security_level": "high"
                     })
                     self.audit_log.append(audit_entry)
-                    return explicit_role, "Assigned from Supabase user metadata"
+                    return explicit_role, "Assigned from identity provider claims"
 
             # Priority 2: Domain-based assignment with restrictions
             domain_role = self._get_role_from_domain(domain, email)
@@ -369,14 +369,12 @@ class SecureRoleDeterminer:
 
         return domain
 
-    def _get_role_from_supabase_claims(self, claims: Dict[str, Any]) -> Optional[UserRole]:
-        """Extract role from Supabase user metadata with validation."""
+    def _get_role_from_claims(self, claims: Dict[str, Any]) -> Optional[UserRole]:
+        """Extract role from identity claims with validation."""
         try:
-            # Check user_metadata first
-            user_metadata = claims.get("user_metadata", {})
-            app_metadata = claims.get("app_metadata", {})
+            user_metadata = claims.get("user_metadata", {}) or {}
+            app_metadata = claims.get("app_metadata", {}) or {}
 
-            # Look for role in various possible locations
             role_sources = [
                 user_metadata.get("role"),
                 user_metadata.get("user_role"),
@@ -397,18 +395,18 @@ class SecureRoleDeterminer:
                                 try:
                                     return UserRole[role_value.strip().upper()]
                                 except KeyError:
-                                    logger.warning(f"Invalid role in Supabase claims: {role_value}")
+                                    logger.warning(f"Invalid role in identity claims: {role_value}")
                                     continue
                         elif isinstance(role_value, UserRole):
                             return role_value
                     except (ValueError, KeyError):
-                        logger.warning(f"Invalid role in Supabase claims: {role_value}")
+                        logger.warning(f"Invalid role in identity claims: {role_value}")
                         continue
 
             return None
 
         except Exception as e:
-            logger.error(f"Error parsing Supabase claims: {e}")
+            logger.error(f"Error parsing identity claims: {e}")
             return None
 
     def _get_role_from_domain(self, domain: str, email: str) -> Optional[UserRole]:
@@ -684,9 +682,9 @@ role_determiner = SecureRoleDeterminer()
 permission_checker = PermissionChecker()
 
 # Export key functions for backward compatibility
-def determine_user_role(email: str, supabase_claims: Optional[Dict[str, Any]] = None) -> Tuple[UserRole, str]:
+def determine_user_role(email: str, identity_claims: Optional[Dict[str, Any]] = None) -> Tuple[UserRole, str]:
     """Backward compatible function for role determination."""
-    return role_determiner.determine_role_from_email(email, supabase_claims)
+    return role_determiner.determine_role_from_email(email, identity_claims)
 
 def has_permission(user_role: UserRole, permission: Permission) -> bool:
     """Backward compatible function for permission checking."""
