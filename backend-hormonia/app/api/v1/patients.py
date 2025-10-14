@@ -18,6 +18,7 @@ from app.models.patient import FlowState
 from app.models.user import User, UserRole
 from app.schemas.patient import PatientCreate, PatientUpdate, PatientResponse, PatientListResponse
 from app.services.patient import PatientService
+from app.exceptions import ValidationError as DomainValidationError
 from app.middleware.rls_middleware import (
     get_jwt_token,
     require_authentication,
@@ -342,6 +343,11 @@ async def create_patient(
             current_user=current_user
         )
         return PatientResponse.from_orm(patient)
+    except DomainValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e)
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=400,

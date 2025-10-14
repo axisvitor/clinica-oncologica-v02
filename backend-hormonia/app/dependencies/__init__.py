@@ -61,6 +61,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+from app.exceptions import HormoniaException
+
 def get_thread_safe_service_provider() -> Generator:
     """
     Get thread-safe ServiceProvider instance using the new session management.
@@ -112,6 +114,9 @@ def get_thread_safe_service_provider() -> Generator:
 
     except HTTPException:
         # Re-raise HTTP exceptions as-is
+        raise
+    except HormoniaException:
+        # Allow domain exceptions to bubble up so route handlers can translate appropriately
         raise
     except ImportError as import_error:
         logger.error(f"Import error in service provider creation: {import_error}")
