@@ -139,6 +139,27 @@ const adminNavItems: AdminNavItem[] = [
     ]
   },
   {
+    id: 'templates',
+    label: 'Construtores',
+    path: '/admin/templates',
+    icon: 'Folder',
+    requiredPermissions: ['admin.templates.read'],
+    children: [
+      {
+        id: 'templates-flows',
+        label: 'Flow Builder',
+        path: '/admin/templates/flows',
+        requiredPermissions: ['admin.templates.read']
+      },
+      {
+        id: 'templates-quiz',
+        label: 'Quiz Builder',
+        path: '/admin/templates/quiz',
+        requiredPermissions: ['admin.templates.read']
+      }
+    ]
+  },
+  {
     id: 'reports',
     label: 'Reports',
     path: '/admin/reports',
