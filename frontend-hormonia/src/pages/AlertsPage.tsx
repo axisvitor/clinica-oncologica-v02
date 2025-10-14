@@ -47,9 +47,9 @@ function useDebounce<T>(value: T, delay: number = 300): T {
 export function AlertsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [filters, setFilters] = useState({
-    severity: '',
-    acknowledged: '',
-    type: ''
+    severity: 'all',
+    acknowledged: 'all',
+    type: 'all'
   })
   const [showFilters, setShowFilters] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -67,8 +67,8 @@ export function AlertsPage() {
     queryFn: () => apiClient.alerts.list({
       page: currentPage,
       size: 20,
-      ...(filters.severity && { severity: filters.severity }),
-      ...(filters.acknowledged && { acknowledged: filters.acknowledged === 'true' })
+      ...(filters.severity !== 'all' && { severity: filters.severity }),
+      ...(filters.acknowledged !== 'all' && { acknowledged: filters.acknowledged === 'true' })
     })
   })
 
@@ -156,7 +156,7 @@ export function AlertsPage() {
     let alerts = alertsData?.items || []
 
     // Apply type filter (client-side since backend doesn't support it)
-    if (filters.type) {
+    if (filters.type !== 'all') {
       alerts = alerts.filter((alert: any) => alert.type === filters.type)
     }
 
@@ -182,6 +182,14 @@ export function AlertsPage() {
       high: alerts.filter((a: any) => a.severity === 'high').length
     }
   }, [alertsData])
+
+  const hasActiveFilters = useMemo(
+    () =>
+      (['severity', 'acknowledged', 'type'] as const).some(
+        (key) => filters[key] !== 'all'
+      ),
+    [filters]
+  )
 
   const handleSelectAll = () => {
     if (selectedAlerts.size === filteredAlerts.length) {
@@ -250,7 +258,7 @@ export function AlertsPage() {
   }
 
   const handleClearFilters = () => {
-    setFilters({ severity: '', acknowledged: '', type: '' })
+    setFilters({ severity: 'all', acknowledged: 'all', type: 'all' })
     setSearchQuery('')
     toast({
       title: 'Filtros limpos',
@@ -377,11 +385,11 @@ export function AlertsPage() {
                 >
                   <Filter className="mr-2 h-4 w-4" />
                   Filtros
-                  {(filters.severity || filters.acknowledged || filters.type) && (
+                  {hasActiveFilters && (
                     <Badge className="ml-2" variant="secondary">1</Badge>
                   )}
                 </Button>
-                {(filters.severity || filters.acknowledged || filters.type || searchQuery) && (
+                {(hasActiveFilters || searchQuery) && (
                   <Button variant="ghost" size="sm" onClick={handleClearFilters}>
                     <X className="mr-2 h-4 w-4" />
                     Limpar
@@ -402,7 +410,7 @@ export function AlertsPage() {
                       <SelectValue placeholder="Todas" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todas as severidades</SelectItem>
+                      <SelectItem value="all">Todas as severidades</SelectItem>
                       <SelectItem value="critical">Crítico</SelectItem>
                       <SelectItem value="high">Alto</SelectItem>
                       <SelectItem value="medium">Médio</SelectItem>
@@ -421,7 +429,7 @@ export function AlertsPage() {
                       <SelectValue placeholder="Todos" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todos os status</SelectItem>
+                      <SelectItem value="all">Todos os status</SelectItem>
                       <SelectItem value="false">Não reconhecidos</SelectItem>
                       <SelectItem value="true">Reconhecidos</SelectItem>
                     </SelectContent>
@@ -438,7 +446,7 @@ export function AlertsPage() {
                       <SelectValue placeholder="Todos" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todos os tipos</SelectItem>
+                      <SelectItem value="all">Todos os tipos</SelectItem>
                       <SelectItem value="medical">Médico</SelectItem>
                       <SelectItem value="engagement">Engajamento</SelectItem>
                       <SelectItem value="system">Sistema</SelectItem>
@@ -496,7 +504,7 @@ export function AlertsPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center py-12">
-                {searchQuery || filters.severity || filters.acknowledged || filters.type ? (
+                {searchQuery || hasActiveFilters ? (
                   <>
                     <AlertTriangle className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                     <p className="text-lg font-medium text-gray-900 mb-2">Nenhum alerta encontrado</p>
