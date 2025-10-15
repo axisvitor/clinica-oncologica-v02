@@ -13,7 +13,7 @@ const navigation = [
   { name: 'Quiz Mensal', href: '/monthly-quiz', icon: Calendar },
   { name: 'Relatórios', href: '/reports', icon: FileText },
   { name: 'Alertas', href: '/alerts', icon: AlertTriangle },
-  { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+  { name: 'Análises', href: '/analytics', icon: BarChart3 },
   { name: 'Configurações', href: '/settings', icon: Settings }
 ]
 

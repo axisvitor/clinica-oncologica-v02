@@ -47,28 +47,28 @@ const calculatePasswordStrength = (password: string): PasswordStrength => {
   const suggestions: string[] = []
 
   if (password.length < 8) {
-    feedback.push('Password too short')
-    suggestions.push('Use at least 8 characters')
+    feedback.push('Senha muito curta')
+    suggestions.push('Use pelo menos 8 caracteres')
   }
 
   if (!/[a-z]/.test(password)) {
-    feedback.push('Missing lowercase letters')
-    suggestions.push('Add lowercase letters')
+    feedback.push('Faltam letras minúsculas')
+    suggestions.push('Adicione letras minúsculas')
   }
 
   if (!/[A-Z]/.test(password)) {
-    feedback.push('Missing uppercase letters')
-    suggestions.push('Add uppercase letters')
+    feedback.push('Faltam letras maiúsculas')
+    suggestions.push('Adicione letras maiúsculas')
   }
 
   if (!/[0-9]/.test(password)) {
-    feedback.push('Missing numbers')
-    suggestions.push('Add numbers')
+    feedback.push('Faltam números')
+    suggestions.push('Adicione números')
   }
 
   if (!/[^A-Za-z0-9]/.test(password)) {
-    feedback.push('Missing special characters')
-    suggestions.push('Add special characters (!@#$%^&*)')
+    feedback.push('Faltam caracteres especiais')
+    suggestions.push('Adicione caracteres especiais (!@#$%^&*)')
   }
 
   const isValid = score >= 3 && password.length >= 8
@@ -80,17 +80,17 @@ const calculatePasswordStrength = (password: string): PasswordStrength => {
 const adminLoginSchema = z.object({
   email: z
     .string()
-    .min(1, 'Email is required')
-    .email('Invalid email format'),
+    .min(1, 'Email é obrigatório')
+    .email('Formato de email inválido'),
   password: z
     .string()
-    .min(1, 'Password is required')
-    .min(8, 'Password must be at least 8 characters'),
+    .min(1, 'Senha é obrigatória')
+    .min(8, 'Senha deve ter pelo menos 8 caracteres'),
   twoFactorCode: z
     .string()
     .optional()
     .refine((code) => !code || /^\d{6}$/.test(code), {
-      message: '2FA code must be 6 digits'
+      message: 'Código 2FA deve ter 6 dígitos'
     }),
   rememberMe: z.boolean().optional()
 })
@@ -196,17 +196,17 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
   const getPasswordStrengthText = (score: number): string => {
     switch (score) {
       case 0:
-        return 'Very Weak'
+        return 'Muito Fraca'
       case 1:
-        return 'Weak'
+        return 'Fraca'
       case 2:
-        return 'Fair'
+        return 'Razoável'
       case 3:
-        return 'Good'
+        return 'Boa'
       case 4:
-        return 'Strong'
+        return 'Forte'
       default:
-        return 'Unknown'
+        return 'Desconhecida'
     }
   }
 
@@ -225,7 +225,7 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
       })
 
       if (!response.success) {
-        throw new AdminAuthError(response.error || 'Login failed')
+        throw new AdminAuthError(response.error || 'Falha no login')
       }
     } catch (error) {
       logger.error('Login error', { error })
@@ -239,7 +239,7 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
           setTimeRemaining(lockoutTime)
         }
       } else {
-        setLoginError('An unexpected error occurred. Please try again.')
+        setLoginError('Ocorreu um erro inesperado. Tente novamente.')
       }
     }
   }, [onLogin, isLocked, clearErrors, lockoutTime])
@@ -259,9 +259,9 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
           <div className="flex items-center justify-center mb-4">
             <Shield className="h-12 w-12 text-blue-600" />
           </div>
-          <CardTitle className="text-2xl text-center">Admin Portal</CardTitle>
+          <CardTitle className="text-2xl text-center">Portal Administrativo</CardTitle>
           <CardDescription className="text-center">
-            Sign in to access the administration panel
+            Entre para acessar o painel administrativo
           </CardDescription>
         </CardHeader>
 
@@ -271,9 +271,9 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
             <Alert className="border-red-200 bg-red-50">
               <Clock className="h-4 w-4 text-red-600" />
               <AlertDescription className="text-red-800">
-                Account temporarily locked due to multiple failed login attempts.
+                Conta temporariamente bloqueada devido a múltiplas tentativas de login falhadas.
                 <br />
-                Try again in: {formatLockoutTime(timeRemaining)}
+                Tente novamente em: {formatLockoutTime(timeRemaining)}
               </AlertDescription>
             </Alert>
           )}
@@ -293,7 +293,7 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
             <Alert className="border-yellow-200 bg-yellow-50">
               <AlertCircle className="h-4 w-4 text-yellow-600" />
               <AlertDescription className="text-yellow-800">
-                Warning: {remainingAttempts} login attempt{remainingAttempts !== 1 ? 's' : ''} remaining
+                Aviso: {remainingAttempts} {remainingAttempts !== 1 ? 'tentativas de login restantes' : 'tentativa de login restante'}
               </AlertDescription>
             </Alert>
           )}
@@ -301,7 +301,7 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {/* Email Field */}
             <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
+              <Label htmlFor="email">Endereço de Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -317,7 +317,7 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
 
             {/* Password Field */}
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">Senha</Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -348,7 +348,7 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
               {passwordStrength && watchedPassword && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-600">Password Strength:</span>
+                    <span className="text-xs text-gray-600">Força da Senha:</span>
                     <span className={`text-xs font-medium ${
                       passwordStrength.score >= 3 ? 'text-green-600' :
                       passwordStrength.score >= 2 ? 'text-yellow-600' : 'text-red-600'
@@ -372,7 +372,7 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
             {/* Two-Factor Authentication Code */}
             {requiresTwoFactor && (
               <div className="space-y-2">
-                <Label htmlFor="twoFactorCode">2FA Code</Label>
+                <Label htmlFor="twoFactorCode">Código 2FA</Label>
                 <Input
                   id="twoFactorCode"
                   type="text"
@@ -397,7 +397,7 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
                 onCheckedChange={(checked) => setValue('rememberMe', !!checked)}
               />
               <Label htmlFor="rememberMe" className="text-sm text-gray-600">
-                Remember me for 30 days
+                Lembrar-me por 30 dias
               </Label>
             </div>
 
@@ -410,10 +410,10 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
               {isSubmitting ? (
                 <div className="flex items-center space-x-2">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Signing in...</span>
+                  <span>Entrando...</span>
                 </div>
               ) : (
-                'Sign In'
+                'Entrar'
               )}
             </Button>
 
@@ -426,7 +426,7 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
                   disabled={!watchedEmail || isLocked || isLoading}
                   className="text-sm text-blue-600 hover:text-blue-500 disabled:text-gray-400 disabled:cursor-not-allowed"
                 >
-                  Forgot your password?
+                  Esqueceu sua senha?
                 </button>
               </div>
             )}
@@ -437,11 +437,11 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
             <div className="flex items-start space-x-2">
               <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
               <div className="text-xs text-gray-600">
-                <p className="font-medium">Secure Login</p>
+                <p className="font-medium">Login Seguro</p>
                 <ul className="mt-1 space-y-1">
-                  <li>• End-to-end encryption</li>
-                  <li>• Session monitoring</li>
-                  <li>• Failed attempt protection</li>
+                  <li>• Criptografia ponta a ponta</li>
+                  <li>• Monitoramento de sessão</li>
+                  <li>• Proteção contra tentativas falhadas</li>
                 </ul>
               </div>
             </div>

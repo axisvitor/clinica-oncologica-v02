@@ -265,7 +265,7 @@ export default function AdminPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">CPU Usage</p>
+                    <p className="text-sm font-medium text-gray-600">Uso de CPU</p>
                     {statsLoading ? (
                       <Skeleton className="h-10 w-20 mt-2" />
                     ) : (
@@ -295,7 +295,7 @@ export default function AdminPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Memory Usage</p>
+                    <p className="text-sm font-medium text-gray-600">Uso de Memória</p>
                     {statsLoading ? (
                       <Skeleton className="h-10 w-20 mt-2" />
                     ) : (
@@ -325,7 +325,7 @@ export default function AdminPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Disk Usage</p>
+                    <p className="text-sm font-medium text-gray-600">Uso de Disco</p>
                     {statsLoading ? (
                       <Skeleton className="h-10 w-20 mt-2" />
                     ) : (
@@ -347,7 +347,7 @@ export default function AdminPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">System Uptime</p>
+                    <p className="text-sm font-medium text-gray-600">Tempo de Atividade</p>
                     {statsLoading ? (
                       <Skeleton className="h-10 w-20 mt-2" />
                     ) : (
@@ -371,7 +371,7 @@ export default function AdminPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Total Users</p>
+                    <p className="text-sm font-medium text-gray-600">Total de Usuários</p>
                     {statsLoading ? (
                       <Skeleton className="h-10 w-16 mt-2" />
                     ) : (
@@ -392,7 +392,7 @@ export default function AdminPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Active Users (24h)</p>
+                    <p className="text-sm font-medium text-gray-600">Usuários Ativos (24h)</p>
                     {statsLoading ? (
                       <Skeleton className="h-10 w-16 mt-2" />
                     ) : (
@@ -413,7 +413,7 @@ export default function AdminPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Admins</p>
+                    <p className="text-sm font-medium text-gray-600">Administradores</p>
                     {statsLoading ? (
                       <Skeleton className="h-10 w-12 mt-2" />
                     ) : (
@@ -439,7 +439,7 @@ export default function AdminPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Total Records</p>
+                    <p className="text-sm font-medium text-gray-600">Total de Registros</p>
                     {statsLoading ? (
                       <Skeleton className="h-10 w-16 mt-2" />
                     ) : (
@@ -460,7 +460,7 @@ export default function AdminPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Patients</p>
+                    <p className="text-sm font-medium text-gray-600">Pacientes</p>
                     {statsLoading ? (
                       <Skeleton className="h-10 w-16 mt-2" />
                     ) : (
@@ -481,7 +481,7 @@ export default function AdminPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">DB Users</p>
+                    <p className="text-sm font-medium text-gray-600">Usuários no BD</p>
                     {statsLoading ? (
                       <Skeleton className="h-10 w-16 mt-2" />
                     ) : (
@@ -502,7 +502,7 @@ export default function AdminPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">DB Connections</p>
+                    <p className="text-sm font-medium text-gray-600">Conexões do BD</p>
                     {statsLoading ? (
                       <Skeleton className="h-10 w-12 mt-2" />
                     ) : (
