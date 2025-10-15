@@ -639,14 +639,9 @@ class ApiClient {
   }
 
   // Auth endpoints
+  // Note: Local authentication (email/password) has been removed.
+  // Use Firebase Authentication on the client side instead.
   auth = {
-    login: async (_credentials: { email: string; password: string }) => {
-      throw new ApiError(410, { message: 'Local authentication is disabled. Use Firebase Auth on the client.' }, 'Local authentication is disabled. Use Firebase Auth on the client.')
-    },
-
-    refresh: async (_refreshToken: string) => {
-      throw new ApiError(410, { message: 'Local token refresh is disabled. Firebase handles session refresh automatically.' }, 'Local token refresh is disabled. Firebase handles session refresh automatically.')
-    },
 
     /**
      * Create backend session with Firebase token
