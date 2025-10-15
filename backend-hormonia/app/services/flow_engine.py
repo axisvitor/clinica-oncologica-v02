@@ -139,6 +139,22 @@ class FlowEngine(AsyncFlowEngineBase):
         self.ai_context_builder = get_context_builder()
         self.humanization_config = get_humanization_config()
 
+        # Redis client for caching (optional)
+        self.redis_client = None
+        try:
+            from app.config import settings
+            import redis.asyncio as redis
+            self.redis_client = redis.from_url(
+                settings.REDIS_URL,
+                decode_responses=True,
+                socket_connect_timeout=5,
+                socket_timeout=5,
+                max_connections=10
+            )
+            logger.info("FlowEngine initialized with Redis cache support")
+        except Exception as e:
+            logger.warning(f"FlowEngine initialized without Redis cache: {e}")
+
         logger.info("FlowEngine initialized with memory leak protection")
 
     def _get_flow_type_from_state(self, flow_state: PatientFlowState) -> str:
@@ -232,6 +248,38 @@ class FlowEngine(AsyncFlowEngineBase):
                 logger.warning(f"Patient {patient_id} not found for humanization")
                 return content
 
+            # Check patient-level opt-out flags
+            # Use patient_data (mapped to 'metadata' column) or patient_metadata
+            metadata = patient.patient_data or patient.patient_metadata or {}
+            if metadata.get('no_ai_messages', False):
+                logger.info(f"Patient {patient_id} has AI restriction (no_ai_messages) - skipping humanization")
+                return content
+            if metadata.get('critical_condition', False):
+                logger.info(f"Patient {patient_id} in critical condition - skipping AI humanization")
+                return content
+
+            # Check cache first (deterministic caching)
+            import hashlib
+            cache_key = None
+            cached_humanized = None
+
+            try:
+                # Generate cache key based on patient, content, type, and day
+                content_hash = hashlib.md5(content.encode('utf-8')).hexdigest()[:12]
+                treatment_day = getattr(patient, 'current_day', 1)
+                cache_key = f"ai:humanized:{patient_id}:{content_hash}:{message_type}:{treatment_day}"
+
+                # Try to get from cache (Redis)
+                if hasattr(self, 'redis_client') and self.redis_client:
+                    cached_humanized = await self.redis_client.get(cache_key)
+                    if cached_humanized:
+                        logger.info(f"Cache HIT for humanization: {cache_key}")
+                        return cached_humanized
+                    else:
+                        logger.debug(f"Cache MISS for humanization: {cache_key}")
+            except Exception as e:
+                logger.warning(f"Cache read error for humanization: {e}")
+
             # Get recent messages for context
             recent_messages = self.context_builder._get_recent_messages(patient_id)
 
@@ -269,6 +317,11 @@ class FlowEngine(AsyncFlowEngineBase):
                     # Extract humanized content
                     humanized_content = humanized_response.humanized_message
 
+                    # POST-GENERATION SAFETY CHECK: Verify no critical keywords were introduced
+                    if not should_humanize_message(humanized_content):
+                        logger.warning(f"AI output contains critical keywords - using original content for patient {patient_id}")
+                        return content
+
                     # Log successful humanization
                     logger.info(f"Message successfully humanized for patient {patient_id} (attempt {attempt + 1})")
 
@@ -280,6 +333,14 @@ class FlowEngine(AsyncFlowEngineBase):
                         "attempt_count": attempt + 1,
                         "personalization_notes": getattr(humanized_response, 'personalization_notes', [])
                     }
+
+                    # Cache the humanized content (24 hours TTL)
+                    if cache_key and hasattr(self, 'redis_client') and self.redis_client:
+                        try:
+                            await self.redis_client.setex(cache_key, 86400, humanized_content)  # 24h TTL
+                            logger.debug(f"Cached humanized content: {cache_key}")
+                        except Exception as e:
+                            logger.warning(f"Cache write error for humanization: {e}")
 
                     return humanized_content
 
