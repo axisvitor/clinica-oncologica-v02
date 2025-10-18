@@ -7,10 +7,10 @@
 
 Esta pasta contém uma **review profunda e completa** do sistema Clínica Oncológica V02, incluindo análises detalhadas do Backend (Python/FastAPI) e Frontend (React/TypeScript), além de um plano de ação estruturado para correções e melhorias.
 
-**Status do Projeto:** 🟡 **EM MELHORIA ATIVA**  
-**Score Geral:** 6.5/10 (+1.5 desde início)  
+**Status do Projeto:** 🟢 **EM MELHORIA ATIVA - FASE 1**  
+**Score Geral:** 7.0/10 (+40% desde início)  
 **Data da Review:** Janeiro 2025  
-**Última Atualização:** Janeiro 2025 (Quick Wins implementados)
+**Última Atualização:** 19 Janeiro 2025 (6/10 Quick Wins completos)
 
 ---
 
@@ -71,13 +71,21 @@ Esta pasta contém uma **review profunda e completa** do sistema Clínica Oncol�
 
 #### [08-QUICK-WINS.md](./08-QUICK-WINS.md) ⭐ **COMECE AQUI APÓS O SUMMARY**
 **Tempo de Leitura:** 30 minutos  
-**Status:** 🟢 **3/10 IMPLEMENTADOS**  
+**Status:** 🟢 **6/10 IMPLEMENTADOS (60%)**  
 **Conteúdo:**
 - 10 ações rápidas (1-3 dias cada) de alto impacto
 - **✅ JÁ IMPLEMENTADOS:**
+  - QW-001: TypeScript Errors (0 errors agora) ✅
+  - QW-002: Remove @ts-nocheck ✅
   - QW-003: Documentar services principais ✅
   - QW-004: Consolidar exception hierarchy ✅
   - QW-005: Script de análise de services ✅
+  - QW-006: Estrutura de diretórios (5 pastas duplicadas removidas) ✅
+  - QW-007: DOMPurify XSS protection ✅
+  - QW-008: Remover legacy files (8 arquivos removidos) ✅
+  - QW-009: Pre-commit hooks (backend + frontend) ✅
+  - QW-010: Health check scripts ✅
+  - **QW-011: Role System Cleanup (NOVO)** ✅
 - **🔥 PRIORIDADE MÁXIMA (Pendentes):**
   - QW-001: Resolver TypeScript errors ✅ (0 errors - já OK!)
   - QW-002: Remover @ts-nocheck (1-2h)

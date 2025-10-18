@@ -14,6 +14,13 @@ Este é um sistema de acompanhamento automatizado de pacientes oncológicos via 
 
 ## 📐 Princípios de Desenvolvimento
 
+### 0. Organização
+- Mantenha o código organizado e estruturado
+- Use pastas e arquivos bem nomeados
+- Evite arquivos muito grandes e complexos
+- _**Nunca deixar de marcar as tarefas dos Checklist realizadas organizados e estruturados**
+- _**Sempre atualizar o README.md com informações relevantes**
+
 ### 1. Qualidade de Código
 - Sempre escreva código limpo, legível e bem documentado
 - Siga os princípios SOLID
