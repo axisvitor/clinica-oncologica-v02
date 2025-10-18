@@ -157,7 +157,7 @@ export interface TrendDataPoint {
 }
 
 /**
- * Response schema for GET /api/v1/analytics/treatment-distribution
+ * Response schema for GET /api/v2/analytics/treatment-distribution
  */
 export interface TreatmentDistributionResponse {
   /** Selected time period (7d, 30d, 90d, all) */
@@ -614,7 +614,7 @@ export const CACHE_TTL = {
  */
 export const ENDPOINTS = {
   SYSTEM_STATS: '/api/v1/admin/system-stats',
-  TREATMENT_DISTRIBUTION: '/api/v1/analytics/treatment-distribution',
+  TREATMENT_DISTRIBUTION: '/api/v2/analytics/treatment-distribution',
   RISK_ASSESSMENTS: '/api/v1/physician/risk-assessments',
   MEDICO_DASHBOARD: '/api/v1/medico/dashboard-stats',
 } as const

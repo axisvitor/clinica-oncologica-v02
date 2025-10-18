@@ -137,39 +137,38 @@ class FlowEngineAIIntegration:
             return message_content
 
         try:
-            # Preparar contexto do paciente
-            patient_context = {
-                'name': patient.name,
-                'treatment_day': getattr(patient, 'current_day', 1),
-                'treatment_type': getattr(patient, 'treatment_type', 'geral'),
-                'last_interaction': context.get('last_interaction') if context else None,
-                'sentiment': context.get('last_sentiment', 'neutral') if context else 'neutral'
-            }
-
-            # Determinar tom baseado no tipo de mensagem
-            tone_mapping = {
-                'welcome': 'warm',
-                'daily_checkin': 'caring',
-                'motivational': 'encouraging',
-                'educational': 'informative',
-                'quiz_reminder': 'friendly',
-                'thank_you': 'grateful',
-                'feedback_request': 'respectful'
-            }
-            tone = tone_mapping.get(message_type, 'supportive')
-
-            # Humanizar com timeout
+            # Importar PatientContext e config
+            from app.services.ai import PatientContext
+            from app.config import settings
             import asyncio
-            humanized = await asyncio.wait_for(
-                self.ai_humanizer.humanize_message(
-                    base_message=message_content,
-                    patient_name=patient_context['name'],
-                    treatment_day=patient_context['treatment_day'],
-                    sentiment=patient_context['sentiment'],
-                    tone=tone
-                ),
-                timeout=5.0  # 5 segundos timeout
+
+            # Construir PatientContext usando a assinatura correta do AIHumanizer
+            patient_context = PatientContext(
+                patient_id=str(patient.id),
+                name=patient.name,
+                treatment_type=getattr(patient, 'treatment_type', 'general'),
+                treatment_day=getattr(patient, 'current_day', 1),
+                age=getattr(patient, 'age', None),
+                recent_responses=[],  # Pode ser populado do histórico se disponível
+                medical_history={},
+                preferences={}
             )
+
+            # Usar timeout da configuração global
+            timeout = settings.AI_HUMANIZATION_TIMEOUT
+
+            # Humanizar usando a assinatura correta do AIHumanizer
+            humanized_response = await asyncio.wait_for(
+                self.ai_humanizer.humanize_message(
+                    template_message=message_content,
+                    patient_context=patient_context,
+                    message_type=message_type
+                ),
+                timeout=timeout
+            )
+
+            # Extrair mensagem humanizada da resposta
+            humanized = humanized_response.humanized_message if hasattr(humanized_response, 'humanized_message') else str(humanized_response)
 
             # Validação final - garantir que não alterou conteúdo crítico
             if self._contains_critical_content(humanized):

@@ -1,12 +1,9 @@
 """
 Router registration for the FastAPI application.
 
-Centralizes all router inclusion logic including:
-- Core API routers (auth, patients, messages, etc.)
-- Enhanced API routers (advanced functionality)
-- WebSocket routers
-- Conditional routers (WhatsApp integration)
-- Health check endpoints
+Centralizes all router inclusion logic. This file has been refactored
+to disable all V1 endpoints, preparing for their complete removal.
+Only V2 and essential health/monitoring endpoints are now active.
 """
 from datetime import datetime
 from fastapi import FastAPI
@@ -25,292 +22,144 @@ def register_routers(app: FastAPI) -> None:
         app: FastAPI application instance
     """
     logger = get_logger(__name__)
+    logger.info("Loading router registration. V1 endpoints are deprecated and disabled.")
 
-    # MINIMAL MODE PERMANENTLY DISABLED - Always use full router registration
-    # This ensures proper authentication with Firebase and ServiceProvider dependencies
-    logger.info("Loading full router registration (minimal mode disabled)")
+    # === V1 IMPORTS (DISABLED) ===
+    # logger.info("V1 router imports are disabled.")
+    # try:
+    #     from app.api.v1 import (
+    #         auth, patients, messages, flows, quiz, quiz_responses, reports, alerts, webhooks,
+    #         tasks, localization, analytics, dashboard, docs, health, performance,
+    #         platform_sync, template_management, template_versioning, monthly_quiz, monthly_quiz_public, ai, metrics, debug, config, admin_users, admin_roles,
+    #         health_rls, upload, medico, physician, system, templates_crud, worker_health
+    #     )
+    #     from app.api.v1.health import router as comprehensive_health_router
+    #     from app.routers.quiz_auth import router as quiz_auth
+    #     from app.routers.auth_session import router as auth_session
+    #     from app.routers.health import router as health_monitoring
+    # except Exception as e:
+    #     logger.error(f"An error occurred during V1 router import (which is expected as they are disabled): {e}")
 
-    # Import all routers - FAIL FAST if imports fail (no fallback)
-    try:
-        from app.api.v1 import (
-            auth, patients, messages, flows, quiz, reports, alerts, webhooks,
-            tasks, localization, analytics, dashboard, docs, health, performance,
-            platform_sync, template_management, template_versioning, monthly_quiz, monthly_quiz_public, ai, metrics, debug, config, admin_users, admin_roles,
-            health_rls, upload, medico, physician, system, templates_crud  # RLS endpoints, upload, medico dashboard, physician endpoints, system management, and templates CRUD
-        )
-        from app.api.v1.health import router as comprehensive_health_router
-        from app.routers.quiz_auth import router as quiz_auth
-        from app.routers.auth_session import router as auth_session
-        from app.routers.health import router as health_monitoring  # New monitoring health endpoints
-        logger.info("✓ All router imports successful")
-    except Exception as e:
-        import traceback
-        logger.critical(f"FATAL: Router import failed - application cannot start safely")
-        logger.critical(f"Error: {e}")
-        logger.critical(f"Traceback:\n{traceback.format_exc()}")
-        raise RuntimeError("Application startup failed: routers could not be imported") from e
-
-    # Notifications and user preferences are now integrated in auth.py
+    # === ESSENTIAL & V2 IMPORTS ===
+    from app.routers.health import router as health_monitoring
+    from app.routers.auth_session import router as auth_session
     from app.monitoring import prometheus_exporters
-    from app.api.v1 import (
-        enhanced_analytics, enhanced_messages, enhanced_quiz,
-        enhanced_reports, enhanced_monitoring, monitoring
-    )
-    # TODO: Restore when app.coordination module is implemented
-    # from app.api.endpoints import hive_mind
-    from app.api import websockets, enhanced_websockets
-    from app.api.v1.production_health import router as prod_health_router
-
-    # Include API routers - Core functionality
-    app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
-
-    # Session-based authentication (Firebase + Redis)
-    app.include_router(auth_session, prefix="/api/v1", tags=["Session Authentication"])
-    logger.info("✓ Session authentication endpoints registered")
-    
-    # Test endpoint for debugging
     try:
-        from app.routers.test_endpoint import router as test_router
-        app.include_router(test_router, prefix="/api/v1", tags=["Test"])
-        logger.info("✓ Test endpoints registered")
-    except ImportError:
-        logger.warning("Test endpoints not available")
+        from app.api.v2 import api_v2_router
+        logger.info("✓ API v2 router imported successfully.")
+    except ImportError as e:
+        logger.critical(f"FATAL: API v2 could not be imported. Application cannot start. Error: {e}")
+        raise RuntimeError("Application startup failed: API v2 router could not be imported") from e
 
-    # Medico (Doctor) dashboard and stats endpoints
-    app.include_router(medico.router, prefix="/api/v1", tags=["Medico"])
-    logger.info("✓ Medico dashboard endpoints registered")
-
-    # Physician endpoints - optimized bulk operations
-    app.include_router(physician.router, prefix="/api/v1", tags=["Physician"])
-    logger.info("✓ Physician endpoints registered (risk assessments, bulk ops)")
-
+    # === ESSENTIAL ROUTERS (ACTIVE) ===
     # Monitoring health endpoints
     app.include_router(health_monitoring, tags=["Health"])
     logger.info("✓ Health monitoring endpoints registered (/health/live, /health/ready, /health/metrics)")
 
-    # Admin endpoints - protected by admin permissions
-    # Import admin module router which includes all admin sub-routers
-    from app.api.v1.admin import admin_router
-    app.include_router(admin_router, prefix="/api/v1/admin", tags=["Admin"])
+    # Include Prometheus metrics router
+    app.include_router(prometheus_exporters.router)
+    logger.info("✓ Prometheus metrics exporter registered (/metrics)")
 
-    # Keep legacy admin_roles router for backward compatibility
-    app.include_router(admin_roles.router, prefix="/api/v1/admin/roles", tags=["Admin Roles"])
-    app.include_router(patients.router, prefix="/api/v1/patients", tags=["Patients"])
-    app.include_router(messages.router, prefix="/api/v1/messages", tags=["Messages"])
-    app.include_router(flows.router, prefix="/api/v1/flows", tags=["Flows"])
-    app.include_router(upload.router, prefix="/api/v1/upload", tags=["Upload"])
-    app.include_router(template_management.router, prefix="/api/v1/template-management", tags=["Template Management"])
-    app.include_router(template_versioning.router, prefix="/api/v1/flows/templates", tags=["Template Versioning"])
-    app.include_router(templates_crud.router, prefix="/api/v1", tags=["Templates CRUD"])  # Frontend integration: /templates/flows, /templates/quiz
-    app.include_router(quiz.router, prefix="/api/v1/quiz", tags=["Quiz"])
-    app.include_router(monthly_quiz.router, prefix="/api/v1/monthly-quiz", tags=["Monthly Quiz"])
+    # Session authentication endpoints
+    app.include_router(auth_session, tags=["Session Authentication"])
+    logger.info("✓ Session authentication endpoints registered (/session)")
 
-    # Public monthly quiz endpoints (NO authentication required)
-    app.include_router(monthly_quiz_public.router, prefix="/api/v1/monthly-quiz-public", tags=["Monthly Quiz Public"])
-
-    # Quiz httpOnly cookie authentication (P0 Security Fix - CVSS 8.1 resolved)
-    app.include_router(quiz_auth, tags=["Quiz Authentication"])
-    logger.info("✓ Quiz authentication endpoints registered (httpOnly cookies)")
-
-    app.include_router(ai.router, prefix="/api/v1", tags=["AI Services"])
-    app.include_router(metrics.router, prefix="/api/v1", tags=["Healthcare Metrics"])
-    app.include_router(reports.router, prefix="/api/v1/reports", tags=["Reports"])
-    app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytics"])
-    app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
-    app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["Alerts"])
-    app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["Webhooks"])
-    app.include_router(tasks.router, prefix="/api/v1", tags=["Tasks"])
-    app.include_router(localization.router, prefix="/api/v1/localization", tags=["Localization"])
-    app.include_router(docs.router, prefix="/api/v1/docs", tags=["Documentation"])
-    app.include_router(health.router, prefix="/api/v1", tags=["Health"])
-
-    # Enhanced health endpoints with CORS diagnostics
-    from app.api.v1 import enhanced_health
-    app.include_router(enhanced_health.router, prefix="/api/v1", tags=["Health"])
-    logger.info("✓ Enhanced health endpoints registered")
-
-    # Configuration endpoint at /api/v1/config (primary)
-    app.include_router(config.router, prefix="/api/v1", tags=["Configuration"])
-
-    # Add route alias at /config for frontend compatibility
-    app.include_router(config.router, prefix="", tags=["Configuration"])
-
-    # Add debug endpoints (only in development or when explicitly enabled)
-    if settings.DEBUG or getattr(settings, 'ENABLE_DEBUG_ENDPOINTS', False):
-        app.include_router(debug.router, prefix="/api/v1/debug", tags=["Debug"])
-        logger.info("✓ Debug endpoints enabled")
-
-    # Add comprehensive health checks for Railway deployment
-    app.include_router(comprehensive_health_router, prefix="/api/v1", tags=["Health"])
-    app.include_router(prod_health_router, tags=["Health"])
-
-    # Add RLS endpoints (Phase 1 - testing in parallel) - TEMPORARILY DISABLED
-    # app.include_router(patients_rls.router, prefix="/api/v1", tags=["Patients RLS"])
-    # app.include_router(health_rls.router, prefix="/api/v1", tags=["Health RLS"])
-    # logger.info("✓ RLS endpoints registered (Phase 1)")
-
-    # Add database health and monitoring endpoints
-    from app.api.v1 import database_health
-    app.include_router(database_health.router, prefix="/api/v1", tags=["Database Health"])
-    logger.info("✓ Database health endpoints registered")
-
-    # Add system management endpoints
-    app.include_router(system.router, prefix="/api/v1/system", tags=["System Management"])
-    logger.info("✓ System management endpoints registered")
-
-    # Add Redis health endpoint
+    # Redis health endpoint (kept from V1 as it's a critical health check)
     @app.get("/api/v1/redis/health", tags=["Health"])
     async def redis_health():
-        """
-        Check Redis connection status and statistics.
-
-        Returns health status, connection info, memory usage, and cache statistics.
-        """
-        # Get Redis URL from settings (required)
         redis_url = settings.REDIS_URL
-
-        health_data = {
-            "timestamp": datetime.utcnow().isoformat() + 'Z',
-            "redis_url": mask_sensitive_url(redis_url),
-            "status": "unknown",
-            "connection": {},
-            "memory": {},
-            "statistics": {}
-        }
-
+        health_data = {"timestamp": datetime.utcnow().isoformat() + 'Z', "redis_url": mask_sensitive_url(redis_url), "status": "unknown"}
         redis_client = None
         try:
-            # Connect to Redis
-            redis_client = redis.from_url(
-                redis_url,
-                decode_responses=True,
-                socket_connect_timeout=3,
-                socket_timeout=3,
-                retry_on_timeout=True
-            )
-
-            # Test connection
+            redis_client = redis.from_url(redis_url, decode_responses=True, socket_connect_timeout=3)
             await redis_client.ping()
-
-            # Get server info
-            server_info = await redis_client.info("server")
-            health_data["connection"] = {
-                "status": "connected",
-                "redis_version": server_info.get("redis_version", "unknown"),
-                "uptime_days": server_info.get("uptime_in_days", 0),
-                "connected_clients": server_info.get("connected_clients", 0)
-            }
-
-            # Get memory info
-            memory_info = await redis_client.info("memory")
-            health_data["memory"] = {
-                "used_memory_human": memory_info.get("used_memory_human", "unknown"),
-                "used_memory_peak_human": memory_info.get("used_memory_peak_human", "unknown"),
-                "maxmemory_human": memory_info.get("maxmemory_human", "unknown") if memory_info.get("maxmemory") else "no limit"
-            }
-
-            # Calculate memory percentage if maxmemory is set
-            if memory_info.get("maxmemory") and memory_info.get("maxmemory") > 0:
-                health_data["memory"]["used_percentage"] = round(
-                    (memory_info["used_memory"] / memory_info["maxmemory"]) * 100, 2
-                )
-
-            # Get statistics
-            stats_info = await redis_client.info("stats")
-            health_data["statistics"] = {
-                "total_commands_processed": stats_info.get("total_commands_processed", 0),
-                "instantaneous_ops_per_sec": stats_info.get("instantaneous_ops_per_sec", 0),
-                "keyspace_hits": stats_info.get("keyspace_hits", 0),
-                "keyspace_misses": stats_info.get("keyspace_misses", 0)
-            }
-
-            # Calculate hit rate
-            hits = health_data["statistics"]["keyspace_hits"]
-            misses = health_data["statistics"]["keyspace_misses"]
-            if hits + misses > 0:
-                health_data["statistics"]["hit_rate_percentage"] = round((hits / (hits + misses)) * 100, 2)
-            else:
-                health_data["statistics"]["hit_rate_percentage"] = 0
-
+            info = await redis_client.info()
             health_data["status"] = "healthy"
-
-        except redis.ConnectionError as e:
-            health_data["status"] = "unavailable"
-            health_data["connection"] = {
-                "status": "failed",
-                "error": "Connection refused",
-                "details": str(e)
-            }
-            logger.warning(f"Redis health check failed: Connection refused - {e}")
-
-        except redis.TimeoutError as e:
-            health_data["status"] = "unavailable"
-            health_data["connection"] = {
-                "status": "failed",
-                "error": "Connection timeout",
-                "details": str(e)
-            }
-            logger.warning(f"Redis health check failed: Timeout - {e}")
-
-        except redis.AuthenticationError as e:
-            health_data["status"] = "unavailable"
-            health_data["connection"] = {
-                "status": "failed",
-                "error": "Authentication failed",
-                "details": str(e)
-            }
-            logger.error(f"Redis health check failed: Authentication - {e}")
-
+            health_data["version"] = info.get("redis_version")
+            health_data["memory_usage"] = info.get("used_memory_human")
         except Exception as e:
-            health_data["status"] = "error"
-            health_data["connection"] = {
-                "status": "failed",
-                "error": type(e).__name__,
-                "details": str(e)
-            }
-            logger.error(f"Redis health check failed: {e}", exc_info=True)
-
+            health_data["status"] = "unavailable"
+            health_data["error"] = str(e)
+            logger.error(f"Redis health check failed: {e}")
         finally:
-            # Close Redis connection
             if redis_client:
-                try:
-                    redis_client.close()
-                except Exception as e:
-                    logger.error(f"Error closing Redis health check connection: {e}")
-
+                await redis_client.close()
         return health_data
+    logger.info("✓ Redis health check endpoint registered.")
 
-    # Continue with other routers
-    app.include_router(performance.router, prefix="/api/v1", tags=["Performance"])
-    app.include_router(platform_sync.router, prefix="/api/v1", tags=["Platform Sync"])
-    # TODO: Restore when app.coordination module is implemented
-    # app.include_router(hive_mind.router, prefix="/api/v1", tags=["Hive-Mind"])
-    app.include_router(websockets.router, prefix="/ws")
 
-    # Include Enhanced API routers - Advanced functionality
-    app.include_router(enhanced_analytics.router, prefix="/api/v1/enhanced/analytics", tags=["Enhanced Analytics"])
-    app.include_router(enhanced_messages.router, prefix="/api/v1/enhanced/messages", tags=["Enhanced Messages"])
-    app.include_router(enhanced_quiz.router, prefix="/api/v1/enhanced/quiz", tags=["Enhanced Quiz"])
-    app.include_router(enhanced_reports.router, prefix="/api/v1/enhanced/reports", tags=["Enhanced Reports"])
-    app.include_router(enhanced_monitoring.router, prefix="/api/v1/enhanced", tags=["Enhanced Monitoring"])
-    app.include_router(enhanced_websockets.router, prefix="/ws/enhanced", tags=["Enhanced WebSocket"])
+    # === V1 ROUTERS (ALL DISABLED) ===
+    logger.warning("All /api/v1/ endpoints are disabled and will be removed in a future update.")
+    # app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
+    # app.include_router(auth_session, prefix="/api/v1", tags=["Session Authentication"])
+    # app.include_router(medico.router, prefix="/api/v1", tags=["Medico"])
+    # app.include_router(physician.router, prefix="/api/v1", tags=["Physician"])
+    # app.include_router(worker_health.router, prefix="/api/v1", tags=["Worker Health"])
+    # from app.api.v1.admin import admin_router
+    # app.include_router(admin_router, prefix="/api/v1/admin", tags=["Admin"])
+    # app.include_router(admin_roles.router, prefix="/api/v1/admin/roles", tags=["Admin Roles"])
+    # app.include_router(patients.router, prefix="/api/v1/patients", tags=["Patients"])
+    # app.include_router(messages.router, prefix="/api/v1/messages", tags=["Messages"])
+    # app.include_router(flows.router, prefix="/api/v1/flows", tags=["Flows"])
+    # app.include_router(upload.router, prefix="/api/v1/upload", tags=["Upload"])
+    # app.include_router(template_management.router, prefix="/api/v1/template-management", tags=["Template Management"])
+    # app.include_router(template_versioning.router, prefix="/api/v1/flows/templates", tags=["Template Versioning"])
+    # app.include_router(templates_crud.router, prefix="/api/v1", tags=["Templates CRUD"])
+    # app.include_router(quiz.router, prefix="/api/v1/quiz", tags=["Quiz"])
+    # app.include_router(quiz_responses.router, prefix="/api/v1", tags=["Quiz Responses"])
+    # app.include_router(monthly_quiz.router, prefix="/api/v1/monthly-quiz", tags=["Monthly Quiz"])
+    # app.include_router(monthly_quiz_public.router, prefix="/api/v1/monthly-quiz-public", tags=["Monthly Quiz Public"])
+    # app.include_router(quiz_auth, tags=["Quiz Authentication"])
+    # app.include_router(ai.router, prefix="/api/v1", tags=["AI Services"])
+    # app.include_router(metrics.router, prefix="/api/v1", tags=["Healthcare Metrics"])
+    # app.include_router(reports.router, prefix="/api/v1/reports", tags=["Reports"])
+    # app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytics"])
+    # app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
+    # app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["Alerts"])
+    # app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["Webhooks"])
+    # app.include_router(tasks.router, prefix="/api/v1", tags=["Tasks"])
+    # app.include_router(localization.router, prefix="/api/v1/localization", tags=["Localization"])
+    # app.include_router(docs.router, prefix="/api/v1/docs", tags=["Documentation"])
+    # app.include_router(health.router, prefix="/api/v1", tags=["Health"])
+    # from app.api.v1 import enhanced_health
+    # app.include_router(enhanced_health.router, prefix="/api/v1", tags=["Health"])
+    # app.include_router(config.router, prefix="/api/v1", tags=["Configuration"])
+    # app.include_router(config.router, prefix="", tags=["Configuration"])
+    # if settings.DEBUG or getattr(settings, 'ENABLE_DEBUG_ENDPOINTS', False):
+    #     app.include_router(debug.router, prefix="/api/v1/debug", tags=["Debug"])
+    # app.include_router(comprehensive_health_router, prefix="/api/v1", tags=["Health"])
+    # from app.api.v1.production_health import router as prod_health_router
+    # app.include_router(prod_health_router, tags=["Health"])
+    # from app.api.v1 import database_health
+    # app.include_router(database_health.router, prefix="/api/v1", tags=["Database Health"])
+    # app.include_router(system.router, prefix="/api/v1/system", tags=["System Management"])
+    # app.include_router(performance.router, prefix="/api/v1", tags=["Performance"])
+    # app.include_router(platform_sync.router, prefix="/api/v1", tags=["Platform Sync"])
+    # from app.api import websockets, enhanced_websockets
+    # app.include_router(websockets.router, prefix="/ws")
+    # from app.api.v1 import (
+    #     enhanced_analytics, enhanced_messages, enhanced_quiz,
+    #     enhanced_reports, enhanced_monitoring, monitoring
+    # )
+    # app.include_router(enhanced_analytics.router, prefix="/api/v1/enhanced/analytics", tags=["Enhanced Analytics"])
+    # app.include_router(enhanced_messages.router, prefix="/api/v1/enhanced/messages", tags=["Enhanced Messages"])
+    # app.include_router(enhanced_quiz.router, prefix="/api/v1/enhanced/quiz", tags=["Enhanced Quiz"])
+    # app.include_router(enhanced_reports.router, prefix="/api/v1/enhanced/reports", tags=["Enhanced Reports"])
+    # app.include_router(enhanced_monitoring.router, prefix="/api/v1/enhanced", tags=["Enhanced Monitoring"])
+    # app.include_router(enhanced_websockets.router, prefix="/ws/enhanced", tags=["Enhanced WebSocket"])
+    # try:
+    #     if getattr(settings, 'ENABLE_EVOLUTION', False):
+    #         from app.integrations.whatsapp import whatsapp_router, webhook_router
+    #         app.include_router(whatsapp_router, tags=["WhatsApp"])
+    #         app.include_router(webhook_router)
+    # except ImportError as e:
+    #     logger.warning(f"WhatsApp integration not available: {e}")
+    # app.include_router(monitoring.router, prefix="/api/v1", tags=["Monitoring"])
 
-    # Include WhatsApp integration routers (conditional on ENABLE_EVOLUTION setting)
-    try:
-        if getattr(settings, 'ENABLE_EVOLUTION', False):
-            from app.integrations.whatsapp import whatsapp_router, webhook_router
-            app.include_router(whatsapp_router, tags=["WhatsApp"])
-            app.include_router(webhook_router)
-            logger.info("WhatsApp integration routers added")
-    except ImportError as e:
-        logger.warning(f"WhatsApp integration not available: {e}")
-    except Exception as e:
-        logger.error(f"Error loading WhatsApp integration: {e}")
-    
-    # Import and include monitoring router
-    app.include_router(monitoring.router, prefix="/api/v1", tags=["Monitoring"])
 
-    # Include Prometheus metrics router (without prefix as it's already defined in the router)
-    app.include_router(prometheus_exporters.router)
+    # === API V2 ROUTER (ACTIVE) ===
+    # Include API v2 router - Modern REST API with cursor pagination
+    app.include_router(api_v2_router, tags=["API v2"])
+    logger.info("✓ API v2 endpoints registered (/api/v2)")
 
-    logger.info("All routers registered successfully")
+    logger.info("All active routers registered successfully. API v2 is the primary API.")

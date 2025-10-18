@@ -209,7 +209,7 @@ describe('setupTokenRefresh - Validation Failure', () => {
 
     // Verify logout was called
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/v1/session/logout',
+      'http://localhost:8000/session/logout',
       expect.objectContaining({
         method: 'DELETE'
       })

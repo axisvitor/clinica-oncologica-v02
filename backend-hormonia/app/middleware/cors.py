@@ -144,6 +144,6 @@ def configure_cors(
 
     # Log configuration (sanitized)
     if is_production():
-        print(f"✅ CORS configured for PRODUCTION with {len(allowed_origins)} explicit origins")
+        print(f"[OK] CORS configured for PRODUCTION with {len(allowed_origins)} explicit origins")
     else:
-        print(f"⚠️  CORS configured for DEVELOPMENT with {len(allowed_origins)} origins")
+        print(f"[WARNING] CORS configured for DEVELOPMENT with {len(allowed_origins)} origins")

@@ -208,7 +208,7 @@ export class QuizAPI {
         )
 
         if (!response.ok) {
-          const error = await response.json().catch(() => ({ detail: "Failed to access quiz" }))
+          const error = await response.json().catch(() => ({ detail: "Falha ao acessar o quiz" }))
 
           // Determine if error is retryable
           const retryable = response.status >= 500 || response.status === 408
@@ -235,7 +235,7 @@ export class QuizAPI {
           throw error
         }
         throw new QuizAPIError(
-          error instanceof Error ? error.message : "Network error while accessing quiz",
+          error instanceof Error ? error.message : "Erro de rede ao acessar o quiz",
           undefined,
           true // Network errors are retryable
         )
@@ -290,7 +290,7 @@ export class QuizAPI {
         )
 
         if (!response.ok) {
-          const error = await response.json().catch(() => ({ detail: "Failed to submit answer" }))
+          const error = await response.json().catch(() => ({ detail: "Falha ao enviar resposta" }))
 
           // Determine if error is retryable
           const retryable = response.status >= 500 || response.status === 408
@@ -314,7 +314,7 @@ export class QuizAPI {
           throw error
         }
         throw new QuizAPIError(
-          error instanceof Error ? error.message : "Network error while submitting answer",
+          error instanceof Error ? error.message : "Erro de rede ao enviar resposta",
           undefined,
           true // Network errors are retryable
         )

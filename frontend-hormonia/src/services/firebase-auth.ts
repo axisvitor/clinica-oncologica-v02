@@ -93,7 +93,7 @@ export async function loginUser(
     const firebaseToken = await result.user.getIdToken()
     logger.log('Firebase token obtained')
 
-    // Step 3: Create backend session via apiClient (uses /api/v1/session/ with trailing slash)
+    // Step 3: Create backend session via apiClient (uses /session/ with trailing slash)
     // SECURITY FIX: Session ID is now stored in httpOnly cookie (automatic)
     try {
       const sessionData = await apiClient.auth.createSession(firebaseToken, {
@@ -163,22 +163,8 @@ export async function logoutUser(): Promise<void> {
     // Call backend session logout endpoint (invalidates Redis session + clears cookie)
     // SECURITY: Cookie sent automatically, backend clears it
     try {
-      const csrfToken = apiClient.getCsrfToken()
-      const response = await fetch(`${apiClient.getBaseURL()}/api/v1/session/logout`, {
-        method: 'DELETE',
-        credentials: 'include',  // CRITICAL: Send cookies
-        headers: {
-          'Content-Type': 'application/json',
-          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
-        }
-      })
-
-      if (response.ok) {
-        const logoutData = await response.json()
-        logger.log('Backend session invalidated:', logoutData.message)
-      } else {
-        logger.warn('Backend logout returned non-OK status:', response.status)
-      }
+      const logoutData = await apiClient.auth.logout()
+      logger.log('Backend session invalidated:', logoutData.message)
     } catch (error) {
       logger.warn('Backend logout request failed, continuing with cleanup:', error)
     }
@@ -228,43 +214,27 @@ export async function logoutAllDevices(): Promise<{ sessions_deleted: number }> 
 
     try {
       // Call backend logout-all endpoint (invalidates all Redis sessions for user)
-      // SECURITY: Uses Bearer token (not session) to authenticate this action
-      const csrfToken = apiClient.getCsrfToken()
-      const response = await fetch(`${apiClient.getBaseURL()}/api/v1/session/logout-all`, {
-        method: 'DELETE',
-        credentials: 'include',  // CRITICAL: Clear cookie on this device
-        headers: {
-          'Authorization': `Bearer ${firebaseToken}`,
-          'Content-Type': 'application/json',
-          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
-        }
-      })
+      // SECURITY: Uses Bearer token to authenticate this action
+      apiClient.setAuthToken(firebaseToken)
+      const logoutData = await apiClient.auth.invalidateAllSessions()
+      logger.log(`All sessions invalidated: ${logoutData.sessions_deleted} sessions deleted`)
 
-      if (response.ok) {
-        const logoutData = await response.json()
-        logger.log(`All sessions invalidated: ${logoutData.sessions_deleted} sessions deleted`)
-
-        // Session cleared via httpOnly cookie by backend
-
-        // Clear token refresh interval
-        if (tokenRefreshInterval) {
-          clearInterval(tokenRefreshInterval)
-          tokenRefreshInterval = null
-        }
-
-        // Sign out from Firebase (lazy loaded)
-        await firebaseAuthLazy.signOut()
-
-        return { sessions_deleted: logoutData.sessions_deleted }
-      } else {
-        logger.warn('Backend logout-all failed, falling back to single session logout')
-        await logoutUser()
-        return { sessions_deleted: 1 }
+      // Clear token refresh interval
+      if (tokenRefreshInterval) {
+        clearInterval(tokenRefreshInterval)
+        tokenRefreshInterval = null
       }
+
+      // Sign out from Firebase (lazy loaded)
+      await firebaseAuthLazy.signOut()
+
+      return { sessions_deleted: logoutData.sessions_deleted }
     } catch (error) {
       logger.error('Logout all request failed, falling back to single session logout:', error)
       await logoutUser()
       return { sessions_deleted: 1 }
+    } finally {
+      apiClient.setAuthToken(null)
     }
   } catch (error) {
     logger.error('Logout all devices failed:', error)

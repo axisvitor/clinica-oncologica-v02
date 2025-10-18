@@ -15,10 +15,11 @@ from app.config import settings
 deployment_mode = "development" if settings.DEBUG else "production"
 app = create_application(deployment_mode=deployment_mode)
 
-# Add a simple test endpoint to verify the server is working
-@app.get("/test")
-async def test_endpoint():
-    return {"message": "Server is working", "debug": settings.DEBUG, "mode": deployment_mode}
+# Add a simple test endpoint to verify the server is working (debug mode only)
+if settings.DEBUG:
+    @app.get("/test", tags=["Debug"])
+    async def test_endpoint():
+        return {"message": "Server is working", "debug": settings.DEBUG, "mode": deployment_mode}
 
 if __name__ == "__main__":
     import uvicorn

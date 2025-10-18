@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
+import type { DashboardMetrics } from '@/lib/api-client/analytics'
 import { AdminDashboardStats } from '@/types/admin'
-import { mapSystemStats, isSystemStatsResponse } from '@/lib/mappers/systemStatsMapper'
 
 interface UseSystemStatsOptions {
   /** Enable real-time updates via polling */
@@ -28,17 +28,8 @@ export function useSystemStats(options: UseSystemStatsOptions = {}) {
   } = useQuery<AdminDashboardStats>({
     queryKey: ['admin-system-stats'],
     queryFn: async () => {
-      // Fetch from live backend API
-      const backendResponse = await apiClient.request<any>('/api/v1/admin/system-stats')
-
-      // Validate and map backend response to frontend format
-      if (isSystemStatsResponse(backendResponse)) {
-        return mapSystemStats(backendResponse)
-      }
-
-      // Fallback to returning as-is if structure doesn't match
-      // (handles case where backend returns AdminDashboardStats directly)
-      return backendResponse as AdminDashboardStats
+      const dashboardMetrics = await apiClient.analytics.getDashboardMetrics()
+      return mapDashboardMetricsToAdminStats(dashboardMetrics)
     },
     refetchInterval: realTimeUpdates ? refreshInterval : false,
     staleTime: 10000, // 10 seconds
@@ -50,5 +41,32 @@ export function useSystemStats(options: UseSystemStatsOptions = {}) {
     isLoading,
     error,
     refetch
+  }
+}
+
+function mapDashboardMetricsToAdminStats(metrics: DashboardMetrics): AdminDashboardStats {
+  return {
+    users: {
+      total: metrics.total_patients,
+      active: metrics.active_patients,
+      locked: 0,
+      new_today: 0
+    },
+    security: {
+      failed_logins: 0,
+      active_sessions: metrics.active_patients,
+      blocked_ips: 0
+    },
+    system: {
+      uptime: 0,
+      memory_usage: 0,
+      cpu_usage: 0,
+      disk_usage: 0
+    },
+    audit: {
+      total_logs: metrics.completed_appointments,
+      critical_events: 0,
+      warnings: 0
+    }
   }
 }

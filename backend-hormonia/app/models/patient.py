@@ -14,6 +14,7 @@ from app.models.base import BaseModel
 class FlowState(enum.Enum):
     """Patient flow state enumeration - matches Supabase enum."""
     ONBOARDING = "onboarding"
+    ONBOARDING_START = "onboarding"  # Alias for saga orchestrator compatibility
     ACTIVE = "active"
     PAUSED = "paused"
     COMPLETED = "completed"
@@ -102,6 +103,14 @@ class Patient(BaseModel):
     )
     medical_reports = relationship("MedicalReport", back_populates="patient")
     alerts = relationship("Alert", back_populates="patient")
+
+    # Saga orchestrator relationship
+    onboarding_sagas = relationship(
+        "PatientOnboardingSaga",
+        back_populates="patient",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
 
     # New relationships for Sprint 1 eager loading optimization
     treatments = relationship("Treatment", back_populates="patient", lazy="select", passive_deletes=True)

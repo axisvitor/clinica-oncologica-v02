@@ -35,6 +35,112 @@ from app.utils.rate_limiter import limiter, rate_limit_handler
 logger = get_logger(__name__)
 
 
+def _setup_sentry() -> None:
+    """
+    Initialize Sentry SDK for error tracking and performance monitoring.
+
+    Sentry provides:
+    - Automatic error capture and reporting
+    - Performance monitoring and tracing
+    - Release tracking
+    - Environment-based configuration
+    - Integration with FastAPI
+
+    Configuration via environment variables:
+    - SENTRY_DSN: Sentry project DSN (required)
+    - ENVIRONMENT: Environment name (production, staging, development)
+    - SENTRY_TRACES_SAMPLE_RATE: Performance monitoring sample rate (0.0-1.0)
+    """
+    sentry_dsn = settings.SENTRY_DSN if hasattr(settings, 'SENTRY_DSN') else None
+
+    if not sentry_dsn:
+        logger.info("⚠️  Sentry not configured (SENTRY_DSN not set)")
+        return
+
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+        from sentry_sdk.integrations.redis import RedisIntegration
+
+        # Determine environment
+        environment = getattr(settings, 'ENVIRONMENT', 'development')
+
+        # Configure sample rates based on environment
+        traces_sample_rate = 0.1  # 10% in production
+        if environment == 'development':
+            traces_sample_rate = 1.0  # 100% in development
+        elif environment == 'staging':
+            traces_sample_rate = 0.5  # 50% in staging
+
+        # Initialize Sentry
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            environment=environment,
+            traces_sample_rate=traces_sample_rate,
+            profiles_sample_rate=0.1,  # Profile 10% of transactions
+            integrations=[
+                FastApiIntegration(transaction_style="endpoint"),
+                SqlalchemyIntegration(),
+                RedisIntegration(),
+            ],
+            # Send default PII (Personally Identifiable Information)
+            send_default_pii=False,  # Don't send PII for HIPAA compliance
+            # Release tracking
+            release=f"hormonia-backend@2.0.0",
+            # Before send callback to filter sensitive data
+            before_send=_sentry_before_send,
+        )
+
+        logger.info(f"✅ Sentry initialized (env: {environment}, traces: {traces_sample_rate*100}%)")
+
+    except ImportError:
+        logger.warning("⚠️  Sentry SDK not installed. Install with: pip install sentry-sdk[fastapi]")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize Sentry: {e}")
+
+
+def _sentry_before_send(event, hint):
+    """
+    Filter and sanitize events before sending to Sentry.
+
+    This callback:
+    - Removes sensitive data (passwords, tokens, PHI)
+    - Filters out known non-critical errors
+    - Adds custom context
+
+    Args:
+        event: Sentry event dictionary
+        hint: Additional context about the event
+
+    Returns:
+        Modified event or None to drop the event
+    """
+    # Filter out health check errors
+    if 'request' in event:
+        url = event['request'].get('url', '')
+        if '/health' in url or '/metrics' in url:
+            return None  # Don't send health check errors
+
+    # Remove sensitive headers
+    if 'request' in event and 'headers' in event['request']:
+        sensitive_headers = ['Authorization', 'Cookie', 'X-API-Key', 'X-CSRF-Token']
+        for header in sensitive_headers:
+            if header in event['request']['headers']:
+                event['request']['headers'][header] = '[Filtered]'
+
+    # Remove sensitive query parameters
+    if 'request' in event and 'query_string' in event['request']:
+        sensitive_params = ['token', 'api_key', 'password', 'secret']
+        query_string = event['request'].get('query_string', '')
+        for param in sensitive_params:
+            if param in query_string.lower():
+                event['request']['query_string'] = '[Filtered]'
+                break
+
+    return event
+
+
 def create_application(
     enable_monitoring: bool = True,
     enable_debug_endpoints: bool = None,
@@ -73,6 +179,9 @@ def create_application(
 
     logger.info(f"Creating FastAPI application (mode: {deployment_mode}, debug: {enable_debug_endpoints})")
 
+    # Initialize Sentry for error tracking (before app creation)
+    _setup_sentry()
+
     # Determine documentation visibility based on deployment mode
     docs_available = deployment_mode != "production" or settings.DEBUG
 
@@ -103,6 +212,76 @@ def create_application(
         app.state.limiter = limiter
         app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
         logger.info("✓ Rate limiter configured")
+
+    # Configure API v2 exception handlers
+    from app.core.exceptions import APIException
+    from fastapi.exceptions import RequestValidationError
+    from pydantic import ValidationError as PydanticValidationError
+    
+    @app.exception_handler(APIException)
+    async def api_exception_handler(request: Request, exc: APIException):
+        """Handle custom API exceptions with consistent format."""
+        # Add request ID if available
+        request_id = getattr(request.state, 'request_id', None)
+        
+        logger.warning(
+            f"API exception: {exc.error_code}",
+            extra={
+                "error_code": exc.error_code,
+                "status_code": exc.status_code,
+                "path": str(request.url.path),
+                "method": request.method,
+                "request_id": request_id
+            }
+        )
+        
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "error": exc.error_code,
+                "message": exc.message,
+                "details": exc.details,
+                "request_id": request_id,
+                "timestamp": datetime.utcnow().isoformat() + 'Z'
+            }
+        )
+    
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        """Handle Pydantic validation errors with detailed field information."""
+        request_id = getattr(request.state, 'request_id', None)
+        
+        # Format validation errors
+        errors = []
+        for error in exc.errors():
+            errors.append({
+                "field": ".".join(str(loc) for loc in error["loc"]),
+                "message": error["msg"],
+                "type": error["type"]
+            })
+        
+        logger.warning(
+            f"Validation error: {len(errors)} field(s)",
+            extra={
+                "path": str(request.url.path),
+                "method": request.method,
+                "request_id": request_id,
+                "errors": errors
+            }
+        )
+        
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": "VALIDATION_ERROR",
+                "message": "Request validation failed",
+                "details": {"errors": errors},
+                "request_id": request_id,
+                "timestamp": datetime.utcnow().isoformat() + 'Z'
+            }
+        )
+    
+    logger.info("✓ API v2 exception handlers configured")
 
     # Configure CSRF protection
     try:

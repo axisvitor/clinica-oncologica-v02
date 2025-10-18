@@ -1,294 +1,446 @@
 """
-Admin API endpoints for Dead Letter Queue (DLQ) management.
-Provides manual review, retry, and monitoring capabilities.
+API Endpoints para Dead Letter Queue (DLQ) Dashboard.
+
+Este módulo fornece endpoints administrativos para gerenciar mensagens com falha.
+
+Sprint 1 - DLQ Estruturada com Dashboard
 """
+
+from typing import Optional
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from typing import List, Optional
-from uuid import UUID
-from pydantic import BaseModel, Field
 
-from app.dependencies.auth_dependencies import require_admin
-from app.dependencies.database import get_db
-from app.integrations.whatsapp.queue.dlq import DLQHandler
-from app.models.failed_message import FailureReason, DLQStatus
-from app.exceptions import NotFoundError, ValidationError
-import logging
+from app.database import get_db
+from app.dependencies.auth import get_current_admin_user
+from app.models.user import User
+from app.models.failed_message import DLQStatus
+from app.services.dlq_service import DLQService, ErrorCategory
+from app.schemas.dlq import (
+    DLQMessageList,
+    DLQMessageResponse,
+    DLQRetryRequest,
+    DLQDiscardRequest,
+    DLQStats,
+)
+from app.core.monitoring_config import add_breadcrumb, capture_exception
 
-
-logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/admin/dlq", tags=["Admin - Dead Letter Queue"])
-
-
-# Pydantic schemas
-class DLQMessageResponse(BaseModel):
-    """DLQ message response schema."""
-    id: str
-    patient_id: str
-    whatsapp_phone: str
-    content: str
-    failure_reason: str
-    retry_count: int
-    failed_at: str
-    dlq_status: str
-    requeue_count: int
-    reviewed_at: Optional[str] = None
-    review_notes: Optional[str] = None
-    created_at: str
-    updated_at: str
+router = APIRouter(prefix="/admin/dlq", tags=["Admin - DLQ"])
 
 
-class DLQReviewRequest(BaseModel):
-    """Request schema for reviewing DLQ message."""
-    approve_retry: bool = Field(..., description="Whether to approve message for retry")
-    notes: Optional[str] = Field(None, description="Review notes")
-
-
-class DLQRequeueRequest(BaseModel):
-    """Request schema for re-queuing DLQ message."""
-    immediate: bool = Field(default=False, description="Retry immediately vs scheduled")
-
-
-class DLQMetricsResponse(BaseModel):
-    """DLQ metrics response schema."""
-    total_failures: int
-    failure_by_reason: dict
-    status_distribution: dict
-    avg_retry_count: float
-    requeue_rate: float
-    period_days: int
-
-
-@router.get("/pending", response_model=List[DLQMessageResponse])
-async def get_pending_messages(
-    limit: int = Query(50, ge=1, le=100, description="Maximum results"),
-    offset: int = Query(0, ge=0, description="Offset for pagination"),
-    failure_reason: Optional[FailureReason] = Query(None, description="Filter by failure reason"),
-    current_user = Depends(require_admin),
-    db: Session = Depends(get_db)
+@router.get("", response_model=DLQMessageList)
+async def list_dlq_messages(
+    page: int = Query(1, ge=1, description="Página atual"),
+    size: int = Query(20, ge=1, le=100, description="Tamanho da página"),
+    status: Optional[DLQStatus] = Query(None, description="Filtrar por status"),
+    category: Optional[str] = Query(
+        None, description="Filtrar por categoria: transient, permanent, unknown"
+    ),
+    patient_id: Optional[UUID] = Query(None, description="Filtrar por paciente"),
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
 ):
     """
-    Get messages pending review in DLQ.
+    Lista mensagens da DLQ com paginação e filtros.
 
-    **Admin only** - Requires admin role.
+    **Requer**: Permissões de administrador
 
-    Returns paginated list of failed messages awaiting manual review.
+    **Filtros Disponíveis**:
+    - status: pending, retry_scheduled, retrying, resolved, discarded, max_retries_exceeded
+    - category: transient, permanent, unknown
+    - patient_id: UUID do paciente
+
+    **Retorna**: Lista paginada de mensagens na DLQ
     """
+    add_breadcrumb(
+        message="Listando mensagens da DLQ",
+        category="dlq.list",
+        data={
+            "page": page,
+            "size": size,
+            "status": status.value if status else None,
+            "category": category,
+            "admin_user_id": str(current_user.id),
+        },
+    )
+
     try:
-        dlq_handler = DLQHandler(db)
-        messages = await dlq_handler.get_pending_review(
-            limit=limit,
-            offset=offset,
-            failure_reason=failure_reason
+        dlq_service = DLQService(db)
+
+        # Converter category string para enum se fornecido
+        category_enum = None
+        if category:
+            try:
+                category_enum = ErrorCategory(category)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Categoria inválida: {category}. Use: transient, permanent, unknown",
+                )
+
+        result = dlq_service.list_messages(
+            page=page,
+            size=size,
+            status=status,
+            category=category_enum,
+            patient_id=patient_id,
         )
 
-        return [
-            DLQMessageResponse(**msg.to_dict())
-            for msg in messages
-        ]
+        return result
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Failed to get pending DLQ messages: {e}", exc_info=True)
+        capture_exception(
+            e,
+            context={
+                "endpoint": "list_dlq_messages",
+                "admin_user_id": str(current_user.id),
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve DLQ messages: {str(e)}"
+            detail="Erro ao listar mensagens da DLQ",
         )
 
 
-@router.get("/critical", response_model=List[DLQMessageResponse])
-async def get_critical_failures(
-    hours_back: int = Query(24, ge=1, le=168, description="Hours to look back"),
-    limit: int = Query(20, ge=1, le=100, description="Maximum results"),
-    current_user = Depends(require_admin),
-    db: Session = Depends(get_db)
+@router.get("/stats", response_model=DLQStats)
+async def get_dlq_stats(
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
 ):
     """
-    Get critical failures requiring immediate attention.
+    Obtém estatísticas da DLQ.
 
-    **Admin only** - Returns high-priority failures with multiple retry attempts.
+    **Requer**: Permissões de administrador
 
-    Criteria:
-    - Retry count >= 3
-    - Failed within specified hours
-    - Pending review status
+    **Retorna**:
+    - Total de mensagens
+    - Contadores por status
+    - Erros por categoria (últimas 24h)
+    - Taxa de sucesso de retries
     """
-    try:
-        dlq_handler = DLQHandler(db)
-        messages = await dlq_handler.get_critical_failures(
-            hours_back=hours_back,
-            limit=limit
-        )
+    add_breadcrumb(
+        message="Obtendo estatísticas da DLQ",
+        category="dlq.stats",
+        data={"admin_user_id": str(current_user.id)},
+    )
 
-        return [
-            DLQMessageResponse(**msg.to_dict())
-            for msg in messages
-        ]
+    try:
+        dlq_service = DLQService(db)
+        stats = dlq_service.get_stats()
+
+        return stats
 
     except Exception as e:
-        logger.error(f"Failed to get critical DLQ failures: {e}", exc_info=True)
+        capture_exception(
+            e,
+            context={
+                "endpoint": "get_dlq_stats",
+                "admin_user_id": str(current_user.id),
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve critical failures: {str(e)}"
+            detail="Erro ao obter estatísticas da DLQ",
         )
 
 
 @router.get("/{dlq_id}", response_model=DLQMessageResponse)
 async def get_dlq_message(
     dlq_id: UUID,
-    current_user = Depends(require_admin),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
 ):
     """
-    Get specific DLQ message by ID.
+    Obtém detalhes de uma mensagem específica da DLQ.
 
-    **Admin only** - Retrieve detailed information about a failed message.
+    **Requer**: Permissões de administrador
+
+    **Retorna**: Detalhes completos da mensagem incluindo:
+    - Payload original
+    - Histórico de retries
+    - Metadata
     """
+    add_breadcrumb(
+        message="Obtendo detalhes de mensagem da DLQ",
+        category="dlq.get",
+        data={"dlq_id": str(dlq_id), "admin_user_id": str(current_user.id)},
+    )
+
     try:
-        dlq_handler = DLQHandler(db)
-        message = dlq_handler.repository.get(dlq_id)
+        from app.models.failed_message import FailedMessage
+
+        message = db.query(FailedMessage).filter(FailedMessage.id == dlq_id).first()
 
         if not message:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"DLQ message {dlq_id} not found"
+                detail="Mensagem não encontrada na DLQ",
             )
 
-        return DLQMessageResponse(**message.to_dict(include_sensitive=True))
+        return DLQMessageResponse.from_orm(message)
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get DLQ message {dlq_id}: {e}", exc_info=True)
+        capture_exception(
+            e,
+            context={
+                "endpoint": "get_dlq_message",
+                "dlq_id": str(dlq_id),
+                "admin_user_id": str(current_user.id),
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve DLQ message: {str(e)}"
+            detail="Erro ao obter mensagem da DLQ",
         )
 
 
-@router.post("/{dlq_id}/review", response_model=DLQMessageResponse)
-async def review_dlq_message(
+@router.post("/{dlq_id}/retry")
+async def retry_dlq_message(
     dlq_id: UUID,
-    request: DLQReviewRequest,
-    current_user = Depends(require_admin),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
 ):
     """
-    Review a failed message and approve/reject retry.
+    Tenta reprocessar mensagem da DLQ manualmente.
 
-    **Admin only** - Manually review failed messages and decide on retry.
+    **Requer**: Permissões de administrador
 
-    Use this endpoint to:
-    - Investigate failure cause
-    - Approve messages for retry
-    - Add review notes for audit trail
+    **Ação**: Tenta reenviar a mensagem com falha.
+    Se bem-sucedido, marca como resolvida.
+    Se falhar, mantém na DLQ com contador de retry incrementado.
+
+    **Retorna**: Status da operação
     """
+    add_breadcrumb(
+        message="Retry manual de mensagem da DLQ",
+        category="dlq.retry",
+        data={"dlq_id": str(dlq_id), "admin_user_id": str(current_user.id)},
+    )
+
     try:
-        dlq_handler = DLQHandler(db)
+        dlq_service = DLQService(db)
 
-        reviewed_message = await dlq_handler.review_message(
-            dlq_id=dlq_id,
-            reviewer_id=current_user["uid"],
-            approve_retry=request.approve_retry,
-            notes=request.notes
-        )
+        success, error_message = dlq_service.retry_message(dlq_id, manual=True)
 
-        return DLQMessageResponse(**reviewed_message.to_dict())
+        if success:
+            return {
+                "success": True,
+                "message": "Mensagem reprocessada com sucesso",
+                "dlq_id": str(dlq_id),
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Falha ao reprocessar mensagem",
+                "error": error_message,
+                "dlq_id": str(dlq_id),
+            }
 
-    except NotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
-    except ValidationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
     except Exception as e:
-        logger.error(f"Failed to review DLQ message {dlq_id}: {e}", exc_info=True)
+        capture_exception(
+            e,
+            context={
+                "endpoint": "retry_dlq_message",
+                "dlq_id": str(dlq_id),
+                "admin_user_id": str(current_user.id),
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to review message: {str(e)}"
+            detail="Erro ao tentar retry da mensagem",
         )
 
 
-@router.post("/{dlq_id}/requeue")
-async def requeue_dlq_message(
+@router.post("/{dlq_id}/discard")
+async def discard_dlq_message(
     dlq_id: UUID,
-    request: DLQRequeueRequest = DLQRequeueRequest(),
-    current_user = Depends(require_admin),
-    db: Session = Depends(get_db)
+    request: DLQDiscardRequest,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
 ):
     """
-    Re-queue a failed message for retry delivery.
+    Descarta mensagem da DLQ (não será mais processada).
 
-    **Admin only** - Send failed message back to delivery queue.
+    **Requer**: Permissões de administrador
 
-    Message must be in PENDING_REVIEW or APPROVED_FOR_RETRY status.
+    **Ação**: Marca mensagem como descartada permanentemente.
+    Use quando a mensagem não é mais relevante ou não pode ser corrigida.
 
-    Options:
-    - immediate: Retry within 1 minute (use for urgent messages)
-    - scheduled: Retry in next business hours (default, safer)
+    **Parâmetros**:
+    - reason: Razão do descarte (obrigatório)
+
+    **Retorna**: Confirmação da operação
     """
-    try:
-        dlq_handler = DLQHandler(db)
+    add_breadcrumb(
+        message="Descartando mensagem da DLQ",
+        category="dlq.discard",
+        data={
+            "dlq_id": str(dlq_id),
+            "reason": request.reason,
+            "admin_user_id": str(current_user.id),
+        },
+    )
 
-        result = await dlq_handler.requeue_for_retry(
-            dlq_id=dlq_id,
-            immediate=request.immediate
+    try:
+        dlq_service = DLQService(db)
+
+        success = dlq_service.discard_message(dlq_id, request.reason)
+
+        if success:
+            return {
+                "success": True,
+                "message": "Mensagem descartada com sucesso",
+                "dlq_id": str(dlq_id),
+                "reason": request.reason,
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Mensagem não encontrada na DLQ",
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        capture_exception(
+            e,
+            context={
+                "endpoint": "discard_dlq_message",
+                "dlq_id": str(dlq_id),
+                "admin_user_id": str(current_user.id),
+            },
         )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro ao descartar mensagem",
+        )
+
+
+@router.post("/process-scheduled")
+async def process_scheduled_retries(
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Processa retries agendados manualmente (normalmente executado por worker).
+
+    **Requer**: Permissões de administrador
+
+    **Ação**: Processa todas as mensagens com retry agendado cuja hora já passou.
+
+    **Retorna**: Número de mensagens processadas
+    """
+    add_breadcrumb(
+        message="Processando retries agendados manualmente",
+        category="dlq.process_scheduled",
+        data={"admin_user_id": str(current_user.id)},
+    )
+
+    try:
+        dlq_service = DLQService(db)
+
+        processed = dlq_service.process_scheduled_retries()
 
         return {
             "success": True,
-            "message": "Message re-queued successfully",
-            **result
+            "message": f"Processados {processed} retries agendados",
+            "processed": processed,
         }
 
-    except NotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
-    except ValidationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
     except Exception as e:
-        logger.error(f"Failed to re-queue DLQ message {dlq_id}: {e}", exc_info=True)
+        capture_exception(
+            e,
+            context={
+                "endpoint": "process_scheduled_retries",
+                "admin_user_id": str(current_user.id),
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to re-queue message: {str(e)}"
+            detail="Erro ao processar retries agendados",
         )
 
 
-@router.get("/metrics/overview", response_model=DLQMetricsResponse)
-async def get_dlq_metrics(
-    days_back: int = Query(7, ge=1, le=90, description="Days to analyze"),
-    current_user = Depends(require_admin),
-    db: Session = Depends(get_db)
+@router.delete("/bulk-discard")
+async def bulk_discard(
+    status_filter: DLQStatus = Query(
+        ..., description="Status das mensagens a descartar"
+    ),
+    reason: str = Query(..., description="Razão do descarte em massa"),
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
 ):
     """
-    Get DLQ metrics and analytics.
+    Descarta múltiplas mensagens por status (operação em massa).
 
-    **Admin only** - View failure trends, reasons, and re-queue statistics.
+    **Requer**: Permissões de administrador
 
-    Provides:
-    - Total failures in period
-    - Breakdown by failure reason
-    - Status distribution
-    - Average retry count
-    - Re-queue success rate
+    **⚠️ ATENÇÃO**: Operação irreversível!
+
+    **Parâmetros**:
+    - status_filter: Status das mensagens (ex: max_retries_exceeded)
+    - reason: Razão do descarte em massa
+
+    **Retorna**: Número de mensagens descartadas
     """
-    try:
-        dlq_handler = DLQHandler(db)
-        metrics = await dlq_handler.get_dlq_metrics(days_back=days_back)
+    add_breadcrumb(
+        message="Descarte em massa de mensagens da DLQ",
+        category="dlq.bulk_discard",
+        level="warning",
+        data={
+            "status": status_filter.value,
+            "reason": reason,
+            "admin_user_id": str(current_user.id),
+        },
+    )
 
-        return DLQMetricsResponse(**metrics)
+    try:
+        from app.models.failed_message import FailedMessage
+
+        # Buscar mensagens com o status
+        messages = (
+            db.query(FailedMessage).filter(FailedMessage.status == status_filter).all()
+        )
+
+        count = len(messages)
+
+        if count == 0:
+            return {
+                "success": True,
+                "message": f"Nenhuma mensagem encontrada com status {status_filter.value}",
+                "discarded": 0,
+            }
+
+        # Descartar todas
+        dlq_service = DLQService(db)
+        discarded = 0
+
+        for message in messages:
+            if dlq_service.discard_message(message.id, reason):
+                discarded += 1
+
+        return {
+            "success": True,
+            "message": f"Descartadas {discarded} mensagens com status {status_filter.value}",
+            "discarded": discarded,
+            "reason": reason,
+        }
 
     except Exception as e:
-        logger.error(f"Failed to get DLQ metrics: {e}", exc_info=True)
+        capture_exception(
+            e,
+            context={
+                "endpoint": "bulk_discard",
+                "status": status_filter.value,
+                "admin_user_id": str(current_user.id),
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve DLQ metrics: {str(e)}"
+            detail="Erro ao descartar mensagens em massa",
         )

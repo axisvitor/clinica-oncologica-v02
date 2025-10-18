@@ -50,10 +50,7 @@ class HiveMindIntegrationService:
         self.logger = get_logger("hive_mind_integration")
         
         # Template support
-        self.template_loader = template_loader or EnhancedTemplateLoader(
-            template_path="app/templates",
-            db=db_session
-        )
+        self.template_loader = template_loader or EnhancedTemplateLoader(db=db_session)
         
         # Integration state
         self.swarm_manager: Optional[Any] = None  # SwarmManager type import moved to lazy import
@@ -116,13 +113,7 @@ class HiveMindIntegrationService:
                 self.logger.info("Flow Coordinator Agent registered successfully")
             
             # Create Quiz Conductor Agent with template support
-            quiz_conductor = QuizConductorAgent(
-                self.db_session, 
-                template_loader=EnhancedTemplateLoader(
-                    template_path="app/templates/quiz",
-                    db=self.db_session
-                )
-            )
+            quiz_conductor = QuizConductorAgent(self.db_session)
             success = await self.swarm_manager.register_agent(quiz_conductor)
             
             if success:

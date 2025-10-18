@@ -1,8 +1,31 @@
 # Database Schema Reference
 
+> Atualizado em **15/10/2025** com base no ambiente de produção PostgreSQL 17.4  
+> **45 tabelas** ativas com **53 chaves estrangeiras** e **12 enums personalizados**
+
+## Status Atual das Tabelas (Produção)
+
+**Estatísticas Gerais:**
+- **Total de tabelas**: 45
+- **Registros ativos**: 63
+- **Tamanho do banco**: 13 MB
+- **Chaves estrangeiras**: 53
+- **Triggers**: 14
+- **Enums personalizados**: 12
+
+**Tabelas com Dados:**
+- `patients`: 1 registro
+- `users`: 1 registro  
+- `flow_kinds`: 4 registros
+- `flow_template_versions`: 7 registros (4 ativos após limpeza)
+- `quiz_templates`: 1 registro
+- `whatsapp_instances`: 1 registro
+- `audit_logs`: 44 registros
+- `error_logs`: 3 registros
+
 ## Tabelas Principais
 
-### 1. Pacientes (`patients`)
+### 1. Pacientes (`patients`) - 1 registro ativo
 
 **Propósito**: Armazena dados dos pacientes oncológicos
 
@@ -336,6 +359,23 @@ patients (1) -> messages (N) -> whatsapp_instances (1)
 users (1) -> audit_logs (N)
 patients (1) -> security_audit_log (N)
 ```
+
+---
+
+## Resumo do Schema (Produção)
+
+**Status Atual:**
+- ✅ **45 tabelas** ativas e funcionais
+- ✅ **53 chaves estrangeiras** mantendo integridade
+- ✅ **12 enums personalizados** para tipagem
+- ✅ **14 triggers** para auditoria e timestamps
+- ✅ **63 registros** distribuídos em 8 tabelas principais
+
+**Estrutura Validada:**
+- Templates de fluxo: 4 ativos após limpeza
+- Quiz templates: 1 completo com 10 perguntas
+- Usuários e pacientes: 1 cada (ambiente de teste)
+- Logs de auditoria: 44 registros de atividade
 
 ## Constraints de Integridade
 

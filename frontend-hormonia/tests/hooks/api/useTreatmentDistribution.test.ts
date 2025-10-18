@@ -1,14 +1,16 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useTreatmentDistribution } from '@/hooks/api/useTreatmentDistribution'
-import type { TreatmentDistributionResponse } from '@/src/types/api-wave2'
+import type { TreatmentDistribution } from '@/lib/api-client/analytics'
 import React from 'react'
 import { vi, describe, it, beforeEach, expect } from 'vitest'
 
 // Mock the api-client module
 vi.mock('@/lib/api-client', () => ({
   apiClient: {
-    request: vi.fn()
+    analytics: {
+      treatmentDistribution: vi.fn()
+    }
   }
 }))
 
@@ -31,42 +33,14 @@ describe('useTreatmentDistribution', () => {
   })
 
   it('should fetch treatment distribution for default 30d period', async () => {
-    const mockData: TreatmentDistributionResponse = {
+    const mockData: TreatmentDistribution = {
       period: '30d',
       total_patients: 1260,
       distribution: [
-        {
-          treatment_type: 'Quimioterapia',
-          count: 450,
-          percentage: 35.71,
-          active_patients: 380,
-          avg_treatment_days: 45,
-          color: '#3b82f6'
-        },
-        {
-          treatment_type: 'Radioterapia',
-          count: 380,
-          percentage: 30.16,
-          active_patients: 320,
-          avg_treatment_days: 38,
-          color: '#10b981'
-        },
-        {
-          treatment_type: 'Imunoterapia',
-          count: 280,
-          percentage: 22.22,
-          active_patients: 240,
-          avg_treatment_days: 52,
-          color: '#f59e0b'
-        },
-        {
-          treatment_type: 'Cirurgia',
-          count: 150,
-          percentage: 11.90,
-          active_patients: 90,
-          avg_treatment_days: 15,
-          color: '#ef4444'
-        }
+        { treatment_type: 'Quimioterapia', count: 450, percentage: 35.71, color: '#3b82f6' },
+        { treatment_type: 'Radioterapia', count: 380, percentage: 30.16, color: '#10b981' },
+        { treatment_type: 'Imunoterapia', count: 280, percentage: 22.22, color: '#f59e0b' },
+        { treatment_type: 'Cirurgia', count: 150, percentage: 11.9, color: '#ef4444' }
       ],
       trend_data: [
         { week: '2025-09-01', count: 1180 },
@@ -77,7 +51,7 @@ describe('useTreatmentDistribution', () => {
       last_updated: '2025-10-06T14:30:00Z'
     }
 
-    vi.mocked(apiClient.request).mockResolvedValueOnce(mockData)
+    vi.mocked(apiClient.analytics.treatmentDistribution).mockResolvedValueOnce(mockData)
 
     const { result } = renderHook(() => useTreatmentDistribution(), {
       wrapper: createWrapper()
@@ -86,24 +60,15 @@ describe('useTreatmentDistribution', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
     expect(result.current.data).toEqual(mockData)
-    expect(apiClient.request).toHaveBeenCalledWith(
-      '/api/v1/analytics/treatment-distribution?period=30d'
-    )
+    expect(apiClient.analytics.treatmentDistribution).toHaveBeenCalledWith('30d')
   })
 
   it('should fetch treatment distribution for 7d period', async () => {
-    const mockData: TreatmentDistributionResponse = {
+    const mockData: TreatmentDistribution = {
       period: '7d',
       total_patients: 320,
       distribution: [
-        {
-          treatment_type: 'Quimioterapia',
-          count: 120,
-          percentage: 37.5,
-          active_patients: 100,
-          avg_treatment_days: 5,
-          color: '#3b82f6'
-        }
+        { treatment_type: 'Quimioterapia', count: 120, percentage: 37.5, color: '#3b82f6' }
       ],
       trend_data: [
         { week: '2025-10-01', count: 320 }
@@ -111,7 +76,7 @@ describe('useTreatmentDistribution', () => {
       last_updated: '2025-10-06T14:30:00Z'
     }
 
-    vi.mocked(apiClient.request).mockResolvedValueOnce(mockData)
+    vi.mocked(apiClient.analytics.treatmentDistribution).mockResolvedValueOnce(mockData)
 
     const { result } = renderHook(() => useTreatmentDistribution('7d'), {
       wrapper: createWrapper()
@@ -120,13 +85,11 @@ describe('useTreatmentDistribution', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
     expect(result.current.data).toEqual(mockData)
-    expect(apiClient.request).toHaveBeenCalledWith(
-      '/api/v1/analytics/treatment-distribution?period=7d'
-    )
+    expect(apiClient.analytics.treatmentDistribution).toHaveBeenCalledWith('7d')
   })
 
   it('should fetch treatment distribution for 90d period', async () => {
-    const mockData: TreatmentDistributionResponse = {
+    const mockData: TreatmentDistribution = {
       period: '90d',
       total_patients: 3800,
       distribution: [
@@ -134,8 +97,6 @@ describe('useTreatmentDistribution', () => {
           treatment_type: 'Quimioterapia',
           count: 1400,
           percentage: 36.84,
-          active_patients: 1200,
-          avg_treatment_days: 75,
           color: '#3b82f6'
         }
       ],
@@ -143,7 +104,7 @@ describe('useTreatmentDistribution', () => {
       last_updated: '2025-10-06T14:30:00Z'
     }
 
-    vi.mocked(apiClient.request).mockResolvedValueOnce(mockData)
+    vi.mocked(apiClient.analytics.treatmentDistribution).mockResolvedValueOnce(mockData)
 
     const { result } = renderHook(() => useTreatmentDistribution('90d'), {
       wrapper: createWrapper()
@@ -151,13 +112,11 @@ describe('useTreatmentDistribution', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
-    expect(apiClient.request).toHaveBeenCalledWith(
-      '/api/v1/analytics/treatment-distribution?period=90d'
-    )
+    expect(apiClient.analytics.treatmentDistribution).toHaveBeenCalledWith('90d')
   })
 
   it('should fetch treatment distribution for all period', async () => {
-    const mockData: TreatmentDistributionResponse = {
+    const mockData: TreatmentDistribution = {
       period: 'all',
       total_patients: 15000,
       distribution: [
@@ -165,8 +124,6 @@ describe('useTreatmentDistribution', () => {
           treatment_type: 'Quimioterapia',
           count: 5500,
           percentage: 36.67,
-          active_patients: 450,
-          avg_treatment_days: 120,
           color: '#3b82f6'
         }
       ],
@@ -174,7 +131,7 @@ describe('useTreatmentDistribution', () => {
       last_updated: '2025-10-06T14:30:00Z'
     }
 
-    vi.mocked(apiClient.request).mockResolvedValueOnce(mockData)
+    vi.mocked(apiClient.analytics.treatmentDistribution).mockResolvedValueOnce(mockData)
 
     const { result } = renderHook(() => useTreatmentDistribution('all'), {
       wrapper: createWrapper()
@@ -182,13 +139,11 @@ describe('useTreatmentDistribution', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
-    expect(apiClient.request).toHaveBeenCalledWith(
-      '/api/v1/analytics/treatment-distribution?period=all'
-    )
+    expect(apiClient.analytics.treatmentDistribution).toHaveBeenCalledWith('all')
   })
 
   it('should cache results with queryKey including period', async () => {
-    const mockData: TreatmentDistributionResponse = {
+    const mockData: TreatmentDistribution = {
       period: '30d',
       total_patients: 1260,
       distribution: [],
@@ -196,24 +151,24 @@ describe('useTreatmentDistribution', () => {
       last_updated: '2025-10-06T14:30:00Z'
     }
 
-    vi.mocked(apiClient.request).mockResolvedValue(mockData)
+    vi.mocked(apiClient.analytics.treatmentDistribution).mockResolvedValue(mockData)
 
     const wrapper = createWrapper()
 
     // First render with 30d period
     renderHook(() => useTreatmentDistribution('30d'), { wrapper })
 
-    await waitFor(() => expect(apiClient.request).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(apiClient.analytics.treatmentDistribution).toHaveBeenCalledTimes(1))
 
     // Render again with same period - should use cache
     renderHook(() => useTreatmentDistribution('30d'), { wrapper })
 
     // Still 1, used cache
-    expect(apiClient.request).toHaveBeenCalledTimes(1)
+    expect(apiClient.analytics.treatmentDistribution).toHaveBeenCalledTimes(1)
   })
 
   it('should make separate requests for different periods', async () => {
-    const mockData7d: TreatmentDistributionResponse = {
+    const mockData7d: TreatmentDistribution = {
       period: '7d',
       total_patients: 320,
       distribution: [],
@@ -221,7 +176,7 @@ describe('useTreatmentDistribution', () => {
       last_updated: '2025-10-06T14:30:00Z'
     }
 
-    const mockData30d: TreatmentDistributionResponse = {
+    const mockData30d: TreatmentDistribution = {
       period: '30d',
       total_patients: 1260,
       distribution: [],
@@ -229,7 +184,7 @@ describe('useTreatmentDistribution', () => {
       last_updated: '2025-10-06T14:30:00Z'
     }
 
-    vi.mocked(apiClient.request)
+    vi.mocked(apiClient.analytics.treatmentDistribution)
       .mockResolvedValueOnce(mockData7d)
       .mockResolvedValueOnce(mockData30d)
 
@@ -244,14 +199,14 @@ describe('useTreatmentDistribution', () => {
     await waitFor(() => expect(result2.current.isSuccess).toBe(true))
 
     // Should have made 2 separate requests
-    expect(apiClient.request).toHaveBeenCalledTimes(2)
-    expect(apiClient.request).toHaveBeenNthCalledWith(
+    expect(apiClient.analytics.treatmentDistribution).toHaveBeenCalledTimes(2)
+    expect(apiClient.analytics.treatmentDistribution).toHaveBeenNthCalledWith(
       1,
-      '/api/v1/analytics/treatment-distribution?period=7d'
+      '7d'
     )
-    expect(apiClient.request).toHaveBeenNthCalledWith(
+    expect(apiClient.analytics.treatmentDistribution).toHaveBeenNthCalledWith(
       2,
-      '/api/v1/analytics/treatment-distribution?period=30d'
+      '30d'
     )
   })
 
@@ -262,12 +217,12 @@ describe('useTreatmentDistribution', () => {
     )
 
     expect(result.current.fetchStatus).toBe('idle')
-    expect(apiClient.request).not.toHaveBeenCalled()
+    expect(apiClient.analytics.treatmentDistribution).not.toHaveBeenCalled()
   })
 
   it('should handle API errors gracefully', async () => {
     const mockError = new Error('API Error: 500')
-    vi.mocked(apiClient.request).mockRejectedValueOnce(mockError)
+    vi.mocked(apiClient.analytics.treatmentDistribution).mockRejectedValueOnce(mockError)
 
     const { result } = renderHook(() => useTreatmentDistribution(), {
       wrapper: createWrapper()
@@ -281,7 +236,7 @@ describe('useTreatmentDistribution', () => {
 
   it('should retry failed requests up to 2 times', async () => {
     const mockError = new Error('Network error')
-    vi.mocked(apiClient.request)
+    vi.mocked(apiClient.analytics.treatmentDistribution)
       .mockRejectedValueOnce(mockError)
       .mockRejectedValueOnce(mockError)
       .mockRejectedValueOnce(mockError)
@@ -293,11 +248,11 @@ describe('useTreatmentDistribution', () => {
     await waitFor(() => expect(result.current.isError).toBe(true), { timeout: 5000 })
 
     // Should retry 2 times (initial + 2 retries = 3 total calls)
-    expect(apiClient.request).toHaveBeenCalledTimes(3)
+    expect(apiClient.analytics.treatmentDistribution).toHaveBeenCalledTimes(3)
   })
 
   it('should have 5 minute stale time', async () => {
-    const mockData: TreatmentDistributionResponse = {
+    const mockData: TreatmentDistribution = {
       period: '30d',
       total_patients: 1260,
       distribution: [],
@@ -305,7 +260,7 @@ describe('useTreatmentDistribution', () => {
       last_updated: '2025-10-06T14:30:00Z'
     }
 
-    vi.mocked(apiClient.request).mockResolvedValueOnce(mockData)
+    vi.mocked(apiClient.analytics.treatmentDistribution).mockResolvedValueOnce(mockData)
 
     const { result } = renderHook(() => useTreatmentDistribution(), {
       wrapper: createWrapper()
@@ -318,7 +273,7 @@ describe('useTreatmentDistribution', () => {
   })
 
   it('should handle empty distribution data', async () => {
-    const mockData: TreatmentDistributionResponse = {
+    const mockData: TreatmentDistribution = {
       period: '30d',
       total_patients: 0,
       distribution: [],
@@ -326,7 +281,7 @@ describe('useTreatmentDistribution', () => {
       last_updated: '2025-10-06T14:30:00Z'
     }
 
-    vi.mocked(apiClient.request).mockResolvedValueOnce(mockData)
+    vi.mocked(apiClient.analytics.treatmentDistribution).mockResolvedValueOnce(mockData)
 
     const { result } = renderHook(() => useTreatmentDistribution(), {
       wrapper: createWrapper()
@@ -339,7 +294,7 @@ describe('useTreatmentDistribution', () => {
   })
 
   it('should return data with correct structure', async () => {
-    const mockData: TreatmentDistributionResponse = {
+    const mockData: TreatmentDistribution = {
       period: '30d',
       total_patients: 100,
       distribution: [
@@ -347,8 +302,6 @@ describe('useTreatmentDistribution', () => {
           treatment_type: 'Test Treatment',
           count: 50,
           percentage: 50,
-          active_patients: 45,
-          avg_treatment_days: 30,
           color: '#000000'
         }
       ],
@@ -358,7 +311,7 @@ describe('useTreatmentDistribution', () => {
       last_updated: '2025-10-06T14:30:00Z'
     }
 
-    vi.mocked(apiClient.request).mockResolvedValueOnce(mockData)
+    vi.mocked(apiClient.analytics.treatmentDistribution).mockResolvedValueOnce(mockData)
 
     const { result } = renderHook(() => useTreatmentDistribution(), {
       wrapper: createWrapper()
@@ -378,8 +331,6 @@ describe('useTreatmentDistribution', () => {
     expect(firstItem).toHaveProperty('treatment_type')
     expect(firstItem).toHaveProperty('count')
     expect(firstItem).toHaveProperty('percentage')
-    expect(firstItem).toHaveProperty('active_patients')
-    expect(firstItem).toHaveProperty('avg_treatment_days')
     expect(firstItem).toHaveProperty('color')
   })
 })

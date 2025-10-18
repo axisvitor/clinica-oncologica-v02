@@ -1,7 +1,16 @@
 """
 Message model for WhatsApp communication.
 """
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum as SAEnum, Integer
+
+from sqlalchemy import (
+    Column,
+    String,
+    Text,
+    DateTime,
+    ForeignKey,
+    Enum as SAEnum,
+    Integer,
+)
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import enum
@@ -11,12 +20,14 @@ from app.models.base import BaseModel
 
 class MessageDirection(str, enum.Enum):
     """Message direction enumeration."""
+
     INBOUND = "inbound"
     OUTBOUND = "outbound"
 
 
 class MessageType(str, enum.Enum):
     """Message type enumeration."""
+
     TEXT = "text"
     BUTTON = "button"
     LIST = "list"
@@ -35,6 +46,7 @@ class MessageType(str, enum.Enum):
 
 class MessageStatus(str, enum.Enum):
     """Message status enumeration."""
+
     PENDING = "pending"
     SCHEDULED = "scheduled"
     SENDING = "sending"  # Message is being sent by Celery worker
@@ -47,6 +59,7 @@ class MessageStatus(str, enum.Enum):
 
 class DeliveryStatus(str, enum.Enum):
     """Detailed delivery status tracking for WhatsApp messages."""
+
     SCHEDULED = "scheduled"
     QUEUED = "queued"
     SENDING = "sending"
@@ -59,13 +72,14 @@ class DeliveryStatus(str, enum.Enum):
 
 class Message(BaseModel):
     """Message model for WhatsApp communication."""
+
     __tablename__ = "messages"
 
     # Patient reference
     patient_id = Column(
         UUID(as_uuid=True),
         ForeignKey("patients.id", ondelete="CASCADE"),
-        nullable=False
+        nullable=False,
     )
 
     # Message details
@@ -96,6 +110,15 @@ class Message(BaseModel):
 
     # Metadata for buttons, media URLs, etc.
     message_metadata = Column(JSONB, nullable=True, default=dict)
+
+    # CRITICAL FIX #5: Idempotency key to prevent duplicate sends
+    # Unique per (patient_id, idempotency_key) - enforced by database constraint
+    idempotency_key = Column(
+        String(255),
+        nullable=False,
+        index=True,
+        comment="Idempotency key to prevent duplicate message sends",
+    )
 
     # WhatsApp integration
     whatsapp_id = Column(String(255), nullable=True, index=True)
@@ -134,18 +157,14 @@ class Message(BaseModel):
     last_retry_at = Column(DateTime(timezone=True), nullable=True)
     failure_reason = Column(Text, nullable=True)
     next_retry_at = Column(DateTime(timezone=True), nullable=True)
-    
+
     # Relationships
-    patient = relationship(
-        "Patient",
-        back_populates="messages",
-        passive_deletes=True
-    )
+    patient = relationship("Patient", back_populates="messages", passive_deletes=True)
     status_events = relationship(
         "MessageStatusEvent",
         back_populates="message",
         cascade="all, delete-orphan",
-        order_by="MessageStatusEvent.created_at"
+        order_by="MessageStatusEvent.created_at",
     )
 
     def __repr__(self):

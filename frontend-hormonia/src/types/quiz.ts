@@ -137,6 +137,73 @@ export interface QuizResponseListResponse {
   responses?: QuizResponse[]
 }
 
+// Quiz Response Viewer Types
+export interface QuizResponseWithContext {
+  id: string
+  patient_id: string
+  quiz_template_id: string
+  quiz_session_id?: string
+  question_id: string
+  question_text: string
+  response_type: string
+  response_value: string
+  response_metadata: Record<string, any>
+  other_text?: string
+  responded_at: string
+  created_at: string
+  // Additional context
+  template_name?: string
+  template_version?: string
+  session_status?: string
+}
+
+export interface PatientQuizResponsesResponse {
+  items: QuizResponseWithContext[]
+  total: number
+  page: number
+  size: number
+  pages: number
+}
+
+export interface QuizSessionWithResponses {
+  id: string
+  patient_id: string
+  quiz_template_id: string
+  status: string
+  current_question: number
+  total_questions?: number
+  answered_questions?: number
+  score?: number
+  max_score?: number
+  passed?: boolean
+  started_at: string
+  completed_at?: string
+  time_spent_seconds?: number
+  session_metadata: Record<string, any>
+  // Template info
+  template_name?: string
+  template_version?: string
+  // Responses
+  responses: QuizResponseWithContext[]
+}
+
+export interface QuizAnalysisResponse {
+  session_id: string
+  patient_id: string
+  template_name: string
+  template_version: string
+  completed_at?: string
+  // AI Analysis
+  risk_score?: number
+  risk_level?: 'low' | 'medium' | 'high' | 'critical'
+  sentiment_score?: number
+  key_concerns: string[]
+  recommendations: string[]
+  // Response summary
+  total_responses: number
+  flagged_responses: number
+}
+
 export interface QuizAnalytics {
   quiz_template_id: string
   total_responses: number

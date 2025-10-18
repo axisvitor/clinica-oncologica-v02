@@ -1,19 +1,19 @@
 // Force Railway rebuild - Critical fix for environment variables
-import { defineConfig } from 'vite'
-import { fileURLToPath } from 'url'
-import { dirname, resolve } from 'path'
-import tailwindcss from '@tailwindcss/vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from "vite";
+import { fileURLToPath } from "url";
+import { dirname, resolve } from "path";
+import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
-      '@': resolve(__dirname, './src'),
-      '~backend/client': resolve(__dirname, './client'),
-      '~backend': resolve(__dirname, '../backend-hormonia'), // Fixed: was '../Backend', now matches actual directory name
+      "@": resolve(__dirname, "./src"),
+      "~backend/client": resolve(__dirname, "./client"),
+      "~backend": resolve(__dirname, "../backend-hormonia"), // Fixed: was '../Backend', now matches actual directory name
     },
   },
   plugins: [
@@ -21,13 +21,13 @@ export default defineConfig(({ mode }) => ({
     react(),
     // Runtime config injection plugin
     {
-      name: 'runtime-config-injection',
+      name: "runtime-config-injection",
       generateBundle(options, bundle) {
-        if (mode === 'production') {
+        if (mode === "production") {
           // Create runtime config endpoint
           this.emitFile({
-            type: 'asset',
-            fileName: 'config.js',
+            type: "asset",
+            fileName: "config.js",
             source: `
 // Runtime configuration loader for Railway deployment
 // This script loads environment variables at runtime, not build time
@@ -60,51 +60,129 @@ window.__RUNTIME_CONFIG__ = {
 // Auto-load config when script is loaded
 if (typeof window !== 'undefined') {
   window.__RUNTIME_CONFIG__.loadConfig().catch(console.error);
-}`
+}`,
           });
         }
-      }
-    }
+      },
+    },
   ],
   build: {
-    outDir: 'dist',
-    sourcemap: mode === 'production' ? false : true,
-    minify: 'esbuild',
-    target: 'es2020',
-    cssMinify: 'lightningcss',
+    outDir: "dist",
+    sourcemap: mode === "production" ? false : true,
+    minify: "esbuild",
+    target: "es2020",
+    cssMinify: "lightningcss",
     cssCodeSplit: true,
     reportCompressedSize: false,
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Core React vendor libraries
-          vendor: ['react', 'react-dom'],
+        manualChunks(id) {
+          // Vendor chunks - separate by weight and usage
+          if (id.includes("node_modules")) {
+            // Core React (always needed)
+            if (id.includes("react") || id.includes("react-dom")) {
+              return "vendor-react";
+            }
 
-          // Router and state management
-          router: ['react-router-dom', '@tanstack/react-query'],
+            // React Query (used in most pages)
+            if (id.includes("@tanstack/react-query")) {
+              return "vendor-query";
+            }
 
-          // UI component libraries
-          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select', '@radix-ui/react-toast', 'lucide-react'],
+            // Router (always needed for navigation)
+            if (id.includes("react-router-dom")) {
+              return "vendor-router";
+            }
 
-          // Charts and data visualization
-          charts: ['recharts'],
+            // Radix UI components (heavy, ~150KB total)
+            if (id.includes("@radix-ui")) {
+              return "vendor-ui";
+            }
 
-          // Firebase and backend integration
-          firebase: ['firebase/app', 'firebase/auth'],
+            // Lucide icons (separate for better caching)
+            if (id.includes("lucide-react")) {
+              return "vendor-icons";
+            }
 
-          // Utility libraries
-          utils: ['lodash', 'date-fns', 'clsx', 'tailwind-merge'],
+            // Charts library (heavy, only on analytics/dashboard)
+            if (id.includes("recharts") || id.includes("d3-")) {
+              return "vendor-charts";
+            }
 
-          // Large form and validation libraries (if present)
-          forms: ['react-hook-form', 'zod']
+            // Date manipulation
+            if (id.includes("date-fns")) {
+              return "vendor-date";
+            }
+
+            // Firebase (only on auth pages)
+            if (id.includes("firebase")) {
+              return "vendor-firebase";
+            }
+
+            // Form libraries
+            if (id.includes("react-hook-form") || id.includes("zod")) {
+              return "vendor-forms";
+            }
+
+            // Lodash utilities
+            if (id.includes("lodash")) {
+              return "vendor-lodash";
+            }
+
+            // Tailwind utilities (small, frequently used)
+            if (id.includes("clsx") || id.includes("tailwind-merge")) {
+              return "vendor-tailwind";
+            }
+
+            // Other vendor libraries
+            return "vendor-misc";
+          }
+
+          // Feature-based code splitting for pages
+          if (id.includes("/src/pages/")) {
+            const pageName = id.split("/pages/")[1]?.split(/[/.]/)[0];
+            if (pageName) {
+              return `page-${pageName.toLowerCase()}`;
+            }
+          }
+
+          // Feature modules
+          if (id.includes("/src/features/")) {
+            const featureName = id.split("/features/")[1]?.split("/")[0];
+            if (featureName) {
+              return `feature-${featureName.toLowerCase()}`;
+            }
+          }
+
+          // Components that are shared but heavy
+          if (id.includes("/src/components/")) {
+            // Charts components
+            if (id.includes("/charts/")) {
+              return "components-charts";
+            }
+            // Tables/DataGrid
+            if (id.includes("/tables/") || id.includes("DataTable")) {
+              return "components-tables";
+            }
+            // Editors (TipTap, etc)
+            if (id.includes("/editors/") || id.includes("RichText")) {
+              return "components-editors";
+            }
+            // Calendar components
+            if (id.includes("/calendar/")) {
+              return "components-calendar";
+            }
+          }
         },
         chunkFileNames: (chunkInfo) => {
-          const facadeModuleId = chunkInfo.facadeModuleId ? chunkInfo.facadeModuleId.split('/').pop() : 'chunk';
+          const facadeModuleId = chunkInfo.facadeModuleId
+            ? chunkInfo.facadeModuleId.split("/").pop()
+            : "chunk";
           return `js/[name]-${facadeModuleId}-[hash].js`;
         },
-        entryFileNames: 'js/[name]-[hash].js',
+        entryFileNames: "js/[name]-[hash].js",
         assetFileNames: (assetInfo) => {
-          const extType = assetInfo.name?.split('.').pop() || 'asset';
+          const extType = assetInfo.name?.split(".").pop() || "asset";
           if (/png|jpe?g|svg|gif|tiff|bmp|ico/i.test(extType)) {
             return `images/[name]-[hash][extname]`;
           }
@@ -116,99 +194,108 @@ if (typeof window !== 'undefined') {
       },
       treeshake: {
         moduleSideEffects: false,
-        preset: 'recommended',
-        tryCatchDeoptimization: false
-      }
+        preset: "recommended",
+        tryCatchDeoptimization: false,
+      },
     },
-    chunkSizeWarningLimit: 500,
+    chunkSizeWarningLimit: 500, // Warn if chunk > 500KB
+    // Ensure proper module format
+    modulePreload: {
+      polyfill: true,
+    },
   },
   server: {
-    port: process.env['PORT'] ? parseInt(process.env['PORT']) : 5173,
-    host: '0.0.0.0', // Allow external connections for Railway
+    port: process.env["PORT"] ? parseInt(process.env["PORT"]) : 5173,
+    host: "0.0.0.0", // Allow external connections for Railway
     strictPort: false,
     cors: true,
     hmr: {
-      port: process.env['PORT'] ? parseInt(process.env['PORT']) + 1 : 24678,
-      host: '0.0.0.0'
+      port: process.env["PORT"] ? parseInt(process.env["PORT"]) + 1 : 24678,
+      host: "0.0.0.0",
     },
-    proxy: mode === 'development' ? {
-      '/api': {
-        target: process.env['VITE_API_URL'] || 'https://clinica-oncologica-v02-production.up.railway.app',
-        changeOrigin: true,
-        secure: false,
-        rewrite: (path) => path.replace(/^\/api/, '/api/v1'),
-      },
-      '/ws': {
-        target: process.env['VITE_WS_BASE_URL'] || 'wss://clinica-oncologica-v02-production.up.railway.app',
-        ws: true,
-        changeOrigin: true,
-      },
-    } : undefined,
+    proxy:
+      mode === "development"
+        ? {
+            "/api": {
+              target:
+                process.env["VITE_API_URL"] ||
+                "https://clinica-oncologica-v02-production.up.railway.app",
+              changeOrigin: true,
+              secure: false,
+              rewrite: (path) => path.replace(/^\/api/, "/api/v1"),
+            },
+            "/ws": {
+              target:
+                process.env["VITE_WS_BASE_URL"] ||
+                "wss://clinica-oncologica-v02-production.up.railway.app",
+              ws: true,
+              changeOrigin: true,
+            },
+          }
+        : undefined,
   },
   preview: {
-    port: process.env['PORT'] ? parseInt(process.env['PORT']) : 4173,
-    host: '0.0.0.0',
+    port: process.env["PORT"] ? parseInt(process.env["PORT"]) : 4173,
+    host: "0.0.0.0",
     strictPort: false, // Allow Railway to assign port dynamically
     cors: true,
     headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
-      'X-Frame-Options': 'DENY',
-      'X-Content-Type-Options': 'nosniff',
-      'Referrer-Policy': 'strict-origin-when-cross-origin',
-      'Permissions-Policy': 'geolocation=(self), microphone=(), camera=()',
-      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://clinica-oncologica-v02-production.up.railway.app wss://clinica-oncologica-v02-production.up.railway.app https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers":
+        "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+      "X-Frame-Options": "DENY",
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
+      "Permissions-Policy": "geolocation=(self), microphone=(), camera=()",
+      "Content-Security-Policy":
+        "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://clinica-oncologica-v02-production.up.railway.app wss://clinica-oncologica-v02-production.up.railway.app https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
     },
     allowedHosts: [
-      'frontend-production-c59bc.up.railway.app',
-      '.up.railway.app',
-      '.railway.app',
-      'localhost',
-      '127.0.0.1',
-      '0.0.0.0'
+      "frontend-production-c59bc.up.railway.app",
+      ".up.railway.app",
+      ".railway.app",
+      "localhost",
+      "127.0.0.1",
+      "0.0.0.0",
     ],
   },
   optimizeDeps: {
     include: [
-      'react',
-      'react-dom',
-      'react-router-dom',
-      '@tanstack/react-query',
-      'firebase/app',
-      'firebase/auth',
-      'clsx',
-      'tailwind-merge',
-      'date-fns',
-      'lucide-react',
-      'recharts',
-      'lodash',
-      'lodash/*'
+      "react",
+      "react-dom",
+      "react-router-dom",
+      "@tanstack/react-query",
+      "firebase/app",
+      "firebase/auth",
+      "clsx",
+      "tailwind-merge",
+      "date-fns",
+      "lucide-react",
+      "recharts",
+      "lodash",
+      "lodash/*",
     ],
-    exclude: [
-      '@radix-ui/react-dialog',
-      '@radix-ui/react-dropdown-menu'
-    ],
+    exclude: ["@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu"],
     esbuildOptions: {
-      target: 'es2020',
+      target: "es2020",
       supported: {
-        'top-level-await': true
-      }
-    }
+        "top-level-await": true,
+      },
+    },
   },
   esbuild: {
-    drop: mode === 'production' ? ['console', 'debugger'] : [],
-    legalComments: 'none',
+    drop: mode === "production" ? ["console", "debugger"] : [],
+    legalComments: "none",
     minifyIdentifiers: true,
     minifySyntax: true,
-    minifyWhitespace: true
+    minifyWhitespace: true,
   },
   define: {
     // Ensure environment variables are properly replaced at build time
-    'process.env.NODE_ENV': JSON.stringify(mode),
+    "process.env.NODE_ENV": JSON.stringify(mode),
     // Runtime config support
-    '__VITE_MODE__': JSON.stringify(mode),
-    '__VITE_PROD__': JSON.stringify(mode === 'production'),
+    __VITE_MODE__: JSON.stringify(mode),
+    __VITE_PROD__: JSON.stringify(mode === "production"),
   },
-}))
-
+}));

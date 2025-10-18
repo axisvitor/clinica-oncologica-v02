@@ -2,64 +2,102 @@
  * Mock Analytics Data
  */
 
-export interface MockDashboardStats {
+export interface MockOverviewAnalytics {
   total_patients: number
-  active_patients: number
-  completed_treatments: number
-  pending_alerts: number
-  message_response_rate: number
-  average_engagement_score: number
+  total_quizzes: number
+  completed_quizzes: number
+  completion_rate: number
+  active_patients_30d: number
+  period: {
+    start_date: string | null
+    end_date: string | null
+  }
 }
 
-export interface MockEngagementData {
-  date: string
-  messages_sent: number
-  messages_received: number
-  response_rate: number
+export interface MockEngagementLevels {
+  engagement_levels: {
+    no_quizzes: number
+    low_engagement: number
+    high_engagement: number
+  }
+  average_quizzes_per_patient: number
+  total_active_patients: number
 }
 
-export const MOCK_DASHBOARD_STATS: MockDashboardStats = {
-  total_patients: 8,
-  active_patients: 6,
-  completed_treatments: 2,
-  pending_alerts: 3,
-  message_response_rate: 87.5,
-  average_engagement_score: 8.2
+export interface MockTreatmentDistribution {
+  period: '7d' | '30d' | '90d' | 'all'
+  total_patients: number
+  distribution: Array<{
+    treatment_type: string
+    count: number
+    percentage: number
+    color: string
+  }>
+  trend_data: Array<{ week: string; count: number }>
+  last_updated: string
 }
 
-export const MOCK_ENGAGEMENT_DATA: MockEngagementData[] = [
-  { date: '2024-09-25', messages_sent: 12, messages_received: 10, response_rate: 83.3 },
-  { date: '2024-09-26', messages_sent: 15, messages_received: 14, response_rate: 93.3 },
-  { date: '2024-09-27', messages_sent: 18, messages_received: 15, response_rate: 83.3 },
-  { date: '2024-09-28', messages_sent: 10, messages_received: 9, response_rate: 90.0 },
-  { date: '2024-09-29', messages_sent: 14, messages_received: 11, response_rate: 78.6 },
-  { date: '2024-09-30', messages_sent: 16, messages_received: 14, response_rate: 87.5 },
-  { date: '2024-10-01', messages_sent: 20, messages_received: 18, response_rate: 90.0 }
-]
+const MOCK_OVERVIEW_ANALYTICS: MockOverviewAnalytics = {
+  total_patients: 145,
+  total_quizzes: 420,
+  completed_quizzes: 360,
+  completion_rate: 85.7,
+  active_patients_30d: 118,
+  period: {
+    start_date: null,
+    end_date: null
+  }
+}
+
+const MOCK_ENGAGEMENT_LEVELS: MockEngagementLevels = {
+  engagement_levels: {
+    no_quizzes: 12,
+    low_engagement: 82,
+    high_engagement: 51
+  },
+  average_quizzes_per_patient: 3.4,
+  total_active_patients: 145
+}
+
+const BASE_TREATMENT_DISTRIBUTION = {
+  total_patients: 145,
+  distribution: [
+    { treatment_type: 'Quimioterapia', count: 54, percentage: 37.24, color: '#2563eb' },
+    { treatment_type: 'Radioterapia', count: 42, percentage: 28.97, color: '#10b981' },
+    { treatment_type: 'Imunoterapia', count: 31, percentage: 21.38, color: '#f59e0b' },
+    { treatment_type: 'Acompanhamento', count: 18, percentage: 12.41, color: '#ef4444' }
+  ],
+  trend_data: [
+    { week: '2024-12-02', count: 120 },
+    { week: '2024-12-09', count: 130 },
+    { week: '2024-12-16', count: 140 },
+    { week: '2024-12-23', count: 145 }
+  ]
+}
 
 /**
- * Get mock dashboard analytics
+ * Get mock overview analytics
  */
-export function getMockDashboardAnalytics(): MockDashboardStats {
-  return { ...MOCK_DASHBOARD_STATS }
+export function getMockDashboardAnalytics(): MockOverviewAnalytics {
+  return { ...MOCK_OVERVIEW_ANALYTICS }
 }
 
 /**
- * Get mock engagement data
+ * Get mock patient engagement analytics
  */
-export function getMockEngagementData(params?: {
-  start_date?: string
-  end_date?: string
-}): MockEngagementData[] {
-  let data = [...MOCK_ENGAGEMENT_DATA]
+export function getMockEngagementData(): MockEngagementLevels {
+  return { ...MOCK_ENGAGEMENT_LEVELS }
+}
 
-  if (params?.start_date) {
-    data = data.filter(d => d.date >= params.start_date!)
+/**
+ * Get mock treatment distribution data
+ */
+export function getMockTreatmentDistribution(period: '7d' | '30d' | '90d' | 'all'): MockTreatmentDistribution {
+  return {
+    period,
+    total_patients: BASE_TREATMENT_DISTRIBUTION.total_patients,
+    distribution: BASE_TREATMENT_DISTRIBUTION.distribution.map(item => ({ ...item })),
+    trend_data: BASE_TREATMENT_DISTRIBUTION.trend_data.map(item => ({ ...item })),
+    last_updated: new Date().toISOString()
   }
-
-  if (params?.end_date) {
-    data = data.filter(d => d.date <= params.end_date!)
-  }
-
-  return data
 }

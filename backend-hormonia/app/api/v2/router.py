@@ -1,0 +1,31 @@
+"""
+API v2 Router
+Main router for API v2 endpoints.
+"""
+
+from fastapi import APIRouter
+from .patients import router as patients_router
+from .quiz import router as quiz_router
+from .analytics import router as analytics_router
+
+api_v2_router = APIRouter(prefix="/api/v2", tags=["v2"])
+
+# Include sub-routers
+api_v2_router.include_router(patients_router, prefix="/patients", tags=["patients-v2"])
+api_v2_router.include_router(quiz_router, prefix="/quiz", tags=["quiz-v2"])
+api_v2_router.include_router(analytics_router, prefix="/analytics", tags=["analytics-v2"])
+
+
+@api_v2_router.get("/health", tags=["health"])
+async def health_check():
+    """
+    Health check endpoint for API v2.
+    
+    Returns:
+        dict: API status and version
+    """
+    return {
+        "status": "healthy",
+        "version": "2.0.0",
+        "api": "v2"
+    }

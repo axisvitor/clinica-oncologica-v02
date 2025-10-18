@@ -15,6 +15,7 @@ from app.dependencies import (
     get_quiz_session_service,
     get_quiz_analytics_service,
     get_current_user,
+    get_admin_user,
     get_pagination_params,
     validate_patient_access,
     get_patient_service
@@ -42,7 +43,7 @@ router = APIRouter()
 async def create_quiz_template(
     template_data: QuizTemplateCreate,
     service: QuizTemplateService = Depends(get_quiz_template_service),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_admin_user)
 ) -> QuizTemplateResponse:
     """Create a new quiz template."""
     try:
@@ -134,7 +135,7 @@ async def update_quiz_template(
     template_id: UUID,
     template_data: QuizTemplateUpdate,
     service: QuizTemplateService = Depends(get_quiz_template_service),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_admin_user)
 ) -> QuizTemplateResponse:
     """Update quiz template."""
     try:
@@ -184,7 +185,7 @@ async def update_quiz_template(
 async def delete_quiz_template(
     template_id: UUID,
     service: QuizTemplateService = Depends(get_quiz_template_service),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_admin_user)
 ) -> None:
     """Delete (deactivate) quiz template."""
     try:
@@ -241,7 +242,7 @@ async def create_template_version(
     template_id: UUID,
     new_version: str = Query(..., description="New version identifier"),
     service: QuizTemplateService = Depends(get_quiz_template_service),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_admin_user)
 ) -> QuizTemplateResponse:
     """Create a new version of an existing template."""
     try:

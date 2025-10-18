@@ -1,46 +1,74 @@
-import React, { Suspense, lazy } from 'react'
-import { QueryClientProvider } from '@tanstack/react-query'
-import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
-import { Toaster } from '@/components/ui/toaster'
-import { AuthProvider } from '@/contexts/AuthContext'
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
-import { Layout } from '@/components/layout/Layout'
-import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
-import { LandingRoute } from '@/pages/LandingRoute'
-import { queryClient, persister } from '@/lib/react-query/queryClient'
+import React, { Suspense, lazy, useEffect } from "react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { Toaster } from "@/components/ui/toaster";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { Layout } from "@/components/layout/Layout";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { LandingRoute } from "@/pages/LandingRoute";
+import { queryClient, persister } from "@/lib/react-query/queryClient";
+import { prefetchCriticalRoutes } from "@/utils/route-prefetch";
 
 // Lazy load pages for better performance
-const LoginPage = lazy(() => import('@/pages/LoginPage').then(m => ({ default: m.LoginPage })))
-const DashboardPage = lazy(() => import('@/pages/DashboardPage').then(m => ({ default: m.DashboardPage })))
-const PatientsPage = lazy(() => import('@/pages/PatientsPage').then(m => ({ default: m.PatientsPage })))
-const PatientDetailPage = lazy(() => import('@/pages/PatientDetailPage').then(m => ({ default: m.PatientDetailPage })))
-const MessagesPage = lazy(() => import('@/pages/MessagesPage').then(m => ({ default: m.MessagesPage })))
-const QuizPage = lazy(() => import('@/pages/QuizPage').then(m => ({ default: m.QuizPage })))
-const MonthlyQuizDashboard = lazy(() => import('@/pages/MonthlyQuizDashboard').then(m => ({ default: m.MonthlyQuizDashboard })))
-const ReportsPage = lazy(() => import('@/pages/ReportsPage').then(m => ({ default: m.ReportsPage })))
-const AlertsPage = lazy(() => import('@/pages/AlertsPage').then(m => ({ default: m.AlertsPage })))
-const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage').then(m => ({ default: m.AnalyticsPage })))
-const SettingsPage = lazy(() => import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage })))
-const FlowsPage = lazy(() => import('@/pages/FlowsPage').then(m => ({ default: m.FlowsPage })))
-const QuestionariosPage = lazy(() => import('@/pages/QuestionariosPage').then(m => ({ default: m.QuestionariosPage })))
+const LoginPage = lazy(() => import("@/pages/LoginPage").then((m) => ({ default: m.LoginPage })));
+const DashboardPage = lazy(() =>
+  import("@/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })),
+);
+const PatientsPage = lazy(() =>
+  import("@/pages/PatientsPage").then((m) => ({ default: m.PatientsPage })),
+);
+const PatientDetailPage = lazy(() =>
+  import("@/pages/PatientDetailPage").then((m) => ({ default: m.PatientDetailPage })),
+);
+const MessagesPage = lazy(() =>
+  import("@/pages/MessagesPage").then((m) => ({ default: m.MessagesPage })),
+);
+const QuizPage = lazy(() => import("@/pages/QuizPage").then((m) => ({ default: m.QuizPage })));
+const MonthlyQuizDashboard = lazy(() =>
+  import("@/pages/MonthlyQuizDashboard").then((m) => ({ default: m.MonthlyQuizDashboard })),
+);
+const ReportsPage = lazy(() =>
+  import("@/pages/ReportsPage").then((m) => ({ default: m.ReportsPage })),
+);
+const AlertsPage = lazy(() =>
+  import("@/pages/AlertsPage").then((m) => ({ default: m.AlertsPage })),
+);
+const AnalyticsPage = lazy(() =>
+  import("@/pages/AnalyticsPage").then((m) => ({ default: m.AnalyticsPage })),
+);
+const SettingsPage = lazy(() =>
+  import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })),
+);
+const FlowsPage = lazy(() => import("@/pages/FlowsPage").then((m) => ({ default: m.FlowsPage })));
+const QuestionariosPage = lazy(() =>
+  import("@/pages/QuestionariosPage").then((m) => ({ default: m.QuestionariosPage })),
+);
 // Physician dashboard
-const PhysicianDashboard = lazy(() => import('@/pages/PhysicianDashboard').then(m => ({ default: m.default })))
+const PhysicianDashboard = lazy(() =>
+  import("@/pages/PhysicianDashboard").then((m) => ({ default: m.default })),
+);
 // Admin system import
-const AdminApp = lazy(() => import('@/AdminApp'))
-const WhatsAppPage = lazy(() => import('@/pages/WhatsAppPage').then(m => ({ default: m.WhatsAppPage })))
+const AdminApp = lazy(() => import("@/AdminApp"));
+const WhatsAppPage = lazy(() =>
+  import("@/pages/WhatsAppPage").then((m) => ({ default: m.WhatsAppPage })),
+);
+const DLQDashboard = lazy(() =>
+  import("@/pages/DLQDashboard").then((m) => ({ default: m.DLQDashboard })),
+);
 
 // Loading component for Suspense
 const PageLoader = () => (
   <div className="min-h-screen flex items-center justify-center">
     <LoadingSpinner size="lg" color="primary" />
   </div>
-)
+);
 
 // 404 Not Found component with React Router navigation
 const NotFoundPage = () => {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -48,15 +76,15 @@ const NotFoundPage = () => {
         <h1 className="text-4xl font-bold text-gray-900 mb-4">404</h1>
         <p className="text-lg text-gray-600 mb-8">Página não encontrada</p>
         <button
-          onClick={() => navigate('/dashboard')}
+          onClick={() => navigate("/dashboard")}
           className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
         >
           Voltar ao Dashboard
         </button>
       </div>
     </div>
-  )
-}
+  );
+};
 
 /**
  * React Query Configuration - Phase 2.2 Enhanced with IndexedDB Persistence
@@ -81,6 +109,15 @@ const NotFoundPage = () => {
  */
 
 function App() {
+  // Prefetch critical routes after initial load for better performance
+  useEffect(() => {
+    // Only prefetch in production or when explicitly enabled
+    if (import.meta.env.PROD || import.meta.env.VITE_ENABLE_PREFETCH === "true") {
+      console.log("[App] Initializing critical route prefetch");
+      prefetchCriticalRoutes();
+    }
+  }, []);
+
   return (
     <ErrorBoundary>
       {/* Phase 2.2: PersistQueryClientProvider for IndexedDB persistence */}
@@ -95,148 +132,210 @@ function App() {
                   <Route path="/" element={<LandingRoute />} />
 
                   {/* Protected Routes with Suspense */}
-                  <Route path="/dashboard" element={
-                    <ProtectedRoute>
-                      <Layout>
+                  <Route
+                    path="/dashboard"
+                    element={
+                      <ProtectedRoute>
+                        <Layout>
+                          <Suspense fallback={<PageLoader />}>
+                            <DashboardPage />
+                          </Suspense>
+                        </Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/patients"
+                    element={
+                      <ProtectedRoute>
+                        <Layout>
+                          <Suspense fallback={<PageLoader />}>
+                            <PatientsPage />
+                          </Suspense>
+                        </Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/patients/:id"
+                    element={
+                      <ProtectedRoute>
+                        <Layout>
+                          <Suspense fallback={<PageLoader />}>
+                            <PatientDetailPage />
+                          </Suspense>
+                        </Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/messages"
+                    element={
+                      <ProtectedRoute>
+                        <Layout>
+                          <Suspense fallback={<PageLoader />}>
+                            <MessagesPage />
+                          </Suspense>
+                        </Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/quiz"
+                    element={
+                      <ProtectedRoute>
+                        <Layout>
+                          <Suspense fallback={<PageLoader />}>
+                            <QuizPage />
+                          </Suspense>
+                        </Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/monthly-quiz"
+                    element={
+                      <ProtectedRoute>
+                        <Layout>
+                          <Suspense fallback={<PageLoader />}>
+                            <MonthlyQuizDashboard />
+                          </Suspense>
+                        </Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/reports"
+                    element={
+                      <ProtectedRoute>
+                        <Layout>
+                          <Suspense fallback={<PageLoader />}>
+                            <ReportsPage />
+                          </Suspense>
+                        </Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/alerts"
+                    element={
+                      <ProtectedRoute>
+                        <Layout>
+                          <Suspense fallback={<PageLoader />}>
+                            <AlertsPage />
+                          </Suspense>
+                        </Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/analytics"
+                    element={
+                      <ProtectedRoute>
+                        <Layout>
+                          <Suspense fallback={<PageLoader />}>
+                            <AnalyticsPage />
+                          </Suspense>
+                        </Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/settings"
+                    element={
+                      <ProtectedRoute>
+                        <Layout>
+                          <Suspense fallback={<PageLoader />}>
+                            <SettingsPage />
+                          </Suspense>
+                        </Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/flows"
+                    element={
+                      <ProtectedRoute>
+                        <Layout>
+                          <Suspense fallback={<PageLoader />}>
+                            <FlowsPage />
+                          </Suspense>
+                        </Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/questionarios"
+                    element={
+                      <ProtectedRoute>
+                        <Layout>
+                          <Suspense fallback={<PageLoader />}>
+                            <QuestionariosPage />
+                          </Suspense>
+                        </Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/dlq"
+                    element={
+                      <ProtectedRoute>
+                        <Layout>
+                          <Suspense fallback={<PageLoader />}>
+                            <DLQDashboard />
+                          </Suspense>
+                        </Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/admin/*"
+                    element={
+                      <ProtectedRoute>
                         <Suspense fallback={<PageLoader />}>
-                          <DashboardPage />
+                          <AdminApp />
                         </Suspense>
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/patients" element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <Suspense fallback={<PageLoader />}>
-                          <PatientsPage />
-                        </Suspense>
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/patients/:id" element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <Suspense fallback={<PageLoader />}>
-                          <PatientDetailPage />
-                        </Suspense>
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/messages" element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <Suspense fallback={<PageLoader />}>
-                          <MessagesPage />
-                        </Suspense>
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/quiz" element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <Suspense fallback={<PageLoader />}>
-                          <QuizPage />
-                        </Suspense>
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/monthly-quiz" element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <Suspense fallback={<PageLoader />}>
-                          <MonthlyQuizDashboard />
-                        </Suspense>
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/reports" element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <Suspense fallback={<PageLoader />}>
-                          <ReportsPage />
-                        </Suspense>
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/alerts" element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <Suspense fallback={<PageLoader />}>
-                          <AlertsPage />
-                        </Suspense>
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/analytics" element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <Suspense fallback={<PageLoader />}>
-                          <AnalyticsPage />
-                        </Suspense>
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/settings" element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <Suspense fallback={<PageLoader />}>
-                          <SettingsPage />
-                        </Suspense>
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/flows" element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <Suspense fallback={<PageLoader />}>
-                          <FlowsPage />
-                        </Suspense>
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/questionarios" element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <Suspense fallback={<PageLoader />}>
-                          <QuestionariosPage />
-                        </Suspense>
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/*" element={
-                    <Suspense fallback={<PageLoader />}>
-                      <AdminApp />
-                    </Suspense>
-                  } />
-                  <Route path="/whatsapp" element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <Suspense fallback={<PageLoader />}>
-                          <WhatsAppPage />
-                        </Suspense>
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/whatsapp"
+                    element={
+                      <ProtectedRoute>
+                        <Layout>
+                          <Suspense fallback={<PageLoader />}>
+                            <WhatsAppPage />
+                          </Suspense>
+                        </Layout>
+                      </ProtectedRoute>
+                    }
+                  />
 
                   {/* Physician Dashboard Routes */}
-                  <Route path="/physician/dashboard" element={
-                    <ProtectedRoute requiredRoles={['PHYSICIAN', 'DOCTOR', 'ADMIN']}>
-                      <Layout>
-                        <Suspense fallback={<PageLoader />}>
-                          <PhysicianDashboard />
-                        </Suspense>
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/physician/patients/:id" element={
-                    <ProtectedRoute requiredRoles={['PHYSICIAN', 'DOCTOR', 'ADMIN']}>
-                      <Layout>
-                        <Suspense fallback={<PageLoader />}>
-                          <PatientDetailPage />
-                        </Suspense>
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
+                  <Route
+                    path="/physician/dashboard"
+                    element={
+                      <ProtectedRoute requiredRoles={["PHYSICIAN", "DOCTOR", "ADMIN"]}>
+                        <Layout>
+                          <Suspense fallback={<PageLoader />}>
+                            <PhysicianDashboard />
+                          </Suspense>
+                        </Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/physician/patients/:id"
+                    element={
+                      <ProtectedRoute requiredRoles={["PHYSICIAN", "DOCTOR", "ADMIN"]}>
+                        <Layout>
+                          <Suspense fallback={<PageLoader />}>
+                            <PatientDetailPage />
+                          </Suspense>
+                        </Layout>
+                      </ProtectedRoute>
+                    }
+                  />
 
                   {/* 404 Catch-all Route */}
                   <Route path="*" element={<NotFoundPage />} />
@@ -248,7 +347,7 @@ function App() {
         </AuthProvider>
       </PersistQueryClientProvider>
     </ErrorBoundary>
-  )
+  );
 }
 
-export default App
+export default App;

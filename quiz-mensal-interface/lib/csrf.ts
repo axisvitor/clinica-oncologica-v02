@@ -1,5 +1,14 @@
 /**
  * CSRF Token Validation Utilities
+ *
+ * NOTE: This implementation is part of an alternative authentication flow
+ * using httpOnly cookies (see SECURITY_FIXES.md). The main quiz flow uses
+ * JWT token rotation instead (see lib/api.ts and lib/secure-token-manager.ts).
+ *
+ * These utilities are used by:
+ * - app/api/csrf-token/route.ts
+ * - app/api/quiz/submit-answer/route.ts
+ * - app/api/quiz/initialize-session/route.ts
  */
 
 import { NextRequest } from 'next/server'

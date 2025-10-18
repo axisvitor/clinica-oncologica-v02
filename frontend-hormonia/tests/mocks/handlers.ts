@@ -97,20 +97,63 @@ const mockReports = [
   }
 ]
 
-const mockAnalytics = {
-  dashboard: {
-    total_patients: 145,
-    active_patients: 120,
-    messages_today: 89,
-    response_rate: 87.5,
-    avg_response_time: 12.5,
-    pending_alerts: 3
-  },
-  engagement: {
-    daily_active_users: [10, 15, 12, 18, 14, 16, 13],
-    weekly_messages: [45, 52, 48, 61, 55, 58, 49],
-    response_times: [11.2, 13.5, 9.8, 15.1, 12.3, 10.7, 14.2]
+const mockAnalyticsOverview = {
+  total_patients: 145,
+  total_quizzes: 420,
+  completed_quizzes: 360,
+  completion_rate: 85.7,
+  active_patients_30d: 118,
+  period: {
+    start_date: null,
+    end_date: null
   }
+}
+
+const mockAnalyticsQuizStatus = {
+  distribution: {
+    started: 40,
+    completed: 360,
+    cancelled: 20
+  },
+  total: 420,
+  filters: {}
+}
+
+const mockAnalyticsTrend = {
+  trend: [
+    { year: 2024, month: 11, total: 70, completed: 58, completion_rate: 82.86 },
+    { year: 2024, month: 12, total: 80, completed: 65, completion_rate: 81.25 },
+    { year: 2025, month: 1, total: 90, completed: 78, completion_rate: 86.67 }
+  ],
+  period: { months: 6 }
+}
+
+const mockAnalyticsEngagement = {
+  engagement_levels: {
+    no_quizzes: 12,
+    low_engagement: 82,
+    high_engagement: 51
+  },
+  average_quizzes_per_patient: 3.4,
+  total_active_patients: 145
+}
+
+const mockTreatmentDistribution = {
+  period: '30d',
+  total_patients: 145,
+  distribution: [
+    { treatment_type: 'Quimioterapia', count: 54, percentage: 37.24, color: '#2563eb' },
+    { treatment_type: 'Radioterapia', count: 42, percentage: 28.97, color: '#10b981' },
+    { treatment_type: 'Imunoterapia', count: 31, percentage: 21.38, color: '#f59e0b' },
+    { treatment_type: 'Acompanhamento', count: 18, percentage: 12.41, color: '#ef4444' }
+  ],
+  trend_data: [
+    { week: '2024-12-02', count: 120 },
+    { week: '2024-12-09', count: 130 },
+    { week: '2024-12-16', count: 140 },
+    { week: '2024-12-23', count: 145 }
+  ],
+  last_updated: new Date().toISOString()
 }
 
 // API handlers
@@ -378,13 +421,30 @@ export const handlers = [
     return HttpResponse.json(report)
   }),
 
-  // Analytics endpoints
-  http.get('/api/v1/analytics/dashboard', () => {
-    return HttpResponse.json(mockAnalytics.dashboard)
+  // Analytics endpoints (v2)
+  http.get('/api/v2/analytics/overview', () => {
+    return HttpResponse.json(mockAnalyticsOverview)
   }),
 
-  http.get('/api/v1/analytics/engagement', () => {
-    return HttpResponse.json(mockAnalytics.engagement)
+  http.get('/api/v2/analytics/quiz-status', () => {
+    return HttpResponse.json(mockAnalyticsQuizStatus)
+  }),
+
+  http.get('/api/v2/analytics/completion-trend', () => {
+    return HttpResponse.json(mockAnalyticsTrend)
+  }),
+
+  http.get('/api/v2/analytics/patient-engagement', () => {
+    return HttpResponse.json(mockAnalyticsEngagement)
+  }),
+
+  http.get('/api/v2/analytics/treatment-distribution', ({ request }) => {
+    const url = new URL(request.url)
+    const period = (url.searchParams.get('period') as '7d' | '30d' | '90d' | 'all') ?? '30d'
+    return HttpResponse.json({
+      ...mockTreatmentDistribution,
+      period
+    })
   }),
 
   // Flow endpoints

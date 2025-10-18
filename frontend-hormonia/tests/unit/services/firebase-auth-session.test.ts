@@ -147,7 +147,7 @@ describe('loginUser', () => {
 
     // Verify session creation was called AFTER Firebase login
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/v1/session',
+      'http://localhost:8000/session',
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
@@ -281,7 +281,7 @@ describe('logoutUser', () => {
 
     // Verify logout endpoint was called
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/v1/session/logout',
+      'http://localhost:8000/session/logout',
       expect.objectContaining({
         method: 'DELETE',
         credentials: 'include'

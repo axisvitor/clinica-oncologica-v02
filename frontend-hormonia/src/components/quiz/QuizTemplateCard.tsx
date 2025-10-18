@@ -1,5 +1,5 @@
 import React from 'react'
-import { FileText, Play, Eye } from 'lucide-react'
+import { FileText, Play, Eye, Edit, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -17,9 +17,19 @@ interface QuizTemplateCardProps {
   template: QuizTemplate
   onStart?: (templateId: string) => void
   onPreview?: (templateId: string) => void
+  onEdit?: (templateId: string) => void
+  onDelete?: (templateId: string) => void
+  showAdminActions?: boolean
 }
 
-export function QuizTemplateCard({ template, onStart, onPreview }: QuizTemplateCardProps) {
+export function QuizTemplateCard({
+  template,
+  onStart,
+  onPreview,
+  onEdit,
+  onDelete,
+  showAdminActions = false
+}: QuizTemplateCardProps) {
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader>
@@ -48,26 +58,56 @@ export function QuizTemplateCard({ template, onStart, onPreview }: QuizTemplateC
               Criado em {new Date(template.created_at).toLocaleDateString('pt-BR')}
             </span>
           </div>
-          
+
           <div className="flex space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onPreview?.(template.id)}
-              className="flex-1"
-            >
-              <Eye className="mr-2 h-4 w-4" />
-              Visualizar
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => onStart?.(template.id)}
-              disabled={!template.is_active}
-              className="flex-1"
-            >
-              <Play className="mr-2 h-4 w-4" />
-              Iniciar
-            </Button>
+            {showAdminActions ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onEdit?.(template.id)}
+                  className="flex-1"
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  Editar
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onPreview?.(template.id)}
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => onDelete?.(template.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onPreview?.(template.id)}
+                  className="flex-1"
+                >
+                  <Eye className="mr-2 h-4 w-4" />
+                  Visualizar
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => onStart?.(template.id)}
+                  disabled={!template.is_active}
+                  className="flex-1"
+                >
+                  <Play className="mr-2 h-4 w-4" />
+                  Iniciar
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </CardContent>

@@ -27,10 +27,14 @@ import logging
 import secrets
 from datetime import datetime
 
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.services import ServiceProvider
 from app.services.audit_log import AuditLogService
-from app.dependencies.auth_dependencies import _firebase_service, _get_service_provider
+from app.dependencies.auth_dependencies import (
+    _firebase_service,
+    _get_service_provider,
+    get_permissions_for_role,
+)
 from app.dependencies.simple_service_provider import get_simple_service_provider
 from app.database import get_db
 from app.middleware.csrf import validate_csrf_token
@@ -371,7 +375,8 @@ async def validate_session(
     request: Request,
     session_id: Optional[str] = Cookie(None),
     x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
-    services: ServiceProvider = Depends(_get_service_provider)
+    services: ServiceProvider = Depends(_get_service_provider),
+    db: Session = Depends(get_db),
 ):
     """
     Validate session and return user data.
@@ -414,10 +419,10 @@ async def validate_session(
         cached_user = firebase_cache.get_cached_user(firebase_uid)
 
         if cached_user:
-            user_data = cached_user
+            user_data = dict(cached_user)
+            user_data.pop("cached_at", None)
+            user_data.pop("validated_at", None)
         else:
-            # Fallback: query DB
-            from app.models.user import User
             from sqlalchemy import select
 
             stmt = select(User).where(User.firebase_uid == firebase_uid)
@@ -432,9 +437,24 @@ async def validate_session(
                 "firebase_uid": user.firebase_uid,
                 "email": user.email,
                 "full_name": user.full_name,
-                "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
+                "role": user.role.value if isinstance(user.role, UserRole) else str(user.role),
                 "is_active": user.is_active,
             }
+
+        # Normalize role/permissions
+        role_value = user_data.get("role")
+        if isinstance(role_value, UserRole):
+            role_str = role_value.value
+        elif isinstance(role_value, str):
+            role_str = role_value.lower()
+        else:
+            role_str = None
+
+        user_data["role"] = role_str
+        user_data["permissions"] = get_permissions_for_role(role_str or "")
+
+        if user_data.get("id") is not None:
+            user_data["id"] = str(user_data["id"])
 
         return SessionValidationResponse(
             valid=True,

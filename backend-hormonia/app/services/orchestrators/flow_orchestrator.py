@@ -164,7 +164,7 @@ class FlowOrchestrator:
             db=db,
             messaging_mode=MessagingMode.HYBRID
         )
-        self.template_loader = template_loader or EnhancedTemplateLoader()
+        self.template_loader = template_loader or EnhancedTemplateLoader(db=db)
         self.analytics_service = analytics_service or FlowAnalyticsService(db)
         self.message_scheduler = message_scheduler or MessageScheduler(db)
         self.flow_template_loader = flow_template_loader or FlowTemplateLoader()

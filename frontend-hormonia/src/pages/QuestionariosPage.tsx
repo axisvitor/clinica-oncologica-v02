@@ -119,6 +119,8 @@ export function QuestionariosPage() {
     sortOrder: 'desc'
   })
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editingTemplate, setEditingTemplate] = useState<QuizTemplate | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 12
 
@@ -188,6 +190,33 @@ export function QuestionariosPage() {
     }
   })
 
+  // Update mutation
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: CreateQuizForm }) => {
+      logger.info('Updating quiz template', { templateId: id, name: data.name });
+      return apiClient.quizzes.updateTemplate(id, data);
+    },
+    onSuccess: () => {
+      logger.info('Quiz template updated successfully');
+      toast({
+        title: 'Questionário atualizado',
+        description: 'O questionário foi atualizado com sucesso.',
+      })
+      queryClient.invalidateQueries({ queryKey: ['quiz-templates'] })
+      setIsEditDialogOpen(false)
+      setEditingTemplate(null)
+      reset()
+    },
+    onError: (error: any) => {
+      logger.error('Update quiz error', { error });
+      toast({
+        title: 'Erro ao atualizar questionário',
+        description: error?.data?.message || 'Não foi possível atualizar o questionário.',
+        variant: 'destructive',
+      })
+    }
+  })
+
   // Form
   const {
     register,
@@ -251,13 +280,33 @@ export function QuestionariosPage() {
   }
 
   const onSubmit = (data: CreateQuizForm) => {
-    createMutation.mutate(data)
+    if (editingTemplate) {
+      updateMutation.mutate({ id: editingTemplate.id, data })
+    } else {
+      createMutation.mutate(data)
+    }
   }
 
   const handleDeleteTemplate = (id: string) => {
     if (window.confirm('Tem certeza que deseja desativar este questionário?')) {
       deleteMutation.mutate(id)
     }
+  }
+
+  const handleEditTemplate = (template: QuizTemplate) => {
+    setEditingTemplate(template)
+    // Populate form with existing data
+    setValue('name', template.name)
+    setValue('version', template.version)
+    setValue('questions', template.questions)
+    setValue('is_active', template.is_active)
+    setIsEditDialogOpen(true)
+  }
+
+  const handleCloseEditDialog = () => {
+    setIsEditDialogOpen(false)
+    setEditingTemplate(null)
+    reset()
   }
 
   const addQuestion = () => {
@@ -498,6 +547,7 @@ export function QuestionariosPage() {
                   key={template.id}
                   template={template}
                   onDelete={handleDeleteTemplate}
+                  onEdit={handleEditTemplate}
                 />
               ))}
             </div>
@@ -740,6 +790,123 @@ export function QuestionariosPage() {
           </DialogFooter>
         </form>
       </DialogContent>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={handleCloseEditDialog}>
+        <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[85vh] sm:max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Questionário</DialogTitle>
+            <DialogDescription>
+              Edite o questionário selecionado
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
+            {/* Basic Info */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Nome do Questionário</Label>
+                <Input
+                  id="edit-name"
+                  {...register('name')}
+                  placeholder="Ex: Avaliação de Sintomas"
+                />
+                {errors.name && (
+                  <p className="text-sm text-destructive">{errors.name.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-version">Versão</Label>
+                <Input
+                  id="edit-version"
+                  {...register('version')}
+                  placeholder="Ex: 1.0"
+                />
+                {errors.version && (
+                  <p className="text-sm text-destructive">{errors.version.message}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Questions Section - Reuse same structure as create */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-semibold">Perguntas</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addQuestion}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Adicionar Pergunta
+                </Button>
+              </div>
+
+              {questions.map((question, index) => (
+                <Card key={question.id} className="p-4">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 space-y-2">
+                        <Label>Pergunta {index + 1}</Label>
+                        <Input
+                          value={question.text}
+                          onChange={(e) => updateQuestion(index, 'text', e.target.value)}
+                          placeholder="Digite a pergunta"
+                        />
+                      </div>
+                      {questions.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeQuestion(index)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label>Tipo</Label>
+                        <Select
+                          value={question.type}
+                          onValueChange={(value) => updateQuestion(index, 'type', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="multiple_choice">Múltipla Escolha</SelectItem>
+                            <SelectItem value="open_text">Texto Aberto</SelectItem>
+                            <SelectItem value="scale">Escala</SelectItem>
+                            <SelectItem value="yes_no">Sim/Não</SelectItem>
+                            <SelectItem value="date">Data</SelectItem>
+                            <SelectItem value="number">Número</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={handleCloseEditDialog}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isSubmitting || updateMutation.isPending}>
+                {isSubmitting || updateMutation.isPending ? (
+                  <>
+                    <LoadingSpinner size="sm" className="mr-2" />
+                    Atualizando...
+                  </>
+                ) : (
+                  'Atualizar Questionário'
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -748,9 +915,10 @@ export function QuestionariosPage() {
 interface QuestionnaireCardProps {
   template: any
   onDelete: (id: string) => void
+  onEdit: (template: any) => void
 }
 
-function QuestionnaireCard({ template, onDelete }: QuestionnaireCardProps) {
+function QuestionnaireCard({ template, onDelete, onEdit }: QuestionnaireCardProps) {
   const analytics = template.analytics || {}
 
   const getStatusColor = (isActive: boolean) => {
@@ -795,7 +963,7 @@ function QuestionnaireCard({ template, onDelete }: QuestionnaireCardProps) {
                 <Eye className="h-4 w-4 mr-2" />
                 Visualizar
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onEdit(template)}>
                 <Edit className="h-4 w-4 mr-2" />
                 Editar
               </DropdownMenuItem>

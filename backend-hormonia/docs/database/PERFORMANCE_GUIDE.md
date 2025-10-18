@@ -1,8 +1,26 @@
 # Database Performance & Optimization Guide
 
+> Atualizado em **15/10/2025** com base no ambiente de produção PostgreSQL 17.4  
+> Total de **244 índices** ativos para otimização de performance
+
+## Status Atual dos Índices (Produção)
+
+**Estatísticas Gerais:**
+- **Total de índices**: 244
+- **Tabelas com índices**: 45
+- **Índices críticos**: 15 principais
+- **Performance média**: < 60ms por consulta
+
+**Índices Mais Utilizados:**
+1. `error_logs.idx_error_logs_deduplication` - Prevenção de logs duplicados
+2. `users.idx_users_email` - Autenticação e login
+3. `users.idx_users_firebase_uid` - Integração Firebase
+4. `alembic_version` PK - Controle de migrações
+5. `patients` índices de paginação - Dashboard médico
+
 ## Índices Críticos por Tabela
 
-### 1. Pacientes (`patients`)
+### 1. Pacientes (`patients`) - 1 registro ativo
 
 **Índices de Performance**:
 ```sql
@@ -318,6 +336,21 @@ ORDER BY seq_tup_read + idx_tup_read DESC;
 - Considerar particionamento por data
 - Implementar cache para consultas frequentes
 - Otimizar consultas de analytics
+
+---
+
+## Resumo de Performance (Produção)
+
+**Status Atual:**
+- ✅ **244 índices** ativos e otimizados
+- ✅ **Performance média** < 60ms por consulta
+- ✅ **Índices críticos** funcionando corretamente
+- ✅ **Monitoramento** ativo com `pg_stat_statements`
+
+**Próximos Passos:**
+1. Monitorar crescimento dos índices com aumento de dados
+2. Implementar análise automática de performance
+3. Considerar otimizações específicas para templates de fluxo
 
 ## Métricas de Performance Atuais
 

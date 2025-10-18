@@ -1,5 +1,6 @@
 """Database connection and session management for AWS RDS PostgreSQL with performance optimizations.
 
+CRITICAL FIX #3: Dynamic pool configuration based on environment to prevent connection exhaustion.
 FIX #5: Enhanced database optimization with comprehensive indexing strategy."""
 from sqlalchemy import create_engine, event, Index, text
 from sqlalchemy.ext.declarative import declarative_base
@@ -13,30 +14,46 @@ from contextlib import contextmanager
 from app.config import settings
 from app.utils.database_optimization import create_optimized_engine, ConnectionPoolMonitor
 from app.utils.query_performance import QueryPerformanceMonitor, IndexManager
+from app.core.database_config import get_pool_config, validate_pool_config, detect_environment
 
 logger = logging.getLogger(__name__)
+
+# ============================================================================
+# CRITICAL FIX #3: Dynamic Pool Configuration Based on Environment
+# ============================================================================
+# Get environment-aware pool configuration
+pool_config = get_pool_config()
+
+# Validate configuration against database limits
+if not validate_pool_config(pool_config, settings.DATABASE_URL):
+    logger.warning("⚠️  Pool configuration validation failed, using defaults")
+
+logger.info(
+    f"🔧 Initializing database with environment-aware pool: "
+    f"environment={detect_environment()}, "
+    f"pool_size={pool_config.pool_size}, "
+    f"max_overflow={pool_config.max_overflow}, "
+    f"total_max={pool_config.total_connections}"
+)
 
 # SQLAlchemy engine for AWS RDS PostgreSQL with enhanced optimizations
 # Configuration optimized for thread-safe multi-worker production deployment
 engine = create_optimized_engine(
     settings.DATABASE_URL,
     poolclass=QueuePool,
-    # Core pool configuration for production workloads
-    pool_size=40,          # SECURITY FIX: Increased from 25 to 40 - increased for better concurrency
-    max_overflow=60,       # SECURITY FIX: Increased from 35 to 60 under high load
-    pool_pre_ping=True,    # Test connections before use (critical for long-lived connections)
-    pool_recycle=3600,     # Recycle connections every hour (network timeouts)
-    pool_timeout=30,       # Wait time for connection from pool
+    # CRITICAL FIX: Environment-aware pool configuration
+    pool_size=pool_config.pool_size,
+    max_overflow=pool_config.max_overflow,
+    pool_pre_ping=pool_config.pool_pre_ping,
+    pool_recycle=pool_config.pool_recycle,
+    pool_timeout=pool_config.pool_timeout,
 
     # Advanced connection health and performance settings
     pool_reset_on_return='commit',  # Reset connection state on return
     pool_logging_name='hormonia_db', # Named logging for debugging
 
-    # Connection validation and cleanup
-    connect_args={
-        'connect_timeout': 10,      # TCP connection timeout
-        'application_name': 'hormonia_backend',
-    },
+    # Connection validation and cleanup with environment-aware timeouts
+    connect_args=pool_config.get_connect_args(),
 
     echo=settings.DEBUG,
     echo_pool=settings.DEBUG if hasattr(settings, 'DEBUG') else False
@@ -185,21 +202,20 @@ def force_pool_recreation():
         # Dispose of existing connections
         engine.dispose()
 
-        # Recreate engine with same configuration
+        # Recreate engine with environment-aware configuration
+        pool_config = get_pool_config()
+
         engine = create_optimized_engine(
             settings.DATABASE_URL,
             poolclass=QueuePool,
-            pool_size=40,  # SECURITY FIX: Match updated pool size
-            max_overflow=60,  # SECURITY FIX: Match updated overflow
-            pool_pre_ping=True,
-            pool_recycle=3600,
-            pool_timeout=30,
+            pool_size=pool_config.pool_size,
+            max_overflow=pool_config.max_overflow,
+            pool_pre_ping=pool_config.pool_pre_ping,
+            pool_recycle=pool_config.pool_recycle,
+            pool_timeout=pool_config.pool_timeout,
             pool_reset_on_return='commit',
             pool_logging_name='hormonia_db',
-            connect_args={
-                'connect_timeout': 10,
-                'application_name': 'hormonia_backend',
-            },
+            connect_args=pool_config.get_connect_args(),
             echo=settings.DEBUG,
             echo_pool=settings.DEBUG if hasattr(settings, 'DEBUG') else False
         )
@@ -226,16 +242,21 @@ def get_engine_info():
     return {
         "url": str(engine.url).replace(engine.url.password or '', '***'),
         "driver": engine.driver,
+        "environment": detect_environment(),
         "pool_class": str(type(engine.pool)),
-        "pool_size": engine.pool.size(),
-        "max_overflow": engine.pool._max_overflow,
-        "pool_timeout": engine.pool._timeout,
-        "pool_recycle": engine.pool._recycle,
-        "pool_pre_ping": engine.pool._pre_ping,
+        "pool_config": {
+            "pool_size": engine.pool.size(),
+            "max_overflow": engine.pool._max_overflow,
+            "pool_timeout": engine.pool._timeout,
+            "pool_recycle": engine.pool._recycle,
+            "pool_pre_ping": engine.pool._pre_ping,
+            "total_max": engine.pool.size() + engine.pool._max_overflow,
+        },
         "echo": engine.echo,
         "current_connections": {
             "checked_in": engine.pool.checkedin(),
             "checked_out": engine.pool.checkedout(),
             "overflow": engine.pool.overflow(),
+            "total_in_use": engine.pool.checkedout() + engine.pool.overflow(),
         }
     }

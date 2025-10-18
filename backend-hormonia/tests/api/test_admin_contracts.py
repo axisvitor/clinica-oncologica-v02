@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 import json
 
 from app.main import app
-from app.core.config import settings
+from app.config import settings
 from app.models.user import User
 from app.models.appointment import Appointment
 from app.schemas.user_admin import SystemStatsResponse, UserPermissionsUpdate

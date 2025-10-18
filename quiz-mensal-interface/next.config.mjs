@@ -1,6 +1,28 @@
 /** @type {import('next').NextConfig} */
 import path from 'node:path'
 
+// Resolve backend URL for CSP from environment variables
+const getBackendUrl = () => {
+  // Priority 1: Explicit full API URL
+  const explicitUrl = process.env.NEXT_PUBLIC_QUIZ_PUBLIC_API_URL
+  if (explicitUrl) {
+    // Extract base URL (remove /api/v1/monthly-quiz-public)
+    return explicitUrl.replace(/\/api\/v1\/monthly-quiz-public\/?$/, '')
+  }
+
+  // Priority 2: Base API URL
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL
+  if (baseUrl) {
+    return baseUrl
+  }
+
+  // Priority 3: Fallback to localhost for development
+  return 'http://localhost:8000'
+}
+
+const backendUrl = getBackendUrl()
+const backendWsUrl = backendUrl.replace(/^https?:\/\//, '').replace(/^http:/, 'ws:').replace(/^https:/, 'wss:')
+
 const nextConfig = {
   // Essential production configuration
   // Temporary: disable standalone to avoid Windows pnpm symlink issues
@@ -57,7 +79,7 @@ const nextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://clinica-oncologica-v02-production.up.railway.app wss://clinica-oncologica-v02-production.up.railway.app; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+            value: `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ${backendUrl} wss://${backendWsUrl}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`
           }
         ]
       }

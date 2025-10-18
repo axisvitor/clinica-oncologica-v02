@@ -1,19 +1,20 @@
 # Database Overview – Clínica Oncológica
 
-> Atualizado em **14/10/2025** com base no snapshot do ambiente de _staging_.  
-> O banco de produção utiliza **AWS RDS PostgreSQL**; a estrutura descrita abaixo é a mesma em todos os ambientes.
+> Atualizado em **15/10/2025** com base no snapshot do ambiente de produção.  
+> O banco de produção utiliza **PostgreSQL 17.4**; a estrutura descrita abaixo é a mesma em todos os ambientes.
 
 ---
 
 ## Visão Geral
 
-- **Motor**: AWS RDS PostgreSQL 14  
-- **Quantidade aproximada de tabelas**: 50  
+- **Motor**: PostgreSQL 17.4  
+- **Quantidade de tabelas**: 45  
 - **Principais módulos**: pacientes, fluxos, quiz mensal, mensagens/WhatsApp, administração, auditoria  
 - **Chaves primárias**: todas as tabelas utilizam `UUID` (`gen_random_uuid()`)  
 - **Relacionamentos**: 53 chaves estrangeiras ativas, com políticas `CASCADE`, `SET NULL` ou `NO ACTION` conforme a criticidade
 - **Triggers**: 14 gatilhos mantêm carimbos de data/hora e integridade auxiliar
 - **Enums personalizados**: 12 tipos (fluxos, severidade, status de mensagens, papéis de usuário, etc.)
+- **Índices**: 244 índices para otimização de performance
 
 ---
 
@@ -21,13 +22,13 @@
 
 1. **Gestão de Pacientes** (10 tabelas)  
    `patients`, `patient_flow_states`, `contacts`, `medical_reports`, `appointments`, `alerts`…  
-   - *Registros ativos no snapshot*: 0 pacientes (dados de teste removidos), 1 médico vinculado
+   - *Registros ativos no snapshot*: 1 paciente, 1 médico vinculado
 2. **Sistema de Fluxos** (7 tabelas)  
    `flow_kinds`, `flow_template_versions`, `flow_messages`, `flow_analytics`…  
-   - 4 tipos de fluxo e 7 versões de templates ativas
+   - 4 tipos de fluxo e 7 versões de templates (4 ativas após limpeza de versões v1)
 3. **Quiz Mensal** (até 10 tabelas)  
    `quiz_templates`, `quiz_sessions`, `quiz_responses`, tabelas de métricas e históricos  
-   - 1 template de quiz ativo; sessões de teste foram excluídas após validações
+   - 1 template de quiz ativo com 10 perguntas completas
 4. **Integração WhatsApp** (3 tabelas)  
    `whatsapp_instances`, `whatsapp_contacts`, `whatsapp_messages`, `whatsapp_delivery_failures`
 5. **Mensagens & Comunicação** (2 tabelas)  
@@ -45,22 +46,23 @@
 
 ---
 
-## Status dos Dados (snapshot staging)
+## Status dos Dados (snapshot produção)
 
 | Item                                    | Valor |
 |-----------------------------------------|-------|
-| Pacientes ativos                        | 0     |
+| Pacientes ativos                        | 1     |
 | Templates de quiz                       | 1     |
 | Tipos de fluxo                          | 4     |
 | Versões de templates de fluxo           | 7     |
+| Templates de fluxo ativos (após limpeza)| 4     |
 | Usuários ativos                         | 1     |
 | Instâncias WhatsApp configuradas        | 1     |
-| Logs de auditoria                       | 40    |
+| Logs de auditoria                       | 44    |
 | Logs de erro                            | 3     |
-| Total de registros ativos (aprox.)      | 58    |
-| Tamanho estimado do banco (staging)     | 3.17 MB |
+| Total de registros ativos (aprox.)      | 63    |
+| Tamanho estimado do banco (produção)    | 13 MB |
 
-> **Observação:** os números acima representam o estado de staging usado para validação automatizada. Em produção os volumes variam conforme o uso real.
+> **Observação:** os números acima representam o estado atual de produção após limpeza de templates v1 e validação completa.
 
 ### Dados de teste removidos recentemente
 - Pacientes: 10 inserções / 11 exclusões (validação do CASCADE)
@@ -108,9 +110,9 @@
 
 ## Resumo Final
 
-- **Motor**: AWS RDS PostgreSQL  
+- **Motor**: PostgreSQL 17.4  
 - **Estado geral**: ✅ operacional e consistente  
-- **Última atualização**: 2025-10-14 21:00:00  
+- **Última atualização**: 2025-10-15 01:15:00  
 - **Tamanho (snapshot staging)**: 3.17 MB  
 - **Próximos passos recomendados**:
   1. Renomear colunas herdadas de Supabase (ex.: `user_sync_log.supabase_user_id`).

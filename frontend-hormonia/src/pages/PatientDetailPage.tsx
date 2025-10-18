@@ -18,6 +18,8 @@ import { QuizLinkStatus } from '@/components/quiz/QuizLinkStatus'
 import { SendQuizLinkModal } from '@/components/quiz/SendQuizLinkModal'
 import { AIChatInterface } from '@/components/ai/AIChatInterface'
 import { AIAnalyticsDashboard } from '@/components/ai/AIAnalyticsDashboard'
+import { QuizResponseViewer } from '../components/patients/QuizResponseViewer'
+import { QuizResponseTimeline } from '../components/patients/QuizResponseTimeline'
 import { useMonthlyQuizAdmin } from '@/hooks/useMonthlyQuizAdmin'
 import { useAIInsights, useAIRecommendations } from '@/hooks/useAI'
 import { useAuth } from '@/contexts/AuthContext'
@@ -328,6 +330,7 @@ export function PatientDetailPage() {
         <TabsList>
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="timeline">Linha do Tempo</TabsTrigger>
+          <TabsTrigger value="quiz-responses">Respostas de Quiz</TabsTrigger>
           {FEATURES.AI_CHAT && (hasRole('doctor') || hasRole('admin')) && (
             <>
               <TabsTrigger value="ai-insights">Insights de IA</TabsTrigger>
@@ -362,6 +365,37 @@ export function PatientDetailPage() {
             timeline={timeline ? { events: timeline.events } : undefined}
             isLoading={timelineLoading}
           />
+        </TabsContent>
+
+        <TabsContent value="quiz-responses" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column - Quiz Responses */}
+            <div className="lg:col-span-2">
+              <QuizResponseViewer patientId={id!} patientName={patient.name} />
+            </div>
+
+            {/* Right Column - Timeline and Actions */}
+            <div className="space-y-6">
+              <QuizResponseTimeline patientId={id!} />
+
+              {/* Quick Actions for Quiz Responses */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Ações Rápidas</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <Button className="w-full" variant="outline">
+                    <Calendar className="mr-2 h-4 w-4" />
+                    Agendar Consulta
+                  </Button>
+                  <Button className="w-full" variant="outline">
+                    <Send className="mr-2 h-4 w-4" />
+                    Enviar Mensagem
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </TabsContent>
 
         {FEATURES.AI_CHAT && (hasRole('doctor') || hasRole('admin')) && (

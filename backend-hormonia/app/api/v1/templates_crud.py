@@ -333,12 +333,15 @@ async def create_quiz_template(
     Create a new quiz template.
     """
     try:
-        # Check if quiz with same name already exists
-        existing = db.query(QuizTemplate).filter(QuizTemplate.name == quiz.name).first()
+        # Check if quiz with same name and version already exists
+        existing = db.query(QuizTemplate).filter(
+            QuizTemplate.name == quiz.name,
+            QuizTemplate.version == quiz.version
+        ).first()
         if existing:
             raise HTTPException(
                 status_code=400,
-                detail=f"Quiz template with name '{quiz.name}' already exists"
+                detail=f"Quiz template '{quiz.name}' version '{quiz.version}' already exists"
             )
 
         # Create quiz template

@@ -1,6 +1,9 @@
 """
-Alembic environment configuration for Neoplasias Litoral Backend System.
+Alembic environment configuration for Hormonia Backend System.
+
+CRITICAL FIX: Import ALL models to ensure migrations capture complete schema.
 """
+
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
@@ -14,14 +17,41 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 from app.config import settings
 from app.database import Base
 
-# Import all models to ensure they are registered with SQLAlchemy
-from app.models.user import User
-from app.models.patient import Patient
-from app.models.message import Message
-from app.models.flow import PatientFlowState
+# ============================================================================
+# CRITICAL: Import ALL models to register with SQLAlchemy metadata
+# ============================================================================
+from app.models.base import BaseModel
+from app.models.user import User, UserRole, AuthProvider
+from app.models.patient import Patient, FlowState
+from app.models.message import Message, MessageDirection, MessageType, MessageStatus
+from app.models.message_events import MessageStatusEvent, EvolutionWebhookEvent
+from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion
 from app.models.quiz import QuizTemplate, QuizResponse
 from app.models.report import MedicalReport
-from app.models.alert import Alert
+from app.models.alert import Alert, AlertSeverity, AlertStatus
+from app.models.flow_analytics import FlowAnalytics, FlowMessage, QuizQuestion
+from app.models.ab_experiment import (
+    ABExperiment,
+    ABVariantAssignment,
+    ABExperimentMetric,
+    ABExperimentResult,
+    ABExperimentAudit,
+    ABExperimentMonitoring,
+    ExperimentStatus,
+    VariantType,
+    PatientSafetyLevel,
+)
+from app.models.audit_log import AuditLog, AuditEventType
+from app.models.user_sync_log import UserSyncLog
+from app.models.treatment import Treatment, TreatmentStatus, TreatmentType
+from app.models.appointment import Appointment, AppointmentStatus, AppointmentType
+from app.models.medication import Medication
+from app.models.notification import Notification, NotificationType, NotificationPriority
+from app.models.session import Session
+from app.models.consent import Consent, ConsentType, ConsentStatus
+from app.models.webhook_event import WebhookEvent
+from app.models.failed_message import FailedMessage, FailureReason, DLQStatus
+from app.models.error_tracking import ErrorLog
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -81,6 +111,7 @@ def run_migrations_offline() -> None:
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
         compare_server_default=True,
+        render_as_batch=True,  # Better compatibility with PostgreSQL
     )
 
     with context.begin_transaction():
@@ -96,7 +127,7 @@ def run_migrations_online() -> None:
     """
     configuration = config.get_section(config.config_ini_section)
     configuration["sqlalchemy.url"] = get_url()
-    
+
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",
@@ -109,6 +140,7 @@ def run_migrations_online() -> None:
             target_metadata=target_metadata,
             compare_type=True,
             compare_server_default=True,
+            render_as_batch=True,  # Better compatibility with PostgreSQL
         )
 
         with context.begin_transaction():

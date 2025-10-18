@@ -80,7 +80,7 @@ export class MockApiHandler {
       return this.handleMessagesEndpoint(pathname, searchParams, method, body) as T
     } else if (pathname.startsWith('/api/v1/flows')) {
       return this.handleFlowsEndpoint(pathname, searchParams, method) as T
-    } else if (pathname.startsWith('/api/v1/analytics')) {
+    } else if (pathname.startsWith('/api/v2/analytics')) {
       return this.handleAnalyticsEndpoint(pathname, searchParams) as T
     } else if (pathname.startsWith('/api/v1/alerts')) {
       return this.handleAlertsEndpoint(pathname, searchParams, method) as T
@@ -218,20 +218,36 @@ export class MockApiHandler {
    * Handle analytics endpoints
    */
   private handleAnalyticsEndpoint(pathname: string, params: URLSearchParams): any {
-    // GET /api/v1/analytics/dashboard - Get dashboard stats
-    if (pathname === '/api/v1/analytics/dashboard') {
+    if (pathname === '/api/v2/analytics/overview') {
       return getMockDashboardAnalytics()
     }
 
-    // GET /api/v1/analytics/engagement - Get engagement data
-    if (pathname === '/api/v1/analytics/engagement') {
-      const startDate = params.get('start_date')
-      const endDate = params.get('end_date')
+    if (pathname === '/api/v2/analytics/quiz-status') {
+      return {
+        distribution: { started: 35, completed: 310, cancelled: 18 },
+        total: 363,
+        filters: {}
+      }
+    }
 
-      return getMockEngagementData({
-        ...(startDate && { start_date: startDate }),
-        ...(endDate && { end_date: endDate })
-      })
+    if (pathname === '/api/v2/analytics/completion-trend') {
+      return {
+        trend: [
+          { year: 2024, month: 11, total: 60, completed: 52, completion_rate: 86.67 },
+          { year: 2024, month: 12, total: 72, completed: 62, completion_rate: 86.11 },
+          { year: 2025, month: 1, total: 80, completed: 70, completion_rate: 87.5 }
+        ],
+        period: { months: Number(params.get('months') || 6) }
+      }
+    }
+
+    if (pathname === '/api/v2/analytics/patient-engagement') {
+      return getMockEngagementData()
+    }
+
+    if (pathname === '/api/v2/analytics/treatment-distribution') {
+      const period = (params.get('period') as '7d' | '30d' | '90d' | 'all') ?? '30d'
+      return getMockTreatmentDistribution(period)
     }
 
     return { error: 'Endpoint not found' }

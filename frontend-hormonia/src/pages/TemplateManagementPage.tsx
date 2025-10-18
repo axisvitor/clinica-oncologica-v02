@@ -87,7 +87,13 @@ function TemplateManagementPage() {
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'draft'>('all');
   const [showFlowDesigner, setShowFlowDesigner] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<FlowTemplate | null>(null);
+  const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Flow versioning controls
+  const [flowVersionNumber, setFlowVersionNumber] = useState<number>(1);
+  const [flowIsDraft, setFlowIsDraft] = useState<boolean>(false);
+  const [flowIsActive, setFlowIsActive] = useState<boolean>(true);
 
   // Pagination
   const [flowPage, setFlowPage] = useState(1);
@@ -180,15 +186,15 @@ function TemplateManagementPage() {
       kind_key: design.metadata?.flowType || 'custom_flow',
       display_name: design.metadata?.name || 'Novo Flow',
       description: design.metadata?.description || '',
-      version_number: 1,
+      version_number: flowVersionNumber,
       steps,
       metadata: {
         flow_type: design.metadata?.flowType || 'custom_flow',
         humanization_level: 'high',
-        version: '1.0.0',
+        version: `${flowVersionNumber}.0.0`,
       },
-      is_active: true,
-      is_draft: false,
+      is_active: flowIsActive,
+      is_draft: flowIsDraft,
     };
 
     if (editingTemplate) {
@@ -234,6 +240,31 @@ function TemplateManagementPage() {
     }
   };
 
+  const handleEditQuiz = (quizId: string) => {
+    setEditingQuizId(quizId);
+    toast({
+      title: 'Edição de Quiz',
+      description: 'Funcionalidade de edição será implementada em breve. Por favor, use a página de Questionários.',
+    });
+    // TODO: Implement quiz edit dialog similar to QuestionariosPage
+  };
+
+  const handleCreateNewFlowVersion = (template: FlowTemplate) => {
+    // Pre-fill the designer with existing template data
+    setEditingTemplate(null); // Clear editing mode to create new
+    setFlowVersionNumber((template.version_number || 1) + 1); // Increment version
+    setFlowIsDraft(true); // New versions start as draft
+    setFlowIsActive(false); // New versions start inactive
+
+    // Open designer with template data
+    setShowFlowDesigner(true);
+
+    toast({
+      title: 'Nova Versão',
+      description: `Criando versão ${(template.version_number || 1) + 1} baseada no template existente`,
+    });
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
@@ -244,7 +275,13 @@ function TemplateManagementPage() {
             Crie e gerencie templates de flows e quizzes
           </p>
         </div>
-        <Button onClick={() => setShowFlowDesigner(true)}>
+        <Button onClick={() => {
+          setEditingTemplate(null);
+          setFlowVersionNumber(1);
+          setFlowIsDraft(false);
+          setFlowIsActive(true);
+          setShowFlowDesigner(true);
+        }}>
           <Plus className="h-4 w-4 mr-2" />
           Novo Template
         </Button>
@@ -351,9 +388,11 @@ function TemplateManagementPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="flex-1"
                           onClick={() => {
                             setEditingTemplate(template);
+                            setFlowVersionNumber(template.version_number || 1);
+                            setFlowIsDraft(template.is_draft || false);
+                            setFlowIsActive(template.is_active || false);
                             setShowFlowDesigner(true);
                           }}
                         >
@@ -362,7 +401,13 @@ function TemplateManagementPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="flex-1"
+                          onClick={() => handleCreateNewFlowVersion(template)}
+                        >
+                          Nova Versão
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => handleDeleteFlow(template.id)}
                         >
                           Desativar
@@ -432,6 +477,9 @@ function TemplateManagementPage() {
                   key={quiz.id}
                   template={quiz}
                   onPreview={() => console.log('Preview', quiz.id)}
+                  onEdit={handleEditQuiz}
+                  onDelete={handleDeleteQuiz}
+                  showAdminActions={true}
                 />
               ))}
             </div>
@@ -473,7 +521,63 @@ function TemplateManagementPage() {
               Use o designer visual para criar ou editar seu flow template
             </DialogDescription>
           </DialogHeader>
-          <div className="h-[80vh] p-6">
+
+          {/* Version Controls */}
+          <div className="px-6 py-4 border-b space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Número da Versão</label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={flowVersionNumber}
+                  onChange={(e) => setFlowVersionNumber(parseInt(e.target.value) || 1)}
+                  placeholder="1"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Versão do template (ex: 1, 2, 3...)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Status</label>
+                <div className="flex items-center space-x-4">
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={flowIsDraft}
+                      onChange={(e) => setFlowIsDraft(e.target.checked)}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm">Rascunho</span>
+                  </label>
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={flowIsActive}
+                      onChange={(e) => setFlowIsActive(e.target.checked)}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm">Ativo</span>
+                  </label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Marque como rascunho para edições futuras
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Informações</label>
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p>• Versão: {flowVersionNumber}.0.0</p>
+                  <p>• Estado: {flowIsDraft ? 'Rascunho' : 'Publicado'}</p>
+                  <p>• Status: {flowIsActive ? 'Ativo' : 'Inativo'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="h-[65vh] p-6">
             <FlowDesigner
               initialDesign={editingTemplate ? convertTemplateToDesign(editingTemplate) : undefined}
               onSave={handleFlowSave}

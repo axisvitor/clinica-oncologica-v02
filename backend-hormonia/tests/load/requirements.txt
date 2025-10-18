@@ -1,0 +1,45 @@
+# Requirements for Load Testing - Sistema Hormonia
+# ================================================
+
+# Core load testing framework
+locust==2.20.0
+
+# HTTP client (used by Locust)
+requests==2.31.0
+
+# Data generation and manipulation
+Faker==22.0.0
+python-dateutil==2.8.2
+
+# Statistics and analysis
+numpy==1.26.3
+pandas==2.1.4
+
+# Reporting and visualization
+matplotlib==3.8.2
+plotly==5.18.0
+
+# CLI improvements
+click==8.1.7
+colorama==0.4.6
+
+# Utilities
+pytz==2023.3
+python-dotenv==1.0.0
+
+# Optional: Advanced metrics
+psutil==5.9.7  # System resource monitoring
+py-cpuinfo==9.0.0  # CPU info
+
+# Optional: Database inspection during tests
+psycopg2-binary==2.9.9  # PostgreSQL
+redis==5.0.1  # Redis
+
+# Optional: Export results
+openpyxl==3.1.2  # Excel export
+jinja2==3.1.3  # HTML report templates
+
+# Development
+pytest==7.4.4  # For testing the test scripts
+black==24.1.1  # Code formatting
+flake8==7.0.0  # Linting

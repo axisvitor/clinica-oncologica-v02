@@ -20,7 +20,6 @@ from app.models.quiz import QuizTemplate, QuizSession, QuizResponse
 from app.models.message import Message, MessageType, MessageDirection, MessageStatus
 from app.services.quiz import QuizTemplateService, QuizSessionService, QuizResponseService
 from app.services.message_sender import MessageSender
-from app.services.template_loader import EnhancedTemplateLoader
 from app.repositories.patient import PatientRepository
 from app.schemas.quiz import QuizSessionCreate, QuizResponseCreate, QuestionType
 # from app.memory.knowledge_graph import KnowledgeGraph
@@ -77,7 +76,7 @@ class QuizConductorAgent(BaseAgent):
     - Manage quiz completion and follow-up actions
     """
     
-    def __init__(self, db_session: Session, template_loader: Optional[EnhancedTemplateLoader] = None, **kwargs):
+    def __init__(self, db_session: Session, **kwargs):
         """Initialize QuizConductorAgent."""
         super().__init__(
             agent_id=f"quiz_conductor_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
@@ -95,9 +94,6 @@ class QuizConductorAgent(BaseAgent):
         self.patient_repo = PatientRepository(db_session)
         
         # Template support
-        self.template_loader = template_loader or EnhancedTemplateLoader(
-            db=db_session  # FIX: Remove template_path parameter - EnhancedTemplateLoader doesn't accept it
-        )
         self.quiz_templates: Dict[str, Dict[str, Any]] = {}
         
         # AI and memory dependencies
@@ -1282,29 +1278,32 @@ class QuizConductorAgent(BaseAgent):
     async def load_quiz_templates(self) -> None:
         """Load available quiz templates."""
         try:
-            # List available templates
-            available_templates = self.template_loader.list_available_templates()
-            
-            for template_info in available_templates:
-                template_name = template_info.get("flow_type", template_info.get("name", "unknown"))
+            templates, _ = self.quiz_template_service.get_templates(
+                skip=0,
+                limit=200,
+                active_only=True
+            )
+
+            cached = 0
+            for template in templates:
                 try:
-                    # Load template using the template loader's approach
-                    template_file_path = template_info.get("file_path")
-                    if template_file_path:
-                        import yaml
-                        with open(template_file_path, 'r', encoding='utf-8') as f:
-                            template_data = yaml.safe_load(f)
-                        
-                        self.quiz_templates[template_name] = template_data
-                        self.logger.info(f"Loaded quiz template: {template_name}")
-                    
-                except Exception as e:
-                    self.logger.warning(f"Could not load quiz template {template_name}: {e}")
-            
-            self.logger.info(f"Successfully loaded {len(self.quiz_templates)} quiz templates")
-            
+                    template_payload = template.dict()
+                    template_name = template_payload.get("name")
+                    if not template_name:
+                        continue
+                    self.quiz_templates[template_name] = template_payload
+                    cached += 1
+                except Exception as exc:
+                    self.logger.warning(
+                        "Could not cache quiz template '%s': %s",
+                        getattr(template, "name", "unknown"),
+                        exc
+                    )
+
+            self.logger.info("Cached %s quiz templates from database", cached)
+
         except Exception as e:
-            self.logger.error(f"Failed to load quiz templates: {e}")
+            self.logger.error(f"Failed to load quiz templates from database: {e}")
     
     def get_quiz_template(self, template_name: str) -> Optional[Dict[str, Any]]:
         """Get quiz template by name."""

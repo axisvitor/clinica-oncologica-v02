@@ -74,7 +74,7 @@ class FlowEngineIntegrationService:
             # Fallback to legacy MessageSender
             self.message_sender = message_sender or MessageSender(db)
 
-        self.template_loader = template_loader or EnhancedTemplateLoader()
+        self.template_loader = template_loader or EnhancedTemplateLoader(db=db)
         self.analytics_service = analytics_service or FlowAnalyticsService(db)
         self.flow_broadcaster = flow_event_broadcaster
         self.platform_sync = get_platform_sync_service(db)

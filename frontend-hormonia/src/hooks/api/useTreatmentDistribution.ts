@@ -6,7 +6,8 @@
  */
 import { useQuery, UseQueryOptions } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
-import type { TreatmentDistributionResponse, AnalyticsPeriod } from '@/types/api-wave2'
+import type { AnalyticsPeriod } from '@/types/api-wave2'
+import type { TreatmentDistribution } from '@/lib/api-client/analytics'
 
 /**
  * Time period type for analytics
@@ -43,12 +44,10 @@ export function useTreatmentDistribution(
   return useQuery({
     queryKey: ['analytics', 'treatment-distribution', period],
     queryFn: async () => {
-      return await apiClient.request<TreatmentDistributionResponse>(
-        `/api/v1/analytics/treatment-distribution?period=${period}`
-      )
+      return await apiClient.analytics.treatmentDistribution(period)
     },
     staleTime: 5 * 60 * 1000, // 5 minutes (match backend cache)
     enabled: options?.enabled ?? true,
     retry: 2
-  } as UseQueryOptions<TreatmentDistributionResponse>)
+  } as UseQueryOptions<TreatmentDistribution>)
 }

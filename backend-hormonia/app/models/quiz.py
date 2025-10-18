@@ -102,10 +102,9 @@ class QuizSession(BaseModel):
             "status IN ('started', 'completed', 'cancelled')",
             name='ck_quiz_session_status_valid'
         ),
-        CheckConstraint(
-            'started_at <= COALESCE(completed_at, NOW())',
-            name='ck_quiz_session_timing_valid'
-        ),
+        # NOTE: Removed NOW() constraint for SQLite compatibility
+        # PostgreSQL version: 'started_at <= COALESCE(completed_at, NOW())'
+        # This constraint is enforced in PostgreSQL production database only
         CheckConstraint(
             "(status = 'completed' AND completed_at IS NOT NULL) OR (status != 'completed')",
             name='ck_quiz_session_completed_timing'

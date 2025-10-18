@@ -1,31 +1,29 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- Backend lives in `backend-hormonia/` with FastAPI app code under `app/`, data access in `sql/`, background workers in `worker/`, and Alembic migrations in `alembic/` plus legacy `migrations/`.
-- Frontend lives in `frontend-hormonia/` (Vite + React). Core UI is under `src/`, reusable pieces under `components/`, and hooks/contexts colocated with their usage.
-- Shared automation scripts sit in `scripts/` (see `test-setup.sh`, `run-auth-tests.sh`). Cross-cutting scenarios and performance suites reside in `tests/`.
-- Playbooks, RFCs, and operational docs are under `docs/`; review relevant guidance before large structural or contract changes.
+- `backend-hormonia/app` hosts FastAPI routers, services, repositories, and models; supporting folders such as `migrations/`, `scripts/`, and `seeds/` manage database evolution and job orchestration.
+- `frontend-hormonia/src` contains the React 19 client with feature modules under `components/`, `hooks/`, and `services/`; shared typings live in `types/`, while `tests/` and `test-results/` capture UI regression assets.
+- `quiz-mensal-interface/app` delivers the monthly quiz (Next.js 14), with reusable pieces under `components/` and Jest specs inside `tests/`.
+- Shared documentation resides in `docs/`; coverage artifacts (`htmlcov/`, `coverage/`) should be regenerated, not versioned manually.
 
 ## Build, Test, and Development Commands
-- Backend: run `make install` for dependencies, `make dev` to start the API on `http://localhost:8000`, and `make test` or `make test-cov` for pytest (HTML coverage with the latter). Use `make migrate` to apply Alembic upgrades.
-- Frontend: from `frontend-hormonia/`, execute `npm install`, `npm run dev` for Vite hot reload, and `npm run build` for production bundles. Use `npm run test`, `npm run test:coverage`, and `npm run test:e2e` (Playwright).
-- End-to-end: launch `python tests/test_runner.py` after backend or contract-impacting changes; run `scripts/run-auth-tests.sh` to verify auth flows across services.
+- Backend: `make install`, `make dev`, and `make docker-up` prepare the API stack; `make test` / `make test-cov` run pytest (HTML reports in `backend-hormonia/htmlcov/`); use `make migrate` and `make migration name="add_feature"` for Alembic tasks.
+- Frontend: from `frontend-hormonia`, run `npm install`, `npm run dev` for Vite, `npm run quality` (eslint + typecheck + Vitest CI), and `npm run test:e2e` for Playwright suites.
+- Quiz app: `pnpm install`, `pnpm dev`, `pnpm test:coverage`, and `pnpm type-check`; `pnpm railway-build` matches Railway deployments.
 
 ## Coding Style & Naming Conventions
-- Python follows PEP 8 with four-space indents. Format using `make format` (`black` + `isort`) and lint via `make lint` (`flake8`).
-- TypeScript React code uses ESLint and Tailwind conventions; prefer PascalCase for components/contexts, `useCamelCase` for hooks, and snake_case module names in the backend.
-- Alembic revisions should be timestamp-prefixed to match existing files; colocate tests beside their targets when practical.
+- Python follows PEP 8 with 4-space indents, strict type hints, and Google-style docstrings; format using `make format` (Black + isort) and lint with `make lint`.
+- React/Next code uses TypeScript strict mode, PascalCase components, camelCase helpers, Tailwind utility classes, and domain-specific hooks via `use*` naming. Enforce style with `npm run lint`, `npm run typecheck`, and keep `eslint` warnings at zero.
 
 ## Testing Guidelines
-- Maintain coverage at or above the baseline tracked in `coverage.lcov`. Name backend tests `test_<behavior>` and place API flows in `backend-hormonia/tests/integration/`.
-- Frontend unit tests live next to components; tag Playwright specs with `@smoke` for critical coverage. Share performance and cross-service tests through `tests/`.
-- Extend existing pytest fixtures instead of duplicating setup; document new fixtures in `docs/` if they alter global state.
+- Maintain ≥80% coverage for backend (pytest + `pytest --cov=app`), frontend (Vitest + `npm run test:coverage`), and quiz (Jest thresholds are enforced in `package.json`). Name specs `test_*.py` or `*.spec.ts[x]`/`*.test.ts[x]` and store fixtures alongside subject modules.
+- Execute Playwright smoke suites (`npm run test:e2e:smoke`) before merging UI-sensitive changes; capture failures in `test-results/` for review.
 
 ## Commit & Pull Request Guidelines
-- Mirror the repository history: use capitalized prefixes such as `Fix:`, `docs:`, or celebratory release markers. Keep subject lines imperative and concise.
-- Pull requests should outline scope, impacted modules, environment variable updates, and attach relevant logs, screenshots, or curl traces.
-- Confirm local runs of lint, unit, coverage, and E2E commands before requesting review, and reference tickets or incidents in the description when applicable.
+- Use Conventional Commits (`feat(patients): add CPF validation`) and keep messages scoped to a logical change. Squash noisy WIP commits before pushing.
+- Pull requests must reference relevant issues, list schema or environment impacts, and include test evidence (coverage links, Playwright reports). Ensure migrations accompany schema changes and that secrets stay in `.env` files documented by `.env.example`.
 
 ## Security & Configuration Tips
-- Duplicate `.env.example` files into `.env` for local work; never commit secrets or private keys (store certificates only under `backend-hormonia/certs/`).
-- Use `scripts/update-railway-vars.ps1` to sync deployment settings, and update `docs/` playbooks plus `monitoring/` rules when integrating third-party services.
+- Never commit `.env` contents; update `.env.example` when adding variables for WhatsApp, Firebase, Redis, or Gemini integrations.
+- Validate all inbound payloads (Pydantic schemas, zod validators) and sanitize outbound HTML with DOMPurify in shared UI helpers.
+- Run `docker compose logs` periodically to confirm Celery and Redis health, and prefer `make docker-down` over manual container stops to keep states consistent.

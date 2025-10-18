@@ -214,7 +214,7 @@ async def get_current_user_from_session(
         session_data = await redis_cache.get_session(final_session_id)
 
         if not session_data:
-            logger.warning(f"Invalid or expired session: {session_id[:8]}...")
+            logger.warning(f"Invalid or expired session: {final_session_id[:8]}...")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired session. Please login again.",
@@ -223,7 +223,7 @@ async def get_current_user_from_session(
 
         firebase_uid = session_data.get("firebase_uid")
         if not firebase_uid:
-            logger.error(f"Session missing firebase_uid: {session_id[:8]}...")
+            logger.error(f"Session missing firebase_uid: {final_session_id[:8]}...")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid session data",
@@ -362,6 +362,17 @@ async def get_current_user(
             from app.models.user import User
             # FIX: Remove 'cached_at' before creating User model to prevent TypeError
             cached_user.pop('cached_at', None)
+            role_value = cached_user.get("role")
+            if isinstance(role_value, str):
+                normalized_role = role_value.lower()
+                try:
+                    cached_user["role"] = UserRole(normalized_role)
+                except ValueError:
+                    logger.warning(
+                        "Unexpected cached user role '%s'. Falling back to doctor role.",
+                        role_value
+                    )
+                    cached_user["role"] = UserRole.DOCTOR
             user = User(**cached_user)
             return user
 

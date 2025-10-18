@@ -157,7 +157,7 @@ export const RailwayOptimizations = {
       // Preload critical API endpoints
       const criticalEndpoints = [
         '/api/v1/auth/me',
-        '/api/v1/analytics/dashboard'
+        '/api/v2/analytics/overview'
       ]
 
       criticalEndpoints.forEach(endpoint => {

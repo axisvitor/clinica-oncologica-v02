@@ -113,8 +113,11 @@ export interface MonthlyQuizLink {
 }
 
 export interface MonthlyQuizStats {
-  total_sent: number  // Changed from total_links_created
-  total_completed: number  // Changed from completed_quizzes
-  expired_links: number
+  total_links_created: number
   active_links: number
+  expired_links: number
+  completed_quizzes: number
+  completion_rate: number
+  average_completion_time?: number
+  delivery_methods_distribution?: Record<string, number>
 }

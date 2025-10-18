@@ -1,5 +1,25 @@
 # Database Data Flow & Integration Guide
 
+> Atualizado em **15/10/2025** com base no ambiente de produção PostgreSQL 17.4  
+> **4 templates de fluxo ativos** após limpeza de versões v1
+
+## Status Atual dos Fluxos (Produção)
+
+**Templates de Fluxo Ativos (4):**
+1. **Days 16-45 Engagement Flow** (v2) - Engajamento profundo e otimização do tratamento
+2. **Initial 15 Days Onboarding Flow** (v2) - Introdução e construção de vínculo inicial  
+3. **Monthly Recurring Maintenance Flow** (v2) - Suporte contínuo e monitoramento mensal
+4. **Fluxo Dias 1-15** (v1) - Fluxo inicial de 15 dias em português
+
+**Flow Kinds Configurados (4):**
+- `initial_15_days` - Initial 15 Days Onboarding Flow
+- `days_16_45` - Days 16-45 Engagement Flow  
+- `monthly_recurring` - Monthly Recurring Maintenance Flow
+- `day_1_15` - Fluxo Dias 1-15
+
+**Quiz Templates Ativos (1):**
+- `monthly_comprehensive` (v1.0.0) - 10 perguntas completas sobre bem-estar, energia, humor, sono, sintomas físicos, adesão ao tratamento, efeitos colaterais, mudanças de estilo de vida, preocupações e satisfação
+
 ## Fluxo de Dados Principal
 
 ### 1. Cadastro de Paciente → Início de Fluxo
@@ -295,6 +315,28 @@ VALUES ($4, $2, 'success');
 - Quiz não respondido
 - Mensagem não entregue
 - Dados inconsistentes
+
+---
+
+## Resumo dos Fluxos de Dados (Produção)
+
+**Status Atual:**
+- ✅ **4 templates de fluxo** ativos e funcionais
+- ✅ **1 quiz template** completo com 10 perguntas
+- ✅ **4 flow kinds** configurados corretamente
+- ✅ **Limpeza de versões v1** realizada com sucesso
+
+**Fluxos Operacionais:**
+- Cadastro de pacientes → Início de fluxo automático
+- Acompanhamento diário via Celery Beat
+- Quiz mensal com analytics
+- Integração WhatsApp funcional
+- Auditoria completa de todas as operações
+
+**Próximos Passos:**
+1. Monitorar performance dos fluxos com dados reais
+2. Implementar métricas de engajamento
+3. Otimizar agendamento de mensagens
 
 ## Métricas de Qualidade
 

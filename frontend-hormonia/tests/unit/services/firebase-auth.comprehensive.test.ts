@@ -266,7 +266,7 @@ describe('Firebase Auth Service - Comprehensive Tests', () => {
       await logoutUser()
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.example.com/api/v1/session/logout',
+        'https://api.example.com/session/logout',
         {
           method: 'DELETE',
           credentials: 'include',
@@ -332,7 +332,7 @@ describe('Firebase Auth Service - Comprehensive Tests', () => {
       expect(result).toEqual({ sessions_deleted: 3 })
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.example.com/api/v1/session/logout-all',
+        'https://api.example.com/session/logout-all',
         {
           method: 'DELETE',
           credentials: 'include',

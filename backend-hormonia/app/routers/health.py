@@ -6,7 +6,7 @@ application health monitoring and dependency validation.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Dict, Any
 import time
@@ -46,7 +46,7 @@ async def liveness_check() -> Dict[str, Any]:
 
 @router.get("/ready", status_code=status.HTTP_200_OK)
 async def readiness_check(
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     """
     Readiness check - validates all critical dependencies.
@@ -76,7 +76,7 @@ async def readiness_check(
     # Check database connection
     try:
         db_start = time.perf_counter()
-        result = await db.execute(text("SELECT 1"))
+        result = db.execute(text("SELECT 1"))
         result.scalar()
         db_duration = (time.perf_counter() - db_start) * 1000
 
@@ -276,7 +276,7 @@ async def metrics_endpoint() -> Dict[str, Any]:
 
 @router.get("/startup", status_code=status.HTTP_200_OK)
 async def startup_validation(
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     """
     Comprehensive startup validation check.
@@ -312,7 +312,7 @@ async def startup_validation(
         ]
 
         for table in critical_tables:
-            result = await db.execute(
+            result = db.execute(
                 text(
                     f"SELECT EXISTS (SELECT FROM information_schema.tables "
                     f"WHERE table_schema = 'public' AND table_name = '{table}')"

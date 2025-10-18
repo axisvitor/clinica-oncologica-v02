@@ -9,6 +9,7 @@ import type { QuizSession, QuizError } from "@/types/quiz"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { AlertCircle, RefreshCcw } from "lucide-react"
+import { ErrorBoundary } from "@/components/error/ErrorBoundary"
 
 export default function Home() {
   const [quizSession, setQuizSession] = useState<QuizSession | null>(null)
@@ -121,15 +122,17 @@ export default function Home() {
   // Success state - show quiz
   if (quizSession) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20">
-        <QuizInterface
-          session={quizSession}
-          onComplete={() => {
-            // Quiz completed - could redirect or show completion message
-            console.log("Quiz completed successfully!")
-          }}
-        />
-      </main>
+      <ErrorBoundary>
+        <main className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20">
+          <QuizInterface
+            session={quizSession}
+            onComplete={() => {
+              // Quiz completed - could redirect or show completion message
+              console.log("Quiz completed successfully!")
+            }}
+          />
+        </main>
+      </ErrorBoundary>
     )
   }
 
