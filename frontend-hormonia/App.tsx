@@ -58,6 +58,9 @@ const WhatsAppPage = lazy(() =>
 const DLQDashboard = lazy(() =>
   import("@/pages/DLQDashboard").then((m) => ({ default: m.DLQDashboard })),
 );
+const UnauthorizedPage = lazy(() =>
+  import("@/pages/UnauthorizedPage").then((m) => ({ default: m.default })),
+);
 
 // Loading component for Suspense
 const PageLoader = () => (
@@ -243,7 +246,7 @@ function App() {
                   <Route
                     path="/settings"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requiredPermission="canManageSettings">
                         <Layout>
                           <Suspense fallback={<PageLoader />}>
                             <SettingsPage />
@@ -255,7 +258,7 @@ function App() {
                   <Route
                     path="/flows"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requiredPermission="canManageFlows">
                         <Layout>
                           <Suspense fallback={<PageLoader />}>
                             <FlowsPage />
@@ -291,7 +294,7 @@ function App() {
                   <Route
                     path="/admin/*"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requiredPermission="canAccessAdmin">
                         <Suspense fallback={<PageLoader />}>
                           <AdminApp />
                         </Suspense>
@@ -334,6 +337,16 @@ function App() {
                           </Suspense>
                         </Layout>
                       </ProtectedRoute>
+                    }
+                  />
+
+                  {/* Unauthorized Access Page */}
+                  <Route
+                    path="/unauthorized"
+                    element={
+                      <Suspense fallback={<PageLoader />}>
+                        <UnauthorizedPage />
+                      </Suspense>
                     }
                   />
 

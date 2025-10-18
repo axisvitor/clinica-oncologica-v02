@@ -9,93 +9,93 @@
  * - Rate limiting and timeout handling
  */
 
-import { createLogger } from '../logger'
-import { environment } from '../environment'
+import { createLogger } from "../logger";
+import { environment } from "../environment";
 
-const logger = createLogger('ApiClient')
+const logger = createLogger("ApiClient");
 
 /**
  * API Response interface
  */
 export interface ApiResponse<T> {
-  data: T
-  message?: string
-  timestamp: string
+  data: T;
+  message?: string;
+  timestamp: string;
 }
 
 /**
  * Paginated response interface
  */
 export interface PaginatedResponse<T> {
-  items: T[]
-  total: number
-  page: number
-  size: number
-  pages: number
+  items: T[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
 }
 
 /**
  * API Error class with enhanced user messaging
  */
 export class ApiError extends Error {
-  public userFriendlyMessage: string
-  public retryable: boolean
-  public timestamp: string
+  public userFriendlyMessage: string;
+  public retryable: boolean;
+  public timestamp: string;
 
   constructor(
     public status: number,
     public data: unknown,
     message?: string,
-    userFriendlyMessage?: string
+    userFriendlyMessage?: string,
   ) {
-    super(message || `API Error: ${status}`)
-    this.name = 'ApiError'
-    this.userFriendlyMessage = userFriendlyMessage || this.getDefaultUserMessage(status)
-    this.retryable = this.isRetryableError(status)
-    this.timestamp = new Date().toISOString()
+    super(message || `API Error: ${status}`);
+    this.name = "ApiError";
+    this.userFriendlyMessage = userFriendlyMessage || this.getDefaultUserMessage(status);
+    this.retryable = this.isRetryableError(status);
+    this.timestamp = new Date().toISOString();
   }
 
   private getDefaultUserMessage(status: number): string {
     switch (status) {
       case 0:
-        return 'Não foi possível conectar ao servidor. Verifique sua conexão com a internet.'
+        return "Não foi possível conectar ao servidor. Verifique sua conexão com a internet.";
       case 400:
-        return 'Os dados enviados estão incorretos. Verifique as informações e tente novamente.'
+        return "Os dados enviados estão incorretos. Verifique as informações e tente novamente.";
       case 401:
-        return 'Sua sessão expirou. Por favor, faça login novamente.'
+        return "Sua sessão expirou. Por favor, faça login novamente.";
       case 403:
-        return 'Você não tem permissão para realizar esta ação.'
+        return "Você não tem permissão para realizar esta ação.";
       case 404:
-        return 'O recurso solicitado não foi encontrado.'
+        return "O recurso solicitado não foi encontrado.";
       case 408:
-        return 'A requisição demorou muito para responder. Tente novamente.'
+        return "A requisição demorou muito para responder. Tente novamente.";
       case 409:
-        return 'Conflito nos dados. Verifique se outro usuário não modificou as informações.'
+        return "Conflito nos dados. Verifique se outro usuário não modificou as informações.";
       case 422:
-        return 'Os dados fornecidos não puderam ser processados. Verifique os campos obrigatórios.'
+        return "Os dados fornecidos não puderam ser processados. Verifique os campos obrigatórios.";
       case 429:
-        return 'Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente novamente.'
+        return "Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente novamente.";
       case 500:
-        return 'Erro interno do servidor. Nossa equipe foi notificada.'
+        return "Erro interno do servidor. Nossa equipe foi notificada.";
       case 502:
       case 503:
       case 504:
-        return 'O servidor está temporariamente indisponível. Tente novamente em alguns minutos.'
+        return "O servidor está temporariamente indisponível. Tente novamente em alguns minutos.";
       default:
         if (status >= 500) {
-          return 'Erro no servidor. Nossa equipe foi notificada.'
+          return "Erro no servidor. Nossa equipe foi notificada.";
         }
         if (status >= 400) {
-          return 'Erro na requisição. Verifique os dados e tente novamente.'
+          return "Erro na requisição. Verifique os dados e tente novamente.";
         }
-        return 'Erro inesperado. Tente novamente ou entre em contato com o suporte.'
+        return "Erro inesperado. Tente novamente ou entre em contato com o suporte.";
     }
   }
 
   private isRetryableError(status: number): boolean {
     // Network errors (0) and server errors (5xx) are retryable
     // Rate limiting (429) and timeouts (408) are retryable
-    return status === 0 || status === 408 || status === 429 || (status >= 500 && status <= 599)
+    return status === 0 || status === 408 || status === 429 || (status >= 500 && status <= 599);
   }
 
   toJSON() {
@@ -107,8 +107,8 @@ export class ApiError extends Error {
       data: this.data,
       retryable: this.retryable,
       timestamp: this.timestamp,
-      stack: environment.isDevelopment ? this.stack : undefined
-    }
+      stack: environment.isDevelopment ? this.stack : undefined,
+    };
   }
 }
 
@@ -116,23 +116,23 @@ export class ApiError extends Error {
  * Request options interface
  */
 export interface RequestOptions extends RequestInit {
-  params?: Record<string, string | number | boolean>
-  retries?: number
-  timeout?: number
+  params?: Record<string, string | number | boolean>;
+  retries?: number;
+  timeout?: number;
 }
 
 /**
  * Core API Client class
  */
 export class ApiClientCore {
-  private baseURL: string
-  private authToken: string | null = null
-  private initialized: boolean = false
-  private csrfToken: string | null = null
-  private csrfTokenPromise: Promise<void> | null = null
+  private baseURL: string;
+  private authToken: string | null = null;
+  private initialized: boolean = false;
+  private csrfToken: string | null = null;
+  private csrfTokenPromise: Promise<void> | null = null;
 
   constructor(baseURL: string) {
-    this.baseURL = baseURL
+    this.baseURL = baseURL;
   }
 
   /**
@@ -140,57 +140,57 @@ export class ApiClientCore {
    */
   setBaseURL(url: string): void {
     if (!url) {
-      logger.warn('Attempted to set empty base URL')
-      return
+      logger.warn("Attempted to set empty base URL");
+      return;
     }
 
     // SECURITY: Block HTTP URLs in production to prevent mixed-content errors
-    if (url.startsWith('http://') && typeof window !== 'undefined') {
-      const isProduction = window.location.protocol === 'https:' ||
-                          window.location.hostname !== 'localhost'
+    if (url.startsWith("http://") && typeof window !== "undefined") {
+      const isProduction =
+        window.location.protocol === "https:" || window.location.hostname !== "localhost";
 
       if (isProduction) {
-        logger.error('🚨 SECURITY: Blocked HTTP URL in production:', url)
-        url = url.replace('http://', 'https://')
-        logger.log('   Corrected URL:', url)
+        logger.error("🚨 SECURITY: Blocked HTTP URL in production:", url);
+        url = url.replace("http://", "https://");
+        logger.log("   Corrected URL:", url);
       }
     }
 
-    logger.log('Setting base URL:', url)
-    this.baseURL = url
-    this.initialized = true
+    logger.log("Setting base URL:", url);
+    this.baseURL = url;
+    this.initialized = true;
   }
 
   /**
    * Get current base URL
    */
   getBaseURL(): string {
-    return this.baseURL
+    return this.baseURL;
   }
 
   /**
    * Check if client is initialized
    */
   isInitialized(): boolean {
-    return this.initialized
+    return this.initialized;
   }
 
   /**
    * Set authentication token
    */
   setAuthToken(token: string | null): void {
-    logger.debug('[ApiClient] Setting auth token:', {
+    logger.debug("[ApiClient] Setting auth token:", {
       hasToken: !!token,
-      tokenLength: token?.length
-    })
-    this.authToken = token
+      tokenLength: token?.length,
+    });
+    this.authToken = token;
   }
 
   /**
    * Get current auth token
    */
   getAuthToken(): string | null {
-    return this.authToken
+    return this.authToken;
   }
 
   /**
@@ -198,51 +198,51 @@ export class ApiClientCore {
    */
   async fetchCsrfToken(): Promise<void> {
     if (this.csrfTokenPromise) {
-      logger.debug('[ApiClient] CSRF token fetch already in progress, waiting...')
-      return this.csrfTokenPromise
+      logger.debug("[ApiClient] CSRF token fetch already in progress, waiting...");
+      return this.csrfTokenPromise;
     }
 
     this.csrfTokenPromise = (async () => {
       try {
-        logger.debug('[ApiClient] Initiating CSRF token fetch...')
+        logger.debug("[ApiClient] Initiating CSRF token fetch...");
         const response = await fetch(`${this.baseURL}/api/v1/csrf-token`, {
-          credentials: 'include'
-        })
+          credentials: "include",
+        });
 
         if (response.ok) {
-          const data = await response.json()
-          let csrfToken = data.csrf_token
+          const data = await response.json();
+          let csrfToken = data.csrf_token;
 
           // Handle array format from backend
           if (Array.isArray(csrfToken) && csrfToken.length >= 2) {
-            csrfToken = csrfToken[1]
-            logger.debug('[ApiClient] CSRF token extracted from array format')
-          } else if (typeof csrfToken !== 'string') {
-            logger.error('[ApiClient] Unexpected CSRF token format:', typeof csrfToken)
-            throw new Error('Invalid CSRF token format received from server')
+            csrfToken = csrfToken[1];
+            logger.debug("[ApiClient] CSRF token extracted from array format");
+          } else if (typeof csrfToken !== "string") {
+            logger.error("[ApiClient] Unexpected CSRF token format:", typeof csrfToken);
+            throw new Error("Invalid CSRF token format received from server");
           }
 
-          this.csrfToken = csrfToken
-          logger.debug('[ApiClient] CSRF token fetched successfully')
+          this.csrfToken = csrfToken;
+          logger.debug("[ApiClient] CSRF token fetched successfully");
         } else {
-          logger.warn('[ApiClient] Failed to fetch CSRF token:', response.status)
+          logger.warn("[ApiClient] Failed to fetch CSRF token:", response.status);
         }
       } catch (error) {
-        logger.error('[ApiClient] Error fetching CSRF token:', error)
-        throw error
+        logger.error("[ApiClient] Error fetching CSRF token:", error);
+        throw error;
       } finally {
-        this.csrfTokenPromise = null
+        this.csrfTokenPromise = null;
       }
-    })()
+    })();
 
-    return this.csrfTokenPromise
+    return this.csrfTokenPromise;
   }
 
   /**
    * Get current CSRF token
    */
   getCsrfToken(): string | null {
-    return this.csrfToken
+    return this.csrfToken;
   }
 
   /**
@@ -250,9 +250,9 @@ export class ApiClientCore {
    */
   setSessionToken(session: { access_token?: string } | null): void {
     if (session?.access_token) {
-      this.setAuthToken(session.access_token)
+      this.setAuthToken(session.access_token);
     } else {
-      this.setAuthToken(null)
+      this.setAuthToken(null);
     }
   }
 
@@ -261,146 +261,143 @@ export class ApiClientCore {
    */
   private buildUrl(endpoint: string, params?: Record<string, string | number | boolean>): string {
     if (!this.initialized) {
-      logger.warn('Making request before initialization. Using fallback URL:', this.baseURL)
+      logger.warn("Making request before initialization. Using fallback URL:", this.baseURL);
     }
 
-    const url = new URL(`${this.baseURL}${endpoint}`)
+    const url = new URL(`${this.baseURL}${endpoint}`);
 
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
-          url.searchParams.append(key, String(value))
+          url.searchParams.append(key, String(value));
         }
-      })
+      });
     }
 
-    return url.toString()
+    return url.toString();
   }
 
   /**
    * Check if error should be retried
    */
   private shouldRetry(error: any, attempt: number): boolean {
-    if (attempt >= 3) return false
+    if (attempt >= 3) return false;
 
     if (error instanceof ApiError && [401, 403].includes(error.status)) {
-      return false
+      return false;
     }
 
     if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
-      return [408, 429].includes(error.status)
+      return [408, 429].includes(error.status);
     }
 
-    if (error instanceof TypeError) return true
+    if (error instanceof TypeError) return true;
 
-    if (error instanceof DOMException && error.name === 'AbortError') return true
+    if (error instanceof DOMException && error.name === "AbortError") return true;
 
     if (error instanceof ApiError) {
-      return [408, 429, 500, 502, 503, 504].includes(error.status)
+      return [408, 429, 500, 502, 503, 504].includes(error.status);
     }
 
-    return false
+    return false;
   }
 
   /**
    * Sleep for retry backoff
    */
   private async sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms))
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
    * Make HTTP request with retry logic
    */
-  async request<T>(
-    endpoint: string,
-    options: RequestOptions = {}
-  ): Promise<T> {
-    const { params, retries = 0, timeout = 30000, ...fetchOptions } = options
-    const url = this.buildUrl(endpoint, params)
+  async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+    const { params, retries = 0, timeout = 30000, ...fetchOptions } = options;
+    const url = this.buildUrl(endpoint, params);
 
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...((fetchOptions.headers as Record<string, string>) || {})
-    }
+      "Content-Type": "application/json",
+      ...((fetchOptions.headers as Record<string, string>) || {}),
+    };
 
     // Add auth token
     if (this.authToken) {
-      headers['Authorization'] = `Bearer ${this.authToken}`
+      headers["Authorization"] = `Bearer ${this.authToken}`;
     }
 
     // Add CSRF token for state-changing methods
-    const method = (fetchOptions.method || 'GET').toUpperCase()
-    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method) && this.csrfToken) {
-      headers['X-CSRF-Token'] = this.csrfToken
+    const method = (fetchOptions.method || "GET").toUpperCase();
+    if (["POST", "PUT", "DELETE", "PATCH"].includes(method) && this.csrfToken) {
+      headers["X-CSRF-Token"] = this.csrfToken;
     }
 
     // Create abort controller for timeout
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), timeout)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
       const response = await fetch(url, {
         ...fetchOptions,
         headers,
-        credentials: 'include',
-        signal: controller.signal
-      })
+        credentials: "include",
+        signal: controller.signal,
+      });
 
-      clearTimeout(timeoutId)
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({
-          detail: response.statusText
-        }))
+          detail: response.statusText,
+        }));
 
         const error = new ApiError(
           response.status,
           errorData,
           errorData.detail || `HTTP ${response.status}`,
-          errorData.user_message
-        )
+          errorData.user_message,
+        );
 
         if (this.shouldRetry(error, retries)) {
-          await this.sleep(Math.pow(2, retries) * 1000)
-          return this.request(endpoint, { ...options, retries: retries + 1 })
+          await this.sleep(Math.pow(2, retries) * 1000);
+          return this.request(endpoint, { ...options, retries: retries + 1 });
         }
 
-        throw error
+        throw error;
       }
 
       // Handle empty responses (204 No Content, 205 Reset Content)
       if (response.status === 204 || response.status === 205) {
-        return undefined as T
+        return undefined as T;
       }
 
       // Check if response has content before parsing
-      const contentLength = response.headers.get('content-length')
-      if (contentLength === '0') {
-        return undefined as T
+      const contentLength = response.headers.get("content-length");
+      if (contentLength === "0") {
+        return undefined as T;
       }
 
-      const data = await response.json()
-      return data as T
+      const data = await response.json();
+      return data as T;
     } catch (error) {
-      clearTimeout(timeoutId)
+      clearTimeout(timeoutId);
 
       if (error instanceof ApiError) {
-        throw error
+        throw error;
       }
 
       const apiError = new ApiError(
         0,
         error,
-        error instanceof Error ? error.message : 'Network error'
-      )
+        error instanceof Error ? error.message : "Network error",
+      );
 
       if (this.shouldRetry(apiError, retries)) {
-        await this.sleep(Math.pow(2, retries) * 1000)
-        return this.request(endpoint, { ...options, retries: retries + 1 })
+        await this.sleep(Math.pow(2, retries) * 1000);
+        return this.request(endpoint, { ...options, retries: retries + 1 });
       }
 
-      throw apiError
+      throw apiError;
     }
   }
 
@@ -408,50 +405,65 @@ export class ApiClientCore {
    * GET request
    */
   async get<T>(endpoint: string, params?: Record<string, string | number | boolean>): Promise<T> {
-    return this.request<T>(endpoint, { method: 'GET', params })
+    return this.request<T>(endpoint, { method: "GET", params });
   }
 
   /**
    * POST request
    */
-  async post<T>(endpoint: string, data?: any, params?: Record<string, string | number | boolean>): Promise<T> {
+  async post<T>(
+    endpoint: string,
+    data?: any,
+    params?: Record<string, string | number | boolean>,
+  ): Promise<T> {
     return this.request<T>(endpoint, {
-      method: 'POST',
+      method: "POST",
       body: data ? JSON.stringify(data) : undefined,
-      params
-    })
+      params,
+    });
   }
 
   /**
    * PUT request
    */
-  async put<T>(endpoint: string, data?: any, params?: Record<string, string | number | boolean>): Promise<T> {
+  async put<T>(
+    endpoint: string,
+    data?: any,
+    params?: Record<string, string | number | boolean>,
+  ): Promise<T> {
     return this.request<T>(endpoint, {
-      method: 'PUT',
+      method: "PUT",
       body: data ? JSON.stringify(data) : undefined,
-      params
-    })
+      params,
+    });
   }
 
   /**
    * DELETE request
    */
-  async delete<T>(endpoint: string, params?: Record<string, string | number | boolean>): Promise<T> {
-    return this.request<T>(endpoint, { method: 'DELETE', params })
+  async delete<T>(
+    endpoint: string,
+    params?: Record<string, string | number | boolean>,
+  ): Promise<T> {
+    return this.request<T>(endpoint, { method: "DELETE", params });
   }
 
   /**
    * PATCH request
    */
-  async patch<T>(endpoint: string, data?: any, params?: Record<string, string | number | boolean>): Promise<T> {
+  async patch<T>(
+    endpoint: string,
+    data?: any,
+    params?: Record<string, string | number | boolean>,
+  ): Promise<T> {
     return this.request<T>(endpoint, {
-      method: 'PATCH',
+      method: "PATCH",
       body: data ? JSON.stringify(data) : undefined,
-      params
-    })
+      params,
+    });
   }
 }
 
 // Export types
-export type { ApiResponse, PaginatedResponse, RequestOptions }
-export { ApiError }
+export type { ApiResponse, PaginatedResponse, RequestOptions };
+// ApiError is already exported as a class above
