@@ -1,36 +1,57 @@
-import React from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Users, MessageSquare, TrendingUp, TriangleAlert as AlertTriangle, Activity, Clock, CircleCheck as CheckCircle, Circle as XCircle, Calendar, FileText } from 'lucide-react'
-import { apiClient } from '../lib/api-client'
-import { useAuth } from '../contexts/AuthContext'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { LoadingSpinner } from '../components/ui/loading-spinner'
-import { MetricCard } from '../components/dashboard/MetricCard'
-import { RecentActivity } from '../components/dashboard/RecentActivity'
-import { AlertsPanel } from '../components/dashboard/AlertsPanel'
-import { EngagementChart } from '../components/dashboard/EngagementChart'
-import QuickStats from '../components/dashboard/QuickStats'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import React from "react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  Users,
+  MessageSquare,
+  TrendingUp,
+  TriangleAlert as AlertTriangle,
+  Activity,
+  Clock,
+  CircleCheck as CheckCircle,
+  Circle as XCircle,
+  Calendar,
+  FileText,
+  Shield,
+  Settings,
+} from "lucide-react";
+import { apiClient } from "../lib/api-client";
+import { useAuth } from "../contexts/AuthContext";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { LoadingSpinner } from "../components/ui/loading-spinner";
+import { MetricCard } from "../components/dashboard/MetricCard";
+import { RecentActivity } from "../components/dashboard/RecentActivity";
+import { AlertsPanel } from "../components/dashboard/AlertsPanel";
+import { EngagementChart } from "../components/dashboard/EngagementChart";
+import QuickStats from "../components/dashboard/QuickStats";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useRoleGuard, PermissionGate } from "@/components/auth/ProtectedRoute";
+import { getRoleLabel } from "@/types/shared";
+import { Link } from "react-router-dom";
 
 export function DashboardPage() {
-  const { user, isLoading: authLoading } = useAuth()
+  const { user, isLoading: authLoading } = useAuth();
+  const { permissions, userRole, isAdmin, isDoctor } = useRoleGuard();
 
   // Wait for authentication to be ready before making API calls
-  const { data: metrics, isLoading, error } = useQuery({
-    queryKey: ['dashboard-metrics'],
+  const {
+    data: metrics,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["dashboard-metrics"],
     queryFn: () => apiClient.analytics.dashboard(),
     enabled: !!user && !authLoading, // Only run when authenticated
-    refetchInterval: 30000 // Refresh every 30 seconds
-  })
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />
       </div>
-    )
+    );
   }
 
   if (error) {
@@ -40,20 +61,16 @@ export function DashboardPage() {
           <CardContent className="pt-6">
             <div className="text-center">
               <XCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Erro ao carregar dashboard
-              </h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Erro ao carregar dashboard</h3>
               <p className="text-gray-500 mb-4">
                 Não foi possível carregar as métricas do dashboard.
               </p>
-              <Button onClick={() => window.location.reload()}>
-                Tentar novamente
-              </Button>
+              <Button onClick={() => window.location.reload()}>Tentar novamente</Button>
             </div>
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   return (
@@ -61,15 +78,28 @@ export function DashboardPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold font-heading text-gray-900">Dashboard</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl md:text-3xl font-bold font-heading text-gray-900">Dashboard</h1>
+            <Badge variant={isAdmin ? "default" : "secondary"} className="hidden sm:inline-flex">
+              {getRoleLabel(userRole)}
+            </Badge>
+          </div>
           <p className="text-sm md:text-base text-gray-600 mt-1 font-body">
-            Visão geral do sistema
+            {isAdmin ? "Visão administrativa completa" : "Visão geral do sistema"}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="bg-green-50 text-green-700">
             Sistema Online
           </Badge>
+          <PermissionGate permission="canAccessAdmin">
+            <Button variant="outline" size="sm" asChild className="hidden sm:flex">
+              <Link to="/admin">
+                <Shield className="mr-2 h-4 w-4" />
+                Admin
+              </Link>
+            </Button>
+          </PermissionGate>
           <Button variant="outline" size="sm" className="hidden sm:flex">
             <Calendar className="mr-2 h-4 w-4" />
             Hoje
@@ -77,16 +107,82 @@ export function DashboardPage() {
         </div>
       </div>
 
+      {/* Admin Quick Actions */}
+      <PermissionGate permission="canAccessAdmin">
+        <Card className="bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Shield className="h-5 w-5 text-purple-600" />
+              Ações Administrativas
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/admin/users">
+                  <Users className="mr-2 h-4 w-4" />
+                  Gerenciar Usuários
+                </Link>
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/settings">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Configurações
+                </Link>
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/flows">
+                  <Activity className="mr-2 h-4 w-4" />
+                  Configurar Flows
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </PermissionGate>
+
+      {/* Doctor Info Card */}
+      <PermissionGate permission="canManagePatients" fallback={null}>
+        {isDoctor && (
+          <Card className="bg-gradient-to-r from-green-50 to-teal-50 border-green-200">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">👨‍⚕️ Painel Médico</CardTitle>
+              <CardDescription>Acesso às suas responsabilidades clínicas</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-600">Pacientes</p>
+                  <p className="font-semibold text-green-700">✓ Gerenciar</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Relatórios</p>
+                  <p className="font-semibold text-green-700">✓ Visualizar</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </PermissionGate>
+
       {/* Quick Stats */}
       <QuickStats />
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="overview" className="space-y-4 md:space-y-6">
         <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-1">
-          <TabsTrigger value="overview" className="text-xs sm:text-sm">Visão Geral</TabsTrigger>
-          <TabsTrigger value="patients" className="text-xs sm:text-sm">Pacientes</TabsTrigger>
-          <TabsTrigger value="engagement" className="text-xs sm:text-sm">Engajamento</TabsTrigger>
-          <TabsTrigger value="alerts" className="text-xs sm:text-sm">Alertas</TabsTrigger>
+          <TabsTrigger value="overview" className="text-xs sm:text-sm">
+            Visão Geral
+          </TabsTrigger>
+          <TabsTrigger value="patients" className="text-xs sm:text-sm">
+            Pacientes
+          </TabsTrigger>
+          <TabsTrigger value="engagement" className="text-xs sm:text-sm">
+            Engajamento
+          </TabsTrigger>
+          <TabsTrigger value="alerts" className="text-xs sm:text-sm">
+            Alertas
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4 md:space-y-6">
@@ -134,13 +230,13 @@ export function DashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Pacientes Ativos
-                </CardTitle>
+                <CardTitle className="text-sm font-medium">Pacientes Ativos</CardTitle>
                 <Activity className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold font-mono tabular-nums">{metrics?.active_patients || 0}</div>
+                <div className="text-2xl font-bold font-mono tabular-nums">
+                  {metrics?.active_patients || 0}
+                </div>
                 <p className="text-xs text-muted-foreground font-body">
                   {metrics?.active_patients_percentage || 0}% do total
                 </p>
@@ -149,13 +245,13 @@ export function DashboardPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Questionários Completados
-                </CardTitle>
+                <CardTitle className="text-sm font-medium">Questionários Completados</CardTitle>
                 <CheckCircle className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold font-mono tabular-nums">{metrics?.completed_quizzes || 0}</div>
+                <div className="text-2xl font-bold font-mono tabular-nums">
+                  {metrics?.completed_quizzes || 0}
+                </div>
                 <p className="text-xs text-muted-foreground font-body">
                   +{metrics?.quizzes_change || 0} esta semana
                 </p>
@@ -164,16 +260,14 @@ export function DashboardPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Tempo Médio de Resposta
-                </CardTitle>
+                <CardTitle className="text-sm font-medium">Tempo Médio de Resposta</CardTitle>
                 <Clock className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold font-mono tabular-nums">{metrics?.avg_response_time || 0}min</div>
-                <p className="text-xs text-muted-foreground font-body">
-                  Média dos últimos 7 dias
-                </p>
+                <div className="text-2xl font-bold font-mono tabular-nums">
+                  {metrics?.avg_response_time || 0}min
+                </div>
+                <p className="text-xs text-muted-foreground font-body">Média dos últimos 7 dias</p>
               </CardContent>
             </Card>
           </div>
@@ -182,18 +276,20 @@ export function DashboardPage() {
           <Card>
             <CardHeader>
               <CardTitle>Distribuição de Status dos Pacientes</CardTitle>
-              <CardDescription>
-                Visão geral do status atual dos pacientes
-              </CardDescription>
+              <CardDescription>Visão geral do status atual dos pacientes</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="text-center p-4 border rounded-lg">
-                  <div className="text-2xl font-bold font-mono tabular-nums text-green-600">{metrics?.active_patients || 0}</div>
+                  <div className="text-2xl font-bold font-mono tabular-nums text-green-600">
+                    {metrics?.active_patients || 0}
+                  </div>
                   <p className="text-sm text-gray-600 font-body">Ativos</p>
                 </div>
                 <div className="text-center p-4 border rounded-lg">
-                  <div className="text-2xl font-bold font-mono tabular-nums text-yellow-600">12</div>
+                  <div className="text-2xl font-bold font-mono tabular-nums text-yellow-600">
+                    12
+                  </div>
                   <p className="text-sm text-gray-600 font-body">Pausados</p>
                 </div>
                 <div className="text-center p-4 border rounded-lg">
@@ -211,7 +307,7 @@ export function DashboardPage() {
 
         <TabsContent value="engagement" className="space-y-6">
           <EngagementChart data={metrics?.engagement_chart || []} />
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
@@ -220,15 +316,21 @@ export function DashboardPage() {
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600 font-body">Taxa de resposta média</span>
-                  <span className="font-medium font-mono tabular-nums">{metrics?.response_rate || 0}%</span>
+                  <span className="font-medium font-mono tabular-nums">
+                    {metrics?.response_rate || 0}%
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600 font-body">Mensagens enviadas (7d)</span>
-                  <span className="font-medium font-mono tabular-nums">{metrics?.messages_sent || 0}</span>
+                  <span className="font-medium font-mono tabular-nums">
+                    {metrics?.messages_sent || 0}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600 font-body">Tempo médio de resposta</span>
-                  <span className="font-medium font-mono tabular-nums">{metrics?.avg_response_time || 0}min</span>
+                  <span className="font-medium font-mono tabular-nums">
+                    {metrics?.avg_response_time || 0}min
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -240,7 +342,9 @@ export function DashboardPage() {
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600 font-body">Completados esta semana</span>
-                  <span className="font-medium font-mono tabular-nums">{metrics?.completed_quizzes || 0}</span>
+                  <span className="font-medium font-mono tabular-nums">
+                    {metrics?.completed_quizzes || 0}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600 font-body">Em andamento</span>
@@ -257,7 +361,7 @@ export function DashboardPage() {
 
         <TabsContent value="alerts" className="space-y-6">
           <AlertsPanel alerts={metrics?.recent_alerts || []} />
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card>
               <CardHeader>
@@ -326,5 +430,5 @@ export function DashboardPage() {
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }
