@@ -4,6 +4,7 @@ AI-powered endpoints for the Hormonia Backend System.
 Provides REST API endpoints for AI features including chat, sentiment analysis,
 patient insights, and recommendations. Only accessible by physicians and admins.
 """
+
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
@@ -18,7 +19,7 @@ from app.models.patient import Patient
 from app.dependencies import (
     get_current_user,
     get_patient_service,
-    validate_patient_access
+    validate_patient_access,
 )
 from app.schemas.ai import (
     ChatRequest,
@@ -37,22 +38,10 @@ from app.schemas.ai import (
     ConcernLevel,
     RiskLevel,
     TrendData,
-    ActionItem
+    ActionItem,
 )
-from app.services.ai import (
-    AIHumanizer,
-    SentimentAnalyzer,
-    ContextBuilder,
-    PatientContext,
-    get_ai_humanizer,
-    get_sentiment_analyzer,
-    get_context_builder
-)
-from app.exceptions import (
-    ExternalServiceError,
-    ValidationError,
-    NotFoundError
-)
+from app.services.ai import AIService, PatientContext, ConcernLevel, get_ai_service
+from app.exceptions import ExternalServiceError, ValidationError, NotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +53,9 @@ router = APIRouter(prefix="/ai", tags=["AI Services"])
 # Dependency Functions
 # ============================================================================
 
+
 async def verify_physician_or_admin(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> User:
     """
     Verify user is a physician or admin.
@@ -96,7 +86,7 @@ async def verify_physician_or_admin(
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="AI features are only accessible to doctors and administrators"
+            detail="AI features are only accessible to doctors and administrators",
         )
     return current_user
 
@@ -116,7 +106,7 @@ async def get_redis_client():
             socket_keepalive=True,
             health_check_interval=30,
             max_connections=20,
-            retry_on_timeout=True
+            retry_on_timeout=True,
         )
 
         # Verify connection
@@ -124,14 +114,13 @@ async def get_redis_client():
         logger.info("Redis client connected successfully for AI caching")
         return client
     except Exception as e:
-        logger.warning(f"Redis unavailable for AI caching, falling back to no cache: {e}")
+        logger.warning(
+            f"Redis unavailable for AI caching, falling back to no cache: {e}"
+        )
         return None
 
 
-async def get_cached_data(
-    redis_client,
-    cache_key: str
-) -> Optional[Dict[str, Any]]:
+async def get_cached_data(redis_client, cache_key: str) -> Optional[Dict[str, Any]]:
     """Get cached data from Redis with error handling."""
     if redis_client is None:
         return None
@@ -159,10 +148,7 @@ async def get_cached_data(
 
 
 async def set_cached_data(
-    redis_client,
-    cache_key: str,
-    data: Dict[str, Any],
-    ttl_seconds: int
+    redis_client, cache_key: str, data: Dict[str, Any], ttl_seconds: int
 ) -> bool:
     """Set cached data in Redis with JSON serialization."""
     if redis_client is None:
@@ -170,11 +156,7 @@ async def set_cached_data(
 
     try:
         serialized_data = json.dumps(data, default=str, ensure_ascii=False)
-        await redis_client.setex(
-            cache_key,
-            ttl_seconds,
-            serialized_data
-        )
+        await redis_client.setex(cache_key, ttl_seconds, serialized_data)
         logger.debug(f"Cache SET for key: {cache_key} (TTL: {ttl_seconds}s)")
         return True
     except TypeError as e:
@@ -185,10 +167,7 @@ async def set_cached_data(
         return False
 
 
-async def invalidate_patient_cache(
-    redis_client,
-    patient_id: UUID
-) -> int:
+async def invalidate_patient_cache(redis_client, patient_id: UUID) -> int:
     """Invalidate all cached AI data for a patient."""
     if redis_client is None:
         return 0
@@ -200,16 +179,14 @@ async def invalidate_patient_cache(
             f"ai:insights:{patient_id}*",
             f"ai:recommendations:{patient_id}*",
             f"ai:summary:{patient_id}*",
-            f"ai:analysis:{patient_id}*"
+            f"ai:analysis:{patient_id}*",
         ]
 
         for pattern in patterns:
             cursor = 0
             while True:
                 cursor, keys = await redis_client.scan(
-                    cursor=cursor,
-                    match=pattern,
-                    count=100
+                    cursor=cursor, match=pattern, count=100
                 )
                 if keys:
                     deleted = await redis_client.delete(*keys)
@@ -219,7 +196,9 @@ async def invalidate_patient_cache(
                 if cursor == 0:
                     break
 
-        logger.info(f"Invalidated {invalidated_count} AI cache entries for patient {patient_id}")
+        logger.info(
+            f"Invalidated {invalidated_count} AI cache entries for patient {patient_id}"
+        )
         return invalidated_count
     except Exception as e:
         logger.error(f"Cache invalidation error for patient {patient_id}: {e}")
@@ -230,6 +209,7 @@ async def invalidate_patient_cache(
 # POST /ai/chat - Interactive AI Chat
 # ============================================================================
 
+
 @router.post(
     "/chat",
     response_model=ChatResponse,
@@ -237,7 +217,7 @@ async def invalidate_patient_cache(
         200: {"description": "Successful AI chat response"},
         401: {"model": AIErrorResponse, "description": "Unauthorized"},
         403: {"model": AIErrorResponse, "description": "Insufficient permissions"},
-        500: {"model": AIErrorResponse, "description": "AI service error"}
+        500: {"model": AIErrorResponse, "description": "AI service error"},
     },
     summary="Interactive AI chat for physicians",
     description="""
@@ -246,12 +226,12 @@ async def invalidate_patient_cache(
     for personalized responses.
 
     **Access:** Physicians and Admins only
-    """
+    """,
 )
 async def ai_chat(
     request: ChatRequest,
     current_user: User = Depends(verify_physician_or_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> ChatResponse:
     """
     Interactive AI chat endpoint for physicians.
@@ -270,24 +250,22 @@ async def ai_chat(
         if request.patient_id:
             # Validate patient access
             patient = await validate_patient_access(
-                request.patient_id,
-                current_user,
-                get_patient_service(db)
+                request.patient_id, current_user, get_patient_service(db)
             )
 
             # Build context
-            context_builder = get_context_builder()
+            context_builder = get_ai_service()
             patient_context = await context_builder.build_patient_context(
                 str(request.patient_id),
                 {
                     "name": patient.name,
                     "treatment_type": patient.treatment_type or "general",
-                    "current_day": patient.current_day
-                }
+                    "current_day": patient.current_day,
+                },
             )
 
         # Get AI orchestrator for chat
-        ai_humanizer = get_ai_humanizer()
+        ai_humanizer = get_ai_service()
 
         # For demo purposes, create a simple intelligent response
         # In production, this would use the LangChain orchestrator
@@ -311,10 +289,10 @@ async def ai_chat(
             suggestions=[
                 "Review patient's recent responses",
                 "Check treatment adherence",
-                "Schedule follow-up consultation"
+                "Schedule follow-up consultation",
             ],
             context_used=patient_context is not None,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
         )
 
     except HTTPException:
@@ -323,13 +301,14 @@ async def ai_chat(
         logger.error(f"AI chat error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"AI chat service error: {str(e)}"
+            detail=f"AI chat service error: {str(e)}",
         )
 
 
 # ============================================================================
 # POST /ai/analyze - Analyze Patient Data
 # ============================================================================
+
 
 @router.post(
     "/analyze",
@@ -339,7 +318,7 @@ async def ai_chat(
         401: {"model": AIErrorResponse},
         403: {"model": AIErrorResponse},
         404: {"model": AIErrorResponse, "description": "Patient not found"},
-        500: {"model": AIErrorResponse}
+        500: {"model": AIErrorResponse},
     },
     summary="Analyze patient data with AI",
     description="""
@@ -347,12 +326,12 @@ async def ai_chat(
     progress, adherence patterns, sentiment trends, and risk assessment.
 
     **Access:** Physicians and Admins only
-    """
+    """,
 )
 async def analyze_patient(
     request: AnalysisRequest,
     current_user: User = Depends(verify_physician_or_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> AnalysisResponse:
     """
     Analyze patient data with AI to identify patterns, risks, and opportunities.
@@ -365,9 +344,7 @@ async def analyze_patient(
 
         # Validate patient access
         patient = await validate_patient_access(
-            request.patient_id,
-            current_user,
-            get_patient_service(db)
+            request.patient_id, current_user, get_patient_service(db)
         )
 
         # Get patient messages for analysis (if requested)
@@ -375,33 +352,32 @@ async def analyze_patient(
         if request.include_messages:
             # Fetch recent messages from database
             from app.repositories.message import MessageRepository
+
             message_repo = MessageRepository(db)
             cutoff_date = datetime.utcnow() - timedelta(days=request.date_range_days)
             messages = message_repo.get_patient_messages(
-                patient.id,
-                start_date=cutoff_date
+                patient.id, start_date=cutoff_date
             )
 
         # Analyze sentiment across messages
-        sentiment_analyzer = get_sentiment_analyzer()
+        sentiment_analyzer = get_ai_service()
         concern_levels = []
         key_findings = []
 
         for msg in messages[:10]:  # Analyze recent 10 messages
-            if hasattr(msg, 'content') and msg.content:
-                context_builder = get_context_builder()
+            if hasattr(msg, "content") and msg.content:
+                context_builder = get_ai_service()
                 patient_ctx = await context_builder.build_patient_context(
                     str(patient.id),
                     {
                         "name": patient.name,
                         "treatment_type": patient.treatment_type or "general",
-                        "current_day": patient.current_day
-                    }
+                        "current_day": patient.current_day,
+                    },
                 )
 
                 analysis, concern = await sentiment_analyzer.analyze_response(
-                    msg.content,
-                    patient_ctx
+                    msg.content, patient_ctx
                 )
                 concern_levels.append(concern.value)
 
@@ -422,7 +398,7 @@ async def analyze_patient(
         )
 
         if concern_levels:
-            high_concerns = sum(1 for c in concern_levels if c in ['high', 'critical'])
+            high_concerns = sum(1 for c in concern_levels if c in ["high", "critical"])
             if high_concerns > 0:
                 summary += f"Detected {high_concerns} high-concern indicators. "
             else:
@@ -430,29 +406,36 @@ async def analyze_patient(
 
         # Build risk factors
         risk_factors = []
-        if 'high' in concern_levels or 'critical' in concern_levels:
-            risk_factors.append({
-                "factor": "Elevated concern levels in messages",
-                "severity": "high",
-                "frequency": concern_levels.count('high') + concern_levels.count('critical')
-            })
+        if "high" in concern_levels or "critical" in concern_levels:
+            risk_factors.append(
+                {
+                    "factor": "Elevated concern levels in messages",
+                    "severity": "high",
+                    "frequency": concern_levels.count("high")
+                    + concern_levels.count("critical"),
+                }
+            )
 
         return AnalysisResponse(
             patient_id=request.patient_id,
             analysis_type=request.analysis_type,
             summary=summary,
-            key_findings=list(set(key_findings[:5])) if key_findings else [
+            key_findings=list(set(key_findings[:5]))
+            if key_findings
+            else [
                 "Patient showing consistent engagement",
-                f"Treatment day {patient.current_day} progress tracked"
+                f"Treatment day {patient.current_day} progress tracked",
             ],
             risk_factors=risk_factors,
             recommendations=[
                 "Continue monitoring patient responses",
-                "Maintain current treatment protocol" if not risk_factors else "Review treatment plan",
-                "Schedule regular check-ins"
+                "Maintain current treatment protocol"
+                if not risk_factors
+                else "Review treatment plan",
+                "Schedule regular check-ins",
             ],
             data_quality_score=min(data_quality, 1.0),
-            analyzed_at=datetime.utcnow()
+            analyzed_at=datetime.utcnow(),
         )
 
     except HTTPException:
@@ -461,13 +444,14 @@ async def analyze_patient(
         logger.error(f"AI analysis error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Analysis service error: {str(e)}"
+            detail=f"Analysis service error: {str(e)}",
         )
 
 
 # ============================================================================
 # POST /ai/generate-response - Generate AI Response
 # ============================================================================
+
 
 @router.post(
     "/generate-response",
@@ -477,7 +461,7 @@ async def analyze_patient(
         401: {"model": AIErrorResponse},
         403: {"model": AIErrorResponse},
         404: {"model": AIErrorResponse},
-        500: {"model": AIErrorResponse}
+        500: {"model": AIErrorResponse},
     },
     summary="Generate AI response for patient message",
     description="""
@@ -485,12 +469,12 @@ async def analyze_patient(
     Uses AI to humanize template messages based on patient context and preferences.
 
     **Access:** Physicians and Admins only
-    """
+    """,
 )
 async def generate_response(
     request: GenerateResponseRequest,
     current_user: User = Depends(verify_physician_or_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> GenerateResponseResponse:
     """
     Generate personalized AI response for patient communication.
@@ -503,34 +487,32 @@ async def generate_response(
 
         # Validate patient access
         patient = await validate_patient_access(
-            request.patient_id,
-            current_user,
-            get_patient_service(db)
+            request.patient_id, current_user, get_patient_service(db)
         )
 
         # Build patient context
-        context_builder = get_context_builder()
+        context_builder = get_ai_service()
         patient_context = await context_builder.build_patient_context(
             str(request.patient_id),
             {
                 "name": patient.name,
                 "treatment_type": patient.treatment_type or "general",
                 "current_day": patient.current_day,
-                "age": None  # Could be calculated from birth_date if needed
-            }
+                "age": None,  # Could be calculated from birth_date if needed
+            },
         )
 
         # Humanize message
-        ai_humanizer = get_ai_humanizer()
+        ai_humanizer = get_ai_service()
         personalized = await ai_humanizer.humanize_message(
-            request.template_message,
-            patient_context,
-            request.message_type
+            request.template_message, patient_context, request.message_type
         )
 
         # Calculate readability score
-        from app.services.ai import NLPUtilities
-        readability = NLPUtilities.calculate_readability_score(
+        from app.services.ai import AIService
+
+        ai_service = await get_ai_service()
+        readability = await ai_service.calculate_readability_score(
             personalized.humanized_message
         )
 
@@ -539,12 +521,8 @@ async def generate_response(
             generated_message=personalized.humanized_message,
             personalization_notes=personalized.personalization_notes,
             readability_score=readability,
-            tone_analysis={
-                "empathy": 0.85,
-                "professionalism": 0.80,
-                "clarity": 0.90
-            },
-            generated_at=datetime.utcnow()
+            tone_analysis={"empathy": 0.85, "professionalism": 0.80, "clarity": 0.90},
+            generated_at=datetime.utcnow(),
         )
 
     except HTTPException:
@@ -553,13 +531,14 @@ async def generate_response(
         logger.error(f"Response generation error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Response generation error: {str(e)}"
+            detail=f"Response generation error: {str(e)}",
         )
 
 
 # ============================================================================
 # POST /ai/sentiment - Analyze Message Sentiment
 # ============================================================================
+
 
 @router.post(
     "/sentiment",
@@ -568,7 +547,7 @@ async def generate_response(
         200: {"description": "Successful sentiment analysis"},
         401: {"model": AIErrorResponse},
         403: {"model": AIErrorResponse},
-        500: {"model": AIErrorResponse}
+        500: {"model": AIErrorResponse},
     },
     summary="Analyze message sentiment",
     description="""
@@ -576,12 +555,12 @@ async def generate_response(
     emotional state, medical concerns, and urgency indicators.
 
     **Access:** Physicians and Admins only
-    """
+    """,
 )
 async def analyze_sentiment(
     request: SentimentAnalysisRequest,
     current_user: User = Depends(verify_physician_or_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> SentimentAnalysisResponse:
     """
     Analyze sentiment and medical concerns in patient message.
@@ -596,19 +575,17 @@ async def analyze_sentiment(
         patient_context = None
         if request.patient_id:
             patient = await validate_patient_access(
-                request.patient_id,
-                current_user,
-                get_patient_service(db)
+                request.patient_id, current_user, get_patient_service(db)
             )
 
-            context_builder = get_context_builder()
+            context_builder = get_ai_service()
             patient_context = await context_builder.build_patient_context(
                 str(request.patient_id),
                 {
                     "name": patient.name,
                     "treatment_type": patient.treatment_type or "general",
-                    "current_day": patient.current_day
-                }
+                    "current_day": patient.current_day,
+                },
             )
         else:
             # Create minimal context for analysis
@@ -616,19 +593,20 @@ async def analyze_sentiment(
                 patient_id="unknown",
                 name="Patient",
                 treatment_type="general",
-                treatment_day=1
+                treatment_day=1,
             )
 
         # Analyze sentiment
-        sentiment_analyzer = get_sentiment_analyzer()
+        sentiment_analyzer = get_ai_service()
         analysis, concern_level = await sentiment_analyzer.analyze_response(
-            request.message,
-            patient_context
+            request.message, patient_context
         )
 
         # Extract urgency indicators
-        from app.services.ai import NLPUtilities
-        urgency_indicators = NLPUtilities.detect_urgency_indicators(request.message)
+        from app.services.ai import AIService
+
+        ai_service = await get_ai_service()
+        urgency_indicators = await ai_service.detect_urgency_indicators(request.message)
 
         # Determine recommended action
         recommended_action = None
@@ -647,15 +625,13 @@ async def analyze_sentiment(
             concern_level=concern_level,
             confidence=analysis.confidence,
             key_phrases=analysis.key_phrases,
-            medical_concerns=analysis.medical_concerns if request.include_medical_concerns else [],
+            medical_concerns=analysis.medical_concerns
+            if request.include_medical_concerns
+            else [],
             urgency_indicators=urgency_indicators,
-            emotion_scores={
-                "anxiety": 0.3,
-                "sadness": 0.2,
-                "frustration": 0.1
-            },
+            emotion_scores={"anxiety": 0.3, "sadness": 0.2, "frustration": 0.1},
             recommended_action=recommended_action,
-            analyzed_at=datetime.utcnow()
+            analyzed_at=datetime.utcnow(),
         )
 
     except HTTPException:
@@ -664,13 +640,14 @@ async def analyze_sentiment(
         logger.error(f"Sentiment analysis error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Sentiment analysis error: {str(e)}"
+            detail=f"Sentiment analysis error: {str(e)}",
         )
 
 
 # ============================================================================
 # GET /ai/insights/{patient_id} - Patient Insights
 # ============================================================================
+
 
 @router.get(
     "/insights/{patient_id}",
@@ -680,7 +657,7 @@ async def analyze_sentiment(
         401: {"model": AIErrorResponse},
         403: {"model": AIErrorResponse},
         404: {"model": AIErrorResponse},
-        500: {"model": AIErrorResponse}
+        500: {"model": AIErrorResponse},
     },
     summary="Get patient-specific AI insights",
     description="""
@@ -690,13 +667,13 @@ async def analyze_sentiment(
     Results are cached for 5 minutes to improve performance while ensuring data freshness.
 
     **Access:** Physicians and Admins only
-    """
+    """,
 )
 async def get_patient_insights(
     patient_id: UUID,
     days: int = Query(30, ge=1, le=90, description="Number of days to analyze"),
     current_user: User = Depends(verify_physician_or_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> InsightResponse:
     """
     Get comprehensive AI insights for a patient.
@@ -709,7 +686,9 @@ async def get_patient_insights(
 
         cached_data = await get_cached_data(redis_client, cache_key)
         if cached_data:
-            logger.info(f"[CACHE HIT] Returning cached insights for patient {patient_id} (days={days})")
+            logger.info(
+                f"[CACHE HIT] Returning cached insights for patient {patient_id} (days={days})"
+            )
             return InsightResponse(**cached_data)
 
         logger.info(
@@ -719,13 +698,12 @@ async def get_patient_insights(
 
         # Validate patient access
         patient = await validate_patient_access(
-            patient_id,
-            current_user,
-            get_patient_service(db)
+            patient_id, current_user, get_patient_service(db)
         )
 
         # Get patient messages
         from app.repositories.message import MessageRepository
+
         message_repo = MessageRepository(db)
         cutoff_date = datetime.utcnow() - timedelta(days=days)
         messages = message_repo.get_patient_messages(patient.id, start_date=cutoff_date)
@@ -739,7 +717,7 @@ async def get_patient_insights(
             metric="overall_sentiment",
             direction="stable",
             change_percentage=0.0,
-            data_points=[]
+            data_points=[],
         )
 
         # Calculate adherence score
@@ -762,30 +740,31 @@ async def get_patient_insights(
             key_insights=[
                 f"Response rate: {response_rate:.1%}",
                 f"Total interactions: {total_messages}",
-                f"Treatment adherence: {adherence_score:.1%}"
+                f"Treatment adherence: {adherence_score:.1%}",
             ],
             alerts=[],
             engagement_metrics={
                 "response_rate": response_rate,
                 "total_messages": total_messages,
-                "avg_response_time_hours": 2.5
+                "avg_response_time_hours": 2.5,
             },
             last_contact=messages[0].created_at if messages else None,
-            insights_generated_at=datetime.utcnow()
+            insights_generated_at=datetime.utcnow(),
         )
 
         # Cache for 5 minutes to balance performance and freshness
         cache_success = await set_cached_data(
-            redis_client,
-            cache_key,
-            insights_data.dict(),
-            cache_ttl
+            redis_client, cache_key, insights_data.dict(), cache_ttl
         )
 
         if cache_success:
-            logger.info(f"[CACHE SET] Cached insights for patient {patient_id} (TTL: {cache_ttl}s)")
+            logger.info(
+                f"[CACHE SET] Cached insights for patient {patient_id} (TTL: {cache_ttl}s)"
+            )
         else:
-            logger.warning(f"[CACHE FAIL] Failed to cache insights for patient {patient_id}")
+            logger.warning(
+                f"[CACHE FAIL] Failed to cache insights for patient {patient_id}"
+            )
 
         return insights_data
 
@@ -795,13 +774,14 @@ async def get_patient_insights(
         logger.error(f"Error generating insights: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Insights generation error: {str(e)}"
+            detail=f"Insights generation error: {str(e)}",
         )
 
 
 # ============================================================================
 # GET /ai/recommendations/{patient_id} - AI Recommendations
 # ============================================================================
+
 
 @router.get(
     "/recommendations/{patient_id}",
@@ -811,7 +791,7 @@ async def get_patient_insights(
         401: {"model": AIErrorResponse},
         403: {"model": AIErrorResponse},
         404: {"model": AIErrorResponse},
-        500: {"model": AIErrorResponse}
+        500: {"model": AIErrorResponse},
     },
     summary="Get AI recommendations for patient",
     description="""
@@ -821,12 +801,12 @@ async def get_patient_insights(
     Results are cached for 10 minutes to ensure timely recommendations.
 
     **Access:** Physicians and Admins only
-    """
+    """,
 )
 async def get_patient_recommendations(
     patient_id: UUID,
     current_user: User = Depends(verify_physician_or_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> RecommendationResponse:
     """
     Get AI-generated recommendations for patient care.
@@ -839,7 +819,9 @@ async def get_patient_recommendations(
 
         cached_data = await get_cached_data(redis_client, cache_key)
         if cached_data:
-            logger.info(f"[CACHE HIT] Returning cached recommendations for patient {patient_id}")
+            logger.info(
+                f"[CACHE HIT] Returning cached recommendations for patient {patient_id}"
+            )
             return RecommendationResponse(**cached_data)
 
         logger.info(
@@ -849,9 +831,7 @@ async def get_patient_recommendations(
 
         # Validate patient access
         patient = await validate_patient_access(
-            patient_id,
-            current_user,
-            get_patient_service(db)
+            patient_id, current_user, get_patient_service(db)
         )
 
         # Generate action items
@@ -862,7 +842,7 @@ async def get_patient_recommendations(
                 priority="medium",
                 category="clinical",
                 estimated_impact="high",
-                due_date=datetime.utcnow() + timedelta(days=7)
+                due_date=datetime.utcnow() + timedelta(days=7),
             ),
             ActionItem(
                 title="Patient education session",
@@ -870,8 +850,8 @@ async def get_patient_recommendations(
                 priority="low",
                 category="educational",
                 estimated_impact="medium",
-                due_date=datetime.utcnow() + timedelta(days=14)
-            )
+                due_date=datetime.utcnow() + timedelta(days=14),
+            ),
         ]
 
         # Build recommendations
@@ -882,35 +862,36 @@ async def get_patient_recommendations(
             clinical_insights=[
                 f"Patient on day {patient.current_day} of treatment",
                 "Treatment adherence within acceptable range",
-                "No critical concerns identified"
+                "No critical concerns identified",
             ],
             patient_education=[
                 "Managing side effects during hormone therapy",
                 "Importance of consistent medication timing",
-                "Nutrition guidelines during treatment"
+                "Nutrition guidelines during treatment",
             ],
             intervention_suggestions=[],
             follow_up_schedule={
                 "next_check_in": (datetime.utcnow() + timedelta(days=7)).isoformat(),
                 "frequency": "weekly",
-                "type": "routine"
+                "type": "routine",
             },
             confidence_level=0.82,
-            generated_at=datetime.utcnow()
+            generated_at=datetime.utcnow(),
         )
 
         # Cache for 10 minutes to balance performance with recommendation timeliness
         cache_success = await set_cached_data(
-            redis_client,
-            cache_key,
-            recommendations_data.dict(),
-            cache_ttl
+            redis_client, cache_key, recommendations_data.dict(), cache_ttl
         )
 
         if cache_success:
-            logger.info(f"[CACHE SET] Cached recommendations for patient {patient_id} (TTL: {cache_ttl}s)")
+            logger.info(
+                f"[CACHE SET] Cached recommendations for patient {patient_id} (TTL: {cache_ttl}s)"
+            )
         else:
-            logger.warning(f"[CACHE FAIL] Failed to cache recommendations for patient {patient_id}")
+            logger.warning(
+                f"[CACHE FAIL] Failed to cache recommendations for patient {patient_id}"
+            )
 
         return recommendations_data
 
@@ -920,13 +901,14 @@ async def get_patient_recommendations(
         logger.error(f"Error generating recommendations: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Recommendations generation error: {str(e)}"
+            detail=f"Recommendations generation error: {str(e)}",
         )
 
 
 # ============================================================================
 # GET /ai/summary/{patient_id} - Comprehensive Patient Summary
 # ============================================================================
+
 
 @router.get(
     "/summary/{patient_id}",
@@ -936,7 +918,7 @@ async def get_patient_recommendations(
         401: {"model": AIErrorResponse},
         403: {"model": AIErrorResponse},
         404: {"model": AIErrorResponse},
-        500: {"model": AIErrorResponse}
+        500: {"model": AIErrorResponse},
     },
     summary="Get comprehensive AI summary",
     description="""
@@ -944,12 +926,12 @@ async def get_patient_recommendations(
     clinical status, recent concerns, and recommended next steps.
 
     **Access:** Physicians and Admins only
-    """
+    """,
 )
 async def get_patient_summary(
     patient_id: UUID,
     current_user: User = Depends(verify_physician_or_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> PatientSummaryResponse:
     """
     Get comprehensive AI-generated patient summary.
@@ -962,20 +944,21 @@ async def get_patient_summary(
 
         # Validate patient access
         patient = await validate_patient_access(
-            patient_id,
-            current_user,
-            get_patient_service(db)
+            patient_id, current_user, get_patient_service(db)
         )
 
         # Get patient messages for analysis
         from app.repositories.message import MessageRepository
+
         message_repo = MessageRepository(db)
         messages = message_repo.get_patient_messages(patient.id, limit=50)
 
         # Calculate treatment duration
         treatment_duration = patient.current_day
         if patient.treatment_start_date:
-            duration_days = (datetime.utcnow().date() - patient.treatment_start_date).days
+            duration_days = (
+                datetime.utcnow().date() - patient.treatment_start_date
+            ).days
             treatment_duration = max(duration_days, patient.current_day)
 
         # Build summary text
@@ -1003,31 +986,33 @@ async def get_patient_summary(
                 "type": patient.treatment_type or "hormone_therapy",
                 "duration_days": treatment_duration,
                 "current_phase": patient.flow_state.value,
-                "start_date": patient.treatment_start_date.isoformat() if patient.treatment_start_date else None
+                "start_date": patient.treatment_start_date.isoformat()
+                if patient.treatment_start_date
+                else None,
             },
             clinical_highlights=[
                 f"Day {patient.current_day} of treatment",
                 f"{len(messages)} total interactions",
-                f"Current phase: {patient.flow_state.value}"
+                f"Current phase: {patient.flow_state.value}",
             ],
             recent_concerns=[],
             progress_indicators={
                 "engagement": "active" if len(messages) > 10 else "moderate",
                 "treatment_phase": patient.flow_state.value,
-                "interaction_count": len(messages)
+                "interaction_count": len(messages),
             },
             risk_assessment={
                 "level": "low",
                 "factors": [],
-                "last_assessed": datetime.utcnow().isoformat()
+                "last_assessed": datetime.utcnow().isoformat(),
             },
             next_steps=[
                 "Continue regular check-ins",
                 "Monitor treatment adherence",
-                "Schedule follow-up consultation as needed"
+                "Schedule follow-up consultation as needed",
             ],
             data_completeness=0.85,
-            summary_generated_at=datetime.utcnow()
+            summary_generated_at=datetime.utcnow(),
         )
 
         return summary_data
@@ -1038,7 +1023,7 @@ async def get_patient_summary(
         logger.error(f"Error generating summary: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Summary generation error: {str(e)}"
+            detail=f"Summary generation error: {str(e)}",
         )
 
 
@@ -1046,18 +1031,19 @@ async def get_patient_summary(
 # Health Check Endpoint
 # ============================================================================
 
+
 @router.get(
     "/health",
     summary="AI service health check",
-    description="Check if AI services are operational including cache status"
+    description="Check if AI services are operational including cache status",
 )
 async def ai_health_check():
     """Health check for AI services including Redis cache."""
     try:
         # Test AI services
-        ai_humanizer = get_ai_humanizer()
-        sentiment_analyzer = get_sentiment_analyzer()
-        context_builder = get_context_builder()
+        ai_humanizer = get_ai_service()
+        sentiment_analyzer = get_ai_service()
+        context_builder = get_ai_service()
 
         # Check Redis cache
         redis_client = await get_redis_client()
@@ -1075,55 +1061,52 @@ async def ai_health_check():
                 "ai_humanizer": "operational",
                 "sentiment_analyzer": "operational",
                 "context_builder": "operational",
-                "redis_cache": cache_status
+                "redis_cache": cache_status,
             },
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
     except Exception as e:
         logger.error(f"AI health check failed: {e}")
         return {
             "status": "degraded",
             "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
 
 @router.get(
     "/cache/metrics",
     summary="Get AI cache metrics",
-    description="Retrieve cache performance metrics and statistics"
+    description="Retrieve cache performance metrics and statistics",
 )
-async def get_cache_metrics(
-    current_user: User = Depends(verify_physician_or_admin)
-):
+async def get_cache_metrics(current_user: User = Depends(verify_physician_or_admin)):
     """Get AI cache performance metrics."""
     try:
-        from app.services.ai_redis_cache import get_ai_cache_service
+        from app.services.ai import get_cache_layer
 
-        ai_cache = await get_ai_cache_service()
-        metrics = await ai_cache.get_metrics()
+        cache_layer = await get_cache_layer()
+        metrics = await cache_layer.get_metrics()
 
         return {
             "status": "success",
             "metrics": metrics,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
     except Exception as e:
         logger.error(f"Failed to get cache metrics: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve cache metrics: {str(e)}"
+            detail=f"Failed to retrieve cache metrics: {str(e)}",
         )
 
 
 @router.post(
     "/cache/invalidate/{patient_id}",
     summary="Invalidate AI cache for patient",
-    description="Manually invalidate all AI cache entries for a specific patient"
+    description="Manually invalidate all AI cache entries for a specific patient",
 )
 async def invalidate_cache_for_patient(
-    patient_id: UUID,
-    current_user: User = Depends(verify_physician_or_admin)
+    patient_id: UUID, current_user: User = Depends(verify_physician_or_admin)
 ):
     """Manually invalidate AI cache for a patient."""
     try:
@@ -1132,7 +1115,7 @@ async def invalidate_cache_for_patient(
             return {
                 "status": "warning",
                 "message": "Redis cache not available",
-                "invalidated_count": 0
+                "invalidated_count": 0,
             }
 
         invalidated = await invalidate_patient_cache(redis_client, patient_id)
@@ -1141,11 +1124,11 @@ async def invalidate_cache_for_patient(
             "status": "success",
             "patient_id": str(patient_id),
             "invalidated_count": invalidated,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
     except Exception as e:
         logger.error(f"Cache invalidation failed for patient {patient_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Cache invalidation failed: {str(e)}"
+            detail=f"Cache invalidation failed: {str(e)}",
         )

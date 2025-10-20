@@ -135,8 +135,8 @@ class FlowEngine(AsyncFlowEngineBase):
         self.quiz_response_service = QuizResponseService(db)
 
         # AI Humanization services
-        self.ai_humanizer = get_ai_humanizer()
-        self.ai_context_builder = get_context_builder()
+        self.ai_service = get_ai_service()
+        self.ai_context_builder = get_ai_service()
         self.humanization_config = get_humanization_config()
 
         # Redis client for caching (optional)
@@ -302,7 +302,7 @@ class FlowEngine(AsyncFlowEngineBase):
             for attempt in range(max_retries + 1):
                 try:
                     # Call AI humanizer with timeout
-                    humanization_task = self.ai_humanizer.humanize_message(
+                    humanization_task = self.ai_service.humanize_message(
                         template_message=content,
                         patient_context=patient_context,
                         message_type=message_type

@@ -162,8 +162,8 @@ class FollowUpSystemService:
         self.message_repo = MessageRepository(db)
         self.flow_state_repo = FlowStateRepository(db)
         self.patient_repo = PatientRepository(db)
-        self.ai_humanizer = get_ai_humanizer()
-        self.sentiment_analyzer = get_sentiment_analyzer()
+        self.ai_service = get_ai_service()
+        self.sentiment_analyzer = get_ai_service()
         
         # Initialize other services (would be injected in production)
         self.message_sender = MessageSender(db)
@@ -351,7 +351,7 @@ class FollowUpSystemService:
             }
             
             # Generate empathetic response
-            empathetic_response = await self.ai_humanizer.humanize_message(
+            empathetic_response = await self.ai_service.humanize_message(
                 template_message="Acknowledge and respond empathetically to the patient's message",
                 patient_context=patient_context,
                 message_type="empathetic_response"

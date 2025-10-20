@@ -83,7 +83,7 @@ class QuestionHumanizer:
     }
 
     def __init__(self):
-        self.ai_humanizer = get_ai_humanizer()
+        self.ai_service = get_ai_service()
         self.ai_integration = FlowEngineAIIntegration()
         self._redis_client = None  # Will be initialized async
         self.history_window_hours = 72  # Track last 3 days
@@ -156,7 +156,7 @@ class QuestionHumanizer:
             )
 
             # Use correct signature for humanize_message
-            response = await self.ai_humanizer.humanize_message(
+            response = await self.ai_service.humanize_message(
                 template_message=question,
                 patient_context=patient_context,
                 message_type=question_type if question_type in self.SAFE_QUESTION_TYPES else "general"

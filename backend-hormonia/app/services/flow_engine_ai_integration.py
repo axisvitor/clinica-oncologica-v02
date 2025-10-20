@@ -5,7 +5,7 @@ Integração seletiva de IA para humanização de mensagens não-críticas
 
 from typing import Optional, Dict, Any
 import logging
-from app.services.ai import AIHumanizer
+from app.services.ai import AIService
 from app.models.patient import Patient
 
 logger = logging.getLogger(__name__)
@@ -53,17 +53,17 @@ class FlowEngineAIIntegration:
     ]
 
     def __init__(self):
-        self.ai_humanizer = None
+        self.ai_service = None
         self._initialize_ai()
 
     def _initialize_ai(self):
         """Inicializa o serviço de IA com tratamento de erro."""
         try:
-            self.ai_humanizer = AIHumanizer()
+            self.ai_service = AIHumanizer()
             logger.info("AI Humanizer initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize AI Humanizer: {e}")
-            self.ai_humanizer = None
+            self.ai_service = None
 
     def should_humanize_message(
         self,
@@ -83,7 +83,7 @@ class FlowEngineAIIntegration:
             True se a mensagem pode ser humanizada com segurança
         """
         # Nunca humanizar se IA não está disponível
-        if not self.ai_humanizer:
+        if not self.ai_service:
             return False
 
         # Nunca humanizar mensagens críticas
@@ -159,7 +159,7 @@ class FlowEngineAIIntegration:
 
             # Humanizar usando a assinatura correta do AIHumanizer
             humanized_response = await asyncio.wait_for(
-                self.ai_humanizer.humanize_message(
+                self.ai_service.humanize_message(
                     template_message=message_content,
                     patient_context=patient_context,
                     message_type=message_type
@@ -196,7 +196,7 @@ class FlowEngineAIIntegration:
     def get_humanization_metrics(self) -> Dict[str, Any]:
         """Retorna métricas de humanização para monitoramento."""
         return {
-            'ai_available': self.ai_humanizer is not None,
+            'ai_available': self.ai_service is not None,
             'critical_types_count': len(self.CRITICAL_MESSAGE_TYPES),
             'safe_types_count': len(self.SAFE_MESSAGE_TYPES),
             'critical_keywords_count': len(self.CRITICAL_KEYWORDS)

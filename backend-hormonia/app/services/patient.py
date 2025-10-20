@@ -343,9 +343,9 @@ class PatientService:
 
         # Invalidate AI cache when patient data changes
         try:
-            from app.services.ai_redis_cache import get_ai_cache_service
+            from app.services.ai import get_cache_layer
 
-            ai_cache = await get_ai_cache_service()
+            ai_cache = await get_cache_layer()
             invalidated = await ai_cache.invalidate_patient_cache(patient_id)
             logger.debug(
                 f"Invalidated {invalidated} AI cache entries for patient: {patient_id}"

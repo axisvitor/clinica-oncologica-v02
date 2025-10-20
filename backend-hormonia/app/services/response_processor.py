@@ -209,8 +209,8 @@ class ResponseProcessor:
         self.quiz_service = get_conversational_quiz_service(db)
         
         # Initialize AI services only if enabled
-        self.sentiment_analyzer = get_sentiment_analyzer() if self.config.enable_sentiment_analysis else None
-        self.context_builder = get_context_builder() if self.config.enable_ai_processing else None
+        self.sentiment_analyzer = get_ai_service() if self.config.enable_sentiment_analysis else None
+        self.context_builder = get_ai_service() if self.config.enable_ai_processing else None
         
         logger.info(f"Response Processor initialized with config: {self.config}")
     

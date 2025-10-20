@@ -39,7 +39,7 @@ from app.repositories.patient import PatientRepository
 from app.repositories.flow import FlowStateRepository
 
 # Service dependencies (will be injected)
-from app.services.ai import AIHumanizer, PatientContext
+from app.services.ai import AIService, PatientContext
 from app.services.quiz import QuizTemplateService
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
 from app.services.template_loader import EnhancedTemplateLoader, MessageTemplate

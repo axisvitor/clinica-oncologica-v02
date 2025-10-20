@@ -160,8 +160,8 @@ class DataExtractionService:
         self.patient_repo = PatientRepository(db)
         self.flow_state_repo = FlowStateRepository(db)
         self.message_repo = MessageRepository(db)
-        self.sentiment_analyzer = get_sentiment_analyzer()
-        self.context_builder = get_context_builder()
+        self.sentiment_analyzer = get_ai_service()
+        self.context_builder = get_ai_service()
         self.langchain_orchestrator = get_langchain_orchestrator()
         self.nlp_utils = NLPUtilities()
         

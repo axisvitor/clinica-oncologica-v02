@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.services.message_factory import MessageFactory
-from app.services.ai_cache import get_ai_cache, AICache
+from app.services.ai import get_cache_layer, AICache
 from app.services.circuit_breaker import get_ai_circuit_breaker, AIServiceCircuitBreaker
 
 logger = logging.getLogger(__name__)
@@ -60,7 +60,7 @@ class BaseService(ABC):
             AICache instance
         """
         if self._ai_cache is None:
-            self._ai_cache = await get_ai_cache()
+            self._ai_cache = await get_cache_layer()
         return self._ai_cache
     
     @property
