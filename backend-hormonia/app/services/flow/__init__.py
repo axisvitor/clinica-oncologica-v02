@@ -127,6 +127,7 @@ from .types import (
 # Import core components (implementation)
 from .manager import FlowManager
 from .core.engine import FlowEngine
+from .adapter import FlowManagerAdapter, get_enhanced_flow_engine
 
 # Conditional imports for type checking
 if TYPE_CHECKING:
@@ -152,7 +153,7 @@ def get_flow_manager(db, **kwargs):
         **kwargs: Additional configuration
 
     Returns:
-        FlowManager instance (new) or legacy equivalent
+        FlowManager instance (new) or FlowManagerAdapter (compatibility)
 
     Example:
         >>> manager = get_flow_manager(db)
@@ -164,19 +165,18 @@ def get_flow_manager(db, **kwargs):
         # Use new consolidated system
         return FlowManager(db, **kwargs)
     else:
-        # Use legacy system (import only when needed)
-        from app.services.flow_engine import FlowEngine as LegacyEngine
+        # Use adapter for backward compatibility
         import warnings
 
         if config.feature_flags.show_legacy_deprecation_warnings:
             warnings.warn(
-                "Using legacy flow system. "
+                "Using legacy flow system via adapter. "
                 "Enable USE_CONSOLIDATED_FLOWS=True to use new system (QW-021).",
                 DeprecationWarning,
                 stacklevel=2,
             )
 
-        return LegacyEngine(db)
+        return FlowManagerAdapter(db, show_warnings=False)
 
 
 # ============================================================================
@@ -187,7 +187,9 @@ __all__ = [
     # Main Components
     "FlowManager",
     "FlowEngine",
+    "FlowManagerAdapter",
     "get_flow_manager",
+    "get_enhanced_flow_engine",
     # Configuration
     "FlowConfig",
     "get_flow_config",
@@ -219,7 +221,7 @@ __all__ = [
     "TemplateID",
 ]
 
-__version__ = "2.0.0-alpha"  # QW-021 consolidation in progress
+__version__ = "2.0.0-beta"  # QW-021 consolidation in progress
 __consolidation__ = "QW-021"
-__status__ = "Week 2 - Foundation + Core Implementation"
-__progress__ = "35-40%"  # ~2,151 LOC / ~6,500 target
+__status__ = "Week 2 - Core Complete + Adapter Ready"
+__progress__ = "60%"  # ~3,981 LOC / ~6,500 target
