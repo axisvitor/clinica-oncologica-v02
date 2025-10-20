@@ -12,6 +12,18 @@ class FeaturesSettings(BaseAppSettings):
     """Configuration for application features and business logic."""
 
     # ============================================================================
+    # Alert System Configuration (QW-020)
+    # ============================================================================
+    USE_CONSOLIDATED_ALERTS: bool = Field(
+        default=True,
+        description="Use new consolidated alert system (QW-020). Set to True to enable migration.",
+    )
+    ALERTS_LEGACY_DEPRECATION_WARNING: bool = Field(
+        default=True,
+        description="Show deprecation warnings when legacy alert services are used",
+    )
+
+    # ============================================================================
     # Monthly Quiz Configuration
     # ============================================================================
     MONTHLY_QUIZ_VIA_LINK: bool = Field(
