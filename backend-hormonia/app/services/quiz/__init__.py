@@ -169,6 +169,9 @@ def get_monthly_quiz_service(db):
     return MonthlyQuizService(db)
 
 
+# Legacy compatibility aliases
+QuizAnalyticsService = QuizAnalyzer  # Backward compatibility
+
 # Public API exports
 __all__ = [
     # Core Services
@@ -181,6 +184,7 @@ __all__ = [
     "QuizEvaluator",
     "QuizScorer",
     "QuizAnalyzer",
+    "QuizAnalyticsService",  # Legacy alias
     # Template Management
     "TemplateLoader",
     "TemplateValidator",
