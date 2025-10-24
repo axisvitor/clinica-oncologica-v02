@@ -5,7 +5,6 @@
  * to ensure proper access control and security.
  */
 
-import { User } from '@/hooks/auth/types'
 
 export interface QuizPermissionsUser {
   id: string

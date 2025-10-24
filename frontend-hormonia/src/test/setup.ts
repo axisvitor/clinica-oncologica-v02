@@ -2,24 +2,7 @@
  * Test setup file for Jest and testing-library
  */
 
-import '@testing-library/jest-dom'
-
-// Extend matchers type for TypeScript
-declare global {
-  namespace Vi {
-    interface JestAssertion<T = any> extends jest.Matchers<void, T> {
-      toBeInTheDocument(): void
-      toHaveValue(value: string | number | string[]): void
-      toBeChecked(): void
-      toBeDisabled(): void
-      toBeEnabled(): void
-      toBeVisible(): void
-      toHaveClass(className: string): void
-      toHaveTextContent(text: string | RegExp): void
-      toHaveAttribute(attr: string, value?: string): void
-    }
-  }
-}
+import '@testing-library/jest-dom/vitest'
 
 // Mock IntersectionObserver
 class MockIntersectionObserver {
@@ -27,14 +10,14 @@ class MockIntersectionObserver {
   rootMargin = ''
   thresholds = []
 
-  constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {}
+  constructor(_callback: IntersectionObserverCallback, _options?: IntersectionObserverInit) {}
   disconnect() {}
   observe() {}
   unobserve() {}
   takeRecords(): IntersectionObserverEntry[] { return [] }
 }
 
-global.IntersectionObserver = MockIntersectionObserver as any
+globalThis.IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver
 
 // Mock ResizeObserver
 global.ResizeObserver = class ResizeObserver {

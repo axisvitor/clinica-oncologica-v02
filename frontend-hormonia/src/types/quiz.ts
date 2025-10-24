@@ -228,15 +228,8 @@ export interface QuizValidationResult {
   warnings: string[]
 }
 
-// Monthly Quiz Management Types
-export interface MonthlyQuizLinkStatus {
-  patient_id: string
-  session_id?: string
-  status: 'active' | 'expired' | 'completed' | 'pending'
-  last_sent?: string
-  last_response?: string
-  expires_at?: string
-}
+// Re-export QuizLinkStatus types from centralized location
+export type { QuizLinkStatus, QuizLinkStatusValue, MonthlyQuizStatusData as MonthlyQuizLinkStatus } from './api'
 
 export interface MonthlyQuizLink {
   id: string

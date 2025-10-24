@@ -1,5 +1,6 @@
 // Main types index file
-export type { Patient as ApiPatient, User as ApiUser } from '../lib/types/api'
+export type { Patient as ApiPatient } from '../lib/types/api'
+export type { User as ApiUser } from '@/hooks/auth/types'
 export * from '../lib/types/ai'
 export type { FlowNode, FlowConnection, FlowValidationResult, ResponseType, FlowState, MessageTemplate, InteractiveElements, InteractiveOption, Condition, FollowUpAction, InboundMessage, ResponseResult, StructuredResponse, FlowAnalytics, DailyMetric, FlowEvent, FlowTransition, FlowStateMachine, FlowValidationError, FlowValidationWarning } from '../lib/types/flow'
 export * from '../lib/types/flow-designer'

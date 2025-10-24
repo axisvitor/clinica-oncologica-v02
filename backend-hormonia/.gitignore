@@ -47,6 +47,16 @@ build/
 # Testing
 coverage/
 .nyc_output
+# Python test coverage artifacts
+coverage.json
+coverage.lcov
+*.coverage
+.coverage
+htmlcov/
+test_results.txt
+flow_test_results.txt
+.pytest_cache/
+.tox/
 
 # IDEs
 .vscode/

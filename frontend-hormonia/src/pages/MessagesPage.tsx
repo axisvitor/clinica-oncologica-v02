@@ -214,7 +214,7 @@ export function MessagesPage() {
             <>
               {/* Messages List */}
               <MessagesList
-                messages={(messagesData?.items || []).map(msg => ({
+                messages={(messagesData?.items || []).map((msg: any) => ({
                   ...msg,
                   message_type: msg.type
                 }))}

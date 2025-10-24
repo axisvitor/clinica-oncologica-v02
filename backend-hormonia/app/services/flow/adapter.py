@@ -591,6 +591,74 @@ def get_flow_orchestrator(db: Session) -> FlowManagerAdapter:
 
 
 # ============================================================================
+# Additional Backward Compatibility Methods
+# ============================================================================
+
+
+# Add these methods to FlowManagerAdapter class
+def _add_compatibility_methods():
+    """Add backward compatibility methods to FlowManagerAdapter."""
+
+    def get_flow_status(self, flow_id: UUID) -> Optional[FlowStatus]:
+        """Get flow status (backward compatibility)."""
+        self._emit_deprecation_warning("get_flow_status")
+        import asyncio
+
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        return loop.run_until_complete(self.manager.get_flow_status(flow_id))
+
+    def complete_flow(self, flow_id: UUID, **kwargs) -> bool:
+        """Complete flow (backward compatibility)."""
+        self._emit_deprecation_warning("complete_flow")
+        import asyncio
+
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        return loop.run_until_complete(self.manager.complete_flow(flow_id, **kwargs))
+
+    def cancel_flow(self, flow_id: UUID, reason: Optional[str] = None) -> bool:
+        """Cancel flow (backward compatibility)."""
+        self._emit_deprecation_warning("cancel_flow")
+        import asyncio
+
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        return loop.run_until_complete(self.manager.cancel_flow(flow_id, reason))
+
+    def get_flow_data(self, flow_id: UUID) -> Dict[str, Any]:
+        """Get flow data (backward compatibility)."""
+        self._emit_deprecation_warning("get_flow_data")
+        import asyncio
+
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        return loop.run_until_complete(self.manager.get_flow_data(flow_id))
+
+    # Add methods to class
+    FlowManagerAdapter.get_flow_status = get_flow_status
+    FlowManagerAdapter.complete_flow = complete_flow
+    FlowManagerAdapter.cancel_flow = cancel_flow
+    FlowManagerAdapter.get_flow_data = get_flow_data
+
+
+# Apply compatibility methods
+_add_compatibility_methods()
+
+
+# ============================================================================
 # Exports
 # ============================================================================
 

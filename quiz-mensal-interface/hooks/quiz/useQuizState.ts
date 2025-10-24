@@ -1,7 +1,5 @@
 import { useState, useEffect } from "react"
 import type { QuizSession, SingleAnswer, MultipleAnswer } from "@/types/quiz"
-import { quizAPI } from "@/lib/api"
-import { useSecureToken } from "@/lib/secure-token-manager"
 
 interface UseQuizStateProps {
   session: QuizSession
@@ -16,12 +14,6 @@ export function useQuizState({ session, initialToken, onComplete }: UseQuizState
   const [otherTexts, setOtherTexts] = useState<Map<string, string>>(new Map())
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isCompleted, setIsCompleted] = useState(false)
-
-  // Use secure token management
-  const { hasToken, isExpired, getToken, updateToken, clearToken } = useSecureToken(
-    initialToken || session.new_token,
-    session.expires_at
-  )
 
   const currentQuestion = session.questions[currentQuestionIndex]
   const totalQuestions = session.total_questions
@@ -39,42 +31,45 @@ export function useQuizState({ session, initialToken, onComplete }: UseQuizState
     responseValue: string | string[],
     metadata?: Record<string, any>
   ) => {
-    const currentToken = getToken()
-    
-    if (!currentToken) {
-      throw new Error("No valid token available for submission")
-    }
-
-    if (isExpired) {
-      throw new Error("Token has expired. Please refresh the page.")
-    }
-
     setIsSubmitting(true)
     try {
-      const response = await quizAPI.submitAnswer(
-        currentToken,
-        questionId,
-        responseValue,
-        metadata
-      )
+      // SECURITY FIX: Use API route with httpOnly cookie authentication
+      // Get CSRF token
+      const csrfResponse = await fetch('/api/csrf-token')
+      const { csrfToken } = await csrfResponse.json()
 
-      // Handle token rotation securely
-      if (response.new_token) {
-        updateToken(response.new_token, session.expires_at)
+      // Submit answer via API route (cookie sent automatically)
+      const response = await fetch('/api/quiz/submit-answer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken
+        },
+        body: JSON.stringify({
+          question_id: questionId,
+          response_value: responseValue,
+          response_metadata: metadata
+        }),
+        credentials: 'include' // Important: include cookies
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to submit answer')
       }
 
+      const result = await response.json()
+
       // Handle completion
-      if (response.is_last_question) {
+      if (result.is_last_question) {
         setIsCompleted(true)
-        // Clear token on completion for security
-        clearToken()
         onComplete?.()
       } else {
         setCurrentQuestionIndex(prev => prev + 1)
         setSelectedAnswer(null)
       }
 
-      return response
+      return result
     } catch (error) {
       console.error('Error submitting answer:', error)
       throw error
@@ -94,16 +89,12 @@ export function useQuizState({ session, initialToken, onComplete }: UseQuizState
     totalQuestions,
     progress,
     isLastQuestion,
-    hasToken,
-    isExpired,
     setCurrentQuestionIndex,
     setSelectedAnswer,
     setAnswers,
     setOtherTexts,
     setIsSubmitting,
     setIsCompleted,
-    updateToken,
-    clearToken,
     handleSubmitAnswer,
   }
 }

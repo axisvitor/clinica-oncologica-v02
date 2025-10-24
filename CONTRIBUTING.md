@@ -209,6 +209,9 @@ npm run test:e2e
 # Linting
 npm run lint
 npm run typecheck
+
+# Type Safety - Ensure all TypeScript checks pass
+# See frontend-hormonia/docs/TYPE_SAFETY_GUIDELINES.md for details
 ```
 
 ### 5. Commit suas Alterações
@@ -324,10 +327,18 @@ def get_patient(patient_id):  # Sem type hints
 
 #### Estilo
 
-- **TypeScript**: Strict mode
+- **TypeScript**: Strict mode (see [Type Safety Guidelines](frontend-hormonia/docs/TYPE_SAFETY_GUIDELINES.md))
 - **Formatter**: Prettier
 - **Linter**: ESLint
 - **Naming**: PascalCase (componentes), camelCase (funções/variáveis)
+
+#### Type Safety
+
+Follow the comprehensive [Type Safety Guidelines](frontend-hormonia/docs/TYPE_SAFETY_GUIDELINES.md) which covers:
+- When to use explicit vs inferred types
+- Type import conventions
+- Generic type usage patterns
+- Common pitfalls and solutions
 
 #### Estrutura de Componentes
 
@@ -643,6 +654,9 @@ test('should create patient successfully', async ({ page }) => {
 - [FastAPI Docs](https://fastapi.tiangolo.com/)
 - [React Docs](https://react.dev/)
 - [TypeScript Handbook](https://www.typescriptlang.org/docs/)
+- [Type Safety Guidelines](frontend-hormonia/docs/TYPE_SAFETY_GUIDELINES.md) - **Required reading for TypeScript contributions**
+- [Type Patterns Guide](frontend-hormonia/docs/TYPE_PATTERNS.md)
+- [Type Usage Guide](frontend-hormonia/docs/TYPE_USAGE_GUIDE.md)
 - [Conventional Commits](https://www.conventionalcommits.org/)
 - [Semantic Versioning](https://semver.org/)
 

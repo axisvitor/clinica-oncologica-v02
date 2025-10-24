@@ -10,8 +10,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { BrowserRouter } from 'react-router-dom'
 import MedicoLogin from '../MedicoLogin'
-import { MedicoAuthProvider } from '../../../contexts/MedicoAuthContext'
-import type { MedicoLoginResponse } from '../../../types/medico'
+import type { MedicoLoginResponse } from '@/types/medico'
 
 // Mock react-router-dom navigate
 const mockNavigate = vi.fn()

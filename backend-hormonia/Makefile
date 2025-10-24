@@ -1,6 +1,6 @@
 # Makefile for Neoplasias Litoral Backend System
 
-.PHONY: help install dev test clean docker-up docker-down migrate
+.PHONY: help install dev test clean clean-coverage docker-up docker-down migrate
 
 # Default target
 help:
@@ -38,6 +38,15 @@ clean:
 	find . -type f -name "*.pyc" -delete
 	find . -type d -name "__pycache__" -delete
 	find . -type d -name "*.egg-info" -exec rm -rf {} +
+
+clean-coverage:
+	@python -c "import pathlib, shutil; \
+paths=[pathlib.Path('coverage.json'), pathlib.Path('coverage.lcov'), pathlib.Path('coverage.xml'), pathlib.Path('.coverage'), pathlib.Path('test_results.txt'), pathlib.Path('htmlcov')]; \
+[shutil.rmtree(p, ignore_errors=True) if p.is_dir() else (p.unlink() if p.exists() else None) for p in paths]; \
+print('Removed backend coverage artifacts.')" || py -c "import pathlib, shutil; \
+paths=[pathlib.Path('coverage.json'), pathlib.Path('coverage.lcov'), pathlib.Path('coverage.xml'), pathlib.Path('.coverage'), pathlib.Path('test_results.txt'), pathlib.Path('htmlcov')]; \
+[shutil.rmtree(p, ignore_errors=True) if p.is_dir() else (p.unlink() if p.exists() else None) for p in paths]; \
+print('Removed backend coverage artifacts.')"
 
 # Start Docker services
 docker-up:

@@ -5,16 +5,7 @@ import { FileText, Download, Eye, Clock, CheckCircle, AlertCircle, Loader2 } fro
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-
-interface Report {
-  id: string
-  patient_id: string
-  patient_name?: string
-  type: string
-  status: 'pending' | 'generating' | 'completed' | 'failed'
-  generated_at?: string
-  created_at: string
-}
+import type { Report } from '@/types/api'
 
 interface ReportCardProps {
   report: Report

@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react"
 import QuizInterface from "@/components/quiz-interface"
 import { extractTokenFromURL, isTokenExpired } from "@/lib/auth-utils"
-import { secureTokenManager } from "@/lib/secure-token-manager"
-import { quizAPI } from "@/lib/api"
 import type { QuizSession, QuizError } from "@/types/quiz"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -37,8 +35,28 @@ export default function Home() {
         return
       }
 
-      // Access quiz directly via API (no cookies needed)
-      const session = await quizAPI.accessQuiz(urlToken)
+      // SECURITY FIX: Use API route to initialize session with httpOnly cookie
+      // Get CSRF token first
+      const csrfResponse = await fetch('/api/csrf-token')
+      const { csrfToken } = await csrfResponse.json()
+
+      // Initialize session via API route (sets httpOnly cookie)
+      const response = await fetch('/api/quiz/initialize-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken
+        },
+        body: JSON.stringify({ token: urlToken }),
+        credentials: 'include' // Important: include cookies
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to initialize session')
+      }
+
+      const session = await response.json()
 
       // Check if token is expired
       if (isTokenExpired(session.expires_at)) {
@@ -50,14 +68,7 @@ export default function Home() {
         return
       }
 
-      // Store the initial token for the session
-      if (!session.new_token) {
-        session.new_token = urlToken
-      }
-
-      // Persist token locally for refresh scenarios
-      secureTokenManager.updateToken(session.new_token, session.expires_at)
-
+      // Session is now stored in httpOnly cookie - no token in JavaScript!
       setQuizSession(session)
     } catch (err) {
       console.error("Error accessing quiz:", err)

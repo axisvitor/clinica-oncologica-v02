@@ -7,6 +7,7 @@ import AdminUserActivityMonitor from '../components/admin/AdminUserActivityMonit
 import { useAuth } from '../contexts/AuthContext'
 import { createLogger } from '../lib/logger'
 import { AdminLoginCredentials, AdminLoginResponse, AdminUser } from '../types/admin'
+import { useToast } from '@/components/ui/use-toast'
 
 const logger = createLogger('AdminRoutes')
 
@@ -71,6 +72,7 @@ const AdminProfilePage = () => (
 // Login page component
 const AdminLoginPage: React.FC = () => {
   const { login, user } = useAuth()
+  const { toast } = useToast()
 
   const handleLogin = async (credentials: AdminLoginCredentials): Promise<AdminLoginResponse> => {
     try {
@@ -100,7 +102,10 @@ const AdminLoginPage: React.FC = () => {
   const handleForgotPassword = (email: string) => {
     logger.log('Forgot password for:', email)
     // TODO: Implement forgot password functionality
-    alert('Forgot password functionality will be implemented')
+    toast({
+      title: 'Recuperação de senha',
+      description: 'Funcionalidade em desenvolvimento.',
+    })
   }
 
   return (

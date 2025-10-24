@@ -1,142 +1,341 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<coverage generated="1759194909064" clover="3.2.0">
-  <project timestamp="1759194909064" name="All files">
-    <metrics statements="1411" coveredstatements="0" conditionals="514" coveredconditionals="0" methods="327" coveredmethods="0" elements="2252" coveredelements="0" complexity="0" loc="1411" ncloc="1411" packages="2" files="52" classes="52"/>
+<coverage generated="1761328294050" clover="3.2.0">
+  <project timestamp="1761328294050" name="All files">
+    <metrics statements="1204" coveredstatements="142" conditionals="703" coveredconditionals="88" methods="381" coveredmethods="26" elements="2288" coveredelements="256" complexity="0" loc="1204" ncloc="1204" packages="5" files="66" classes="66"/>
     <package name="components">
-      <metrics statements="118" coveredstatements="0" conditionals="112" coveredconditionals="0" methods="24" coveredmethods="0"/>
-      <file name="quiz-interface.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\quiz-interface.tsx">
-        <metrics statements="114" coveredstatements="0" conditionals="112" coveredconditionals="0" methods="23" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
-        <line num="7" count="0" type="stmt"/>
-        <line num="8" count="0" type="stmt"/>
-        <line num="9" count="0" type="stmt"/>
-        <line num="10" count="0" type="stmt"/>
-        <line num="11" count="0" type="stmt"/>
-        <line num="14" count="0" type="stmt"/>
-        <line num="15" count="0" type="stmt"/>
-        <line num="23" count="0" type="stmt"/>
-        <line num="24" count="0" type="stmt"/>
-        <line num="25" count="0" type="stmt"/>
-        <line num="26" count="0" type="stmt"/>
-        <line num="27" count="0" type="stmt"/>
-        <line num="28" count="0" type="stmt"/>
-        <line num="29" count="0" type="stmt"/>
-        <line num="30" count="0" type="stmt"/>
-        <line num="32" count="0" type="stmt"/>
-        <line num="33" count="0" type="stmt"/>
-        <line num="34" count="0" type="stmt"/>
-        <line num="35" count="0" type="stmt"/>
-        <line num="38" count="0" type="stmt"/>
-        <line num="39" count="0" type="stmt"/>
-        <line num="40" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="42" count="0" type="stmt"/>
-        <line num="43" count="0" type="cond" truecount="0" falsecount="6"/>
-        <line num="48" count="0" type="stmt"/>
-        <line num="49" count="0" type="stmt"/>
-        <line num="52" count="0" type="stmt"/>
-        <line num="53" count="0" type="stmt"/>
-        <line num="55" count="0" type="cond" truecount="0" falsecount="5"/>
-        <line num="56" count="0" type="stmt"/>
-        <line num="60" count="0" type="stmt"/>
-        <line num="61" count="0" type="cond" truecount="0" falsecount="1"/>
-        <line num="62" count="0" type="stmt"/>
+      <metrics statements="112" coveredstatements="75" conditionals="136" coveredconditionals="84" methods="25" coveredmethods="16"/>
+      <file name="quiz-interface.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\quiz-interface.tsx">
+        <metrics statements="110" coveredstatements="75" conditionals="136" coveredconditionals="84" methods="24" coveredmethods="16"/>
+        <line num="3" count="3" type="stmt"/>
+        <line num="4" count="3" type="stmt"/>
+        <line num="5" count="3" type="stmt"/>
+        <line num="6" count="3" type="stmt"/>
+        <line num="7" count="3" type="stmt"/>
+        <line num="8" count="3" type="stmt"/>
+        <line num="9" count="3" type="stmt"/>
+        <line num="10" count="3" type="stmt"/>
+        <line num="11" count="3" type="stmt"/>
+        <line num="14" count="3" type="stmt"/>
+        <line num="15" count="3" type="stmt"/>
+        <line num="22" count="3" type="stmt"/>
+        <line num="23" count="122" type="stmt"/>
+        <line num="40" count="122" type="stmt"/>
+        <line num="43" count="122" type="stmt"/>
+        <line num="44" count="69" type="stmt"/>
+        <line num="45" count="69" type="cond" truecount="2" falsecount="0"/>
+        <line num="47" count="69" type="stmt"/>
+        <line num="48" count="69" type="cond" truecount="1" falsecount="4"/>
+        <line num="53" count="122" type="stmt"/>
+        <line num="54" count="34" type="stmt"/>
+        <line num="57" count="122" type="stmt"/>
+        <line num="58" count="0" type="stmt"/>
+        <line num="60" count="0" type="cond" truecount="0" falsecount="4"/>
+        <line num="61" count="0" type="stmt"/>
+        <line num="65" count="122" type="stmt"/>
+        <line num="66" count="0" type="cond" truecount="0" falsecount="1"/>
         <line num="67" count="0" type="stmt"/>
-        <line num="71" count="0" type="cond" truecount="0" falsecount="5"/>
-        <line num="72" count="0" type="cond" truecount="0" falsecount="3"/>
-        <line num="73" count="0" type="stmt"/>
+        <line num="72" count="0" type="stmt"/>
+        <line num="76" count="0" type="cond" truecount="0" falsecount="4"/>
+        <line num="77" count="0" type="cond" truecount="0" falsecount="3"/>
         <line num="78" count="0" type="stmt"/>
-        <line num="82" count="0" type="stmt"/>
-        <line num="84" count="0" type="stmt"/>
-        <line num="89" count="0" type="cond" truecount="0" falsecount="6"/>
-        <line num="91" count="0" type="stmt"/>
-        <line num="92" count="0" type="stmt"/>
-        <line num="93" count="0" type="cond" truecount="0" falsecount="5"/>
+        <line num="83" count="0" type="stmt"/>
+        <line num="87" count="0" type="stmt"/>
+        <line num="92" count="0" type="cond" truecount="0" falsecount="5"/>
+        <line num="94" count="0" type="stmt"/>
         <line num="95" count="0" type="stmt"/>
-        <line num="96" count="0" type="stmt"/>
+        <line num="96" count="0" type="cond" truecount="0" falsecount="5"/>
+        <line num="98" count="0" type="stmt"/>
         <line num="99" count="0" type="stmt"/>
-        <line num="103" count="0" type="stmt"/>
-        <line num="111" count="0" type="stmt"/>
+        <line num="102" count="0" type="stmt"/>
+        <line num="106" count="0" type="stmt"/>
         <line num="113" count="0" type="stmt"/>
-        <line num="121" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="122" count="0" type="stmt"/>
-        <line num="123" count="0" type="cond" truecount="0" falsecount="4"/>
-        <line num="125" count="0" type="stmt"/>
-        <line num="126" count="0" type="stmt"/>
-        <line num="130" count="0" type="stmt"/>
-        <line num="131" count="0" type="stmt"/>
-        <line num="137" count="0" type="stmt"/>
-        <line num="141" count="0" type="stmt"/>
-        <line num="142" count="0" type="cond" truecount="0" falsecount="1"/>
-        <line num="143" count="0" type="stmt"/>
-        <line num="147" count="0" type="stmt"/>
-        <line num="148" count="0" type="cond" truecount="0" falsecount="6"/>
-        <line num="150" count="0" type="cond" truecount="0" falsecount="5"/>
-        <line num="153" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="155" count="0" type="stmt"/>
-        <line num="160" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="115" count="0" type="stmt"/>
+        <line num="123" count="0" type="stmt"/>
+        <line num="124" count="0" type="stmt"/>
+        <line num="132" count="122" type="stmt"/>
+        <line num="133" count="1" type="cond" truecount="1" falsecount="0"/>
+        <line num="134" count="1" type="stmt"/>
+        <line num="138" count="122" type="stmt"/>
+        <line num="139" count="122" type="cond" truecount="6" falsecount="0"/>
+        <line num="141" count="58" type="cond" truecount="5" falsecount="0"/>
+        <line num="144" count="58" type="cond" truecount="2" falsecount="0"/>
+        <line num="147" count="58" type="cond" truecount="3" falsecount="1"/>
+        <line num="148" count="246" type="cond" truecount="0" falsecount="1"/>
+        <line num="149" count="246" type="cond" truecount="4" falsecount="0"/>
+        <line num="151" count="58" type="cond" truecount="2" falsecount="0"/>
+        <line num="153" count="58" type="stmt"/>
+        <line num="158" count="11" type="cond" truecount="1" falsecount="1"/>
+        <line num="159" count="11" type="stmt"/>
         <line num="161" count="0" type="stmt"/>
-        <line num="163" count="0" type="stmt"/>
-        <line num="169" count="0" type="stmt"/>
-        <line num="200" count="0" type="stmt"/>
-        <line num="213" count="0" type="stmt"/>
-        <line num="214" count="0" type="stmt"/>
-        <line num="216" count="0" type="cond" truecount="0" falsecount="1"/>
-        <line num="217" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="218" count="0" type="stmt"/>
-        <line num="219" count="0" type="cond" truecount="0" falsecount="3"/>
-        <line num="220" count="0" type="stmt"/>
-        <line num="221" count="0" type="stmt"/>
-        <line num="225" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="227" count="0" type="stmt"/>
-        <line num="230" count="0" type="stmt"/>
-        <line num="239" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="240" count="0" type="stmt"/>
-        <line num="242" count="0" type="stmt"/>
-        <line num="245" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="246" count="0" type="stmt"/>
-        <line num="248" count="0" type="stmt"/>
-        <line num="270" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="271" count="0" type="stmt"/>
-        <line num="272" count="0" type="stmt"/>
-        <line num="274" count="0" type="stmt"/>
-        <line num="275" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="276" count="0" type="stmt"/>
-        <line num="278" count="0" type="stmt"/>
-        <line num="296" count="0" type="stmt"/>
-        <line num="297" count="0" type="stmt"/>
-        <line num="310" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="311" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="312" count="0" type="stmt"/>
-        <line num="314" count="0" type="stmt"/>
-        <line num="318" count="0" type="stmt"/>
-        <line num="320" count="0" type="stmt"/>
-        <line num="341" count="0" type="stmt"/>
-        <line num="344" count="0" type="stmt"/>
-        <line num="351" count="0" type="stmt"/>
-        <line num="373" count="0" type="stmt"/>
-        <line num="378" count="0" type="cond" truecount="0" falsecount="1"/>
-        <line num="379" count="0" type="stmt"/>
-        <line num="403" count="0" type="stmt"/>
+        <line num="167" count="246" type="cond" truecount="1" falsecount="1"/>
+        <line num="168" count="246" type="cond" truecount="1" falsecount="1"/>
+        <line num="169" count="246" type="stmt"/>
+        <line num="202" count="0" type="stmt"/>
+        <line num="215" count="28" type="stmt"/>
+        <line num="216" count="28" type="stmt"/>
+        <line num="219" count="28" type="cond" truecount="3" falsecount="1"/>
+        <line num="220" count="93" type="cond" truecount="0" falsecount="1"/>
+        <line num="221" count="93" type="cond" truecount="4" falsecount="0"/>
+        <line num="223" count="28" type="cond" truecount="2" falsecount="0"/>
+        <line num="225" count="28" type="cond" truecount="1" falsecount="0"/>
+        <line num="226" count="17" type="cond" truecount="2" falsecount="0"/>
+        <line num="227" count="10" type="stmt"/>
+        <line num="228" count="7" type="cond" truecount="3" falsecount="0"/>
+        <line num="229" count="7" type="stmt"/>
+        <line num="230" count="7" type="stmt"/>
+        <line num="234" count="28" type="cond" truecount="2" falsecount="0"/>
+        <line num="236" count="28" type="stmt"/>
+        <line num="239" count="93" type="cond" truecount="1" falsecount="1"/>
+        <line num="240" count="93" type="cond" truecount="1" falsecount="1"/>
+        <line num="241" count="93" type="stmt"/>
+        <line num="251" count="6" type="cond" truecount="1" falsecount="1"/>
+        <line num="252" count="6" type="stmt"/>
+        <line num="254" count="0" type="stmt"/>
+        <line num="257" count="6" type="cond" truecount="1" falsecount="1"/>
+        <line num="258" count="0" type="stmt"/>
+        <line num="260" count="6" type="stmt"/>
+        <line num="283" count="5" type="cond" truecount="1" falsecount="1"/>
+        <line num="284" count="5" type="stmt"/>
+        <line num="285" count="5" type="stmt"/>
+        <line num="287" count="0" type="stmt"/>
+        <line num="288" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="289" count="0" type="stmt"/>
+        <line num="291" count="0" type="stmt"/>
+        <line num="309" count="0" type="stmt"/>
+        <line num="310" count="0" type="stmt"/>
+        <line num="323" count="13" type="cond" truecount="2" falsecount="0"/>
+        <line num="324" count="13" type="cond" truecount="1" falsecount="1"/>
+        <line num="325" count="143" type="stmt"/>
+        <line num="327" count="13" type="stmt"/>
+        <line num="331" count="143" type="stmt"/>
+        <line num="333" count="0" type="stmt"/>
+        <line num="354" count="15" type="stmt"/>
+        <line num="357" count="12" type="stmt"/>
+        <line num="364" count="3" type="stmt"/>
+        <line num="386" count="5" type="stmt"/>
+        <line num="391" count="122" type="cond" truecount="0" falsecount="1"/>
+        <line num="392" count="0" type="stmt"/>
+        <line num="416" count="122" type="stmt"/>
       </file>
-      <file name="theme-provider.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\theme-provider.tsx">
-        <metrics statements="4" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
+      <file name="theme-provider.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\theme-provider.tsx">
+        <metrics statements="2" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="0"/>
         <line num="9" count="0" type="stmt"/>
         <line num="10" count="0" type="stmt"/>
       </file>
     </package>
+    <package name="components.error">
+      <metrics statements="59" coveredstatements="0" conditionals="54" coveredconditionals="0" methods="20" coveredmethods="0"/>
+      <file name="ErrorBoundary.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\error\ErrorBoundary.tsx">
+        <metrics statements="15" coveredstatements="0" conditionals="3" coveredconditionals="0" methods="5" coveredmethods="0"/>
+        <line num="31" count="0" type="stmt"/>
+        <line num="32" count="0" type="stmt"/>
+        <line num="41" count="0" type="stmt"/>
+        <line num="46" count="0" type="stmt"/>
+        <line num="54" count="0" type="stmt"/>
+        <line num="60" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="61" count="0" type="stmt"/>
+        <line num="68" count="0" type="stmt"/>
+        <line num="69" count="0" type="stmt"/>
+        <line num="76" count="0" type="stmt"/>
+        <line num="80" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="82" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="83" count="0" type="stmt"/>
+        <line num="87" count="0" type="stmt"/>
+        <line num="96" count="0" type="stmt"/>
+      </file>
+      <file name="ErrorFallback.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\error\ErrorFallback.tsx">
+        <metrics statements="5" coveredstatements="0" conditionals="13" coveredconditionals="0" methods="2" coveredmethods="0"/>
+        <line num="13" count="0" type="stmt"/>
+        <line num="18" count="0" type="stmt"/>
+        <line num="20" count="0" type="stmt"/>
+        <line num="21" count="0" type="stmt"/>
+        <line num="24" count="0" type="stmt"/>
+      </file>
+      <file name="QuizErrorBoundary.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\error\QuizErrorBoundary.tsx">
+        <metrics statements="39" coveredstatements="0" conditionals="38" coveredconditionals="0" methods="13" coveredmethods="0"/>
+        <line num="41" count="0" type="stmt"/>
+        <line num="51" count="0" type="stmt"/>
+        <line num="52" count="0" type="stmt"/>
+        <line num="54" count="0" type="stmt"/>
+        <line num="55" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="56" count="0" type="stmt"/>
+        <line num="58" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="59" count="0" type="stmt"/>
+        <line num="61" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="64" count="0" type="stmt"/>
+        <line num="65" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="66" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="67" count="0" type="stmt"/>
+        <line num="70" count="0" type="stmt"/>
+        <line num="109" count="0" type="stmt"/>
+        <line num="127" count="0" type="stmt"/>
+        <line num="345" count="0" type="stmt"/>
+        <line num="346" count="0" type="stmt"/>
+        <line num="350" count="0" type="stmt"/>
+        <line num="354" count="0" type="stmt"/>
+        <line num="355" count="0" type="stmt"/>
+        <line num="357" count="0" type="stmt"/>
+        <line num="367" count="0" type="stmt"/>
+        <line num="373" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="374" count="0" type="stmt"/>
+        <line num="379" count="0" type="stmt"/>
+        <line num="380" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="382" count="0" type="cond" truecount="0" falsecount="4"/>
+        <line num="383" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="384" count="0" type="stmt"/>
+        <line num="387" count="0" type="stmt"/>
+        <line num="396" count="0" type="stmt"/>
+        <line num="397" count="0" type="stmt"/>
+        <line num="400" count="0" type="stmt"/>
+        <line num="406" count="0" type="stmt"/>
+        <line num="417" count="0" type="stmt"/>
+        <line num="418" count="0" type="stmt"/>
+        <line num="423" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="424" count="0" type="stmt"/>
+      </file>
+    </package>
+    <package name="components.quiz">
+      <metrics statements="36" coveredstatements="8" conditionals="22" coveredconditionals="0" methods="12" coveredmethods="2"/>
+      <file name="QuizCompletion.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\quiz\QuizCompletion.tsx">
+        <metrics statements="2" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="0"/>
+        <line num="9" count="0" type="stmt"/>
+        <line num="10" count="0" type="stmt"/>
+      </file>
+      <file name="QuizContainer.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\quiz\QuizContainer.tsx">
+        <metrics statements="24" coveredstatements="0" conditionals="14" coveredconditionals="0" methods="8" coveredmethods="0"/>
+        <line num="28" count="0" type="stmt"/>
+        <line num="33" count="0" type="stmt"/>
+        <line num="36" count="0" type="stmt"/>
+        <line num="37" count="0" type="stmt"/>
+        <line num="38" count="0" type="cond" truecount="0" falsecount="4"/>
+        <line num="42" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="43" count="0" type="stmt"/>
+        <line num="56" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="57" count="0" type="stmt"/>
+        <line num="69" count="0" type="stmt"/>
+        <line num="79" count="0" type="stmt"/>
+        <line num="82" count="0" type="stmt"/>
+        <line num="83" count="0" type="stmt"/>
+        <line num="86" count="0" type="stmt"/>
+        <line num="87" count="0" type="cond" truecount="0" falsecount="4"/>
+        <line num="92" count="0" type="stmt"/>
+        <line num="93" count="0" type="stmt"/>
+        <line num="94" count="0" type="stmt"/>
+        <line num="95" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="96" count="0" type="stmt"/>
+        <line num="101" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="102" count="0" type="stmt"/>
+        <line num="105" count="0" type="stmt"/>
+        <line num="146" count="0" type="stmt"/>
+      </file>
+      <file name="QuizHeader.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\quiz\QuizHeader.tsx">
+        <metrics statements="4" coveredstatements="4" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="1"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="9" count="1" type="stmt"/>
+        <line num="10" count="17" type="stmt"/>
+      </file>
+      <file name="QuizNavigation.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\quiz\QuizNavigation.tsx">
+        <metrics statements="2" coveredstatements="0" conditionals="8" coveredconditionals="0" methods="1" coveredmethods="0"/>
+        <line num="14" count="0" type="stmt"/>
+        <line num="22" count="0" type="stmt"/>
+      </file>
+      <file name="QuizProgress.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\quiz\QuizProgress.tsx">
+        <metrics statements="4" coveredstatements="4" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="1"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="10" count="1" type="stmt"/>
+        <line num="15" count="27" type="stmt"/>
+      </file>
+    </package>
+    <package name="components.quiz.QuestionRenderer">
+      <metrics statements="63" coveredstatements="0" conditionals="89" coveredconditionals="0" methods="21" coveredmethods="0"/>
+      <file name="MultipleChoice.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\quiz\QuestionRenderer\MultipleChoice.tsx">
+        <metrics statements="30" coveredstatements="0" conditionals="39" coveredconditionals="0" methods="8" coveredmethods="0"/>
+        <line num="15" count="0" type="stmt"/>
+        <line num="22" count="0" type="stmt"/>
+        <line num="25" count="0" type="cond" truecount="0" falsecount="4"/>
+        <line num="26" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="27" count="0" type="cond" truecount="0" falsecount="4"/>
+        <line num="32" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="34" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="35" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="36" count="0" type="stmt"/>
+        <line num="37" count="0" type="cond" truecount="0" falsecount="3"/>
+        <line num="38" count="0" type="stmt"/>
+        <line num="42" count="0" type="stmt"/>
+        <line num="45" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="46" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="47" count="0" type="stmt"/>
+        <line num="57" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="58" count="0" type="stmt"/>
+        <line num="60" count="0" type="stmt"/>
+        <line num="63" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="64" count="0" type="stmt"/>
+        <line num="66" count="0" type="stmt"/>
+        <line num="89" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="90" count="0" type="stmt"/>
+        <line num="91" count="0" type="stmt"/>
+        <line num="93" count="0" type="stmt"/>
+        <line num="94" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="95" count="0" type="stmt"/>
+        <line num="97" count="0" type="stmt"/>
+        <line num="115" count="0" type="stmt"/>
+        <line num="116" count="0" type="stmt"/>
+      </file>
+      <file name="Scale.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\quiz\QuestionRenderer\Scale.tsx">
+        <metrics statements="7" coveredstatements="0" conditionals="6" coveredconditionals="0" methods="4" coveredmethods="0"/>
+        <line num="10" count="0" type="stmt"/>
+        <line num="15" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="16" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="17" count="0" type="stmt"/>
+        <line num="19" count="0" type="stmt"/>
+        <line num="23" count="0" type="stmt"/>
+        <line num="25" count="0" type="stmt"/>
+      </file>
+      <file name="SingleChoice.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\quiz\QuestionRenderer\SingleChoice.tsx">
+        <metrics statements="14" coveredstatements="0" conditionals="34" coveredconditionals="0" methods="5" coveredmethods="0"/>
+        <line num="15" count="0" type="stmt"/>
+        <line num="22" count="0" type="cond" truecount="0" falsecount="5"/>
+        <line num="27" count="0" type="cond" truecount="0" falsecount="4"/>
+        <line num="28" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="29" count="0" type="cond" truecount="0" falsecount="4"/>
+        <line num="34" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="36" count="0" type="stmt"/>
+        <line num="41" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="42" count="0" type="stmt"/>
+        <line num="44" count="0" type="stmt"/>
+        <line num="50" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="51" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="52" count="0" type="stmt"/>
+        <line num="85" count="0" type="stmt"/>
+      </file>
+      <file name="TextQuestion.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\quiz\QuestionRenderer\TextQuestion.tsx">
+        <metrics statements="3" coveredstatements="0" conditionals="2" coveredconditionals="0" methods="2" coveredmethods="0"/>
+        <line num="10" count="0" type="stmt"/>
+        <line num="14" count="0" type="stmt"/>
+        <line num="17" count="0" type="stmt"/>
+      </file>
+      <file name="YesNo.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\quiz\QuestionRenderer\YesNo.tsx">
+        <metrics statements="2" coveredstatements="0" conditionals="2" coveredconditionals="0" methods="1" coveredmethods="0"/>
+        <line num="11" count="0" type="stmt"/>
+        <line num="15" count="0" type="stmt"/>
+      </file>
+      <file name="index.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\quiz\QuestionRenderer\index.tsx">
+        <metrics statements="7" coveredstatements="0" conditionals="6" coveredconditionals="0" methods="1" coveredmethods="0"/>
+        <line num="23" count="0" type="cond" truecount="0" falsecount="6"/>
+        <line num="25" count="0" type="stmt"/>
+        <line num="36" count="0" type="stmt"/>
+        <line num="47" count="0" type="stmt"/>
+        <line num="56" count="0" type="stmt"/>
+        <line num="64" count="0" type="stmt"/>
+        <line num="72" count="0" type="stmt"/>
+      </file>
+    </package>
     <package name="components.ui">
-      <metrics statements="1293" coveredstatements="0" conditionals="402" coveredconditionals="0" methods="303" coveredmethods="0"/>
-      <file name="accordion.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\accordion.tsx">
-        <metrics statements="16" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="4" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
-        <line num="7" count="0" type="stmt"/>
+      <metrics statements="934" coveredstatements="59" conditionals="402" coveredconditionals="4" methods="303" coveredmethods="8"/>
+      <file name="accordion.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\accordion.tsx">
+        <metrics statements="11" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="4" coveredmethods="0"/>
         <line num="10" count="0" type="stmt"/>
         <line num="12" count="0" type="stmt"/>
         <line num="16" count="0" type="stmt"/>
@@ -148,14 +347,9 @@
         <line num="52" count="0" type="stmt"/>
         <line num="53" count="0" type="stmt"/>
         <line num="55" count="0" type="stmt"/>
-        <line num="66" count="0" type="stmt"/>
       </file>
-      <file name="alert-dialog.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\alert-dialog.tsx">
-        <metrics statements="45" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="11" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
-        <line num="7" count="0" type="stmt"/>
+      <file name="alert-dialog.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\alert-dialog.tsx">
+        <metrics statements="30" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="11" coveredmethods="0"/>
         <line num="10" count="0" type="stmt"/>
         <line num="12" count="0" type="stmt"/>
         <line num="16" count="0" type="stmt"/>
@@ -186,23 +380,9 @@
         <line num="134" count="0" type="stmt"/>
         <line num="135" count="0" type="stmt"/>
         <line num="137" count="0" type="stmt"/>
-        <line num="146" count="0" type="stmt"/>
-        <line num="147" count="0" type="stmt"/>
-        <line num="148" count="0" type="stmt"/>
-        <line num="149" count="0" type="stmt"/>
-        <line num="150" count="0" type="stmt"/>
-        <line num="151" count="0" type="stmt"/>
-        <line num="152" count="0" type="stmt"/>
-        <line num="153" count="0" type="stmt"/>
-        <line num="154" count="0" type="stmt"/>
-        <line num="155" count="0" type="stmt"/>
-        <line num="156" count="0" type="stmt"/>
       </file>
-      <file name="alert.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\alert.tsx">
-        <metrics statements="13" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="3" coveredmethods="0"/>
-        <line num="1" count="0" type="stmt"/>
-        <line num="2" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
+      <file name="alert.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\alert.tsx">
+        <metrics statements="9" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="3" coveredmethods="0"/>
         <line num="6" count="0" type="stmt"/>
         <line num="24" count="0" type="stmt"/>
         <line num="25" count="0" type="stmt"/>
@@ -212,20 +392,14 @@
         <line num="51" count="0" type="stmt"/>
         <line num="52" count="0" type="stmt"/>
         <line num="54" count="0" type="stmt"/>
-        <line num="66" count="0" type="stmt"/>
       </file>
-      <file name="aspect-ratio.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\aspect-ratio.tsx">
-        <metrics statements="4" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
+      <file name="aspect-ratio.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\aspect-ratio.tsx">
+        <metrics statements="2" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="0"/>
         <line num="6" count="0" type="stmt"/>
         <line num="8" count="0" type="stmt"/>
-        <line num="11" count="0" type="stmt"/>
       </file>
-      <file name="avatar.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\avatar.tsx">
-        <metrics statements="13" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="3" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
+      <file name="avatar.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\avatar.tsx">
+        <metrics statements="9" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="3" coveredmethods="0"/>
         <line num="9" count="0" type="stmt"/>
         <line num="10" count="0" type="stmt"/>
         <line num="12" count="0" type="stmt"/>
@@ -235,27 +409,17 @@
         <line num="38" count="0" type="stmt"/>
         <line num="39" count="0" type="stmt"/>
         <line num="41" count="0" type="stmt"/>
-        <line num="53" count="0" type="stmt"/>
       </file>
-      <file name="badge.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\badge.tsx">
-        <metrics statements="10" coveredstatements="0" conditionals="3" coveredconditionals="0" methods="1" coveredmethods="0"/>
-        <line num="1" count="0" type="stmt"/>
-        <line num="2" count="0" type="stmt"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
+      <file name="badge.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\badge.tsx">
+        <metrics statements="5" coveredstatements="0" conditionals="3" coveredconditionals="0" methods="1" coveredmethods="0"/>
         <line num="7" count="0" type="stmt"/>
         <line num="31" count="0" type="cond" truecount="0" falsecount="1"/>
         <line num="32" count="0" type="stmt"/>
         <line num="35" count="0" type="cond" truecount="0" falsecount="2"/>
         <line num="37" count="0" type="stmt"/>
-        <line num="46" count="0" type="stmt"/>
       </file>
-      <file name="breadcrumb.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\breadcrumb.tsx">
-        <metrics statements="29" coveredstatements="0" conditionals="6" coveredconditionals="0" methods="7" coveredmethods="0"/>
-        <line num="1" count="0" type="stmt"/>
-        <line num="2" count="0" type="stmt"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
+      <file name="breadcrumb.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\breadcrumb.tsx">
+        <metrics statements="18" coveredstatements="0" conditionals="6" coveredconditionals="0" methods="7" coveredmethods="0"/>
         <line num="7" count="0" type="stmt"/>
         <line num="8" count="0" type="stmt"/>
         <line num="11" count="0" type="stmt"/>
@@ -274,34 +438,22 @@
         <line num="84" count="0" type="stmt"/>
         <line num="85" count="0" type="stmt"/>
         <line num="87" count="0" type="stmt"/>
-        <line num="102" count="0" type="stmt"/>
-        <line num="103" count="0" type="stmt"/>
-        <line num="104" count="0" type="stmt"/>
-        <line num="105" count="0" type="stmt"/>
-        <line num="106" count="0" type="stmt"/>
-        <line num="107" count="0" type="stmt"/>
-        <line num="108" count="0" type="stmt"/>
       </file>
-      <file name="button.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\button.tsx">
-        <metrics statements="10" coveredstatements="0" conditionals="3" coveredconditionals="0" methods="1" coveredmethods="0"/>
-        <line num="1" count="0" type="stmt"/>
-        <line num="2" count="0" type="stmt"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
-        <line num="7" count="0" type="stmt"/>
-        <line num="42" count="0" type="cond" truecount="0" falsecount="1"/>
-        <line num="43" count="0" type="stmt"/>
-        <line num="48" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="50" count="0" type="stmt"/>
-        <line num="59" count="0" type="stmt"/>
+      <file name="button.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\button.tsx">
+        <metrics statements="10" coveredstatements="10" conditionals="3" coveredconditionals="2" methods="1" coveredmethods="1"/>
+        <line num="1" count="3" type="stmt"/>
+        <line num="2" count="3" type="stmt"/>
+        <line num="3" count="3" type="stmt"/>
+        <line num="5" count="3" type="stmt"/>
+        <line num="7" count="3" type="stmt"/>
+        <line num="42" count="133" type="cond" truecount="1" falsecount="0"/>
+        <line num="43" count="133" type="stmt"/>
+        <line num="48" count="133" type="cond" truecount="1" falsecount="1"/>
+        <line num="50" count="133" type="stmt"/>
+        <line num="59" count="3" type="stmt"/>
       </file>
-      <file name="calendar.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\calendar.tsx">
-        <metrics statements="28" coveredstatements="0" conditionals="16" coveredconditionals="0" methods="7" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="9" count="0" type="stmt"/>
-        <line num="11" count="0" type="stmt"/>
-        <line num="12" count="0" type="stmt"/>
+      <file name="calendar.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\calendar.tsx">
+        <metrics statements="22" coveredstatements="0" conditionals="16" coveredconditionals="0" methods="7" coveredmethods="0"/>
         <line num="21" count="0" type="stmt"/>
         <line num="22" count="0" type="stmt"/>
         <line num="26" count="0" type="stmt"/>
@@ -324,14 +476,13 @@
         <line num="184" count="0" type="stmt"/>
         <line num="185" count="0" type="cond" truecount="0" falsecount="5"/>
         <line num="188" count="0" type="stmt"/>
-        <line num="213" count="0" type="stmt"/>
       </file>
-      <file name="card.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\card.tsx">
-        <metrics statements="23" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="7" coveredmethods="0"/>
-        <line num="1" count="0" type="stmt"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
+      <file name="card.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\card.tsx">
+        <metrics statements="23" coveredstatements="11" conditionals="0" coveredconditionals="0" methods="7" coveredmethods="1"/>
+        <line num="1" count="3" type="stmt"/>
+        <line num="3" count="3" type="stmt"/>
+        <line num="5" count="103" type="stmt"/>
+        <line num="6" count="103" type="stmt"/>
         <line num="18" count="0" type="stmt"/>
         <line num="19" count="0" type="stmt"/>
         <line num="31" count="0" type="stmt"/>
@@ -344,21 +495,16 @@
         <line num="65" count="0" type="stmt"/>
         <line num="74" count="0" type="stmt"/>
         <line num="75" count="0" type="stmt"/>
-        <line num="85" count="0" type="stmt"/>
-        <line num="86" count="0" type="stmt"/>
-        <line num="87" count="0" type="stmt"/>
-        <line num="88" count="0" type="stmt"/>
-        <line num="89" count="0" type="stmt"/>
-        <line num="90" count="0" type="stmt"/>
-        <line num="91" count="0" type="stmt"/>
+        <line num="85" count="3" type="stmt"/>
+        <line num="86" count="3" type="stmt"/>
+        <line num="87" count="3" type="stmt"/>
+        <line num="88" count="3" type="stmt"/>
+        <line num="89" count="3" type="stmt"/>
+        <line num="90" count="3" type="stmt"/>
+        <line num="91" count="3" type="stmt"/>
       </file>
-      <file name="carousel.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\carousel.tsx">
-        <metrics statements="60" coveredstatements="0" conditionals="44" coveredconditionals="0" methods="13" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="7" count="0" type="stmt"/>
-        <line num="9" count="0" type="stmt"/>
-        <line num="10" count="0" type="stmt"/>
+      <file name="carousel.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\carousel.tsx">
+        <metrics statements="50" coveredstatements="0" conditionals="44" coveredconditionals="0" methods="13" coveredmethods="0"/>
         <line num="33" count="0" type="stmt"/>
         <line num="36" count="0" type="stmt"/>
         <line num="38" count="0" type="cond" truecount="0" falsecount="1"/>
@@ -409,112 +555,93 @@
         <line num="208" count="0" type="stmt"/>
         <line num="210" count="0" type="stmt"/>
         <line num="212" count="0" type="stmt"/>
-        <line num="236" count="0" type="stmt"/>
-        <line num="237" count="0" type="stmt"/>
-        <line num="238" count="0" type="stmt"/>
-        <line num="239" count="0" type="stmt"/>
-        <line num="240" count="0" type="stmt"/>
       </file>
-      <file name="chart.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\chart.tsx">
-        <metrics statements="68" coveredstatements="0" conditionals="145" coveredconditionals="0" methods="12" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
-        <line num="9" count="0" type="stmt"/>
-        <line num="25" count="0" type="stmt"/>
-        <line num="28" count="0" type="stmt"/>
-        <line num="30" count="0" type="cond" truecount="0" falsecount="1"/>
-        <line num="31" count="0" type="stmt"/>
-        <line num="34" count="0" type="stmt"/>
-        <line num="41" count="0" type="stmt"/>
-        <line num="42" count="0" type="stmt"/>
-        <line num="49" count="0" type="stmt"/>
-        <line num="50" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="52" count="0" type="stmt"/>
-        <line num="72" count="0" type="stmt"/>
-        <line num="73" count="0" type="stmt"/>
-        <line num="74" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="77" count="0" type="cond" truecount="0" falsecount="1"/>
-        <line num="78" count="0" type="stmt"/>
-        <line num="81" count="0" type="stmt"/>
-        <line num="86" count="0" type="stmt"/>
-        <line num="91" count="0" type="cond" truecount="0" falsecount="6"/>
-        <line num="93" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="105" count="0" type="stmt"/>
-        <line num="129" count="0" type="stmt"/>
-        <line num="131" count="0" type="stmt"/>
-        <line num="132" count="0" type="cond" truecount="0" falsecount="7"/>
-        <line num="133" count="0" type="stmt"/>
-        <line num="136" count="0" type="stmt"/>
-        <line num="137" count="0" type="cond" truecount="0" falsecount="12"/>
-        <line num="138" count="0" type="stmt"/>
-        <line num="140" count="0" type="cond" truecount="0" falsecount="4"/>
-        <line num="144" count="0" type="cond" truecount="0" falsecount="1"/>
-        <line num="145" count="0" type="stmt"/>
-        <line num="152" count="0" type="cond" truecount="0" falsecount="1"/>
-        <line num="153" count="0" type="stmt"/>
-        <line num="156" count="0" type="stmt"/>
-        <line num="167" count="0" type="cond" truecount="0" falsecount="7"/>
-        <line num="168" count="0" type="stmt"/>
-        <line num="171" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="173" count="0" type="stmt"/>
-        <line num="183" count="0" type="cond" truecount="0" falsecount="4"/>
-        <line num="184" count="0" type="stmt"/>
-        <line num="185" count="0" type="cond" truecount="0" falsecount="3"/>
-        <line num="187" count="0" type="stmt"/>
-        <line num="251" count="0" type="stmt"/>
-        <line num="264" count="0" type="stmt"/>
-        <line num="266" count="0" type="cond" truecount="0" falsecount="5"/>
-        <line num="267" count="0" type="stmt"/>
-        <line num="270" count="0" type="stmt"/>
-        <line num="279" count="0" type="cond" truecount="0" falsecount="3"/>
-        <line num="280" count="0" type="stmt"/>
-        <line num="282" count="0" type="stmt"/>
-        <line num="313" count="0" type="cond" truecount="0" falsecount="3"/>
-        <line num="314" count="0" type="stmt"/>
-        <line num="318" count="0" type="cond" truecount="0" falsecount="5"/>
-        <line num="324" count="0" type="stmt"/>
-        <line num="326" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="330" count="0" type="stmt"/>
-        <line num="331" count="0" type="cond" truecount="0" falsecount="1"/>
-        <line num="336" count="0" type="stmt"/>
-        <line num="341" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="347" count="0" type="stmt"/>
-        <line num="348" count="0" type="stmt"/>
-        <line num="349" count="0" type="stmt"/>
-        <line num="350" count="0" type="stmt"/>
-        <line num="351" count="0" type="stmt"/>
-        <line num="352" count="0" type="stmt"/>
-      </file>
-      <file name="checkbox.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\checkbox.tsx">
-        <metrics statements="8" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
-        <line num="7" count="0" type="stmt"/>
+      <file name="chart.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\chart.tsx">
+        <metrics statements="61" coveredstatements="0" conditionals="145" coveredconditionals="0" methods="12" coveredmethods="0"/>
         <line num="10" count="0" type="stmt"/>
-        <line num="11" count="0" type="stmt"/>
-        <line num="13" count="0" type="stmt"/>
+        <line num="26" count="0" type="stmt"/>
+        <line num="29" count="0" type="stmt"/>
+        <line num="31" count="0" type="cond" truecount="0" falsecount="1"/>
         <line num="32" count="0" type="stmt"/>
+        <line num="35" count="0" type="stmt"/>
+        <line num="42" count="0" type="stmt"/>
+        <line num="43" count="0" type="stmt"/>
+        <line num="50" count="0" type="stmt"/>
+        <line num="51" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="53" count="0" type="stmt"/>
+        <line num="73" count="0" type="stmt"/>
+        <line num="74" count="0" type="stmt"/>
+        <line num="75" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="78" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="79" count="0" type="stmt"/>
+        <line num="83" count="0" type="stmt"/>
+        <line num="85" count="0" type="stmt"/>
+        <line num="90" count="0" type="cond" truecount="0" falsecount="6"/>
+        <line num="92" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="105" count="0" type="stmt"/>
+        <line num="111" count="0" type="stmt"/>
+        <line num="120" count="0" type="stmt"/>
+        <line num="144" count="0" type="stmt"/>
+        <line num="146" count="0" type="stmt"/>
+        <line num="147" count="0" type="cond" truecount="0" falsecount="7"/>
+        <line num="148" count="0" type="stmt"/>
+        <line num="151" count="0" type="stmt"/>
+        <line num="152" count="0" type="cond" truecount="0" falsecount="12"/>
+        <line num="153" count="0" type="stmt"/>
+        <line num="155" count="0" type="cond" truecount="0" falsecount="4"/>
+        <line num="159" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="160" count="0" type="stmt"/>
+        <line num="167" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="168" count="0" type="stmt"/>
+        <line num="171" count="0" type="stmt"/>
+        <line num="182" count="0" type="cond" truecount="0" falsecount="7"/>
+        <line num="183" count="0" type="stmt"/>
+        <line num="186" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="188" count="0" type="stmt"/>
+        <line num="198" count="0" type="cond" truecount="0" falsecount="4"/>
+        <line num="199" count="0" type="stmt"/>
+        <line num="200" count="0" type="cond" truecount="0" falsecount="3"/>
+        <line num="202" count="0" type="stmt"/>
+        <line num="266" count="0" type="stmt"/>
+        <line num="279" count="0" type="stmt"/>
+        <line num="281" count="0" type="cond" truecount="0" falsecount="5"/>
+        <line num="282" count="0" type="stmt"/>
+        <line num="285" count="0" type="stmt"/>
+        <line num="294" count="0" type="cond" truecount="0" falsecount="3"/>
+        <line num="295" count="0" type="stmt"/>
+        <line num="297" count="0" type="stmt"/>
+        <line num="328" count="0" type="cond" truecount="0" falsecount="3"/>
+        <line num="329" count="0" type="stmt"/>
+        <line num="333" count="0" type="cond" truecount="0" falsecount="5"/>
+        <line num="339" count="0" type="stmt"/>
+        <line num="341" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="345" count="0" type="stmt"/>
+        <line num="346" count="0" type="cond" truecount="0" falsecount="1"/>
+        <line num="351" count="0" type="stmt"/>
+        <line num="356" count="0" type="cond" truecount="0" falsecount="2"/>
       </file>
-      <file name="collapsible.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\collapsible.tsx">
-        <metrics statements="8" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="3" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
+      <file name="checkbox.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\checkbox.tsx">
+        <metrics statements="8" coveredstatements="8" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="1"/>
+        <line num="3" count="3" type="stmt"/>
+        <line num="4" count="3" type="stmt"/>
+        <line num="5" count="3" type="stmt"/>
+        <line num="7" count="3" type="stmt"/>
+        <line num="10" count="92" type="stmt"/>
+        <line num="11" count="92" type="stmt"/>
+        <line num="13" count="92" type="stmt"/>
+        <line num="32" count="3" type="stmt"/>
+      </file>
+      <file name="collapsible.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\collapsible.tsx">
+        <metrics statements="6" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="3" coveredmethods="0"/>
         <line num="6" count="0" type="stmt"/>
         <line num="8" count="0" type="stmt"/>
         <line num="12" count="0" type="stmt"/>
         <line num="14" count="0" type="stmt"/>
         <line num="23" count="0" type="stmt"/>
         <line num="25" count="0" type="stmt"/>
-        <line num="33" count="0" type="stmt"/>
       </file>
-      <file name="command.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\command.tsx">
-        <metrics statements="40" coveredstatements="0" conditionals="3" coveredconditionals="0" methods="9" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
-        <line num="7" count="0" type="stmt"/>
-        <line num="8" count="0" type="stmt"/>
+      <file name="command.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\command.tsx">
+        <metrics statements="26" coveredstatements="0" conditionals="3" coveredconditionals="0" methods="9" coveredmethods="0"/>
         <line num="17" count="0" type="stmt"/>
         <line num="18" count="0" type="stmt"/>
         <line num="20" count="0" type="stmt"/>
@@ -541,22 +668,9 @@
         <line num="159" count="0" type="stmt"/>
         <line num="160" count="0" type="stmt"/>
         <line num="162" count="0" type="stmt"/>
-        <line num="175" count="0" type="stmt"/>
-        <line num="176" count="0" type="stmt"/>
-        <line num="177" count="0" type="stmt"/>
-        <line num="178" count="0" type="stmt"/>
-        <line num="179" count="0" type="stmt"/>
-        <line num="180" count="0" type="stmt"/>
-        <line num="181" count="0" type="stmt"/>
-        <line num="182" count="0" type="stmt"/>
-        <line num="183" count="0" type="stmt"/>
       </file>
-      <file name="context-menu.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\context-menu.tsx">
-        <metrics statements="58" coveredstatements="0" conditionals="1" coveredconditionals="0" methods="15" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
-        <line num="7" count="0" type="stmt"/>
+      <file name="context-menu.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\context-menu.tsx">
+        <metrics statements="39" coveredstatements="0" conditionals="1" coveredconditionals="0" methods="15" coveredmethods="0"/>
         <line num="10" count="0" type="stmt"/>
         <line num="12" count="0" type="stmt"/>
         <line num="16" count="0" type="stmt"/>
@@ -596,28 +710,9 @@
         <line num="221" count="0" type="stmt"/>
         <line num="222" count="0" type="stmt"/>
         <line num="224" count="0" type="stmt"/>
-        <line num="237" count="0" type="stmt"/>
-        <line num="238" count="0" type="stmt"/>
-        <line num="239" count="0" type="stmt"/>
-        <line num="240" count="0" type="stmt"/>
-        <line num="241" count="0" type="stmt"/>
-        <line num="242" count="0" type="stmt"/>
-        <line num="243" count="0" type="stmt"/>
-        <line num="244" count="0" type="stmt"/>
-        <line num="245" count="0" type="stmt"/>
-        <line num="246" count="0" type="stmt"/>
-        <line num="247" count="0" type="stmt"/>
-        <line num="248" count="0" type="stmt"/>
-        <line num="249" count="0" type="stmt"/>
-        <line num="250" count="0" type="stmt"/>
-        <line num="251" count="0" type="stmt"/>
       </file>
-      <file name="dialog.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\dialog.tsx">
-        <metrics statements="38" coveredstatements="0" conditionals="3" coveredconditionals="0" methods="10" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
-        <line num="7" count="0" type="stmt"/>
+      <file name="dialog.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\dialog.tsx">
+        <metrics statements="24" coveredstatements="0" conditionals="3" coveredconditionals="0" methods="10" coveredmethods="0"/>
         <line num="10" count="0" type="stmt"/>
         <line num="12" count="0" type="stmt"/>
         <line num="16" count="0" type="stmt"/>
@@ -642,22 +737,9 @@
         <line num="120" count="0" type="stmt"/>
         <line num="121" count="0" type="stmt"/>
         <line num="123" count="0" type="stmt"/>
-        <line num="133" count="0" type="stmt"/>
-        <line num="134" count="0" type="stmt"/>
-        <line num="135" count="0" type="stmt"/>
-        <line num="136" count="0" type="stmt"/>
-        <line num="137" count="0" type="stmt"/>
-        <line num="138" count="0" type="stmt"/>
-        <line num="139" count="0" type="stmt"/>
-        <line num="140" count="0" type="stmt"/>
-        <line num="141" count="0" type="stmt"/>
-        <line num="142" count="0" type="stmt"/>
       </file>
-      <file name="drawer.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\drawer.tsx">
-        <metrics statements="37" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="10" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
+      <file name="drawer.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\drawer.tsx">
+        <metrics statements="24" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="10" coveredmethods="0"/>
         <line num="9" count="0" type="stmt"/>
         <line num="11" count="0" type="stmt"/>
         <line num="15" count="0" type="stmt"/>
@@ -682,23 +764,9 @@
         <line num="112" count="0" type="stmt"/>
         <line num="113" count="0" type="stmt"/>
         <line num="115" count="0" type="stmt"/>
-        <line num="125" count="0" type="stmt"/>
-        <line num="126" count="0" type="stmt"/>
-        <line num="127" count="0" type="stmt"/>
-        <line num="128" count="0" type="stmt"/>
-        <line num="129" count="0" type="stmt"/>
-        <line num="130" count="0" type="stmt"/>
-        <line num="131" count="0" type="stmt"/>
-        <line num="132" count="0" type="stmt"/>
-        <line num="133" count="0" type="stmt"/>
-        <line num="134" count="0" type="stmt"/>
       </file>
-      <file name="dropdown-menu.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\dropdown-menu.tsx">
-        <metrics statements="58" coveredstatements="0" conditionals="2" coveredconditionals="0" methods="15" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
-        <line num="7" count="0" type="stmt"/>
+      <file name="dropdown-menu.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\dropdown-menu.tsx">
+        <metrics statements="39" coveredstatements="0" conditionals="2" coveredconditionals="0" methods="15" coveredmethods="0"/>
         <line num="10" count="0" type="stmt"/>
         <line num="12" count="0" type="stmt"/>
         <line num="16" count="0" type="stmt"/>
@@ -738,29 +806,9 @@
         <line num="226" count="0" type="stmt"/>
         <line num="227" count="0" type="stmt"/>
         <line num="229" count="0" type="stmt"/>
-        <line num="242" count="0" type="stmt"/>
-        <line num="243" count="0" type="stmt"/>
-        <line num="244" count="0" type="stmt"/>
-        <line num="245" count="0" type="stmt"/>
-        <line num="246" count="0" type="stmt"/>
-        <line num="247" count="0" type="stmt"/>
-        <line num="248" count="0" type="stmt"/>
-        <line num="249" count="0" type="stmt"/>
-        <line num="250" count="0" type="stmt"/>
-        <line num="251" count="0" type="stmt"/>
-        <line num="252" count="0" type="stmt"/>
-        <line num="253" count="0" type="stmt"/>
-        <line num="254" count="0" type="stmt"/>
-        <line num="255" count="0" type="stmt"/>
-        <line num="256" count="0" type="stmt"/>
       </file>
-      <file name="form.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\form.tsx">
-        <metrics statements="48" coveredstatements="0" conditionals="14" coveredconditionals="0" methods="7" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
-        <line num="16" count="0" type="stmt"/>
-        <line num="17" count="0" type="stmt"/>
+      <file name="form.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\form.tsx">
+        <metrics statements="35" coveredstatements="0" conditionals="14" coveredconditionals="0" methods="7" coveredmethods="0"/>
         <line num="19" count="0" type="stmt"/>
         <line num="28" count="0" type="stmt"/>
         <line num="32" count="0" type="stmt"/>
@@ -796,20 +844,9 @@
         <line num="142" count="0" type="cond" truecount="0" falsecount="1"/>
         <line num="143" count="0" type="stmt"/>
         <line num="146" count="0" type="stmt"/>
-        <line num="159" count="0" type="stmt"/>
-        <line num="160" count="0" type="stmt"/>
-        <line num="161" count="0" type="stmt"/>
-        <line num="162" count="0" type="stmt"/>
-        <line num="163" count="0" type="stmt"/>
-        <line num="164" count="0" type="stmt"/>
-        <line num="165" count="0" type="stmt"/>
-        <line num="166" count="0" type="stmt"/>
       </file>
-      <file name="hover-card.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\hover-card.tsx">
-        <metrics statements="11" coveredstatements="0" conditionals="2" coveredconditionals="0" methods="3" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
+      <file name="hover-card.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\hover-card.tsx">
+        <metrics statements="7" coveredstatements="0" conditionals="2" coveredconditionals="0" methods="3" coveredmethods="0"/>
         <line num="9" count="0" type="stmt"/>
         <line num="11" count="0" type="stmt"/>
         <line num="15" count="0" type="stmt"/>
@@ -817,14 +854,9 @@
         <line num="25" count="0" type="cond" truecount="0" falsecount="1"/>
         <line num="26" count="0" type="stmt"/>
         <line num="28" count="0" type="stmt"/>
-        <line num="44" count="0" type="stmt"/>
       </file>
-      <file name="input-otp.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\input-otp.tsx">
-        <metrics statements="17" coveredstatements="0" conditionals="10" coveredconditionals="0" methods="4" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
-        <line num="7" count="0" type="stmt"/>
+      <file name="input-otp.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\input-otp.tsx">
+        <metrics statements="12" coveredstatements="0" conditionals="10" coveredconditionals="0" methods="4" coveredmethods="0"/>
         <line num="11" count="0" type="stmt"/>
         <line num="12" count="0" type="stmt"/>
         <line num="16" count="0" type="stmt"/>
@@ -837,32 +869,24 @@
         <line num="49" count="0" type="stmt"/>
         <line num="69" count="0" type="stmt"/>
         <line num="70" count="0" type="stmt"/>
-        <line num="77" count="0" type="stmt"/>
       </file>
-      <file name="input.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\input.tsx">
-        <metrics statements="5" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="0"/>
-        <line num="1" count="0" type="stmt"/>
-        <line num="3" count="0" type="stmt"/>
+      <file name="input.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\input.tsx">
+        <metrics statements="2" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="0"/>
         <line num="5" count="0" type="stmt"/>
         <line num="6" count="0" type="stmt"/>
-        <line num="21" count="0" type="stmt"/>
       </file>
-      <file name="label.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\label.tsx">
-        <metrics statements="7" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
-        <line num="9" count="0" type="stmt"/>
-        <line num="10" count="0" type="stmt"/>
-        <line num="12" count="0" type="stmt"/>
-        <line num="24" count="0" type="stmt"/>
+      <file name="label.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\label.tsx">
+        <metrics statements="7" coveredstatements="7" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="1"/>
+        <line num="3" count="3" type="stmt"/>
+        <line num="4" count="3" type="stmt"/>
+        <line num="6" count="3" type="stmt"/>
+        <line num="9" count="328" type="stmt"/>
+        <line num="10" count="328" type="stmt"/>
+        <line num="12" count="328" type="stmt"/>
+        <line num="24" count="3" type="stmt"/>
       </file>
-      <file name="menubar.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\menubar.tsx">
-        <metrics statements="63" coveredstatements="0" conditionals="4" coveredconditionals="0" methods="16" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
-        <line num="7" count="0" type="stmt"/>
+      <file name="menubar.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\menubar.tsx">
+        <metrics statements="43" coveredstatements="0" conditionals="4" coveredconditionals="0" methods="16" coveredmethods="0"/>
         <line num="10" count="0" type="stmt"/>
         <line num="11" count="0" type="stmt"/>
         <line num="13" count="0" type="stmt"/>
@@ -906,30 +930,9 @@
         <line num="244" count="0" type="stmt"/>
         <line num="245" count="0" type="stmt"/>
         <line num="247" count="0" type="stmt"/>
-        <line num="260" count="0" type="stmt"/>
-        <line num="261" count="0" type="stmt"/>
-        <line num="262" count="0" type="stmt"/>
-        <line num="263" count="0" type="stmt"/>
-        <line num="264" count="0" type="stmt"/>
-        <line num="265" count="0" type="stmt"/>
-        <line num="266" count="0" type="stmt"/>
-        <line num="267" count="0" type="stmt"/>
-        <line num="268" count="0" type="stmt"/>
-        <line num="269" count="0" type="stmt"/>
-        <line num="270" count="0" type="stmt"/>
-        <line num="271" count="0" type="stmt"/>
-        <line num="272" count="0" type="stmt"/>
-        <line num="273" count="0" type="stmt"/>
-        <line num="274" count="0" type="stmt"/>
-        <line num="275" count="0" type="stmt"/>
       </file>
-      <file name="navigation-menu.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\navigation-menu.tsx">
-        <metrics statements="39" coveredstatements="0" conditionals="3" coveredconditionals="0" methods="8" coveredmethods="0"/>
-        <line num="1" count="0" type="stmt"/>
-        <line num="2" count="0" type="stmt"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
+      <file name="navigation-menu.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\navigation-menu.tsx">
+        <metrics statements="25" coveredstatements="0" conditionals="3" coveredconditionals="0" methods="8" coveredmethods="0"/>
         <line num="11" count="0" type="cond" truecount="0" falsecount="1"/>
         <line num="12" count="0" type="stmt"/>
         <line num="16" count="0" type="stmt"/>
@@ -955,22 +958,9 @@
         <line num="139" count="0" type="stmt"/>
         <line num="140" count="0" type="stmt"/>
         <line num="142" count="0" type="stmt"/>
-        <line num="157" count="0" type="stmt"/>
-        <line num="158" count="0" type="stmt"/>
-        <line num="159" count="0" type="stmt"/>
-        <line num="160" count="0" type="stmt"/>
-        <line num="161" count="0" type="stmt"/>
-        <line num="162" count="0" type="stmt"/>
-        <line num="163" count="0" type="stmt"/>
-        <line num="164" count="0" type="stmt"/>
-        <line num="165" count="0" type="stmt"/>
       </file>
-      <file name="pagination.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\pagination.tsx">
-        <metrics statements="30" coveredstatements="0" conditionals="5" coveredconditionals="0" methods="7" coveredmethods="0"/>
-        <line num="1" count="0" type="stmt"/>
-        <line num="2" count="0" type="stmt"/>
-        <line num="8" count="0" type="stmt"/>
-        <line num="9" count="0" type="stmt"/>
+      <file name="pagination.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\pagination.tsx">
+        <metrics statements="19" coveredstatements="0" conditionals="5" coveredconditionals="0" methods="7" coveredmethods="0"/>
         <line num="11" count="0" type="stmt"/>
         <line num="12" count="0" type="stmt"/>
         <line num="24" count="0" type="stmt"/>
@@ -990,19 +980,9 @@
         <line num="103" count="0" type="stmt"/>
         <line num="104" count="0" type="stmt"/>
         <line num="106" count="0" type="stmt"/>
-        <line num="120" count="0" type="stmt"/>
-        <line num="121" count="0" type="stmt"/>
-        <line num="122" count="0" type="stmt"/>
-        <line num="123" count="0" type="stmt"/>
-        <line num="124" count="0" type="stmt"/>
-        <line num="125" count="0" type="stmt"/>
-        <line num="126" count="0" type="stmt"/>
       </file>
-      <file name="popover.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\popover.tsx">
-        <metrics statements="13" coveredstatements="0" conditionals="2" coveredconditionals="0" methods="4" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
+      <file name="popover.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\popover.tsx">
+        <metrics statements="9" coveredstatements="0" conditionals="2" coveredconditionals="0" methods="4" coveredmethods="0"/>
         <line num="9" count="0" type="stmt"/>
         <line num="11" count="0" type="stmt"/>
         <line num="15" count="0" type="stmt"/>
@@ -1012,38 +992,33 @@
         <line num="26" count="0" type="stmt"/>
         <line num="43" count="0" type="stmt"/>
         <line num="45" count="0" type="stmt"/>
-        <line num="48" count="0" type="stmt"/>
       </file>
-      <file name="progress.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\progress.tsx">
-        <metrics statements="7" coveredstatements="0" conditionals="2" coveredconditionals="0" methods="1" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
-        <line num="8" count="0" type="stmt"/>
-        <line num="11" count="0" type="stmt"/>
-        <line num="23" count="0" type="stmt"/>
-        <line num="25" count="0" type="stmt"/>
+      <file name="progress.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\progress.tsx">
+        <metrics statements="7" coveredstatements="7" conditionals="2" coveredconditionals="2" methods="1" coveredmethods="1"/>
+        <line num="3" count="4" type="stmt"/>
+        <line num="4" count="4" type="stmt"/>
+        <line num="6" count="4" type="stmt"/>
+        <line num="8" count="4" type="stmt"/>
+        <line num="11" count="130" type="stmt"/>
+        <line num="23" count="4" type="stmt"/>
+        <line num="25" count="4" type="stmt"/>
       </file>
-      <file name="radio-group.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\radio-group.tsx">
-        <metrics statements="11" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="2" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
-        <line num="7" count="0" type="stmt"/>
-        <line num="10" count="0" type="stmt"/>
-        <line num="11" count="0" type="stmt"/>
-        <line num="13" count="0" type="stmt"/>
-        <line num="23" count="0" type="stmt"/>
-        <line num="24" count="0" type="stmt"/>
-        <line num="26" count="0" type="stmt"/>
-        <line num="45" count="0" type="stmt"/>
+      <file name="radio-group.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\radio-group.tsx">
+        <metrics statements="11" coveredstatements="11" conditionals="0" coveredconditionals="0" methods="2" coveredmethods="2"/>
+        <line num="3" count="3" type="stmt"/>
+        <line num="4" count="3" type="stmt"/>
+        <line num="5" count="3" type="stmt"/>
+        <line num="7" count="3" type="stmt"/>
+        <line num="10" count="49" type="stmt"/>
+        <line num="11" count="49" type="stmt"/>
+        <line num="13" count="49" type="stmt"/>
+        <line num="23" count="236" type="stmt"/>
+        <line num="24" count="236" type="stmt"/>
+        <line num="26" count="236" type="stmt"/>
+        <line num="45" count="3" type="stmt"/>
       </file>
-      <file name="resizable.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\resizable.tsx">
-        <metrics statements="13" coveredstatements="0" conditionals="2" coveredconditionals="0" methods="3" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
-        <line num="7" count="0" type="stmt"/>
+      <file name="resizable.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\resizable.tsx">
+        <metrics statements="8" coveredstatements="0" conditionals="2" coveredconditionals="0" methods="3" coveredmethods="0"/>
         <line num="10" count="0" type="stmt"/>
         <line num="11" count="0" type="stmt"/>
         <line num="13" count="0" type="stmt"/>
@@ -1052,27 +1027,18 @@
         <line num="33" count="0" type="stmt"/>
         <line num="34" count="0" type="stmt"/>
         <line num="38" count="0" type="stmt"/>
-        <line num="56" count="0" type="stmt"/>
       </file>
-      <file name="scroll-area.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\scroll-area.tsx">
-        <metrics statements="10" coveredstatements="0" conditionals="5" coveredconditionals="0" methods="2" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
+      <file name="scroll-area.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\scroll-area.tsx">
+        <metrics statements="6" coveredstatements="0" conditionals="5" coveredconditionals="0" methods="2" coveredmethods="0"/>
         <line num="10" count="0" type="stmt"/>
         <line num="11" count="0" type="stmt"/>
         <line num="13" count="0" type="stmt"/>
         <line num="33" count="0" type="cond" truecount="0" falsecount="1"/>
         <line num="34" count="0" type="stmt"/>
         <line num="36" count="0" type="stmt"/>
-        <line num="58" count="0" type="stmt"/>
       </file>
-      <file name="select.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\select.tsx">
-        <metrics statements="41" coveredstatements="0" conditionals="6" coveredconditionals="0" methods="10" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
-        <line num="7" count="0" type="stmt"/>
+      <file name="select.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\select.tsx">
+        <metrics statements="27" coveredstatements="0" conditionals="6" coveredconditionals="0" methods="10" coveredmethods="0"/>
         <line num="10" count="0" type="stmt"/>
         <line num="12" count="0" type="stmt"/>
         <line num="16" count="0" type="stmt"/>
@@ -1100,33 +1066,15 @@
         <line num="157" count="0" type="stmt"/>
         <line num="158" count="0" type="stmt"/>
         <line num="160" count="0" type="stmt"/>
-        <line num="175" count="0" type="stmt"/>
-        <line num="176" count="0" type="stmt"/>
-        <line num="177" count="0" type="stmt"/>
-        <line num="178" count="0" type="stmt"/>
-        <line num="179" count="0" type="stmt"/>
-        <line num="180" count="0" type="stmt"/>
-        <line num="181" count="0" type="stmt"/>
-        <line num="182" count="0" type="stmt"/>
-        <line num="183" count="0" type="stmt"/>
-        <line num="184" count="0" type="stmt"/>
       </file>
-      <file name="separator.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\separator.tsx">
-        <metrics statements="7" coveredstatements="0" conditionals="2" coveredconditionals="0" methods="1" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
+      <file name="separator.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\separator.tsx">
+        <metrics statements="3" coveredstatements="0" conditionals="2" coveredconditionals="0" methods="1" coveredmethods="0"/>
         <line num="11" count="0" type="cond" truecount="0" falsecount="1"/>
         <line num="12" count="0" type="stmt"/>
         <line num="14" count="0" type="stmt"/>
-        <line num="28" count="0" type="stmt"/>
       </file>
-      <file name="sheet.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\sheet.tsx">
-        <metrics statements="36" coveredstatements="0" conditionals="9" coveredconditionals="0" methods="10" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
-        <line num="7" count="0" type="stmt"/>
+      <file name="sheet.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\sheet.tsx">
+        <metrics statements="24" coveredstatements="0" conditionals="9" coveredconditionals="0" methods="10" coveredmethods="0"/>
         <line num="9" count="0" type="stmt"/>
         <line num="10" count="0" type="stmt"/>
         <line num="14" count="0" type="stmt"/>
@@ -1151,29 +1099,9 @@
         <line num="118" count="0" type="stmt"/>
         <line num="119" count="0" type="stmt"/>
         <line num="121" count="0" type="stmt"/>
-        <line num="131" count="0" type="stmt"/>
-        <line num="132" count="0" type="stmt"/>
-        <line num="133" count="0" type="stmt"/>
-        <line num="134" count="0" type="stmt"/>
-        <line num="135" count="0" type="stmt"/>
-        <line num="136" count="0" type="stmt"/>
-        <line num="137" count="0" type="stmt"/>
-        <line num="138" count="0" type="stmt"/>
       </file>
-      <file name="sidebar.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\sidebar.tsx">
-        <metrics statements="152" coveredstatements="0" conditionals="73" coveredconditionals="0" methods="34" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
-        <line num="8" count="0" type="stmt"/>
-        <line num="9" count="0" type="stmt"/>
-        <line num="10" count="0" type="stmt"/>
-        <line num="11" count="0" type="stmt"/>
-        <line num="12" count="0" type="stmt"/>
-        <line num="13" count="0" type="stmt"/>
-        <line num="20" count="0" type="stmt"/>
-        <line num="21" count="0" type="stmt"/>
+      <file name="sidebar.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\sidebar.tsx">
+        <metrics statements="116" coveredstatements="0" conditionals="73" coveredconditionals="0" methods="34" coveredmethods="0"/>
         <line num="28" count="0" type="stmt"/>
         <line num="29" count="0" type="stmt"/>
         <line num="30" count="0" type="stmt"/>
@@ -1290,74 +1218,35 @@
         <line num="674" count="0" type="stmt"/>
         <line num="680" count="0" type="cond" truecount="0" falsecount="2"/>
         <line num="682" count="0" type="stmt"/>
-        <line num="702" count="0" type="stmt"/>
-        <line num="703" count="0" type="stmt"/>
-        <line num="704" count="0" type="stmt"/>
-        <line num="705" count="0" type="stmt"/>
-        <line num="706" count="0" type="stmt"/>
-        <line num="707" count="0" type="stmt"/>
-        <line num="708" count="0" type="stmt"/>
-        <line num="709" count="0" type="stmt"/>
-        <line num="710" count="0" type="stmt"/>
-        <line num="711" count="0" type="stmt"/>
-        <line num="712" count="0" type="stmt"/>
-        <line num="713" count="0" type="stmt"/>
-        <line num="714" count="0" type="stmt"/>
-        <line num="715" count="0" type="stmt"/>
-        <line num="716" count="0" type="stmt"/>
-        <line num="717" count="0" type="stmt"/>
-        <line num="718" count="0" type="stmt"/>
-        <line num="719" count="0" type="stmt"/>
-        <line num="720" count="0" type="stmt"/>
-        <line num="721" count="0" type="stmt"/>
-        <line num="722" count="0" type="stmt"/>
-        <line num="723" count="0" type="stmt"/>
-        <line num="724" count="0" type="stmt"/>
-        <line num="725" count="0" type="stmt"/>
       </file>
-      <file name="skeleton.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\skeleton.tsx">
-        <metrics statements="4" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="0"/>
-        <line num="1" count="0" type="stmt"/>
+      <file name="skeleton.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\skeleton.tsx">
+        <metrics statements="2" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="0"/>
         <line num="3" count="0" type="stmt"/>
         <line num="4" count="0" type="stmt"/>
-        <line num="13" count="0" type="stmt"/>
       </file>
-      <file name="slider.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\slider.tsx">
-        <metrics statements="10" coveredstatements="0" conditionals="6" coveredconditionals="0" methods="3" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
+      <file name="slider.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\slider.tsx">
+        <metrics statements="6" coveredstatements="0" conditionals="6" coveredconditionals="0" methods="3" coveredmethods="0"/>
         <line num="13" count="0" type="cond" truecount="0" falsecount="1"/>
         <line num="14" count="0" type="stmt"/>
         <line num="16" count="0" type="stmt"/>
         <line num="18" count="0" type="cond" truecount="0" falsecount="2"/>
         <line num="26" count="0" type="stmt"/>
         <line num="53" count="0" type="stmt"/>
-        <line num="63" count="0" type="stmt"/>
       </file>
-      <file name="sonner.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\sonner.tsx">
-        <metrics statements="6" coveredstatements="0" conditionals="1" coveredconditionals="0" methods="1" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
+      <file name="sonner.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\sonner.tsx">
+        <metrics statements="3" coveredstatements="0" conditionals="1" coveredconditionals="0" methods="1" coveredmethods="0"/>
         <line num="6" count="0" type="stmt"/>
         <line num="7" count="0" type="cond" truecount="0" falsecount="1"/>
         <line num="9" count="0" type="stmt"/>
-        <line num="25" count="0" type="stmt"/>
       </file>
-      <file name="switch.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\switch.tsx">
-        <metrics statements="7" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
+      <file name="switch.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\switch.tsx">
+        <metrics statements="3" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="0"/>
         <line num="9" count="0" type="stmt"/>
         <line num="10" count="0" type="stmt"/>
         <line num="12" count="0" type="stmt"/>
-        <line num="31" count="0" type="stmt"/>
       </file>
-      <file name="table.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\table.tsx">
-        <metrics statements="27" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="8" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
+      <file name="table.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\table.tsx">
+        <metrics statements="17" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="8" coveredmethods="0"/>
         <line num="7" count="0" type="stmt"/>
         <line num="8" count="0" type="stmt"/>
         <line num="22" count="0" type="stmt"/>
@@ -1375,20 +1264,9 @@
         <line num="95" count="0" type="stmt"/>
         <line num="96" count="0" type="stmt"/>
         <line num="98" count="0" type="stmt"/>
-        <line num="108" count="0" type="stmt"/>
-        <line num="109" count="0" type="stmt"/>
-        <line num="110" count="0" type="stmt"/>
-        <line num="111" count="0" type="stmt"/>
-        <line num="112" count="0" type="stmt"/>
-        <line num="113" count="0" type="stmt"/>
-        <line num="114" count="0" type="stmt"/>
-        <line num="115" count="0" type="stmt"/>
       </file>
-      <file name="tabs.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\tabs.tsx">
-        <metrics statements="16" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="4" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
+      <file name="tabs.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\tabs.tsx">
+        <metrics statements="12" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="4" coveredmethods="0"/>
         <line num="9" count="0" type="stmt"/>
         <line num="10" count="0" type="stmt"/>
         <line num="12" count="0" type="stmt"/>
@@ -1401,23 +1279,17 @@
         <line num="54" count="0" type="stmt"/>
         <line num="55" count="0" type="stmt"/>
         <line num="57" count="0" type="stmt"/>
-        <line num="66" count="0" type="stmt"/>
       </file>
-      <file name="textarea.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\textarea.tsx">
-        <metrics statements="5" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="0"/>
-        <line num="1" count="0" type="stmt"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
-        <line num="18" count="0" type="stmt"/>
+      <file name="textarea.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\textarea.tsx">
+        <metrics statements="5" coveredstatements="5" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="1"/>
+        <line num="1" count="3" type="stmt"/>
+        <line num="3" count="3" type="stmt"/>
+        <line num="5" count="30" type="stmt"/>
+        <line num="6" count="30" type="stmt"/>
+        <line num="18" count="3" type="stmt"/>
       </file>
-      <file name="toast.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\toast.tsx">
-        <metrics statements="33" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="6" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
-        <line num="8" count="0" type="stmt"/>
+      <file name="toast.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\toast.tsx">
+        <metrics statements="21" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="6" coveredmethods="0"/>
         <line num="10" count="0" type="stmt"/>
         <line num="12" count="0" type="stmt"/>
         <line num="15" count="0" type="stmt"/>
@@ -1439,30 +1311,16 @@
         <line num="103" count="0" type="stmt"/>
         <line num="106" count="0" type="stmt"/>
         <line num="113" count="0" type="stmt"/>
-        <line num="122" count="0" type="stmt"/>
-        <line num="123" count="0" type="stmt"/>
-        <line num="124" count="0" type="stmt"/>
-        <line num="125" count="0" type="stmt"/>
-        <line num="126" count="0" type="stmt"/>
-        <line num="127" count="0" type="stmt"/>
-        <line num="128" count="0" type="stmt"/>
       </file>
-      <file name="toaster.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\toaster.tsx">
-        <metrics statements="7" coveredstatements="0" conditionals="4" coveredconditionals="0" methods="2" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="13" count="0" type="stmt"/>
+      <file name="toaster.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\toaster.tsx">
+        <metrics statements="4" coveredstatements="0" conditionals="4" coveredconditionals="0" methods="2" coveredmethods="0"/>
         <line num="14" count="0" type="stmt"/>
         <line num="16" count="0" type="stmt"/>
         <line num="18" count="0" type="stmt"/>
         <line num="19" count="0" type="stmt"/>
       </file>
-      <file name="toggle-group.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\toggle-group.tsx">
-        <metrics statements="13" coveredstatements="0" conditionals="8" coveredconditionals="0" methods="2" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="7" count="0" type="stmt"/>
-        <line num="8" count="0" type="stmt"/>
+      <file name="toggle-group.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\toggle-group.tsx">
+        <metrics statements="8" coveredstatements="0" conditionals="8" coveredconditionals="0" methods="2" coveredmethods="0"/>
         <line num="10" count="0" type="stmt"/>
         <line num="21" count="0" type="stmt"/>
         <line num="22" count="0" type="stmt"/>
@@ -1471,25 +1329,16 @@
         <line num="48" count="0" type="stmt"/>
         <line num="51" count="0" type="stmt"/>
         <line num="53" count="0" type="stmt"/>
-        <line num="73" count="0" type="stmt"/>
       </file>
-      <file name="toggle.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\toggle.tsx">
-        <metrics statements="9" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
-        <line num="7" count="0" type="stmt"/>
+      <file name="toggle.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\toggle.tsx">
+        <metrics statements="4" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="0"/>
         <line num="9" count="0" type="stmt"/>
         <line num="34" count="0" type="stmt"/>
         <line num="35" count="0" type="stmt"/>
         <line num="38" count="0" type="stmt"/>
-        <line num="47" count="0" type="stmt"/>
       </file>
-      <file name="tooltip.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\tooltip.tsx">
-        <metrics statements="14" coveredstatements="0" conditionals="2" coveredconditionals="0" methods="4" coveredmethods="0"/>
-        <line num="3" count="0" type="stmt"/>
-        <line num="4" count="0" type="stmt"/>
-        <line num="6" count="0" type="stmt"/>
+      <file name="tooltip.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\tooltip.tsx">
+        <metrics statements="10" coveredstatements="0" conditionals="2" coveredconditionals="0" methods="4" coveredmethods="0"/>
         <line num="9" count="0" type="cond" truecount="0" falsecount="1"/>
         <line num="10" count="0" type="stmt"/>
         <line num="12" count="0" type="stmt"/>
@@ -1500,13 +1349,10 @@
         <line num="40" count="0" type="stmt"/>
         <line num="41" count="0" type="stmt"/>
         <line num="43" count="0" type="stmt"/>
-        <line num="61" count="0" type="stmt"/>
       </file>
-      <file name="use-mobile.tsx" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\use-mobile.tsx">
-        <metrics statements="12" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="4" coveredmethods="0"/>
-        <line num="1" count="0" type="stmt"/>
+      <file name="use-mobile.tsx" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\use-mobile.tsx">
+        <metrics statements="10" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="4" coveredmethods="0"/>
         <line num="3" count="0" type="stmt"/>
-        <line num="5" count="0" type="stmt"/>
         <line num="6" count="0" type="stmt"/>
         <line num="8" count="0" type="stmt"/>
         <line num="9" count="0" type="stmt"/>
@@ -1517,9 +1363,8 @@
         <line num="15" count="0" type="stmt"/>
         <line num="18" count="0" type="stmt"/>
       </file>
-      <file name="use-toast.ts" path="C:\exclusivo\clinica-oncologica-v01\quiz-mensal-interface\components\ui\use-toast.ts">
-        <metrics statements="54" coveredstatements="0" conditionals="16" coveredconditionals="0" methods="18" coveredmethods="0"/>
-        <line num="4" count="0" type="stmt"/>
+      <file name="use-toast.ts" path="C:\Meu Projetos\clinica-oncologica-v02\quiz-mensal-interface\components\ui\use-toast.ts">
+        <metrics statements="52" coveredstatements="0" conditionals="16" coveredconditionals="0" methods="18" coveredmethods="0"/>
         <line num="8" count="0" type="stmt"/>
         <line num="9" count="0" type="stmt"/>
         <line num="18" count="0" type="stmt"/>
@@ -1572,7 +1417,6 @@
         <line num="179" count="0" type="stmt"/>
         <line num="184" count="0" type="stmt"/>
         <line num="187" count="0" type="stmt"/>
-        <line num="191" count="0" type="stmt"/>
       </file>
     </package>
   </project>

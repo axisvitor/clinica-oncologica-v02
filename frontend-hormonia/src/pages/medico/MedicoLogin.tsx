@@ -4,7 +4,7 @@ import { useMedicoAuth } from '../../contexts/MedicoAuthContext'
 
 export default function MedicoLogin() {
   const navigate = useNavigate()
-  const { state, signIn } = useMedicoAuth()
+  const { isAuthenticated, isLoading, error, signIn } = useMedicoAuth()
   const [formData, setFormData] = useState({
     crm: '',
     senha: ''
@@ -12,10 +12,10 @@ export default function MedicoLogin() {
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
 
   useEffect(() => {
-    if (state.isAuthenticated) {
+    if (isAuthenticated) {
       navigate('/medico/dashboard')
     }
-  }, [state.isAuthenticated, navigate])
+  }, [isAuthenticated, navigate])
 
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {}
@@ -37,6 +37,7 @@ export default function MedicoLogin() {
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     if (!validateForm()) {
       return
     }
@@ -158,7 +159,7 @@ export default function MedicoLogin() {
             </div>
           )}
 
-          {state.error && (
+          {error && (
             <div className="rounded-md bg-red-50 p-4">
               <div className="flex">
                 <div className="flex-shrink-0">
@@ -167,7 +168,7 @@ export default function MedicoLogin() {
                   </svg>
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm text-red-800">{state.error}</p>
+                  <p className="text-sm text-red-800">{error}</p>
                 </div>
               </div>
             </div>
@@ -176,14 +177,14 @@ export default function MedicoLogin() {
           <div>
             <button
               type="submit"
-              disabled={state.isLoading}
+              disabled={isLoading}
               className={`group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white ${
-                state.isLoading
+                isLoading
                   ? 'bg-blue-400 cursor-not-allowed'
                   : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
               } transition-colors duration-200`}
             >
-              {state.isLoading ? (
+              {isLoading ? (
                 <>
                   <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

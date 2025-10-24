@@ -187,6 +187,15 @@ export class ApiClientCore {
   }
 
   /**
+   * Clear authentication token (alias for setAuthToken(null))
+   * Used after establishing cookie-based session
+   */
+  clearAuthToken(): void {
+    logger.debug("[ApiClient] Clearing auth token - switching to cookie-only auth");
+    this.setAuthToken(null);
+  }
+
+  /**
    * Get current auth token
    */
   getAuthToken(): string | null {
@@ -405,7 +414,11 @@ export class ApiClientCore {
    * GET request
    */
   async get<T>(endpoint: string, params?: Record<string, string | number | boolean>): Promise<T> {
-    return this.request<T>(endpoint, { method: "GET", params });
+    const options: RequestOptions = { method: "GET" };
+    if (params) {
+      (options as any).params = params;
+    }
+    return this.request<T>(endpoint, options);
   }
 
   /**
@@ -416,11 +429,10 @@ export class ApiClientCore {
     data?: any,
     params?: Record<string, string | number | boolean>,
   ): Promise<T> {
-    return this.request<T>(endpoint, {
-      method: "POST",
-      body: data ? JSON.stringify(data) : undefined,
-      params,
-    });
+    const options: RequestOptions = { method: "POST" };
+    if (data !== undefined) (options as any).body = JSON.stringify(data);
+    if (params) (options as any).params = params;
+    return this.request<T>(endpoint, options);
   }
 
   /**
@@ -431,11 +443,10 @@ export class ApiClientCore {
     data?: any,
     params?: Record<string, string | number | boolean>,
   ): Promise<T> {
-    return this.request<T>(endpoint, {
-      method: "PUT",
-      body: data ? JSON.stringify(data) : undefined,
-      params,
-    });
+    const options: RequestOptions = { method: "PUT" };
+    if (data !== undefined) (options as any).body = JSON.stringify(data);
+    if (params) (options as any).params = params;
+    return this.request<T>(endpoint, options);
   }
 
   /**
@@ -445,7 +456,9 @@ export class ApiClientCore {
     endpoint: string,
     params?: Record<string, string | number | boolean>,
   ): Promise<T> {
-    return this.request<T>(endpoint, { method: "DELETE", params });
+    const options: RequestOptions = { method: "DELETE" };
+    if (params) (options as any).params = params;
+    return this.request<T>(endpoint, options);
   }
 
   /**
@@ -456,14 +469,13 @@ export class ApiClientCore {
     data?: any,
     params?: Record<string, string | number | boolean>,
   ): Promise<T> {
-    return this.request<T>(endpoint, {
-      method: "PATCH",
-      body: data ? JSON.stringify(data) : undefined,
-      params,
-    });
+    const options: RequestOptions = { method: "PATCH" };
+    if (data !== undefined) (options as any).body = JSON.stringify(data);
+    if (params) (options as any).params = params;
+    return this.request<T>(endpoint, options);
   }
 }
 
 // Export types
-export type { ApiResponse, PaginatedResponse, RequestOptions };
+// Types already exported above; avoid duplicate export declarations
 // ApiError is already exported as a class above

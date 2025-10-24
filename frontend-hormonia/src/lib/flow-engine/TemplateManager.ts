@@ -11,6 +11,14 @@ import { createLogger } from '../logger'
 
 const logger = createLogger('TemplateManager')
 
+/**
+ * Patient data interface for personalization
+ */
+interface PatientData {
+  patient_name?: string
+  [key: string]: unknown
+}
+
 export class TemplateManager {
   private templates: Map<FlowType, FlowTemplate> = new Map()
   private messageVariations: Map<string, MessageTemplate[]> = new Map()
@@ -20,7 +28,7 @@ export class TemplateManager {
   }
 
   // Initialize default templates for development
-  private initializeDefaultTemplates() {
+  private initializeDefaultTemplates(): void {
     const initial15DaysTemplate: FlowTemplate = {
       id: 'initial_15_days_template',
       flow_type: FlowType.INITIAL_15_DAYS,
@@ -110,8 +118,8 @@ export class TemplateManager {
   // Load templates from API
   async loadTemplates(): Promise<void> {
     try {
-      const templates = await apiClient.flows.getTemplates()
-      templates.forEach(template => {
+      const templates: FlowTemplate[] = await apiClient.flows.getTemplates()
+      templates.forEach((template: FlowTemplate) => {
         this.templates.set(template.flow_type, template)
       })
       logger.info('Templates loaded from API', { count: templates.length })
@@ -138,13 +146,13 @@ export class TemplateManager {
   }
 
   // Personalize message content
-  personalizeMessage(template: MessageTemplate, patientData: Record<string, any>): string {
+  personalizeMessage(template: MessageTemplate, patientData: PatientData): string {
     let content = template.content
 
     // Replace placeholders
     Object.entries(patientData).forEach(([key, value]) => {
       const placeholder = `{${key}}`
-      content = content.replace(new RegExp(placeholder, 'g'), value)
+      content = content.replace(new RegExp(placeholder, 'g'), String(value ?? ''))
     })
 
     return content
@@ -233,10 +241,10 @@ export class TemplateManager {
   }
 
   // Check if conditions are met
-  evaluateConditions(conditions: Condition[], patientData: Record<string, any>): boolean {
+  evaluateConditions(conditions: Condition[], patientData: PatientData): boolean {
     if (!conditions || conditions.length === 0) return true
 
-    return conditions.every(condition => {
+    return conditions.every((condition: Condition) => {
       const value = patientData[condition.field]
       
       switch (condition.operator) {
@@ -245,11 +253,11 @@ export class TemplateManager {
         case 'not_equals':
           return value !== condition.value
         case 'contains':
-          return String(value).includes(String(condition.value))
+          return String(value ?? '').includes(String(condition.value ?? ''))
         case 'greater_than':
-          return Number(value) > Number(condition.value)
+          return Number(value ?? 0) > Number(condition.value ?? 0)
         case 'less_than':
-          return Number(value) < Number(condition.value)
+          return Number(value ?? 0) < Number(condition.value ?? 0)
         default:
           return false
       }

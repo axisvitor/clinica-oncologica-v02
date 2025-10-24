@@ -59,6 +59,9 @@ class FlowType(str, Enum):
     EMERGENCY_PROTOCOL = "emergency_protocol"
     """Emergency situation protocol flow"""
 
+    MONITORING = "monitoring"
+    """General monitoring flow (backward compatibility)"""
+
     CUSTOM = "custom"
     """Custom flow (user-defined)"""
 
@@ -98,6 +101,9 @@ class FlowStepType(str, Enum):
 
     Each step type has different execution logic and validation rules.
     """
+
+    START = "start"
+    """Initial step of a flow (backward compatibility)"""
 
     MESSAGE = "message"
     """Send a message to the patient"""

@@ -9,13 +9,10 @@ import {
   useUserPreferences,
   useTheme,
   useNotificationPreferences,
-  UserProfile,
-  PasswordChangeData
 } from '../hooks/useSettings'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
@@ -721,13 +718,11 @@ export function SettingsPage() {
                     variant="destructive"
                     size="sm"
                     onClick={() => {
-                      if (window.confirm('Tem certeza que deseja excluir sua conta? Esta ação é irreversível.')) {
-                        toast({
-                          title: 'Funcionalidade em desenvolvimento',
-                          description: 'A exclusão de conta será implementada em breve.',
-                          variant: 'destructive',
-                        })
-                      }
+                      toast({
+                        title: 'Funcionalidade em desenvolvimento',
+                        description: 'A exclusão de conta será implementada em breve.',
+                        variant: 'destructive',
+                      })
                     }}
                   >
                     Excluir conta

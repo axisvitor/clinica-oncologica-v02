@@ -11,10 +11,19 @@
 // ============================================================================
 
 // Re-export all types from the centralized API types modules
-export * from '../../../types/api'
-export * from '../../../types/shared'
-export * from '../../../types/auth'
-export * from '../../../types/websocket'
+export * from '@/types/api'
+// Export specific types from shared to avoid conflicts (e.g., Status is already in api)
+export type {
+  UserRole,
+  BaseEntity,
+  SoftDeletableEntity,
+  ListQueryParams,
+  NotificationType,
+  LoadingState,
+  ValidationError,
+  AuditMetadata
+} from '@/types/shared'
+export * from '@/lib/types/websocket'
 
 // Note: Core types are re-exported via the wildcard export above
 
@@ -90,7 +99,7 @@ export type {
   FlowStep,
   CreateFlowTemplateRequest,
   UpdateFlowTemplateRequest
-} from '../../../types/api'
+} from '@/types/api'
 
 export type {
   // WebSocket types
@@ -102,19 +111,17 @@ export type {
   // Event data types
   PatientEventData,
   MessageEventData,
+  QuizEventData,
   FlowEventData,
   AlertEventData,
   ReportEventData,
-  AIEventData,
   SystemEventData,
-  UserActivityEventData,
 
   // WebSocket handlers and subscriptions
   WebSocketEventHandler,
-  WebSocketSubscription,
   UseWebSocketReturn,
-  UseWebSocketPatientReturn
-} from '../../../types/websocket'
+  EventSubscription as WebSocketSubscription
+} from '@/lib/types/websocket'
 
 // ============================================================================
 // BACKWARDS COMPATIBILITY TYPES

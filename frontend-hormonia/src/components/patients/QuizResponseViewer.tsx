@@ -189,7 +189,7 @@ export function QuizResponseViewer({ patientId, patientName = 'Paciente', classN
             </div>
             <QuizResponsePDFExport
               responses={responsesData.items}
-              analysis={analysisData}
+              {...(analysisData ? { analysis: analysisData } : {})}
               patientName={patientName}
             />
           </div>

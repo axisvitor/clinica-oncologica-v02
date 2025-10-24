@@ -15,7 +15,7 @@ import {
   Loader2
 } from 'lucide-react'
 import { useFlowState, useFlowOperations } from '../../hooks/useFlowEngine'
-import { FlowType, FlowStatus as FlowStatusEnum } from '../../../types/api'
+import { FlowType, FlowStatus as FlowStatusEnum } from '@/types/api'
 
 interface FlowStatusProps {
   patientId: string

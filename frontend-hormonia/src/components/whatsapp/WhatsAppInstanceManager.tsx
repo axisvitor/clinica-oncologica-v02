@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { whatsAppService, WhatsAppInstance } from '../../services/whatsapp/WhatsAppService';
 import { createLogger } from '@/lib/logger';
+import { useToast } from '@/components/ui/use-toast';
 
 interface WhatsAppInstanceManagerProps {
   onInstanceSelected?: (instance: WhatsAppInstance) => void;
@@ -33,6 +34,7 @@ const logger = createLogger('WhatsAppInstanceManager');
 export const WhatsAppInstanceManager: React.FC<WhatsAppInstanceManagerProps> = ({
   onInstanceSelected
 }) => {
+  const { toast } = useToast()
   const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +42,7 @@ export const WhatsAppInstanceManager: React.FC<WhatsAppInstanceManagerProps> = (
   const [creatingInstance, setCreatingInstance] = useState(false);
   const [qrCodes, setQrCodes] = useState<Record<string, string>>({});
   const [selectedInstance, setSelectedInstance] = useState<string | null>(null);
+  const [confirmDeleteName, setConfirmDeleteName] = useState<string | null>(null);
 
   const loadInstances = useCallback(async () => {
     try {
@@ -78,22 +81,31 @@ export const WhatsAppInstanceManager: React.FC<WhatsAppInstanceManagerProps> = (
   };
 
   const deleteInstance = async (instanceName: string) => {
-    if (!confirm(`Are you sure you want to delete instance "${instanceName}"?`)) {
-      return;
+    if (confirmDeleteName === instanceName) {
+      setConfirmDeleteName(null)
+      try {
+        setError(null);
+        await whatsAppService.deleteInstance(instanceName);
+        await loadInstances();
+        setQrCodes(prev => {
+          const updated = { ...prev };
+          delete updated[instanceName];
+          return updated;
+        });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to delete instance');
+      }
+      return
     }
-
-    try {
-      setError(null);
-      await whatsAppService.deleteInstance(instanceName);
-      await loadInstances();
-      setQrCodes(prev => {
-        const updated = { ...prev };
-        delete updated[instanceName];
-        return updated;
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete instance');
-    }
+    setConfirmDeleteName(instanceName)
+    toast({
+      title: 'Confirm deletion',
+      description: `Click delete again to remove instance "${instanceName}"`,
+      variant: 'destructive'
+    })
+    setTimeout(() => {
+      setConfirmDeleteName((prev) => (prev === instanceName ? null : prev))
+    }, 3000)
   };
 
   const restartInstance = async (instanceName: string) => {

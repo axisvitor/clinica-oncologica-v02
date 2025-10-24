@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/components/ui/use-toast'
 import { apiClient } from '@/lib/api-client'
+import type { QuizLinkCreate } from '@/lib/api-client/monthly-quiz'
 
 interface SendQuizLinkModalProps {
   open: boolean
@@ -55,14 +56,10 @@ export function SendQuizLinkModal({
   const templates = templatesData?.items || []
 
   const sendLinkMutation = useMutation({
-    mutationFn: (data: {
-      patient_id: string
-      quiz_template_id: string
-      delivery_method: string
-      expiry_hours: number
-      custom_message?: string
-      send_immediately?: boolean
-    }) => apiClient.monthlyQuiz.createLink(data),
+    mutationFn: (data: QuizLinkCreate & { send_immediately?: boolean }) => {
+      const { send_immediately, ...payload } = data
+      return apiClient.monthlyQuiz.createLink(payload)
+    },
     onSuccess: (response: any) => {
       const attempts = response?.delivery_attempts as Array<{ status?: string }> | undefined
       const lastAttempt = attempts?.[attempts.length - 1]

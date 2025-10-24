@@ -7,7 +7,7 @@ import { quizPermissions, getPermissionErrorMessage } from '@/utils/quizPermissi
 interface CreateQuizLinkData {
   patient_id: string
   quiz_template_id: string
-  delivery_method: string
+  delivery_method: 'whatsapp' | 'email' | 'sms' | 'manual'
   expiry_hours: number
   custom_message?: string
   send_immediately?: boolean
@@ -16,7 +16,7 @@ interface CreateQuizLinkData {
 interface BulkCreateQuizLinkData {
   patient_ids: string[]
   quiz_template_id: string
-  delivery_method: string
+  delivery_method: 'whatsapp' | 'email' | 'sms' | 'manual'
   expiry_hours: number
   custom_message?: string
   send_immediately?: boolean

@@ -24,7 +24,7 @@ import { useTemplates, FlowTemplate, QuizTemplate } from '@/hooks/useTemplates';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
-import { ErrorBoundary, withErrorBoundary } from '@/components/error/ErrorBoundary';
+import { withErrorBoundary } from '@/components/error/ErrorBoundary';
 import {
   Dialog,
   DialogContent,
@@ -75,8 +75,6 @@ function TemplateManagementPage() {
     createFlowTemplate,
     updateFlowTemplate,
     deleteFlowTemplate,
-    createQuizTemplate,
-    updateQuizTemplate,
     deleteQuizTemplate,
   } = useTemplates();
 
@@ -87,7 +85,7 @@ function TemplateManagementPage() {
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'draft'>('all');
   const [showFlowDesigner, setShowFlowDesigner] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<FlowTemplate | null>(null);
-  const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
+  
   const [error, setError] = useState<string | null>(null);
 
   // Flow versioning controls
@@ -101,11 +99,7 @@ function TemplateManagementPage() {
   const [flowTotalPages, setFlowTotalPages] = useState(1);
   const [quizTotalPages, setQuizTotalPages] = useState(1);
 
-  // Load templates
-  useEffect(() => {
-    loadFlowTemplates();
-    loadQuizTemplates();
-  }, [flowPage, quizPage, activeFilter]);
+  // Load templates effect is placed after callbacks definitions
 
   const loadFlowTemplates = useCallback(async () => {
     try {
@@ -118,7 +112,7 @@ function TemplateManagementPage() {
       const response = await listFlowTemplates(params);
       if (response) {
         setFlowTemplates(response.items);
-        setFlowTotalPages(response.total_pages);
+        setFlowTotalPages(response.pages);
       }
     } catch (error) {
       console.error('Failed to load flow templates:', error)
@@ -141,7 +135,7 @@ function TemplateManagementPage() {
       const response = await listQuizTemplates(params);
       if (response) {
         setQuizTemplates(response.items);
-        setQuizTotalPages(response.total_pages);
+        setQuizTotalPages(response.pages);
       }
     } catch (error) {
       console.error('Failed to load quiz templates:', error)
@@ -153,6 +147,12 @@ function TemplateManagementPage() {
       })
     }
   }, [quizPage, activeFilter, listQuizTemplates, toast]);
+
+  // Load templates
+  useEffect(() => {
+    loadFlowTemplates();
+    loadQuizTemplates();
+  }, [flowPage, quizPage, activeFilter, loadFlowTemplates, loadQuizTemplates]);
 
   // Filter templates by search
   const filteredFlowTemplates = flowTemplates.filter(
@@ -223,25 +223,22 @@ function TemplateManagementPage() {
 
   // Handle template delete
   const handleDeleteFlow = async (templateId: string) => {
-    if (confirm('Deseja realmente desativar este template?')) {
-      const success = await deleteFlowTemplate(templateId, true); // soft delete
-      if (success) {
-        loadFlowTemplates();
-      }
+    const success = await deleteFlowTemplate(templateId, true) // soft delete
+    if (success) {
+      loadFlowTemplates()
+      toast({ title: 'Template desativado' })
     }
   };
 
   const handleDeleteQuiz = async (quizId: string) => {
-    if (confirm('Deseja realmente desativar este quiz?')) {
-      const success = await deleteQuizTemplate(quizId, true); // soft delete
-      if (success) {
-        loadQuizTemplates();
-      }
+    const success = await deleteQuizTemplate(quizId, true) // soft delete
+    if (success) {
+      loadQuizTemplates()
+      toast({ title: 'Quiz desativado' })
     }
   };
 
-  const handleEditQuiz = (quizId: string) => {
-    setEditingQuizId(quizId);
+  const handleEditQuiz = (_quizId: string) => {
     toast({
       title: 'Edição de Quiz',
       description: 'Funcionalidade de edição será implementada em breve. Por favor, use a página de Questionários.',
@@ -476,7 +473,7 @@ function TemplateManagementPage() {
                 <QuizTemplateCard
                   key={quiz.id}
                   template={quiz}
-                  onPreview={() => console.log('Preview', quiz.id)}
+                  onPreview={() => console.warn('Preview', quiz.id)}
                   onEdit={handleEditQuiz}
                   onDelete={handleDeleteQuiz}
                   showAdminActions={true}

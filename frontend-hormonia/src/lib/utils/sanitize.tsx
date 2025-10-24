@@ -20,6 +20,7 @@
 
 import React from 'react';
 import DOMPurify from 'dompurify';
+import type { Config } from 'dompurify';
 
 /**
  * Default DOMPurify configuration
@@ -27,7 +28,7 @@ import DOMPurify from 'dompurify';
  * - Removes scripts, iframes, and dangerous attributes
  * - Allows links but forces target="_blank" and rel="noopener noreferrer"
  */
-const DEFAULT_CONFIG: DOMPurify.Config = {
+const DEFAULT_CONFIG: Config = {
   ALLOWED_TAGS: [
     'p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'del',
     'ul', 'ol', 'li', 'blockquote', 'code', 'pre',
@@ -45,7 +46,7 @@ const DEFAULT_CONFIG: DOMPurify.Config = {
  * Strict configuration (text-only, no HTML)
  * Use for user names, titles, or any content that should never contain HTML
  */
-const STRICT_CONFIG: DOMPurify.Config = {
+const STRICT_CONFIG: Config = {
   ALLOWED_TAGS: [],
   ALLOWED_ATTR: [],
   KEEP_CONTENT: true,
@@ -55,7 +56,7 @@ const STRICT_CONFIG: DOMPurify.Config = {
  * Rich text configuration
  * Allows more formatting options for rich text editors
  */
-const RICH_TEXT_CONFIG: DOMPurify.Config = {
+const RICH_TEXT_CONFIG: Config = {
   ...DEFAULT_CONFIG,
   ALLOWED_TAGS: [
     ...DEFAULT_CONFIG.ALLOWED_TAGS!,
@@ -86,12 +87,12 @@ const RICH_TEXT_CONFIG: DOMPurify.Config = {
  */
 export function sanitizeHtml(
   dirty: string | null | undefined,
-  config: DOMPurify.Config = DEFAULT_CONFIG
+  config: Config = DEFAULT_CONFIG
 ): string {
   if (!dirty) return '';
 
   try {
-    const clean = DOMPurify.sanitize(dirty, config);
+    const clean = DOMPurify.sanitize(dirty, config as any) as unknown as string;
 
     // Add security attributes to links
     if (config !== STRICT_CONFIG) {
@@ -124,7 +125,7 @@ export function sanitizeText(dirty: string | null | undefined): string {
   if (!dirty) return '';
 
   try {
-    return DOMPurify.sanitize(dirty, STRICT_CONFIG);
+    return DOMPurify.sanitize(dirty, STRICT_CONFIG as any) as unknown as string;
   } catch (error) {
     console.error('Error sanitizing text:', error);
     return '';
@@ -318,7 +319,7 @@ export function sanitizePhone(phone: string | null | undefined): string {
 interface SafeHtmlProps {
   html: string | null | undefined;
   className?: string;
-  config?: DOMPurify.Config;
+  config?: Config;
 }
 
 export function SafeHtml({ html, className, config }: SafeHtmlProps) {

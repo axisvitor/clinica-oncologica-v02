@@ -238,17 +238,8 @@ export interface CreateAlertRequest {
 // Report Response Types
 // ============================================================================
 
-export interface Report {
-  id: string
-  patient_id?: string
-  type: string
-  title: string
-  status: 'pending' | 'processing' | 'completed' | 'failed'
-  file_path?: string
-  created_at: string
-  completed_at?: string
-  metadata?: Record<string, unknown>
-}
+// Re-export Report from centralized types
+export type { Report, ReportType, ReportStatus } from './api'
 
 export interface GenerateReportRequest {
   patient_id: string
@@ -356,18 +347,8 @@ export interface BulkCreateQuizLinkRequest {
   send_immediately?: boolean
 }
 
-export interface QuizLinkStatus {
-  session_id: string
-  patient_id: string
-  status: string
-  link: string
-  expires_at: string
-  completed_at?: string
-  responses?: Record<string, unknown>
-  delivery_attempts?: Array<Record<string, unknown>>
-  last_delivery_status?: string
-  last_delivery_method?: string
-}
+// Re-export QuizLinkStatus from centralized types
+export type { QuizLinkStatus, QuizLinkStatusValue } from './api'
 
 export interface MonthlyQuizStats {
   total_sent: number

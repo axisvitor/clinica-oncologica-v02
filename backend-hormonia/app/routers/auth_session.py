@@ -347,7 +347,7 @@ async def create_session(
             key="session_id",
             value=session_id,
             httponly=True,      # JavaScript cannot access (XSS protection)
-            secure=True,        # HTTPS only in production
+            secure=settings.SESSION_COOKIE_SECURE,  # HTTPS only in production
             samesite="strict",  # CSRF protection
             max_age=ttl,        # Cookie expiration (seconds)
             path="/"            # Available for all paths

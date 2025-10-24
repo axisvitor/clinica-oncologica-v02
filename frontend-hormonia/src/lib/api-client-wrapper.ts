@@ -411,9 +411,11 @@ export class HttpApiClient {
   }
 
   /**
-   * Remove authentication token
+   * Clear authentication token
    */
   clearAuthToken() {
+    const { Authorization, ...rest } = this.config.headers || {}
+    this.config.headers = rest
     if (this.config.headers) {
       delete this.config.headers['Authorization']
     }

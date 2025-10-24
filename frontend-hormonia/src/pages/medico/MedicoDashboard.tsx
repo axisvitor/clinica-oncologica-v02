@@ -10,7 +10,7 @@ const logger = createLogger('MedicoDashboard')
 
 export default function MedicoDashboard() {
   const navigate = useNavigate()
-  const { state, signOut } = useMedicoAuth()
+  const { medico, signOut } = useMedicoAuth()
   const { data: stats, isLoading, error } = useMedicoDashboardStats({
     refetchInterval: 120000 // 2 minutes
   })
@@ -36,8 +36,8 @@ export default function MedicoDashboard() {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Dashboard Médico</h1>
-              <p className="text-sm text-gray-600">Dr(a). {state.medico?.full_name}</p>
-              <p className="text-xs text-gray-500">CRM: {state.medico?.crm}</p>
+              <p className="text-sm text-gray-600">Dr(a). {medico?.full_name}</p>
+              <p className="text-xs text-gray-500">CRM: {medico?.crm}</p>
             </div>
             <button
               onClick={handleLogout}

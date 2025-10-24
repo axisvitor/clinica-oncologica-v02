@@ -1,13 +1,13 @@
 // AI Service Types - Use /types/api.ts for latest definitions
 // Import types for internal use
-import type { AIChatMessage as AIChatMessageImport, AIInsight as AIInsightImport } from '../../../types/api'
+import type { AIChatMessage as AIChatMessageImport, AIInsight as AIInsightImport } from '@/types/api'
 
 // Re-export types from centralized API types
 export type {
   AIChatMessage,
   AIChatMessage as ChatMessage,
   ChatRole
-} from '../../../types/api'
+} from '@/types/api'
 
 // Type aliases for internal use
 type AIChatMessage = AIChatMessageImport
@@ -39,13 +39,13 @@ export type {
   SentimentAnalysis,
   SentimentLabel,
   EmotionScores
-} from '../../../types/api'
+} from '@/types/api'
 
 // Re-export from centralized types
 export type {
   AIInsight,
   InsightType
-} from '../../../types/api'
+} from '@/types/api'
 
 export interface AIRecommendation {
   id: string

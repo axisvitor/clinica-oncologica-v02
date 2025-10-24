@@ -50,18 +50,12 @@ export function AnalyticsPage() {
 
   const { data: engagementData } = useQuery({
     queryKey: ['analytics-engagement', dateRange],
-    queryFn: () => apiClient.analytics.engagement({
-      start_date: getStartDate(dateRange),
-      end_date: new Date().toISOString()
-    })
+    queryFn: () => apiClient.analytics.engagement()
   })
 
   const { data: patientsAnalytics } = useQuery({
     queryKey: ['analytics-patients', dateRange],
-    queryFn: () => apiClient.analytics.patients({
-      start_date: getStartDate(dateRange),
-      end_date: new Date().toISOString()
-    })
+    queryFn: () => apiClient.analytics.patients()
   })
 
   const {

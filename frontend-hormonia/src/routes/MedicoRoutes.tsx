@@ -8,9 +8,9 @@ import ProntuarioView from '../pages/medico/ProntuarioView'
 
 // Protected Route Guard
 const MedicoProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { state } = useMedicoAuth()
+  const { isLoading, isAuthenticated } = useMedicoAuth()
 
-  if (state.isLoading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -21,7 +21,7 @@ const MedicoProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     )
   }
 
-  if (!state.isAuthenticated) {
+  if (!isAuthenticated) {
     return <Navigate to="/medico/login" replace />
   }
 

@@ -308,7 +308,6 @@ class ApiClient {
       this.setAuthToken(session.access_token)
     } else {
       this.setAuthToken(null)
-      this.clearCache()
     }
   }
 

@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, Link } from 'react-router-dom'
-import { Activity, TriangleAlert as AlertTriangle, TrendingUp, Users, Brain, MessageSquare, Calendar, Search, Download, ListFilter as Filter, RefreshCw, FileText, Lightbulb, Clock, X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Activity, TriangleAlert as AlertTriangle, TrendingUp, Users, Brain, MessageSquare, Search, Download, RefreshCw, FileText, Lightbulb, Clock, X } from 'lucide-react'
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -14,7 +15,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Progress } from '@/components/ui/progress'
-import { PatientRiskCard } from '@/components/ai/PatientRiskCard'
 import { AIAnalyticsDashboard } from '@/components/ai/AIAnalyticsDashboard'
 import { apiClient } from '@/lib/api-client'
 import { useAuth } from '@/contexts/AuthContext'
@@ -22,7 +22,7 @@ import { useDebounce } from '@/hooks/useDebounce'
 import { usePhysicianRiskAssessments } from '@/hooks/api/usePhysicianRiskAssessments'
 import { FEATURES } from '@/config'
 import type { AIInsight, AIRecommendation } from '@/lib/types/ai'
-import { ChatRole } from '../../types/api'
+import { ChatRole } from '@/types/api'
 import { createLogger } from '@/lib/logger'
 
 const logger = createLogger('PhysicianDashboard')
@@ -40,18 +40,7 @@ interface DashboardMetrics {
   pending_reviews: number
 }
 
-interface PatientWithRisk {
-  id: string
-  name: string
-  phone: string
-  treatment_type: string
-  risk_level: 'critical' | 'high' | 'medium' | 'low'
-  risk_factors: string[]
-  last_interaction: string
-  sentiment_score: number
-  engagement_score: number
-  has_alerts: boolean
-}
+ 
 
 interface ChatMessage {
   id: string
@@ -80,12 +69,12 @@ export default function PhysicianDashboard() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
-  const [selectedPatientForChat, setSelectedPatientForChat] = useState<string | null>(null)
+  
 
   const debouncedSearch = useDebounce(filters.search, 300)
 
   // Fetch dashboard metrics
-  const { data: metrics, isLoading: metricsLoading } = useQuery<DashboardMetrics>({
+  const { isLoading: metricsLoading } = useQuery<DashboardMetrics>({
     queryKey: ['physician-dashboard-metrics'],
     queryFn: async () => {
       const response = await apiClient.analytics.dashboard()
@@ -97,7 +86,13 @@ export default function PhysicianDashboard() {
 
   // PERFORMANCE: Single API call replacing 51 individual calls (Wave 2 Fix)
   // Now with server-side filtering and pagination
-  const filterParams: any = {
+  const filterParams: {
+    page: number
+    size: number
+    enabled: boolean
+    risk_level?: 'low' | 'medium' | 'high' | 'critical'
+    search?: string
+  } = {
     page: filters.page,
     size: filters.size,
     enabled: canAccessDashboard
@@ -164,7 +159,6 @@ export default function PhysicianDashboard() {
     mutationFn: async (message: string) => {
       const response = await apiClient.ai.chat(message, {
         role: 'physician',
-        patient_id: selectedPatientForChat,
         context: 'clinical_guidance'
       })
       return response
@@ -197,7 +191,7 @@ export default function PhysicianDashboard() {
 
   // Export report mutation
   const exportMutation = useMutation({
-    mutationFn: async (format: 'pdf' | 'excel') => {
+    mutationFn: async (_format: 'pdf' | 'excel') => {
       const reportData = {
         patients: patients,
         insights: summaryInsights,
@@ -233,20 +227,7 @@ export default function PhysicianDashboard() {
     navigate(`/physician/patients/${patientId}`)
   }, [navigate])
 
-  const handleQuickAction = useCallback((patientId: string, action: string) => {
-    switch (action) {
-      case 'message':
-        setSelectedPatientForChat(patientId)
-        setChatOpen(true)
-        break
-      case 'schedule':
-        navigate(`/physician/patients/${patientId}?tab=appointments`)
-        break
-      case 'review':
-        navigate(`/physician/patients/${patientId}?tab=ai-insights`)
-        break
-    }
-  }, [navigate])
+  
 
   const handleSendChat = useCallback(() => {
     if (!chatInput.trim()) return
@@ -305,11 +286,6 @@ export default function PhysicianDashboard() {
 
   // Patients are now filtered server-side
   const patients = riskData?.assessments ?? []
-
-  const highRiskPatients = useMemo(() =>
-    patients.filter((p) => p.risk_level === 'critical' || p.risk_level === 'high'),
-    [patients]
-  )
 
   return (
     <div className="space-y-6 p-6">
@@ -458,7 +434,7 @@ export default function PhysicianDashboard() {
                 {/* Risk Level Filter */}
                 <Select
                   value={filters.risk_level}
-                  onValueChange={(value) => setFilters({ ...filters, risk_level: value as any, page: 1 })}
+                  onValueChange={(value: 'all' | 'low' | 'medium' | 'high' | 'critical') => setFilters({ ...filters, risk_level: value, page: 1 })}
                 >
                   <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="Nível de Risco" />

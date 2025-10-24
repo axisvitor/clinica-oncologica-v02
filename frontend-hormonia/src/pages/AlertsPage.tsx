@@ -225,15 +225,15 @@ export function AlertsPage() {
       'Severidade': alert.severity,
       'Tipo': alert.type,
       'Paciente': alert.patient_name || 'N/A',
-      'Reconhecido': alert.is_acknowledged ? 'Sim' : 'Não',
       'Data': new Date(alert.created_at).toLocaleString('pt-BR')
     }))
 
-    const headers = Object.keys(csvData[0] || {})
-    const csv = [
+    const headers: string[] = Object.keys(csvData[0] || {})
+    const csvLines: string[] = [
       headers.join(','),
-      ...csvData.map(row => headers.map(h => `"${row[h as keyof typeof row]}"`).join(','))
-    ].join('\n')
+      ...csvData.map((row: any) => headers.map((h: string) => `"${String(row[h as keyof typeof row] ?? '')}"`).join(','))
+    ]
+    const csv = csvLines.join('\n')
 
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)

@@ -7,7 +7,7 @@ import {
   MessageDirection,
   MessageStatus,
   type Flow
-} from '../../../types/api'
+} from '@/types/api'
 
 // Re-export core types for convenience (enums as values, types as types)
 export {
@@ -17,7 +17,7 @@ export {
   MessageDirection,
   MessageStatus
 }
-export type { Flow } from '../../../types/api'
+export type { Flow } from '@/types/api'
 
 // Legacy alias for backwards compatibility
 export type FlowState = Flow

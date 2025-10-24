@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/components/ui/use-toast'
-import { AIChatMessage as ChatMessage, ChatRole, ChatSession } from '../../../types/api'
+import { AIChatMessage as ChatMessage, ChatRole, ChatSession } from '@/types/api'
 import { ChatResponse } from '../../lib/types/ai'
 import { apiClient } from '../../lib/api-client'
 import { FEATURES } from '../../config'
@@ -314,13 +314,14 @@ export function AIChatInterface({
                   
                   <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                     <span>{formatTime(message.timestamp)}</span>
-                    {message.metadata?.confidence && getConfidenceBadge(message.metadata.confidence)}
-                    {message.metadata?.requires_review && (
+                    {message.metadata?.['confidence'] && getConfidenceBadge(message.metadata['confidence'] as number)}
+
+                    {message.metadata?.['requires_review'] && (
                       <AlertTriangle className="h-3 w-3 text-yellow-500" />
                     )}
-                    {message.metadata?.intent && (
+                    {message.metadata?.['intent'] && (
                       <Badge variant="outline" className="text-xs">
-                        {message.metadata.intent}
+                        {String(message.metadata['intent'])}
                       </Badge>
                     )}
                   </div>

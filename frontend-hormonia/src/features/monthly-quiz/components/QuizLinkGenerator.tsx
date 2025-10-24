@@ -5,7 +5,8 @@
  */
 import React, { useState } from 'react';
 import { useMonthlyQuiz } from '../hooks/useMonthlyQuiz';
-import { DeliveryMethod, MonthlyQuizLinkCreate } from '../types';
+import type { DeliveryMethod } from '../types';
+import { MonthlyQuizLinkCreate } from '../types';
 
 interface QuizLinkGeneratorProps {
   patientId: string;
@@ -19,7 +20,7 @@ export const QuizLinkGenerator: React.FC<QuizLinkGeneratorProps> = ({
   onLinkCreated
 }) => {
   const { createQuizLink, loading, error } = useMonthlyQuiz();
-  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>(DeliveryMethod.WHATSAPP);
+  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('whatsapp');
   const [expiryHours, setExpiryHours] = useState<number>(72);
   const [customMessage, setCustomMessage] = useState<string>('');
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
@@ -36,7 +37,7 @@ export const QuizLinkGenerator: React.FC<QuizLinkGeneratorProps> = ({
     const link = await createQuizLink(linkData);
 
     if (link) {
-      setGeneratedLink(link.link_url);
+      setGeneratedLink(link.link_url ?? link.link ?? null);
       onLinkCreated?.(link);
     }
   };
@@ -61,10 +62,10 @@ export const QuizLinkGenerator: React.FC<QuizLinkGeneratorProps> = ({
             onChange={(e) => setDeliveryMethod(e.target.value as DeliveryMethod)}
             className="w-full p-2 border rounded"
           >
-            <option value={DeliveryMethod.WHATSAPP}>WhatsApp</option>
-            <option value={DeliveryMethod.EMAIL}>Email</option>
-            <option value={DeliveryMethod.SMS}>SMS</option>
-            <option value={DeliveryMethod.MANUAL}>Manual</option>
+            <option value={'whatsapp'}>WhatsApp</option>
+            <option value={'email'}>Email</option>
+            <option value={'sms'}>SMS</option>
+            <option value={'manual'}>Manual</option>
           </select>
         </div>
 

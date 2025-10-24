@@ -15,7 +15,7 @@ import {
   PatientEngagementMetrics,
   AIGeneratedMessage
 } from '../lib/types/ai'
-import { ChatRole, SentimentLabel } from '../../types/api'
+import { ChatRole, SentimentLabel } from '@/types/api'
 import { FEATURES } from '../config'
 
 const logger = createLogger('useAI')
@@ -327,12 +327,11 @@ export function useAIInsights(patientId: string) {
             description: 'Paciente demonstra engajamento consistente com as mensagens enviadas pela manhã',
             confidence: 0.89,
             priority: 'medium' as const,
-            data: {
+            metadata: {
               response_rate: 0.92,
               preferred_time: '08:00-10:00'
             },
             created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
             patient_id: patientId
           },
           {
@@ -342,12 +341,11 @@ export function useAIInsights(patientId: string) {
             description: 'Sentimento geral das mensagens melhorou 15% nos últimos 7 dias',
             confidence: 0.82,
             priority: 'high' as const,
-            data: {
+            metadata: {
               trend: 'upward',
               change_percentage: 15
             },
             created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
             patient_id: patientId
           }
         ] as AIInsight[]
@@ -537,18 +535,11 @@ export function useAISentiment(text?: string) {
       if (!FEATURES.AI_CHAT) {
         // Return mock sentiment
         const score = Math.random() * 2 - 1 // -1 to 1
+        const sentiment: 'positive' | 'negative' | 'neutral' = score > 0.2 ? 'positive' : score < -0.2 ? 'negative' : 'neutral'
         return {
           score,
-          magnitude: Math.abs(score),
-          label: score > 0.2 ? SentimentLabel.POSITIVE : score < -0.2 ? SentimentLabel.NEGATIVE : SentimentLabel.NEUTRAL,
+          sentiment,
           confidence: 0.8 + Math.random() * 0.2,
-          emotions: {
-            joy: score > 0 ? Math.random() * score : 0,
-            sadness: score < 0 ? Math.random() * Math.abs(score) : 0,
-            anger: Math.random() * 0.3,
-            fear: Math.random() * 0.2,
-            surprise: Math.random() * 0.4
-          }
         }
       }
 
@@ -618,12 +609,11 @@ export function useAIInsightsAdvanced(options: UseAIInsightsOptions = {}) {
             description: 'Pacientes respondem melhor pela manhã',
             confidence: 0.89,
             priority: 'medium' as const,
-            data: {
+            metadata: {
               time_range: '08:00-10:00',
               response_rate: 0.92
             },
             created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
             patient_id
           }
         ] as AIInsight[]

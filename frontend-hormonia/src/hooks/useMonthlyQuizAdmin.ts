@@ -1,12 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '@/components/ui/use-toast'
 import { apiClient } from '@/lib/api-client'
+import type { QuizLinkStatus } from '@/lib/api-client/monthly-quiz'
+
+type DeliveryMethod = 'whatsapp' | 'email' | 'sms' | 'manual'
 
 interface CreateQuizLinkData {
   patient_id: string
   quiz_template_id: string
-  delivery_method: string
-  expiry_hours: number
+  delivery_method?: DeliveryMethod
+  expiry_hours?: number
   custom_message?: string
   send_immediately?: boolean
 }
@@ -14,8 +17,8 @@ interface CreateQuizLinkData {
 interface BulkCreateQuizLinkData {
   patient_ids: string[]
   quiz_template_id: string
-  delivery_method: string
-  expiry_hours: number
+  delivery_method?: DeliveryMethod
+  expiry_hours?: number
   custom_message?: string
   send_immediately?: boolean
 }
@@ -66,9 +69,16 @@ export function useMonthlyQuizAdmin() {
 
   // Use query to get quiz link status with caching
   const useQuizLinkStatus = (patientId: string) => {
-    return useQuery({
+    return useQuery<any>({
       queryKey: ['monthly-quiz-status', patientId],
-      queryFn: () => getQuizLinkStatus(patientId),
+      queryFn: async () => {
+        const list = await getQuizLinkStatus(patientId)
+        if (!Array.isArray(list) || list.length === 0) return null
+        const first = list[0] as QuizLinkStatus
+        const expired = first.expires_at ? (new Date(first.expires_at) < new Date()) : false
+        const uiStatus = !expired && !['completed', 'cancelled', 'expired'].includes(first.status) ? 'active' : first.status
+        return { ...first, status: uiStatus }
+      },
       enabled: !!patientId,
       staleTime: 30000 // 30 seconds
     })

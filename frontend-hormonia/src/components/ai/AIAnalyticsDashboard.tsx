@@ -17,9 +17,9 @@ import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { LoadingSpinner } from '../ui/loading-spinner'
 import { apiClient } from '../../lib/api-client'
-import { AIAnalyticsDashboard as AIAnalyticsData, AIInsight, AIRecommendation, PerformanceTrend } from '../../lib/types/ai'
-import { InsightType } from '../../../types/api'
-import { Priority } from '../../../types/shared'
+import { AIAnalyticsDashboard as AIAnalyticsData, AIInsight, AIRecommendation, PerformanceTrend, PatientEngagementMetrics } from '../../lib/types/ai'
+import { InsightType } from '@/types/api'
+import type { Priority } from '@/types/shared'
 import { FEATURES } from '../../config'
 import { createLogger } from '@/lib/logger'
 
@@ -264,8 +264,8 @@ function InsightCard({ insight }: { insight: AIInsight }) {
           <h4 className="font-medium">{insight.title}</h4>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={getPriorityColor(insight.priority) as any}>
-            {insight.priority}
+          <Badge variant={getPriorityColor(String(insight.priority)) as any}>
+            {String(insight.priority)}
           </Badge>
           <Badge variant="outline">
             {Math.round(insight.confidence * 100)}%
@@ -307,7 +307,7 @@ function RecommendationCard({ recommendation }: { recommendation: AIRecommendati
   )
 }
 
-function EngagementMetricCard({ metric }: { metric: any }) {
+function EngagementMetricCard({ metric }: { metric: PatientEngagementMetrics }) {
   return (
     <div className="border rounded-lg p-4 space-y-2">
       <div className="flex items-center justify-between">
@@ -331,7 +331,7 @@ function EngagementMetricCard({ metric }: { metric: any }) {
   )
 }
 
-function PerformanceTrendCard({ trend }: { trend: any }) {
+function PerformanceTrendCard({ trend }: { trend: PerformanceTrend }) {
   return (
     <div className="border rounded-lg p-4 space-y-2">
       <div className="flex items-center justify-between">
@@ -392,10 +392,10 @@ function getMockAnalyticsData(): AIAnalyticsData {
         title: 'Padrão de Engajamento Matinal',
         description: 'Pacientes respondem 40% mais rápido entre 8h-10h',
         confidence: 0.89,
-        priority: Priority.MEDIUM,
-        data: {},
+        priority: 'medium' as Priority,
+        metadata: {},
         created_at: '2025-01-20T08:00:00Z',
-        updated_at: '2025-01-20T08:00:00Z',
+        
         patient_id: 'all'
       },
       {
@@ -404,10 +404,10 @@ function getMockAnalyticsData(): AIAnalyticsData {
         title: 'Queda no Sentimento - Fins de Semana',
         description: 'Sentimento médio cai 15% aos fins de semana',
         confidence: 0.76,
-        priority: Priority.HIGH,
-        data: {},
+        priority: 'high' as Priority,
+        metadata: {},
         created_at: '2025-01-19T16:00:00Z',
-        updated_at: '2025-01-19T16:00:00Z',
+        
         patient_id: 'all'
       }
     ],

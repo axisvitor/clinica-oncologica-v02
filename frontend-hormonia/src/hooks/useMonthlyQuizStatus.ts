@@ -1,19 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { useToast } from '@/components/ui/use-toast'
-import type { QuizLinkStatus } from '@/components/patients/MonthlyQuizStatus'
-
-export interface MonthlyQuizStatusData {
-  patient_id: string
-  session_id?: string
-  status: QuizLinkStatus
-  last_sent?: string
-  access_date?: string
-  completion_date?: string
-  expires_at?: string
-  template_name?: string
-  template_id?: string
-}
+import type { QuizLinkStatusValue, MonthlyQuizStatusData } from '@/types/api'
 
 export interface MonthlyQuizHistoryItem {
   id: string
@@ -21,7 +9,7 @@ export interface MonthlyQuizHistoryItem {
   patient_name: string
   template_name: string
   template_id: string
-  status: QuizLinkStatus
+  status: QuizLinkStatusValue
   sent_at: string
   accessed_at?: string
   completed_at?: string
@@ -42,23 +30,30 @@ export function useMonthlyQuizStatus(patientId: string) {
     queryFn: async () => {
       try {
         const response = await apiClient.monthlyQuiz.getPatientStatus(patientId)
+        const s: any = Array.isArray(response) ? response[0] : response
+
+        if (!s) {
+          return {
+            patient_id: patientId,
+            status: 'not_sent' as QuizLinkStatusValue,
+          }
+        }
+
         return {
           patient_id: patientId,
-          session_id: response.session_id,
-          status: mapBackendStatus(response.status),
-          last_sent: response.last_sent,
-          access_date: response.last_response,
-          completion_date: response.status === 'completed' ? response.last_response : undefined,
-          expires_at: response.expires_at,
-          template_name: response.template_name,
-          template_id: response.template_id
+          session_id: s.session_id ?? s.quiz_session_id,
+          status: mapBackendStatus(String(s.status ?? 'not_sent')),
+          last_sent: s.last_sent ?? s.sent_at,
+          access_date: s.last_response ?? s.accessed_at,
+          completion_date: (s.status === 'completed' ? (s.last_response ?? s.completed_at) : undefined),
+          expires_at: s.expires_at,
         }
       } catch (error: any) {
         // If patient has no quiz link, return not_sent status
         if (error.status === 404) {
           return {
             patient_id: patientId,
-            status: 'not_sent' as QuizLinkStatus,
+            status: 'not_sent' as QuizLinkStatusValue,
           }
         }
         throw error
@@ -88,19 +83,18 @@ export function useBulkMonthlyQuizStatus(patientIds: string[]) {
         const patientId = patientIds[index]
 
         if (result.status === 'fulfilled') {
-          const data = result.value
+          const data = result.value as any
+          const s = Array.isArray(data) ? data[0] : data
           const patientIdSafe = patientIds[index]
           if (patientIdSafe) {
             statuses[patientIdSafe] = {
               patient_id: patientIdSafe,
-              session_id: data.session_id,
-              status: mapBackendStatus(data.status),
-              last_sent: data.last_sent,
-              access_date: data.last_response,
-              completion_date: data.status === 'completed' ? data.last_response : undefined,
-              expires_at: data.expires_at,
-              template_name: data.template_name,
-              template_id: data.template_id
+              session_id: s?.session_id ?? s?.quiz_session_id,
+              status: mapBackendStatus(String(s?.status ?? 'not_sent')),
+              last_sent: s?.last_sent ?? s?.sent_at,
+              access_date: s?.last_response ?? s?.accessed_at,
+              completion_date: s?.status === 'completed' ? (s?.last_response ?? s?.completed_at) : undefined,
+              expires_at: s?.expires_at,
             }
           }
         } else {
@@ -109,7 +103,7 @@ export function useBulkMonthlyQuizStatus(patientIds: string[]) {
           if (patientIdSafe) {
             statuses[patientIdSafe] = {
               patient_id: patientIdSafe,
-              status: 'not_sent' as QuizLinkStatus
+              status: 'not_sent' as QuizLinkStatusValue
             }
           }
         }
@@ -182,9 +176,9 @@ export function useResendQuizLink() {
 }
 
 /**
- * Map backend status to frontend QuizLinkStatus
+ * Map backend status to frontend QuizLinkStatusValue
  */
-function mapBackendStatus(backendStatus: string): QuizLinkStatus {
+function mapBackendStatus(backendStatus: string): QuizLinkStatusValue {
   switch (backendStatus) {
     case 'active':
     case 'pending':

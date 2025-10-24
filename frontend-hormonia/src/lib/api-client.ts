@@ -62,7 +62,7 @@ export {
   type MonthlyQuizApi,
   // Analytics types
   type DashboardMetrics,
-  type PatientAnalytics,
+  type PatientsAnalytics,
   type PerformanceMetrics,
   type TimeSeriesData,
   type AnalyticsReport,

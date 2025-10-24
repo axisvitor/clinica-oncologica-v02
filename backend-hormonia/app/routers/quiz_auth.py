@@ -13,6 +13,7 @@ from app.utils.security import verify_password, create_access_token
 from app.models.user import User
 from app.services import ServiceProvider
 from app.dependencies.auth_dependencies import _get_service_provider
+from app.config.settings import settings
 
 router = APIRouter(prefix="/api/quiz/auth", tags=["Quiz Authentication"])
 security = HTTPBearer(auto_error=False)
@@ -91,7 +92,7 @@ async def quiz_login(
         key="quiz_session",
         value=session_id,
         httponly=True,  # ✅ Prevents JavaScript access
-        secure=True,    # ✅ HTTPS only (production)
+        secure=settings.SESSION_COOKIE_SECURE,  # ✅ HTTPS only in production
         samesite="lax", # ✅ CSRF protection
         max_age=cookie_max_age,
         path="/",

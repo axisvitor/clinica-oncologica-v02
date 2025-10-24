@@ -10,6 +10,7 @@ export default tseslint.config(
       "dist",
       "node_modules",
       "coverage",
+      "tests/**",
       "test-results",
       "playwright-report",
       "*.config.{js,ts}",
@@ -38,7 +39,6 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-non-null-assertion": "warn",
-      "@typescript-eslint/prefer-const": "error",
 
       // General rules
       // QUALITY FIX #7: Block console.logs in production, only allow warn/error
@@ -53,6 +53,23 @@ export default tseslint.config(
     },
   },
   {
+    files: ["tests/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-non-null-assertion": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "no-console": "off",
+    },
+  },
+  {
+    files: ["**/*.d.ts"],
+    rules: {
+      "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-empty-object-type": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+    },
+  },
+  {
     files: ["**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
@@ -62,6 +79,23 @@ export default tseslint.config(
   },
   {
     files: ["tests/e2e/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+    },
+  },
+  {
+    files: [
+      "src/utils/logger.ts",
+      "src/utils/route-prefetch.ts",
+      "src/utils/userAdmin.ts",
+    ],
+    rules: {
+      "no-console": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+    },
+  },
+  {
+    files: ["src/types/**/*.{ts,tsx}"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
     },

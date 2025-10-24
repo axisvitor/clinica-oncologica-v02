@@ -1,4 +1,5 @@
-﻿import type { AnalyticsPeriod } from '@/types/api-wave2'
+import type { AnalyticsPeriod } from '@/types/api-wave2'
+import type { ActivityItem, Alert } from '@/types/api'
 import { ApiClientCore } from './core'
 
 export interface DashboardMetrics {
@@ -16,7 +17,7 @@ export interface DashboardMetrics {
   }
 }
 
-export interface DashboardAnalytics {
+export interface DashboardAnalyticsData {
   total_patients: number
   active_patients: number
   active_patients_percentage: number
@@ -31,8 +32,8 @@ export interface DashboardAnalytics {
   quizzes_change: number
   avg_response_time: number
   engagement_chart: Array<{ date: string; messages_sent: number; responses_received: number; response_rate: number }>
-  recent_alerts: Array<Record<string, unknown>>
-  recent_activity: Array<Record<string, unknown>>
+  recent_alerts: Alert[]
+  recent_activity: ActivityItem[]
   total_quizzes: number
   active_conversations: number
   high_risk_patients: number
@@ -135,7 +136,8 @@ interface TreatmentDistributionResponse {
 const COLOR_PALETTE = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#0ea5e9']
 
 function getColor(index: number): string {
-  return COLOR_PALETTE[index % COLOR_PALETTE.length]
+  const i = Math.abs(index) % COLOR_PALETTE.length
+  return COLOR_PALETTE[i] ?? '#2563eb'
 }
 
 function normalizeMonthPoint(point: CompletionTrendPoint) {
@@ -166,10 +168,10 @@ function buildEngagementDistribution(data: PatientEngagementResponse): Engagemen
 }
 
 export function createAnalyticsApi(client: ApiClientCore) {
-  const fetchOverview = (params?: Record<string, unknown>) =>
+  const fetchOverview = (params?: Record<string, string | number | boolean>) =>
     client.get<AnalyticsOverviewResponse>('/api/v2/analytics/overview', params)
 
-  const fetchQuizStatus = (params?: Record<string, unknown>) =>
+  const fetchQuizStatus = (params?: Record<string, string | number | boolean>) =>
     client.get<QuizStatusResponse>('/api/v2/analytics/quiz-status', params)
 
   const fetchTrend = (months = 6) =>
@@ -179,7 +181,7 @@ export function createAnalyticsApi(client: ApiClientCore) {
     client.get<PatientEngagementResponse>('/api/v2/analytics/patient-engagement')
 
   return {
-    async dashboard(): Promise<DashboardAnalytics> {
+    async dashboard(_params?: Record<string, unknown>): Promise<DashboardAnalyticsData> {
       const [overview, status, trend, engagement] = await Promise.all([
         fetchOverview(),
         fetchQuizStatus(),
@@ -189,7 +191,7 @@ export function createAnalyticsApi(client: ApiClientCore) {
 
       const totalQuizzes = overview.total_quizzes ?? 0
       const completedQuizzes = overview.completed_quizzes ?? 0
-      const alertsPending = status.distribution?.cancelled ?? 0
+      const alertsPending = status.distribution?.['cancelled'] ?? 0
       const activePatients = overview.active_patients_30d ?? 0
       const totalPatients = overview.total_patients ?? 0
       const responseRate = overview.completion_rate ?? 0
@@ -218,8 +220,8 @@ export function createAnalyticsApi(client: ApiClientCore) {
         quizzes_change: 0,
         avg_response_time: 0,
         engagement_chart: engagementChart,
-        recent_alerts: [],
-        recent_activity: [],
+        recent_alerts: [] as Alert[],
+        recent_activity: [] as ActivityItem[],
         total_quizzes: totalQuizzes,
         active_conversations: activePatients,
         high_risk_patients: 0,

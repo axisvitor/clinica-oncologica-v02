@@ -8,11 +8,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { LoadingSpinner } from '../ui/loading-spinner'
+import type { Alert as CoreAlert } from '@/types/api'
 
-interface Alert {
+type UISeverity = 'low' | 'medium' | 'high' | 'critical'
+type UIAlert = {
   id: string
-  type: 'medical' | 'engagement' | 'system'
-  severity: 'low' | 'medium' | 'high' | 'critical'
+  type: string
+  severity: UISeverity
   title: string
   message: string
   patient_name?: string
@@ -20,8 +22,31 @@ interface Alert {
   created_at: string
 }
 
+type IncomingAlert = UIAlert | (CoreAlert & { patient_name?: string; severity?: UISeverity })
+
 interface AlertsPanelProps {
-  alerts?: Alert[]
+  alerts?: IncomingAlert[]
+}
+
+function normalizeAlert(a: IncomingAlert): UIAlert {
+  const inferredSeverity = ((): UISeverity => {
+    const t = (a as any).severity || (a as any).type
+    if (t === 'critical') return 'critical'
+    if (t === 'high') return 'high'
+    if (t === 'medium') return 'medium'
+    return 'low'
+  })()
+
+  return {
+    id: (a as any).id,
+    type: (a as any).type || 'system',
+    severity: (a as any).severity || inferredSeverity,
+    title: (a as any).title,
+    message: (a as any).message,
+    patient_name: (a as any).patient_name,
+    is_acknowledged: (a as any).is_acknowledged ?? (a as any).acknowledged ?? false,
+    created_at: (a as any).created_at,
+  }
 }
 
 export function AlertsPanel({ alerts: propAlerts }: AlertsPanelProps) {
@@ -31,7 +56,7 @@ export function AlertsPanel({ alerts: propAlerts }: AlertsPanelProps) {
     refetchInterval: 30000 // Refresh every 30 seconds
   })
 
-  const alerts = propAlerts || alertsData?.items || []
+  const alerts: UIAlert[] = (propAlerts || alertsData?.items || []).map(normalizeAlert)
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {

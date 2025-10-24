@@ -24,6 +24,7 @@ from app.services.file import FileService
 from app.services.monthly_quiz_service import MonthlyQuizService
 from app.services.metrics_collector import MetricsCollectorService
 from app.services.metrics_redis_storage import MetricsRedisStorage
+from app.services.simple_session_service import SimpleSessionService
 
 # Import repositories
 from app.repositories.user import UserRepository
@@ -77,6 +78,7 @@ class ServiceProvider:
         self._monthly_quiz_service = None
         self._metrics_collector_service = None
         self._metrics_redis_storage = None
+        self._simple_session_service = None
 
         logger.debug(f"ServiceProvider initialized for request {self._request_id} with {self._redis_client_type} Redis client")
 
@@ -305,6 +307,26 @@ class ServiceProvider:
             redis_client = self.get_redis_client_for_service('metrics_redis_storage')
             self._metrics_redis_storage = MetricsRedisStorage(redis_client)
         return self._metrics_redis_storage
+
+    @property
+    def session_service(self) -> SimpleSessionService:
+        """Get simple synchronous session service for quiz authentication."""
+        if self._simple_session_service is None:
+            # CRITICAL: SimpleSessionService requires SYNC Redis client
+            # The default self.redis_client is async, so we need to get sync client
+            from app.core.redis_manager import get_redis_manager
+            
+            sync_redis_client = None
+            if self.redis_client is not None:
+                try:
+                    redis_manager = get_redis_manager()
+                    sync_redis_client = redis_manager.get_compatible_client('sync')
+                    logger.debug(f"Obtained sync Redis client for SimpleSessionService (request {self._request_id})")
+                except Exception as e:
+                    logger.warning(f"Failed to get sync Redis client: {e}, proceeding without Redis")
+            
+            self._simple_session_service = SimpleSessionService(sync_redis_client)
+        return self._simple_session_service
 
 
 # Legacy function - NOW DISABLED to prevent thread-safety violations

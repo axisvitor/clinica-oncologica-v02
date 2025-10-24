@@ -60,9 +60,7 @@ export function useClinicalMetrics(
     queryFn: async () => {
       const response = await apiClient.get<ApiResponse<ClinicalMetrics>>(
         '/api/v1/metrics/clinical',
-        {
-          params: { timeRange }
-        }
+        { timeRange }
       )
       return response.data
     },

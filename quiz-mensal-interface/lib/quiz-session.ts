@@ -1,12 +1,21 @@
 /**
  * Quiz Session Management Utilities
+ * SECURITY: Cookies are signed with HMAC-SHA256 to prevent tampering
  */
 
 import { Buffer } from 'buffer'
 import { NextRequest } from 'next/server'
+import { createHmac, timingSafeEqual } from 'crypto'
 
 export const SESSION_EXPIRY = 4 * 60 * 60 * 1000
 export const SESSION_COOKIE_NAME = 'quiz-session-data'
+
+// SECURITY: Secret key for HMAC signing (should be in environment variable)
+const HMAC_SECRET = process.env.QUIZ_SESSION_SECRET || 'CHANGE_THIS_IN_PRODUCTION_TO_RANDOM_SECRET'
+
+if (HMAC_SECRET === 'CHANGE_THIS_IN_PRODUCTION_TO_RANDOM_SECRET') {
+  console.warn('⚠️  WARNING: Using default QUIZ_SESSION_SECRET. Set environment variable in production!')
+}
 
 export interface StoredQuizSession {
   token: string
@@ -14,8 +23,35 @@ export interface StoredQuizSession {
   expires: number
 }
 
+/**
+ * Generate HMAC signature for session data
+ */
+function signSession(data: string): string {
+  return createHmac('sha256', HMAC_SECRET)
+    .update(data)
+    .digest('base64url')
+}
+
+/**
+ * Verify HMAC signature (timing-safe comparison)
+ */
+function verifySignature(data: string, signature: string): boolean {
+  const expected = signSession(data)
+  try {
+    return timingSafeEqual(
+      Buffer.from(signature, 'base64url'),
+      Buffer.from(expected, 'base64url')
+    )
+  } catch {
+    return false
+  }
+}
+
 function encodeSession(payload: StoredQuizSession): string {
-  return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
+  const data = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
+  const signature = signSession(data)
+  // Format: data.signature
+  return `${data}.${signature}`
 }
 
 function decodeSession(raw: string | undefined): StoredQuizSession | null {
@@ -24,7 +60,22 @@ function decodeSession(raw: string | undefined): StoredQuizSession | null {
   }
 
   try {
-    const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'))
+    // Split data and signature
+    const parts = raw.split('.')
+    if (parts.length !== 2) {
+      console.error('Invalid session cookie format (missing signature)')
+      return null
+    }
+
+    const [data, signature] = parts
+
+    // SECURITY: Verify signature before parsing
+    if (!verifySignature(data, signature)) {
+      console.error('Session cookie signature verification failed - possible tampering')
+      return null
+    }
+
+    const parsed = JSON.parse(Buffer.from(data, 'base64url').toString('utf8'))
     if (
       typeof parsed !== 'object' || parsed === null ||
       typeof parsed.token !== 'string' ||

@@ -1,15 +1,14 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Play, Eye, Calendar, Users, CheckCircle, Send, Clock, XCircle, Filter } from 'lucide-react'
+import { Plus, Play, Eye, Users, CheckCircle, Send, Clock } from 'lucide-react'
 import { apiClient } from '../lib/api-client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
 import { LoadingSpinner } from '../components/ui/loading-spinner'
 import { useToast } from '@/components/ui/use-toast'
 import { MonthlyQuizStatus } from '@/components/patients/MonthlyQuizStatus'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table,
   TableBody,

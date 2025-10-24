@@ -22,23 +22,21 @@ def register_routers(app: FastAPI) -> None:
         app: FastAPI application instance
     """
     logger = get_logger(__name__)
-    logger.info("Loading router registration. V1 endpoints are deprecated and disabled.")
+    logger.info("Loading router registration. V1 and V2 endpoints are both active.")
 
-    # === V1 IMPORTS (DISABLED) ===
-    # logger.info("V1 router imports are disabled.")
-    # try:
-    #     from app.api.v1 import (
-    #         auth, patients, messages, flows, quiz, quiz_responses, reports, alerts, webhooks,
-    #         tasks, localization, analytics, dashboard, docs, health, performance,
-    #         platform_sync, template_management, template_versioning, monthly_quiz, monthly_quiz_public, ai, metrics, debug, config, admin_users, admin_roles,
-    #         health_rls, upload, medico, physician, system, templates_crud, worker_health
-    #     )
-    #     from app.api.v1.health import router as comprehensive_health_router
-    #     from app.routers.quiz_auth import router as quiz_auth
-    #     from app.routers.auth_session import router as auth_session
-    #     from app.routers.health import router as health_monitoring
-    # except Exception as e:
-    #     logger.error(f"An error occurred during V1 router import (which is expected as they are disabled): {e}")
+    # === V1 IMPORTS (ACTIVE FOR PRODUCTION) ===
+    logger.info("Importing V1 routers for production use...")
+    try:
+        from app.api.v1 import (
+            auth, patients, messages, flows, quiz, quiz_responses, reports, alerts, webhooks,
+            monthly_quiz, monthly_quiz_public, ai, metrics, admin_users,
+            upload, medico, physician, analytics, dashboard
+        )
+        from app.routers.quiz_auth import router as quiz_auth
+        logger.info("✓ V1 routers imported successfully.")
+    except Exception as e:
+        logger.error(f"Error importing V1 routers: {e}")
+        raise
 
     # === ESSENTIAL & V2 IMPORTS ===
     from app.routers.health import router as health_monitoring
@@ -88,73 +86,60 @@ def register_routers(app: FastAPI) -> None:
     logger.info("✓ Redis health check endpoint registered.")
 
 
-    # === V1 ROUTERS (ALL DISABLED) ===
-    logger.warning("All /api/v1/ endpoints are disabled and will be removed in a future update.")
-    # app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
-    # app.include_router(auth_session, prefix="/api/v1", tags=["Session Authentication"])
-    # app.include_router(medico.router, prefix="/api/v1", tags=["Medico"])
-    # app.include_router(physician.router, prefix="/api/v1", tags=["Physician"])
-    # app.include_router(worker_health.router, prefix="/api/v1", tags=["Worker Health"])
-    # from app.api.v1.admin import admin_router
-    # app.include_router(admin_router, prefix="/api/v1/admin", tags=["Admin"])
-    # app.include_router(admin_roles.router, prefix="/api/v1/admin/roles", tags=["Admin Roles"])
-    # app.include_router(patients.router, prefix="/api/v1/patients", tags=["Patients"])
-    # app.include_router(messages.router, prefix="/api/v1/messages", tags=["Messages"])
-    # app.include_router(flows.router, prefix="/api/v1/flows", tags=["Flows"])
-    # app.include_router(upload.router, prefix="/api/v1/upload", tags=["Upload"])
-    # app.include_router(template_management.router, prefix="/api/v1/template-management", tags=["Template Management"])
-    # app.include_router(template_versioning.router, prefix="/api/v1/flows/templates", tags=["Template Versioning"])
-    # app.include_router(templates_crud.router, prefix="/api/v1", tags=["Templates CRUD"])
-    # app.include_router(quiz.router, prefix="/api/v1/quiz", tags=["Quiz"])
-    # app.include_router(quiz_responses.router, prefix="/api/v1", tags=["Quiz Responses"])
-    # app.include_router(monthly_quiz.router, prefix="/api/v1/monthly-quiz", tags=["Monthly Quiz"])
-    # app.include_router(monthly_quiz_public.router, prefix="/api/v1/monthly-quiz-public", tags=["Monthly Quiz Public"])
-    # app.include_router(quiz_auth, tags=["Quiz Authentication"])
-    # app.include_router(ai.router, prefix="/api/v1", tags=["AI Services"])
-    # app.include_router(metrics.router, prefix="/api/v1", tags=["Healthcare Metrics"])
-    # app.include_router(reports.router, prefix="/api/v1/reports", tags=["Reports"])
-    # app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytics"])
-    # app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
-    # app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["Alerts"])
-    # app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["Webhooks"])
-    # app.include_router(tasks.router, prefix="/api/v1", tags=["Tasks"])
-    # app.include_router(localization.router, prefix="/api/v1/localization", tags=["Localization"])
-    # app.include_router(docs.router, prefix="/api/v1/docs", tags=["Documentation"])
-    # app.include_router(health.router, prefix="/api/v1", tags=["Health"])
-    # from app.api.v1 import enhanced_health
-    # app.include_router(enhanced_health.router, prefix="/api/v1", tags=["Health"])
-    # app.include_router(config.router, prefix="/api/v1", tags=["Configuration"])
-    # app.include_router(config.router, prefix="", tags=["Configuration"])
-    # if settings.DEBUG or getattr(settings, 'ENABLE_DEBUG_ENDPOINTS', False):
-    #     app.include_router(debug.router, prefix="/api/v1/debug", tags=["Debug"])
-    # app.include_router(comprehensive_health_router, prefix="/api/v1", tags=["Health"])
-    # from app.api.v1.production_health import router as prod_health_router
-    # app.include_router(prod_health_router, tags=["Health"])
-    # from app.api.v1 import database_health
-    # app.include_router(database_health.router, prefix="/api/v1", tags=["Database Health"])
-    # app.include_router(system.router, prefix="/api/v1/system", tags=["System Management"])
-    # app.include_router(performance.router, prefix="/api/v1", tags=["Performance"])
-    # app.include_router(platform_sync.router, prefix="/api/v1", tags=["Platform Sync"])
-    # from app.api import websockets, enhanced_websockets
-    # app.include_router(websockets.router, prefix="/ws")
-    # from app.api.v1 import (
-    #     enhanced_analytics, enhanced_messages, enhanced_quiz,
-    #     enhanced_reports, enhanced_monitoring, monitoring
-    # )
-    # app.include_router(enhanced_analytics.router, prefix="/api/v1/enhanced/analytics", tags=["Enhanced Analytics"])
-    # app.include_router(enhanced_messages.router, prefix="/api/v1/enhanced/messages", tags=["Enhanced Messages"])
-    # app.include_router(enhanced_quiz.router, prefix="/api/v1/enhanced/quiz", tags=["Enhanced Quiz"])
-    # app.include_router(enhanced_reports.router, prefix="/api/v1/enhanced/reports", tags=["Enhanced Reports"])
-    # app.include_router(enhanced_monitoring.router, prefix="/api/v1/enhanced", tags=["Enhanced Monitoring"])
-    # app.include_router(enhanced_websockets.router, prefix="/ws/enhanced", tags=["Enhanced WebSocket"])
-    # try:
-    #     if getattr(settings, 'ENABLE_EVOLUTION', False):
-    #         from app.integrations.whatsapp import whatsapp_router, webhook_router
-    #         app.include_router(whatsapp_router, tags=["WhatsApp"])
-    #         app.include_router(webhook_router)
-    # except ImportError as e:
-    #     logger.warning(f"WhatsApp integration not available: {e}")
-    # app.include_router(monitoring.router, prefix="/api/v1", tags=["Monitoring"])
+    # === V1 ROUTERS (ACTIVE FOR PRODUCTION) ===
+    logger.info("Registering V1 endpoints for production use...")
+    
+    # Core authentication and session
+    app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
+    app.include_router(auth_session, prefix="/api/v1", tags=["Session Authentication"])
+    logger.info("✓ Auth endpoints registered")
+    
+    # Patient management
+    app.include_router(patients.router, prefix="/api/v1/patients", tags=["Patients"])
+    app.include_router(medico.router, prefix="/api/v1", tags=["Medico"])
+    app.include_router(physician.router, prefix="/api/v1", tags=["Physician"])
+    logger.info("✓ Patient management endpoints registered")
+    
+    # Quiz system
+    app.include_router(quiz.router, prefix="/api/v1/quiz", tags=["Quiz"])
+    app.include_router(quiz_responses.router, prefix="/api/v1", tags=["Quiz Responses"])
+    app.include_router(monthly_quiz.router, prefix="/api/v1/monthly-quiz", tags=["Monthly Quiz"])
+    app.include_router(monthly_quiz_public.router, prefix="/api/v1/monthly-quiz-public", tags=["Monthly Quiz Public"])
+    app.include_router(quiz_auth, tags=["Quiz Authentication"])
+    logger.info("✓ Quiz endpoints registered")
+    
+    # Communication
+    app.include_router(messages.router, prefix="/api/v1/messages", tags=["Messages"])
+    app.include_router(flows.router, prefix="/api/v1/flows", tags=["Flows"])
+    app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["Webhooks"])
+    logger.info("✓ Communication endpoints registered")
+    
+    # Reports and analytics
+    app.include_router(reports.router, prefix="/api/v1/reports", tags=["Reports"])
+    app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytics"])
+    app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
+    app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["Alerts"])
+    logger.info("✓ Reports and analytics endpoints registered")
+    
+    # AI and metrics
+    app.include_router(ai.router, prefix="/api/v1", tags=["AI Services"])
+    app.include_router(metrics.router, prefix="/api/v1", tags=["Healthcare Metrics"])
+    logger.info("✓ AI and metrics endpoints registered")
+    
+    # Admin and utilities
+    app.include_router(admin_users.router, prefix="/api/v1/admin/users", tags=["Admin Users"])
+    app.include_router(upload.router, prefix="/api/v1/upload", tags=["Upload"])
+    logger.info("✓ Admin and utility endpoints registered")
+    
+    # WhatsApp integration (if enabled)
+    try:
+        if getattr(settings, 'ENABLE_EVOLUTION', False):
+            from app.integrations.whatsapp import whatsapp_router, webhook_router
+            app.include_router(whatsapp_router, tags=["WhatsApp"])
+            app.include_router(webhook_router)
+            logger.info("✓ WhatsApp integration endpoints registered")
+    except ImportError as e:
+        logger.warning(f"WhatsApp integration not available: {e}")
 
 
     # === API V2 ROUTER (ACTIVE) ===
@@ -162,4 +147,4 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(api_v2_router, tags=["API v2"])
     logger.info("✓ API v2 endpoints registered (/api/v2)")
 
-    logger.info("All active routers registered successfully. API v2 is the primary API.")
+    logger.info("All routers registered successfully. V1 (production) and V2 (ready for migration) are both active.")

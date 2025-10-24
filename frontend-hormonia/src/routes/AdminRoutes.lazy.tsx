@@ -21,6 +21,7 @@ import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { ErrorBoundary } from '../components/error/ErrorBoundary';
 import { createLogger } from '../lib/logger';
+import type { AdminLoginCredentials, AdminLoginResponse } from '../types/admin';
 
 const logger = createLogger('AdminRoutes.lazy');
 
@@ -264,10 +265,35 @@ export const preloadOnHover = (route: string) => {
 // ============================================================================
 
 const AdminLoginPage: React.FC = () => {
+  const handleLogin = async (credentials: AdminLoginCredentials): Promise<AdminLoginResponse> => {
+    // TODO: Implement admin login logic
+    logger.info('Admin login', { email: credentials.email })
+    return {
+      success: true,
+      user: {
+        id: 'temp-admin-id',
+        email: credentials.email,
+        full_name: 'Admin',
+        role: 'admin',
+        is_active: true,
+        permissions: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        last_login: new Date().toISOString(),
+        login_count: 1,
+        two_factor_enabled: false,
+        failed_login_attempts: 0,
+        locked_until: null,
+      },
+      token: 'temp-token',
+      refreshToken: 'temp-refresh',
+    }
+  }
+
   return (
     <ErrorBoundary>
       <Suspense fallback={<LoadingSpinner />}>
-        <AdminLoginForm />
+        <AdminLoginForm onLogin={handleLogin} />
       </Suspense>
     </ErrorBoundary>
   );

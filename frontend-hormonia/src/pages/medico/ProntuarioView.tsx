@@ -1,8 +1,7 @@
 /// <reference types="vite/client" />
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useMedicoAuth } from '../../contexts/MedicoAuthContext'
 import { apiClient } from '../../lib/api-client'
 
 interface Paciente {
@@ -25,19 +24,12 @@ interface Consulta {
 export default function ProntuarioView() {
   const { pacienteId } = useParams<{ pacienteId: string }>()
   const navigate = useNavigate()
-  const { state } = useMedicoAuth()
   const [paciente, setPaciente] = useState<Paciente | null>(null)
   const [consultas, setConsultas] = useState<Consulta[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (pacienteId) {
-      fetchProntuario()
-    }
-  }, [pacienteId])
-
-  const fetchProntuario = async () => {
+  const fetchProntuario = useCallback(async () => {
     try {
       setLoading(true)
 
@@ -73,7 +65,13 @@ export default function ProntuarioView() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [pacienteId])
+
+  useEffect(() => {
+    if (pacienteId) {
+      fetchProntuario()
+    }
+  }, [pacienteId, fetchProntuario])
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('pt-BR')

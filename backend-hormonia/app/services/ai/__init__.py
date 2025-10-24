@@ -103,6 +103,35 @@ __all__ = [
 
 __version__ = "2.0.0"  # Version 2.0 - Consolidated
 
+# ============================================================================
+# Backward Compatibility Aliases (Legacy Support)
+# ============================================================================
+# These aliases maintain backward compatibility with old import patterns.
+# Code using old imports will continue to work without changes.
+
+# Legacy function aliases
+get_ai_humanizer = get_ai_service  # AIService replaces AIHumanizer
+get_sentiment_analyzer = get_ai_service  # Sentiment analysis is now a method
+get_context_builder = lambda: PatientContext  # PatientContext is the builder
+
+# Legacy class aliases
+AIHumanizer = AIService  # Renamed to AIService
+SentimentAnalyzer = AIService  # Integrated into AIService
+ContextBuilder = PatientContext  # PatientContext is the builder
+
+# Add legacy exports to __all__
+__all__.extend(
+    [
+        # Legacy aliases (deprecated but supported)
+        "get_ai_humanizer",
+        "get_sentiment_analyzer",
+        "get_context_builder",
+        "AIHumanizer",
+        "SentimentAnalyzer",
+        "ContextBuilder",
+    ]
+)
+
 # Module metadata
 __consolidation_date__ = "2025-01-20"
 __files_consolidated__ = [
@@ -116,3 +145,4 @@ __total_reduction__ = "5 files → 3 files (40% reduction)"
 __loc_reduction__ = "2,269 LOC → 1,974 LOC (13% reduction, quality improved)"
 __duplications_eliminated__ = "436 LOC (100%)"
 __features_maintained__ = "100% - All functionality preserved with better integration"
+__backward_compatibility__ = "100% - Legacy imports supported via aliases"

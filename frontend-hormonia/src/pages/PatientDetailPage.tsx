@@ -24,6 +24,7 @@ import { useMonthlyQuizAdmin } from '@/hooks/useMonthlyQuizAdmin'
 import { useAIInsights, useAIRecommendations } from '@/hooks/useAI'
 import { useAuth } from '@/contexts/AuthContext'
 import { FEATURES } from '@/config'
+import type { QuizHistoryEntry } from '@/lib/api-client/monthly-quiz'
 
 export function PatientDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -134,7 +135,7 @@ export function PatientDetailPage() {
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          {getStatusBadge(patient.status)}
+          {getStatusBadge(patient.status || 'inactive')}
         </div>
       </div>
 
@@ -151,7 +152,7 @@ export function PatientDetailPage() {
                 {getInitials(patient.name)}
               </AvatarFallback>
             </Avatar>
-            
+
             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="space-y-3">
                 <div className="flex items-center space-x-2">
@@ -220,7 +221,7 @@ export function PatientDetailPage() {
               <QuizLinkStatus
                 patientId={id!}
                 {...(quizStatus.last_sent && { lastSent: new Date(quizStatus.last_sent) })}
-                {...(quizStatus.last_response && { lastResponse: new Date(quizStatus.last_response) })}
+                {...(quizStatus.access_date && { lastResponse: new Date(quizStatus.access_date) })}
                 linkStatus={quizStatus.status}
                 {...(quizStatus.expires_at && { expiresAt: new Date(quizStatus.expires_at) })}
               />
@@ -285,7 +286,7 @@ export function PatientDetailPage() {
                   </div>
                   <p className="text-2xl font-bold mt-2">
                     {quizHistory.length > 0
-                      ? Math.round((quizHistory.filter((h: any) => h.status === 'completed').length / quizHistory.length) * 100)
+                      ? Math.round((quizHistory.filter((h: unknown) => h.status === 'completed').length / quizHistory.length) * 100)
                       : 0}%
                   </p>
                 </div>
@@ -301,18 +302,18 @@ export function PatientDetailPage() {
               <div className="mt-4">
                 <h4 className="text-sm font-semibold text-gray-900 mb-2">Histórico</h4>
                 <div className="space-y-2">
-                  {quizHistory.slice(0, 5).map((entry: any) => (
+                  {quizHistory.slice(0, 5).map((entry: QuizHistoryEntry) => (
                     <div key={entry.id} className="flex items-center justify-between p-2 border rounded">
                       <div>
-                        <p className="text-sm font-medium">{entry.template_name}</p>
+                        <p className="text-sm font-medium">{entry.quiz_template_name}</p>
                         <p className="text-xs text-gray-500">
-                          {new Date(entry.sent_at).toLocaleDateString('pt-BR')}
+                          {entry.sent_at && new Date(entry.sent_at).toLocaleDateString('pt-BR')}
                         </p>
                       </div>
                       <QuizLinkStatus
                         patientId={id!}
-                        lastSent={new Date(entry.sent_at)}
-                        {...(entry.completed_at && { lastResponse: new Date(entry.completed_at) })}
+                        {...(entry.sent_at && { lastSent: new Date(entry.sent_at) })}
+                        {...(entry.accessed_at && { lastResponse: new Date(entry.accessed_at) })}
                         linkStatus={entry.status}
                         {...(entry.expires_at && { expiresAt: new Date(entry.expires_at) })}
                       />
@@ -430,26 +431,24 @@ export function PatientDetailPage() {
                   <CardContent className="space-y-4">
                     {/* Risk Assessment */}
                     {aiInsights?.risk_level && (
-                      <div className={`border-l-4 p-4 rounded-r-lg ${
-                        aiInsights.risk_level === 'critical' ? 'border-red-500 bg-red-50' :
+                      <div className={`border-l-4 p-4 rounded-r-lg ${aiInsights.risk_level === 'critical' ? 'border-red-500 bg-red-50' :
                         aiInsights.risk_level === 'high' ? 'border-orange-500 bg-orange-50' :
-                        aiInsights.risk_level === 'medium' ? 'border-yellow-500 bg-yellow-50' :
-                        'border-green-500 bg-green-50'
-                      }`}>
+                          aiInsights.risk_level === 'medium' ? 'border-yellow-500 bg-yellow-50' :
+                            'border-green-500 bg-green-50'
+                        }`}>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <AlertTriangle className="h-5 w-5" />
                             <span className="font-medium">Nível de Risco:</span>
                           </div>
-                          <Badge className={`${
-                            aiInsights.risk_level === 'critical' ? 'bg-red-500' :
+                          <Badge className={`${aiInsights.risk_level === 'critical' ? 'bg-red-500' :
                             aiInsights.risk_level === 'high' ? 'bg-orange-500' :
-                            aiInsights.risk_level === 'medium' ? 'bg-yellow-500' :
-                            'bg-green-500'
-                          } text-white`}>
+                              aiInsights.risk_level === 'medium' ? 'bg-yellow-500' :
+                                'bg-green-500'
+                            } text-white`}>
                             {aiInsights.risk_level === 'critical' ? 'Crítico' :
-                             aiInsights.risk_level === 'high' ? 'Alto' :
-                             aiInsights.risk_level === 'medium' ? 'Médio' : 'Baixo'}
+                              aiInsights.risk_level === 'high' ? 'Alto' :
+                                aiInsights.risk_level === 'medium' ? 'Médio' : 'Baixo'}
                           </Badge>
                         </div>
                         {aiInsights.risk_factors && aiInsights.risk_factors.length > 0 && (
@@ -476,7 +475,7 @@ export function PatientDetailPage() {
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-muted-foreground">
                               {aiInsights.sentiment_score >= 0.7 ? 'Positivo' :
-                               aiInsights.sentiment_score >= 0.4 ? 'Neutro' : 'Negativo'}
+                                aiInsights.sentiment_score >= 0.4 ? 'Neutro' : 'Negativo'}
                             </span>
                             <span className="text-sm font-bold">{(aiInsights.sentiment_score * 100).toFixed(0)}%</span>
                           </div>
@@ -493,7 +492,7 @@ export function PatientDetailPage() {
                           <span className="font-medium">Principais Recomendações</span>
                         </div>
                         <div className="space-y-2">
-                          {aiRecommendations.slice(0, 3).map((rec: any) => (
+                          {aiRecommendations.slice(0, 3).map((rec: { id: string; title: string; priority: string }) => (
                             <div key={rec.id} className="flex items-center justify-between text-sm">
                               <span className="text-muted-foreground">{rec.title}</span>
                               <Badge variant={rec.priority === 'high' ? 'destructive' : 'secondary'} className="text-xs">

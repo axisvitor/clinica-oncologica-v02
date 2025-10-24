@@ -10,6 +10,7 @@
  */
 
 import type { ApiClientCore, PaginatedResponse } from './core'
+import type { TimelineEvent } from '@/types/api'
 
 export interface Patient {
   id: string
@@ -18,6 +19,8 @@ export interface Patient {
   phone?: string
   cpf?: string
   birth_date?: string
+  treatment_type?: string
+  treatment_start_date?: string
   gender?: 'M' | 'F' | 'other'
   address?: {
     street?: string
@@ -35,10 +38,11 @@ export interface Patient {
     medications?: string[]
     notes?: string
   }
-  status?: 'active' | 'inactive' | 'archived'
+  status?: 'active' | 'inactive' | 'archived' | 'paused' | 'completed'
   created_at?: string
   updated_at?: string
   doctor_id?: string
+  current_day?: number
 }
 
 export interface PatientCreate {
@@ -54,7 +58,7 @@ export interface PatientCreate {
 }
 
 export interface PatientUpdate extends Partial<PatientCreate> {
-  status?: 'active' | 'inactive' | 'archived'
+  status?: 'active' | 'inactive' | 'archived' | 'paused' | 'completed'
 }
 
 export interface PatientFilters {
@@ -120,15 +124,54 @@ export function createPatientsApi(client: ApiClientCore) {
      * List patients with pagination and filters
      */
     list: async (
-      page: number = 1,
+      pageOrOptions: number | (PatientFilters & { page?: number; size?: number; cursor?: string; limit?: number }) = 1,
       size: number = 20,
       filters?: PatientFilters
     ): Promise<PaginatedResponse<Patient>> => {
-      return client.get<PaginatedResponse<Patient>>('/api/v2/patients', {
+      // Support both legacy page/size and v2 cursor/limit
+      let page = 1
+      let limit = 20
+      let cursor: string | undefined
+      let rest: Record<string, any> = {}
+
+      if (typeof pageOrOptions === 'number') {
+        page = pageOrOptions
+        limit = size ?? 20
+        rest = { ...(filters || {}) }
+      } else {
+        const { page: optPage = 1, size: optionSize = 20, cursor: optCursor, limit: optLimit, ...other } = pageOrOptions
+        page = optPage
+        limit = (optLimit ?? optionSize) ?? 20
+        cursor = optCursor
+        rest = other
+      }
+
+      const query = {
+        limit,
+        ...(cursor ? { cursor } : {}),
+        ...rest
+      }
+
+      const res: any = await client.get<any>('/api/v2/patients', query)
+
+      // Normalize to keep backward compatibility with components expecting `items`
+      const items = Array.isArray(res?.data) ? res.data : (res?.items ?? [])
+      const total = res?.total ?? res?.total_count ?? 0
+      const has_more = res?.has_more ?? (typeof res?.pages === 'number' && page < res.pages)
+      const next_cursor = res?.next_cursor ?? null
+      const normalized: any = {
+        items,
+        total,
         page,
-        size,
-        ...filters
-      })
+        size: limit,
+        pages: total ? Math.ceil(total / Math.max(1, limit)) : (res?.pages ?? undefined),
+        has_more,
+        next_cursor,
+        // keep v2 shape as well for newer consumers
+        data: items
+      }
+
+      return normalized as PaginatedResponse<Patient>
     },
 
     /**
@@ -159,6 +202,18 @@ export function createPatientsApi(client: ApiClientCore) {
       return client.delete<{ message: string }>(`/api/v2/patients/${patientId}`)
     },
 
+    deletePatient: async (patientId: string): Promise<{ message: string }> => {
+      return client.delete<{ message: string }>(`/api/v2/patients/${patientId}`)
+    },
+
+    activate: async (patientId: string): Promise<any> => {
+      return client.post(`/api/v1/patients/${patientId}/activate`)
+    },
+
+    deactivate: async (patientId: string): Promise<any> => {
+      return client.post(`/api/v1/patients/${patientId}/deactivate`)
+    },
+
     /**
      * Archive patient
      */
@@ -171,6 +226,13 @@ export function createPatientsApi(client: ApiClientCore) {
      */
     restore: async (patientId: string): Promise<Patient> => {
       return client.patch<Patient>(`/api/v1/patients/${patientId}/restore`)
+    },
+
+    /**
+     * Get patient timeline events
+     */
+    timeline: async (patientId: string): Promise<{ events: TimelineEvent[]; total?: number }> => {
+      return client.get<{ events: TimelineEvent[]; total?: number }>(`/api/v1/patients/${patientId}/timeline`)
     },
 
     /**

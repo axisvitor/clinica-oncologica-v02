@@ -576,3 +576,148 @@ class FlowManager:
     def __repr__(self) -> str:
         """String representation."""
         return f"<FlowManager(engine={self.engine}, integrations={len(self._integrations)})>"
+
+    # ========================================================================
+    # Backward Compatibility Methods (for Legacy API)
+    # ========================================================================
+
+    async def get_flow_status(self, flow_id: UUID) -> Optional[FlowStatus]:
+        """
+        Get flow status (backward compatibility method).
+
+        This method provides compatibility with legacy code that expects
+        get_flow_status() instead of get_flow().status.
+
+        Args:
+            flow_id: Flow instance ID
+
+        Returns:
+            Flow status or None if flow not found
+
+        Example:
+            >>> status = await manager.get_flow_status(flow_id)
+            >>> if status == FlowStatus.ACTIVE:
+            ...     print("Flow is running")
+        """
+        context = await self._load_context(flow_id)
+        return context.status if context else None
+
+    async def complete_flow(self, flow_id: UUID, **kwargs) -> bool:
+        """
+        Complete a flow (backward compatibility method).
+
+        This method provides compatibility with legacy code that expects
+        complete_flow() instead of update_flow_status().
+
+        Args:
+            flow_id: Flow instance ID
+            **kwargs: Additional completion data
+
+        Returns:
+            True if flow was completed successfully
+
+        Example:
+            >>> success = await manager.complete_flow(flow_id)
+        """
+        try:
+            context = await self._load_context(flow_id)
+            if not context:
+                logger.warning(f"Cannot complete flow {flow_id}: not found")
+                return False
+
+            context.status = FlowStatus.COMPLETED
+            context.completed_at = datetime.utcnow()
+            await self._save_context(context)
+
+            # Broadcast completion event
+            await self._broadcast_event(
+                FlowEvent(
+                    event_type=FlowEventType.FLOW_COMPLETED,
+                    flow_instance_id=flow_id,
+                    timestamp=datetime.utcnow(),
+                    data=kwargs,
+                )
+            )
+
+            logger.info(f"Flow {flow_id} completed successfully")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to complete flow {flow_id}: {e}")
+            return False
+
+    async def cancel_flow(self, flow_id: UUID, reason: Optional[str] = None) -> bool:
+        """
+        Cancel a flow (backward compatibility method).
+
+        This method provides compatibility with legacy code that expects
+        cancel_flow() instead of update_flow_status().
+
+        Args:
+            flow_id: Flow instance ID
+            reason: Cancellation reason
+
+        Returns:
+            True if flow was cancelled successfully
+
+        Example:
+            >>> success = await manager.cancel_flow(flow_id, "User requested")
+        """
+        try:
+            context = await self._load_context(flow_id)
+            if not context:
+                logger.warning(f"Cannot cancel flow {flow_id}: not found")
+                return False
+
+            context.status = FlowStatus.CANCELLED
+            context.cancelled_at = datetime.utcnow()
+            if reason:
+                context.flow_data["cancellation_reason"] = reason
+
+            await self._save_context(context)
+
+            # Broadcast cancellation event
+            await self._broadcast_event(
+                FlowEvent(
+                    event_type=FlowEventType.FLOW_CANCELLED,
+                    flow_instance_id=flow_id,
+                    timestamp=datetime.utcnow(),
+                    data={"reason": reason} if reason else {},
+                )
+            )
+
+            logger.info(f"Flow {flow_id} cancelled: {reason or 'no reason given'}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to cancel flow {flow_id}: {e}")
+            return False
+
+    async def get_flow_data(self, flow_id: UUID) -> Dict[str, Any]:
+        """
+        Get flow data (backward compatibility method).
+
+        This method provides compatibility with legacy code that expects
+        get_flow_data() instead of get_flow().data.
+
+        Args:
+            flow_id: Flow instance ID
+
+        Returns:
+            Flow data dictionary or empty dict if flow not found
+
+        Example:
+            >>> data = await manager.get_flow_data(flow_id)
+            >>> patient_name = data.get("patient_name")
+        """
+        context = await self._load_context(flow_id)
+        if not context:
+            return {}
+
+        return {
+            "flow_data": context.flow_data,
+            "current_data": context.current_data,
+            "variables": context.variables,
+            "steps_completed": context.steps_completed,
+            "steps_history": context.steps_history,
+        }

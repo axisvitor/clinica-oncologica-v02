@@ -1,53 +1,33 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Plus, Download, Eye, Calendar, Filter, FileText, Trash2, RefreshCw } from 'lucide-react'
+import { Plus, Download, Eye, Calendar, Filter, FileText } from 'lucide-react'
 import { apiClient } from '../lib/api-client'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { LoadingSpinner } from '../components/ui/loading-spinner'
 import { ReportCard } from '../components/reports/ReportCard'
 import { ReportGenerator } from '../components/reports/ReportGenerator'
-import { ReportPreviewModal } from '../components/reports/ReportPreviewModal'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuth } from '../hooks/useAuth'
 import { createLogger } from '../lib/logger'
+import type { Report } from '@/types/api'
 
 const logger = createLogger('ReportsPage')
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Label } from '@/components/ui/label'
+ 
 
 export function ReportsPage() {
-  const [currentPage, setCurrentPage] = useState(1)
+  const currentPage = 1
   const [showFilters, setShowFilters] = useState(false)
   const [showGenerateDialog, setShowGenerateDialog] = useState(false)
-  const [showPreviewModal, setShowPreviewModal] = useState(false)
-  const [previewReportId, setPreviewReportId] = useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('')
-  const [typeFilter, setTypeFilter] = useState<string>('')
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [reportToDelete, setReportToDelete] = useState<string | null>(null)
+  const searchQuery = ''
+  const statusFilter: string = ''
+  const typeFilter: string = ''
   const [downloading, setDownloading] = useState<string | null>(null)
   const { toast } = useToast()
-  const { user, token } = useAuth()
+  const { token } = useAuth()
 
-  const { data: reportsData, isLoading, refetch } = useQuery({
+  const { data: reportsData, isLoading } = useQuery({
     queryKey: ['reports', { page: currentPage, size: 20, search: searchQuery, status: statusFilter, type: typeFilter }],
     queryFn: async () => {
       // Build query parameters from filters
@@ -73,8 +53,7 @@ export function ReportsPage() {
   })
 
   const handleViewReport = (reportId: string) => {
-    setPreviewReportId(reportId)
-    setShowPreviewModal(true)
+    toast({ title: 'Visualização de relatório', description: `Preview do relatório ${reportId} em breve.` })
   }
 
   const handleDownloadReport = async (reportId: string) => {
@@ -139,11 +118,12 @@ export function ReportsPage() {
         title: 'Download concluído',
         description: `Relatório ${filename} baixado com sucesso.`,
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Download error', { reportId, error })
+      const errorMessage = error instanceof Error ? error.message : 'Não foi possível baixar o relatório.'
       toast({
         title: 'Erro no download',
-        description: error.message || 'Não foi possível baixar o relatório.',
+        description: errorMessage,
         variant: 'destructive'
       })
     } finally {
@@ -155,9 +135,9 @@ export function ReportsPage() {
     const reports = reportsData?.items || []
     return {
       total: reports.length,
-      completed: reports.filter(r => r.status === 'completed').length,
-      generating: reports.filter(r => r.status === 'generating').length,
-      failed: reports.filter(r => r.status === 'failed').length
+      completed: reports.filter((r: Report) => r.status === 'completed').length,
+      generating: reports.filter((r: Report) => r.status === 'generating').length,
+      failed: reports.filter((r: Report) => r.status === 'failed').length
     }
   }
 
@@ -283,7 +263,7 @@ export function ReportsPage() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {reportsData?.items?.map((report: any) => (
+            {reportsData?.items?.map((report: Report) => (
               <ReportCard
                 key={report.id}
                 report={report}

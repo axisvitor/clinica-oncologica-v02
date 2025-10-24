@@ -217,10 +217,11 @@ export function isTokenExpired(expiresAt: string): boolean {
 
 /**
  * Secure token extraction from URL with immediate cleanup
+ * SECURITY FIX: Token is NOT persisted - only used once to initialize session
  */
 export function extractTokenFromURL(): string | null {
   if (typeof window === 'undefined') {
-    return secureTokenManager.getToken()
+    return null
   }
 
   const params = new URLSearchParams(window.location.search)
@@ -232,13 +233,14 @@ export function extractTokenFromURL(): string | null {
     url.searchParams.delete('token')
     window.history.replaceState({}, '', url.toString())
 
-     // Store token in secure manager for future reloads
-     secureTokenManager.setToken(token)
-     return token
+    // SECURITY FIX: Do NOT persist token in sessionStorage
+    // Token is used once to initialize httpOnly cookie session
+    // After that, the cookie handles authentication
+    return token
   }
 
-  // Fallback to previously stored token (e.g., after refresh)
-  return secureTokenManager.getToken()
+  // No fallback - if no token in URL, user needs a new link
+  return null
 }
 
 /**

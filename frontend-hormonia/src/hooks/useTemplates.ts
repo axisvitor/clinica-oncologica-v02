@@ -122,7 +122,12 @@ export interface QuizTemplate {
   updated_at: string;
 }
 
-export interface PaginatedResponse<T> {
+// Import and re-export PaginatedResponse from shared types
+import type { PaginatedResponse as SharedPaginatedResponse } from '@/types/shared'
+export type PaginatedResponse<T> = SharedPaginatedResponse<T>
+
+// Legacy interface for backward compatibility (deprecated)
+interface _PaginatedResponse<T> {
   items: T[];
   total: number;
   page: number;
@@ -170,9 +175,7 @@ export function useTemplates() {
   }): Promise<PaginatedResponse<FlowTemplate> | null> => {
     setLoading(true);
     try {
-      const response = await apiClient.get<PaginatedResponse<FlowTemplate>>('/api/v1/templates/flows', {
-        params: params || {},
-      });
+      const response = await apiClient.get<PaginatedResponse<FlowTemplate>>('/api/v1/templates/flows', params || undefined);
 
       return response;
     } catch (error: any) {
@@ -236,9 +239,7 @@ export function useTemplates() {
   ): Promise<boolean> => {
     setLoading(true);
     try {
-      await apiClient.delete(`/api/v1/templates/flows/${templateId}`, {
-        params: { soft_delete: softDelete },
-      });
+      await apiClient.delete(`/api/v1/templates/flows/${templateId}`, { soft_delete: softDelete });
 
       toast({
         title: 'Template removido',
@@ -291,9 +292,7 @@ export function useTemplates() {
   }): Promise<PaginatedResponse<QuizTemplate> | null> => {
     setLoading(true);
     try {
-      const response = await apiClient.get<PaginatedResponse<QuizTemplate>>('/api/v1/templates/quiz', {
-        params: params || {},
-      });
+      const response = await apiClient.get<PaginatedResponse<QuizTemplate>>('/api/v1/templates/quiz', params || undefined);
 
       return response;
     } catch (error: any) {
@@ -357,9 +356,7 @@ export function useTemplates() {
   ): Promise<boolean> => {
     setLoading(true);
     try {
-      await apiClient.delete(`/api/v1/templates/quiz/${quizId}`, {
-        params: { soft_delete: softDelete },
-      });
+      await apiClient.delete(`/api/v1/templates/quiz/${quizId}`, { soft_delete: softDelete });
 
       toast({
         title: 'Quiz removido',

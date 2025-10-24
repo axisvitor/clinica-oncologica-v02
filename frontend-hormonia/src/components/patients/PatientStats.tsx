@@ -4,11 +4,12 @@ import { Users, Activity, Clock, CheckCircle } from 'lucide-react'
 import { apiClient } from '../../lib/api-client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { LoadingSpinner } from '../ui/loading-spinner'
+import type { Patient } from '@/lib/api-client'
 
 export function PatientStats() {
   const { data: patientsData, isLoading } = useQuery({
-    queryKey: ['patients', { size: 1000 }],
-    queryFn: () => apiClient.patients.list({ size: 1000 })
+    queryKey: ['patients', { size: 100 }],
+    queryFn: () => apiClient.patients.list({ size: 100 })
   })
 
   if (isLoading) {
@@ -27,11 +28,11 @@ export function PatientStats() {
     )
   }
 
-  const patients = patientsData?.items || []
+  const patients = ((patientsData as any)?.items || (patientsData as any)?.data || []) as Patient[]
   const totalPatients = patients.length
-  const activePatients = patients.filter(p => p.status === 'active').length
-  const pausedPatients = patients.filter(p => p.status === 'paused').length
-  const completedPatients = patients.filter(p => p.status === 'completed').length
+  const activePatients = patients.filter((p: Patient) => p.status === 'active').length
+  const pausedPatients = patients.filter((p: Patient) => p.status === 'paused').length
+  const completedPatients = patients.filter((p: Patient) => p.status === 'completed').length
 
   const stats = [
     {

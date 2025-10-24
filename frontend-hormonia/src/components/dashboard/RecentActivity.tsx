@@ -11,18 +11,13 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import type { ActivityItem as CoreActivityItem } from '@/types/api'
 
-interface ActivityItem {
-  id: string
-  type: 'message' | 'patient' | 'alert' | 'report' | 'quiz'
-  description: string
-  timestamp: string
-  patient_name?: string
-  metadata?: Record<string, any>
-}
+// Extend core ActivityItem to include optional patient_name used by UI
+type UIActivityItem = CoreActivityItem & { patient_name?: string }
 
 interface RecentActivityProps {
-  activities: ActivityItem[]
+  activities: UIActivityItem[]
 }
 
 export function RecentActivity({ activities }: RecentActivityProps) {
@@ -30,12 +25,16 @@ export function RecentActivity({ activities }: RecentActivityProps) {
     switch (type) {
       case 'message':
         return MessageSquare
-      case 'patient':
+      case 'patient': // legacy
         return UserPlus
       case 'alert':
         return AlertTriangle
-      case 'report':
+      case 'report': // legacy
         return FileText
+      case 'flow':
+        return Activity
+      case 'system':
+        return Activity
       case 'quiz':
         return Activity
       default:
@@ -47,12 +46,16 @@ export function RecentActivity({ activities }: RecentActivityProps) {
     switch (type) {
       case 'message':
         return 'text-blue-600 bg-blue-100'
-      case 'patient':
+      case 'patient': // legacy
         return 'text-green-600 bg-green-100'
       case 'alert':
         return 'text-red-600 bg-red-100'
-      case 'report':
+      case 'report': // legacy
         return 'text-purple-600 bg-purple-100'
+      case 'flow':
+        return 'text-indigo-600 bg-indigo-100'
+      case 'system':
+        return 'text-gray-600 bg-gray-100'
       case 'quiz':
         return 'text-orange-600 bg-orange-100'
       default:
@@ -64,12 +67,16 @@ export function RecentActivity({ activities }: RecentActivityProps) {
     switch (type) {
       case 'message':
         return 'Mensagem'
-      case 'patient':
+      case 'patient': // legacy
         return 'Paciente'
       case 'alert':
         return 'Alerta'
-      case 'report':
+      case 'report': // legacy
         return 'Relatório'
+      case 'flow':
+        return 'Fluxo'
+      case 'system':
+        return 'Sistema'
       case 'quiz':
         return 'Questionário'
       default:

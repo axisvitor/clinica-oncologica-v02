@@ -1,4 +1,5 @@
 // API types for the application
+import type { Priority } from './shared'
 export enum FlowType {
   INITIAL_15_DAYS = 'initial_15_days',
   DAYS_16_45 = 'days_16_45',
@@ -23,5 +24,723 @@ export interface FlowState {
   state_data: Record<string, any>
 }
 
-// Re-export common types
-export * from '../types/api'
+// ============================================================================
+// AI TYPES - Core definitions
+// ============================================================================
+
+export enum ChatRole {
+  USER = 'user',
+  ASSISTANT = 'assistant',
+  SYSTEM = 'system'
+}
+
+export interface AIChatMessage {
+  id: string
+  role: ChatRole
+  content: string
+  timestamp: string
+  metadata?: Record<string, any>
+  created_at?: string
+  updated_at?: string
+  patient_id?: string
+}
+
+export interface ChatSession {
+  id: string
+  patient_id?: string
+  user_id: string
+  title: string
+  messages: AIChatMessage[]
+  created_at: string
+  updated_at: string
+  status: 'active' | 'archived'
+}
+
+export enum InsightType {
+  BEHAVIORAL = 'behavioral',
+  EMOTIONAL = 'emotional',
+  ENGAGEMENT = 'engagement',
+  RISK = 'risk',
+  OPPORTUNITY = 'opportunity',
+  PATTERN = 'pattern',
+  ANOMALY = 'anomaly'
+}
+
+export interface AIInsight {
+  id: string
+  type: InsightType
+  title: string
+  description: string
+  confidence: number
+  priority?: Priority
+  patient_id?: string
+  created_at: string
+  metadata?: Record<string, any>
+}
+
+export interface SentimentAnalysis {
+  sentiment: 'positive' | 'negative' | 'neutral'
+  score: number
+  confidence: number
+}
+
+export type SentimentLabel = 'positive' | 'negative' | 'neutral'
+
+export interface EmotionScores {
+  joy: number
+  sadness: number
+  anger: number
+  fear: number
+  surprise: number
+}
+
+// Note: Priority type is exported from ./shared
+
+export type PriorityType = 'low' | 'medium' | 'high' | 'critical'
+
+export type Status = 'active' | 'inactive' | 'pending' | 'completed' | 'cancelled'
+
+// ============================================================================
+// PATIENT TYPES
+// ============================================================================
+
+export enum PatientStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  PAUSED = 'paused',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled'
+}
+
+export interface Patient {
+  id: string
+  name: string
+  email?: string
+  phone?: string
+  cpf?: string
+  birth_date?: string
+  treatment_type?: string
+  treatment_start_date?: string
+  gender?: 'M' | 'F' | 'other'
+  address?: {
+    street?: string
+    number?: string
+    complement?: string
+    neighborhood?: string
+    city?: string
+    state?: string
+    zip_code?: string
+  }
+  medical_info?: {
+    diagnosis?: string
+    treatment_start_date?: string
+    allergies?: string[]
+    medications?: string[]
+    notes?: string
+  }
+  status?: PatientStatus | 'active' | 'inactive' | 'archived' | 'paused' | 'completed'
+  created_at?: string
+  updated_at?: string
+  doctor_id?: string
+  current_day?: number
+}
+
+export interface TimelineEvent {
+  id: string
+  patient_id: string
+  event_type: 'message' | 'appointment' | 'quiz' | 'note' | 'system'
+  title: string
+  description?: string
+  metadata?: Record<string, any>
+  created_at: string
+  created_by?: string
+}
+
+export interface PatientTimeline {
+  patient_id: string
+  events: TimelineEvent[]
+}
+
+// ============================================================================
+// MESSAGE TYPES
+// ============================================================================
+
+export enum MessageDirection {
+  INBOUND = 'inbound',
+  OUTBOUND = 'outbound'
+}
+
+export enum MessageType {
+  TEXT = 'text',
+  IMAGE = 'image',
+  VIDEO = 'video',
+  AUDIO = 'audio',
+  DOCUMENT = 'document',
+  LOCATION = 'location',
+  INTERACTIVE = 'interactive'
+}
+
+export enum MessageStatus {
+  PENDING = 'pending',
+  SENT = 'sent',
+  DELIVERED = 'delivered',
+  READ = 'read',
+  FAILED = 'failed'
+}
+
+export interface Message {
+  id: string
+  patient_id: string
+  direction: MessageDirection
+  type: MessageType
+  status: MessageStatus
+  content: string
+  metadata?: Record<string, any>
+  sent_at?: string
+  delivered_at?: string
+  read_at?: string
+  created_at: string
+  updated_at?: string
+}
+
+export interface MessageQueryParams {
+  patient_id?: string
+  direction?: MessageDirection
+  status?: MessageStatus
+  page?: number
+  size?: number
+}
+
+export interface SendMessageRequest {
+  patient_id: string
+  content: string
+  type?: MessageType
+  metadata?: Record<string, any>
+}
+
+export interface BulkMessageRequest {
+  patient_ids: string[]
+  content: string
+  type?: MessageType
+  scheduled_for?: string
+}
+
+// ============================================================================
+// ALERT TYPES
+// ============================================================================
+
+export enum AlertType {
+  INFO = 'info',
+  WARNING = 'warning',
+  ERROR = 'error',
+  CRITICAL = 'critical'
+}
+
+export interface Alert {
+  id: string
+  type: AlertType | string
+  title: string
+  message: string
+  patient_id?: string
+  acknowledged: boolean
+  acknowledged_at?: string
+  acknowledged_by?: string
+  created_at: string
+  metadata?: Record<string, any>
+}
+
+export interface AlertQueryParams {
+  type?: AlertType
+  acknowledged?: boolean
+  patient_id?: string
+  page?: number
+  size?: number
+}
+
+export interface CreateAlertRequest {
+  type: AlertType | string
+  title: string
+  message: string
+  patient_id?: string
+  metadata?: Record<string, any>
+}
+
+// ============================================================================
+// REPORT TYPES
+// ============================================================================
+
+export enum ReportType {
+  PATIENT_SUMMARY = 'patient_summary',
+  ENGAGEMENT = 'engagement',
+  ANALYTICS = 'analytics',
+  CUSTOM = 'custom'
+}
+
+export enum ReportStatus {
+  PENDING = 'pending',
+  GENERATING = 'generating',
+  COMPLETED = 'completed',
+  FAILED = 'failed'
+}
+
+/**
+ * Report - Represents a generated report in the system
+ * Used for patient summaries, analytics, and custom reports
+ */
+export interface Report {
+  id: string
+  type: ReportType | string
+  status: ReportStatus | string
+  title: string
+  description?: string
+  patient_id?: string
+  patient_name?: string
+  generated_by: string
+  generated_at?: string
+  file_url?: string
+  file_path?: string  // Alternative to file_url for some backends
+  content?: string  // Report content for preview
+  parameters?: Record<string, any>
+  metadata?: Record<string, unknown>  // Additional metadata
+  created_at: string
+  completed_at?: string  // When report generation completed
+}
+
+export interface ReportQueryParams {
+  type?: ReportType
+  status?: ReportStatus
+  patient_id?: string
+  page?: number
+  size?: number
+}
+
+export interface GenerateReportRequest {
+  type: ReportType | string
+  title: string
+  description?: string
+  patient_id?: string
+  parameters?: Record<string, any>
+}
+
+// ============================================================================
+// QUIZ TYPES
+// ============================================================================
+
+export enum QuestionType {
+  MULTIPLE_CHOICE = 'multiple_choice',
+  TEXT = 'text',
+  SCALE = 'scale',
+  YES_NO = 'yes_no'
+}
+
+export enum ScoringMethod {
+  SUM = 'sum',
+  AVERAGE = 'average',
+  WEIGHTED = 'weighted',
+  CUSTOM = 'custom'
+}
+
+export enum QuizSessionStatus {
+  NOT_STARTED = 'not_started',
+  IN_PROGRESS = 'in_progress',
+  COMPLETED = 'completed',
+  EXPIRED = 'expired'
+}
+
+export interface QuizQuestion {
+  id: string
+  text: string
+  type: QuestionType
+  options?: string[]
+  required: boolean
+  order: number
+}
+
+export interface QuizTemplate {
+  id: string
+  title: string
+  description?: string
+  questions: QuizQuestion[]
+  scoring_method: ScoringMethod
+  active: boolean
+  created_at: string
+  updated_at?: string
+}
+
+export interface QuizSession {
+  id: string
+  patient_id: string
+  quiz_template_id: string
+  status: QuizSessionStatus
+  started_at?: string
+  completed_at?: string
+  score?: number
+  responses: Record<string, any>
+  created_at: string
+}
+
+/**
+ * QuizLinkStatus - Status values for quiz links
+ * Represents the current state of a quiz link sent to a patient
+ */
+export type QuizLinkStatusValue = 'not_sent' | 'sent' | 'accessed' | 'completed' | 'expired' | 'active' | 'cancelled' | 'pending'
+
+/**
+ * QuizLinkStatus - Complete quiz link status information
+ * Used for tracking quiz link state and delivery
+ */
+export interface QuizLinkStatus {
+  session_id: string
+  patient_id: string
+  status: QuizLinkStatusValue | string
+  link?: string
+  expires_at?: string
+  completed_at?: string
+  responses?: Record<string, unknown>
+  delivery_attempts?: Array<Record<string, unknown>>
+  last_delivery_status?: string
+  last_delivery_method?: string
+}
+
+/**
+ * MonthlyQuizStatusData - Monthly quiz status for a patient
+ * Simplified status information for dashboard and patient views
+ */
+export interface MonthlyQuizStatusData {
+  patient_id: string
+  session_id?: string
+  status: QuizLinkStatusValue
+  last_sent?: string
+  access_date?: string
+  completion_date?: string
+  expires_at?: string
+  template_name?: string
+  template_id?: string
+}
+
+/**
+ * QuizResponse - A single answer to a quiz question
+ * 
+ * @example
+ * ```typescript
+ * const response: QuizResponse = {
+ *   session_id: 'session-123',
+ *   question_id: 'q1',
+ *   answer: 'Feeling better',
+ *   answered_at: '2024-01-15T10:30:00Z'
+ * }
+ * ```
+ */
+export interface QuizResponse {
+  /** ID of the quiz session */
+  session_id: string
+  /** ID of the question being answered */
+  question_id: string
+  /** The patient's answer */
+  answer: string
+  /** ISO timestamp when the answer was submitted */
+  answered_at: string
+}
+
+/**
+ * QuizHistory - Historical record of a completed quiz
+ * 
+ * Represents a completed quiz session with all responses and scoring.
+ * Used for tracking patient progress over time.
+ * 
+ * @example
+ * ```typescript
+ * const history: QuizHistory = {
+ *   session_id: 'session-123',
+ *   quiz_template_id: 'monthly-wellness',
+ *   completed_at: '2024-01-15T11:00:00Z',
+ *   score: 85,
+ *   responses: {
+ *     'q1': 'Feeling better',
+ *     'q2': '7',
+ *     'q3': 'Yes'
+ *   }
+ * }
+ * ```
+ */
+export interface QuizHistory {
+  /** ID of the quiz session */
+  session_id: string
+  /** ID of the quiz template that was used */
+  quiz_template_id: string
+  /** ISO timestamp when the quiz was completed */
+  completed_at: string
+  /** Calculated score for the quiz */
+  score: number
+  /** Map of question IDs to answers */
+  responses: Record<string, any>
+}
+
+// ============================================================================
+// FLOW TYPES
+// ============================================================================
+
+export interface Flow {
+  id: string
+  patient_id: string
+  flow_type: FlowType
+  status: FlowStatus
+  current_day: number
+  enrollment_date: string
+  last_message_sent?: string
+  state_data: Record<string, any>
+  created_at: string
+  updated_at?: string
+}
+
+export interface FlowTemplate {
+  id: string
+  name: string
+  description?: string
+  flow_type: FlowType
+  steps: FlowStep[]
+  active: boolean
+  created_at: string
+  updated_at?: string
+}
+
+export interface FlowStep {
+  id: string
+  order: number
+  day: number
+  action_type: string
+  config: Record<string, any>
+}
+
+export interface CreateFlowTemplateRequest {
+  name: string
+  description?: string
+  flow_type: FlowType
+  steps: Omit<FlowStep, 'id'>[]
+}
+
+export type UpdateFlowTemplateRequest = Partial<CreateFlowTemplateRequest>
+
+export interface StartFlowRequest {
+  patient_id: string
+  flow_type: FlowType
+}
+
+// ============================================================================
+// ANALYTICS & METRICS TYPES
+// ============================================================================
+
+export interface DashboardAnalytics {
+  total_patients: number
+  active_patients: number
+  total_messages: number
+  messages_today: number
+  active_flows: number
+  pending_alerts: number
+  engagement_rate: number
+  response_rate: number
+}
+
+export interface EngagementMetrics {
+  patient_id: string
+  total_messages: number
+  response_rate: number
+  avg_response_time_minutes: number
+  last_interaction: string
+  engagement_score: number
+}
+
+export interface FlowMetrics {
+  flow_type: FlowType
+  total_enrollments: number
+  active_enrollments: number
+  completion_rate: number
+  avg_completion_days: number
+}
+
+export interface ActivityItem {
+  id: string
+  type: 'message' | 'flow' | 'quiz' | 'alert' | 'system'
+  description: string
+  patient_id?: string
+  timestamp: string
+  metadata?: Record<string, any>
+}
+
+// ============================================================================
+// USER & AUTH TYPES
+// ============================================================================
+
+/**
+ * User - Represents an authenticated user in the system
+ * Used across authentication, authorization, and user management features
+ */
+export interface User {
+  id: string
+  email: string
+  name?: string
+  full_name: string
+  role: string
+  permissions: string[]
+  is_active: boolean
+  created_at: string
+  updated_at?: string | undefined
+  firebase_uid?: string
+  session_id?: string
+  token?: string  // Optional for WebSocket/API auth
+  avatar_url?: string  // Optional for profile picture
+}
+
+export interface LoginCredentials {
+  email: string
+  password: string
+}
+
+/**
+ * AuthTokens - Authentication tokens for API access
+ * Includes access token, refresh token, and expiration information
+ */
+export interface AuthTokens {
+  access_token: string
+  refresh_token?: string
+  token_type?: string
+  expires_in?: number  // Token expiration time in seconds
+}
+
+/**
+ * LoginResponse - Response from successful authentication
+ * Includes user data, authentication tokens, and session information
+ */
+export interface LoginResponse {
+  user: User
+  tokens: AuthTokens
+  session_id?: string  // Optional session ID for Redis-based session management
+}
+
+/**
+ * CursorPage<T> - Generic cursor-based pagination response
+ * 
+ * Used for efficient pagination of large datasets. Instead of page numbers,
+ * uses a cursor to track position in the result set.
+ * 
+ * @template T - The type of items in the data array
+ * 
+ * @example
+ * ```typescript
+ * const page: CursorPage<Patient> = {
+ *   data: [patient1, patient2, patient3],
+ *   next_cursor: 'eyJpZCI6MTIzfQ==',
+ *   has_more: true,
+ *   total: 150
+ * }
+ * 
+ * // Fetch next page using the cursor
+ * const nextPage = await api.patients.list({ cursor: page.next_cursor })
+ * ```
+ */
+export interface CursorPage<T> {
+  /** Array of items in the current page */
+  data: T[]
+  /** Cursor for fetching the next page, null if no more pages */
+  next_cursor: string | null
+  /** Whether there are more items available */
+  has_more: boolean
+  /** Optional total count of all items (may be expensive to compute) */
+  total?: number
+}
+
+// ============================================================================
+// QUERY PARAMS TYPES
+// ============================================================================
+
+export interface PatientQueryParams {
+  search?: string
+  status?: PatientStatus | string
+  doctor_id?: string
+  page?: number
+  size?: number
+  sort_by?: string
+  sort_order?: 'asc' | 'desc'
+}
+
+export interface CreatePatientRequest {
+  name: string
+  email?: string
+  phone?: string
+  cpf?: string
+  birth_date?: string
+  gender?: 'M' | 'F' | 'other'
+  address?: Patient['address']
+  medical_info?: Patient['medical_info']
+  doctor_id?: string
+}
+
+export interface UpdatePatientRequest extends Partial<CreatePatientRequest> {
+  status?: PatientStatus | string
+}
+
+// ============================================================================
+// API CLIENT INTERFACE
+// ============================================================================
+
+export interface ApiClient {
+  // Authentication
+  auth: {
+    login: (credentials: LoginCredentials) => Promise<LoginResponse>
+    logout: () => Promise<void>
+    refresh: () => Promise<AuthTokens>
+  }
+
+  // Patients
+  patients: {
+    list: (params?: PatientQueryParams) => Promise<any>
+    get: (id: string) => Promise<Patient>
+    create: (data: CreatePatientRequest) => Promise<Patient>
+    update: (id: string, data: UpdatePatientRequest) => Promise<Patient>
+    delete: (id: string) => Promise<void>
+    timeline: (id: string) => Promise<PatientTimeline>
+  }
+
+  // Messages
+  messages: {
+    list: (params?: MessageQueryParams) => Promise<any>
+    send: (data: SendMessageRequest) => Promise<Message>
+    sendBulk: (data: BulkMessageRequest) => Promise<any>
+  }
+
+  // Flows
+  flows: {
+    list: () => Promise<Flow[]>
+    get: (id: string) => Promise<Flow>
+    getState: (patientId: string) => Promise<FlowState>
+  }
+
+  // Alerts
+  alerts: {
+    list: (params?: AlertQueryParams) => Promise<any>
+    create: (data: CreateAlertRequest) => Promise<Alert>
+    acknowledge: (id: string) => Promise<void>
+    resolve: (id: string) => Promise<void>
+  }
+
+  // Reports
+  reports: {
+    list: (params?: ReportQueryParams) => Promise<any>
+    generate: (data: GenerateReportRequest) => Promise<Report>
+    download: (id: string, format?: string) => Promise<Blob>
+  }
+
+  // Quiz
+  quiz: {
+    templates: () => Promise<QuizTemplate[]>
+    sessions: (filters?: Record<string, any>) => Promise<any>
+    getSession: (id: string) => Promise<QuizSession>
+  }
+
+  // Analytics
+  analytics: {
+    dashboard: () => Promise<DashboardAnalytics>
+    engagement: (patientId?: string) => Promise<EngagementMetrics[]>
+    flows: () => Promise<FlowMetrics[]>
+  }
+}

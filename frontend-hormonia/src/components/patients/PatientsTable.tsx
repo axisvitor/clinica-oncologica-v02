@@ -62,6 +62,7 @@ export function PatientsTable({
   const queryClient = useQueryClient()
   const [selectedPatient, setSelectedPatient] = useState<{ id: string; name: string } | null>(null)
   const [showSendQuizModal, setShowSendQuizModal] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const resendQuizLinkMutation = useResendQuizLink()
 
   const mutationOptions = {
@@ -104,11 +105,22 @@ export function PatientsTable({
     }
   })
 
-  const handleDelete = (e: React.MouseEvent, patientId: string) => {
+  const handleDelete = (e: React.MouseEvent, patientId: string, patientName: string) => {
     e.stopPropagation()
-    if (window.confirm('Tem certeza que deseja excluir este paciente? Esta ação não pode ser desfeita.')) {
+    if (confirmDeleteId === patientId) {
+      setConfirmDeleteId(null)
       deleteMutation.mutate(patientId)
+      return
     }
+    setConfirmDeleteId(patientId)
+    toast({
+      title: 'Confirme a exclusão',
+      description: `Clique novamente para excluir ${patientName}.`,
+      variant: 'destructive'
+    })
+    setTimeout(() => {
+      setConfirmDeleteId((prev) => (prev === patientId ? null : prev))
+    }, 3000)
   }
 
   const getStatusBadge = (status: string) => {
@@ -311,7 +323,7 @@ export function PatientsTable({
                     <DropdownMenuSeparator />
                     <DropdownMenuItem 
                       className="text-red-600"
-                      onClick={(e) => handleDelete(e, patient.id)}
+                      onClick={(e) => handleDelete(e, patient.id, patient.name)}
                     >
                       <Trash2 className="mr-2 h-4 w-4" />
                       Excluir

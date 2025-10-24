@@ -11,6 +11,7 @@ import {
   getMockFlowTemplates,
   getMockDashboardAnalytics,
   getMockEngagementData,
+  getMockTreatmentDistribution,
   getMockAlerts,
   getMockQuizTemplates,
   getMockQuizSessions,
@@ -20,18 +21,12 @@ import { createLogger } from './logger'
 
 const logger = createLogger('MockApiHandler')
 
-interface MockApiResponse<T> {
-  data: T
-  message?: string
-  timestamp: string
-}
-
 /**
  * Simulate network delay
  */
-async function simulateDelay(min = 200, max = 600): Promise<void> {
+async function simulateDelay(min: number = 200, max: number = 600): Promise<void> {
   const delay = Math.floor(Math.random() * (max - min + 1)) + min
-  return new Promise(resolve => setTimeout(resolve, delay))
+  return new Promise<void>(resolve => setTimeout(resolve, delay))
 }
 
 /**
@@ -64,7 +59,7 @@ export class MockApiHandler {
     logger.debug(`${method} ${pathname}`)
 
     // Parse request body if present
-    let body: any = null
+    let body: unknown = null
     if (options?.body && typeof options.body === 'string') {
       try {
         body = JSON.parse(options.body)
@@ -103,7 +98,7 @@ export class MockApiHandler {
   /**
    * Handle patients endpoints
    */
-  private handlePatientsEndpoint(pathname: string, params: URLSearchParams, method: string, body?: any): any {
+  private handlePatientsEndpoint(pathname: string, params: URLSearchParams, method: string, body?: unknown): unknown {
     // GET /api/v1/patients - List patients
     if (pathname === '/api/v1/patients' && method === 'GET') {
       const search = params.get('search')
@@ -132,12 +127,14 @@ export class MockApiHandler {
 
     // POST /api/v1/patients - Create patient
     if (pathname === '/api/v1/patients' && method === 'POST') {
-      return { id: `patient-${Date.now()}`, ...body, created_at: new Date().toISOString() }
+      const bodyData = (body as Record<string, unknown>) || {}
+      return { id: `patient-${Date.now()}`, ...bodyData, created_at: new Date().toISOString() }
     }
 
     // PUT /api/v1/patients/:id - Update patient
     if (patientIdMatch && method === 'PUT') {
-      return { id: patientIdMatch[1], ...body, updated_at: new Date().toISOString() }
+      const bodyData = (body as Record<string, unknown>) || {}
+      return { id: patientIdMatch[1], ...bodyData, updated_at: new Date().toISOString() }
     }
 
     // DELETE /api/v1/patients/:id - Delete patient
@@ -157,7 +154,7 @@ export class MockApiHandler {
   /**
    * Handle messages endpoints
    */
-  private handleMessagesEndpoint(pathname: string, params: URLSearchParams, method: string, body?: any): any {
+  private handleMessagesEndpoint(pathname: string, params: URLSearchParams, method: string, body?: unknown): unknown {
     // GET /api/v1/messages - List messages
     if (pathname === '/api/v1/messages' && method === 'GET') {
       const patientId = params.get('patient_id')
@@ -171,9 +168,10 @@ export class MockApiHandler {
 
     // POST /api/v1/messages/send - Send message
     if (pathname === '/api/v1/messages/send' && method === 'POST') {
+      const bodyData = (body as Record<string, unknown>) || {}
       return {
         id: `msg-${Date.now()}`,
-        ...body,
+        ...bodyData,
         status: 'sent',
         created_at: new Date().toISOString()
       }
@@ -185,7 +183,7 @@ export class MockApiHandler {
   /**
    * Handle flows endpoints
    */
-  private handleFlowsEndpoint(pathname: string, params: URLSearchParams, method: string): any {
+  private handleFlowsEndpoint(pathname: string, params: URLSearchParams, method: string): unknown {
     // GET /api/v1/flows - List flows
     if (pathname === '/api/v1/flows' && method === 'GET') {
       const patientId = params.get('patient_id')
@@ -217,7 +215,7 @@ export class MockApiHandler {
   /**
    * Handle analytics endpoints
    */
-  private handleAnalyticsEndpoint(pathname: string, params: URLSearchParams): any {
+  private handleAnalyticsEndpoint(pathname: string, params: URLSearchParams): unknown {
     if (pathname === '/api/v2/analytics/overview') {
       return getMockDashboardAnalytics()
     }
@@ -256,7 +254,7 @@ export class MockApiHandler {
   /**
    * Handle alerts endpoints
    */
-  private handleAlertsEndpoint(pathname: string, params: URLSearchParams, method: string): any {
+  private handleAlertsEndpoint(pathname: string, params: URLSearchParams, method: string): unknown {
     // GET /api/v1/alerts - List alerts
     if (pathname === '/api/v1/alerts' && method === 'GET') {
       const severity = params.get('severity')
@@ -289,7 +287,7 @@ export class MockApiHandler {
   /**
    * Handle quiz endpoints
    */
-  private handleQuizEndpoint(pathname: string, params: URLSearchParams, method: string, body?: any): any {
+  private handleQuizEndpoint(pathname: string, params: URLSearchParams, method: string, body?: unknown): unknown {
     // GET /api/v1/quiz/templates - List quiz templates
     if (pathname === '/api/v1/quiz/templates' && method === 'GET') {
       return getMockQuizTemplates()
@@ -297,9 +295,10 @@ export class MockApiHandler {
 
     // POST /api/v1/quiz/templates - Create quiz template
     if (pathname === '/api/v1/quiz/templates' && method === 'POST') {
+      const bodyData = (body as Record<string, unknown>) || {}
       return {
         id: `template-${Date.now()}`,
-        ...body,
+        ...bodyData,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }
@@ -334,9 +333,10 @@ export class MockApiHandler {
 
     // POST /api/v1/quiz/sessions - Create quiz session
     if (pathname === '/api/v1/quiz/sessions' && method === 'POST') {
+      const bodyData = (body as Record<string, unknown>) || {}
       return {
         id: `session-${Date.now()}`,
-        ...body,
+        ...bodyData,
         status: 'pending',
         link: `https://sistema.com/quiz/session-${Date.now()}`,
         created_at: new Date().toISOString(),
@@ -350,7 +350,7 @@ export class MockApiHandler {
   /**
    * Handle monthly quiz endpoints
    */
-  private handleMonthlyQuizEndpoint(pathname: string, params: URLSearchParams, method: string, body?: any): any {
+  private handleMonthlyQuizEndpoint(pathname: string, params: URLSearchParams, method: string, body?: unknown): unknown {
     // GET /api/v1/monthly-quiz/stats/dashboard - Get monthly quiz stats
     if (pathname === '/api/v1/monthly-quiz/stats/dashboard' && method === 'GET') {
       return getMockMonthlyQuizStats()
@@ -367,7 +367,8 @@ export class MockApiHandler {
 
     // POST /api/v1/monthly-quiz/links/bulk - Create bulk quiz links
     if (pathname === '/api/v1/monthly-quiz/links/bulk' && method === 'POST') {
-      const patientIds = body?.patient_ids || []
+      const bodyData = body as { patient_ids?: string[] } | null
+      const patientIds = bodyData?.patient_ids || []
       return {
         created: patientIds.length,
         sessions: patientIds.map((id: string) => ({
@@ -384,7 +385,7 @@ export class MockApiHandler {
   /**
    * Handle reports endpoints
    */
-  private handleReportsEndpoint(pathname: string, method: string): any {
+  private handleReportsEndpoint(pathname: string, method: string): unknown {
     // GET /api/v1/reports - List reports
     if (pathname === '/api/v1/reports' && method === 'GET') {
       return { items: [], total: 0, page: 1, size: 10, pages: 0 }
@@ -405,7 +406,7 @@ export class MockApiHandler {
   /**
    * Handle admin users endpoints
    */
-  private handleAdminUsersEndpoint(pathname: string, params: URLSearchParams, method: string, body?: any): any {
+  private handleAdminUsersEndpoint(pathname: string, params: URLSearchParams, method: string, body?: unknown): unknown {
     // GET /api/v1/admin/users - List users
     if (pathname === '/api/v1/admin/users' && method === 'GET') {
       return { items: [], total: 0, page: 1, size: 10, pages: 0 }
@@ -413,9 +414,10 @@ export class MockApiHandler {
 
     // POST /api/v1/admin/users - Create user
     if (pathname === '/api/v1/admin/users' && method === 'POST') {
+      const bodyData = (body as Record<string, unknown>) || {}
       return {
         id: `user-${Date.now()}`,
-        ...body,
+        ...bodyData,
         created_at: new Date().toISOString()
       }
     }
@@ -426,7 +428,7 @@ export class MockApiHandler {
   /**
    * Handle AI endpoints
    */
-  private handleAiEndpoint(pathname: string, method: string, body?: any): any {
+  private handleAiEndpoint(pathname: string, method: string, _body?: unknown): unknown {
     // POST /api/v1/ai/chat - AI chat
     if (pathname === '/api/v1/ai/chat' && method === 'POST') {
       return {

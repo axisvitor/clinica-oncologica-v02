@@ -3,7 +3,7 @@ import { Plus, Search, Filter, Users, UserCheck, UserX, AlertTriangle } from 'lu
 import { useQuery } from '@tanstack/react-query'
 import { useUserAdmin } from '@/hooks/useUserAdmin'
 import { useAuth } from '@/contexts/AuthContext'
-import { AdminUser } from '@/types/admin'
+import { AdminUser, AdminUserActivity } from '@/types/admin'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -59,20 +59,20 @@ export function UserAdminDashboard() {
 
   // Filtered and sorted users
   const filteredUsers = useMemo(() => {
-    if (!users) return []
+    if (!users) return [] as AdminUser[]
 
-    return users.filter(user => {
+    return users.filter((user: AdminUser) => {
       // Search filter
       if (filters.search) {
         const searchLower = filters.search.toLowerCase()
         const matchesSearch =
-          user['full_name'].toLowerCase().includes(searchLower) ||
-          user['email'].toLowerCase().includes(searchLower)
+          user.full_name.toLowerCase().includes(searchLower) ||
+          user.email.toLowerCase().includes(searchLower)
         if (!matchesSearch) return false
       }
 
       // Role filter
-      if (filters.role !== 'all' && user['role'] !== filters.role) return false
+      if (filters.role !== 'all' && user.role !== filters.role) return false
 
       // Status filter
       if (filters.status === 'active' && !user.is_active) return false
@@ -84,26 +84,33 @@ export function UserAdminDashboard() {
       if (filters.twoFactor === 'disabled' && user.two_factor_enabled) return false
 
       return true
-    }).sort((a, b) => {
-      let aVal: any = a[sortBy as keyof AdminUser]
-      let bVal: any = b[sortBy as keyof AdminUser]
+    }).sort((a: AdminUser, b: AdminUser) => {
+      let aVal = a[sortBy as keyof AdminUser] as unknown as string | number | null | undefined
+      let bVal = b[sortBy as keyof AdminUser] as unknown as string | number | null | undefined
 
       // Handle date sorting
       if (sortBy === 'created_at' || sortBy === 'last_login') {
-        aVal = aVal ? new Date(aVal).getTime() : 0
-        bVal = bVal ? new Date(bVal).getTime() : 0
+        aVal = aVal ? new Date(aVal as any).getTime() : 0
+        bVal = bVal ? new Date(bVal as any).getTime() : 0
       }
 
-      // Handle string sorting
+      // Normalize values for comparison
       if (typeof aVal === 'string') {
         aVal = aVal.toLowerCase()
+      } else if (typeof aVal !== 'number') {
+        aVal = ''
+      }
+
+      if (typeof bVal === 'string') {
         bVal = bVal.toLowerCase()
+      } else if (typeof bVal !== 'number') {
+        bVal = ''
       }
 
       if (sortOrder === 'asc') {
-        return aVal > bVal ? 1 : -1
+        return (aVal as any) > (bVal as any) ? 1 : -1
       } else {
-        return aVal < bVal ? 1 : -1
+        return (aVal as any) < (bVal as any) ? 1 : -1
       }
     })
   }, [users, filters, sortBy, sortOrder])
@@ -159,7 +166,7 @@ export function UserAdminDashboard() {
     if (selectedUsers.length === paginatedUsers.length) {
       setSelectedUsers([])
     } else {
-      setSelectedUsers(paginatedUsers.map(user => user['id']))
+      setSelectedUsers(paginatedUsers.map((user: AdminUser) => user.id))
     }
   }
 

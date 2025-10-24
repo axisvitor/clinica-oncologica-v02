@@ -16,7 +16,7 @@ import type { PatientFilters } from '../hooks/usePatients'
 
 export function PatientsPage() {
   const navigate = useNavigate()
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table')
+  const [viewMode] = useState<'table' | 'grid'>('table')
   const [activeTab, setActiveTab] = useState('all')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -29,15 +29,12 @@ export function PatientsPage() {
     total,
     page,
     limit,
-    hasMore,
     isLoading,
     error,
     filters,
-    hasActiveFilters,
     activeFilterCount,
     updateFilter,
     updateFilters,
-    resetFilters,
     refetch
   } = usePatients({
     pageSize: 20

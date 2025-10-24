@@ -11,30 +11,11 @@
  */
 
 import { firebaseAuthLazy } from '../lib/firebase-lazy'
-import type { User as FirebaseUser } from 'firebase/auth'
 import { apiClient } from '../lib/api-client'
 import { createLogger } from '../lib/logger'
+import type { User, LoginResponse } from '@/types/api'
 
 const logger = createLogger('FirebaseAuthService')
-
-export interface User {
-  id: string
-  email: string
-  full_name: string
-  role: string
-  is_active: boolean
-  permissions: string[]  // Required to match hooks/auth/types.ts
-  created_at: string     // Required to match hooks/auth/types.ts
-  firebase_uid?: string
-  session_id?: string
-  token?: string         // Optional for WebSocket/API auth
-  avatar_url?: string    // Optional for profile picture
-}
-
-export interface LoginResponse {
-  user: User
-  session_id: string
-}
 
 let tokenRefreshInterval: NodeJS.Timeout | null = null
 
@@ -137,11 +118,20 @@ export async function loginUser(
 
     logger.log('Login successful, session created')
 
+    // SECURITY FIX: Clear Authorization header after session is established
+    // From now on, only the httpOnly cookie will be used for authentication
+    apiClient.clearAuthToken()
+    logger.log('Cleared Firebase token from API client - now using cookie-only auth')
+
     // Setup automatic token refresh
     setupTokenRefresh()
 
     return {
       user: userResponse.data,
+      tokens: {
+        access_token: firebaseToken
+        // refresh_token is omitted (optional property)
+      },
       session_id: 'cookie' // Placeholder - actual session_id is in httpOnly cookie
     }
   } catch (error) {
@@ -276,6 +266,11 @@ export async function getCurrentUser(): Promise<User | null> {
     logger.error('Get current user failed:', error)
     // Firebase Auth SDK will handle token cleanup
     return null
+  } finally {
+    // SECURITY FIX: Always clear Authorization header after session validation
+    // From this point forward, only the httpOnly cookie will be used for authentication
+    apiClient.clearAuthToken()
+    logger.log('Cleared Firebase token after getCurrentUser - using cookie-only auth')
   }
 }
 
@@ -327,7 +322,7 @@ export function setupTokenRefresh(): void {
       // Force token refresh (Firebase SDK stores in-memory)
       const newToken = await firebaseUser.getIdToken(true)
 
-      // Update API client with refreshed token
+      // Temporarily set token for validation
       apiClient.setAuthToken(newToken)
 
       logger.log('Token refreshed successfully')
@@ -349,6 +344,11 @@ export function setupTokenRefresh(): void {
         }
 
         logger.log('Backend validation successful after token refresh')
+
+        // SECURITY FIX: Clear Authorization header after validation
+        // Continue using only httpOnly cookie for subsequent requests
+        apiClient.clearAuthToken()
+        logger.log('Cleared Firebase token after refresh validation - using cookie-only auth')
       } catch (validationError) {
         logger.error('Token validation failed, forcing logout:', validationError)
 

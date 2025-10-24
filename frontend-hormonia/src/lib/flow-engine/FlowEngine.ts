@@ -1,15 +1,19 @@
 import {
   FlowType,
-  FlowStatus,
   type FlowState,
   type MessageTemplate,
   type FlowTemplate,
   type InboundMessage,
   type ResponseResult,
   type FlowEvent,
-  type FlowTransition,
   type FlowStateMachine
 } from '../types/flow'
+import type {
+  FlowExecutionContext,
+  FlowExecutionStep,
+  FlowExecutionResult,
+  ConditionEvaluationResult
+} from './types'
 import { apiClient } from '../api-client'
 import { createLogger } from '../logger'
 import { smartMapFlowResponse } from '../mappers/flowResponseMapper'
@@ -28,7 +32,7 @@ export class FlowEngine extends EventEmitter {
   }
 
   // Initialize state machines for different flow types
-  private initializeStateMachines() {
+  private initializeStateMachines(): void {
     // Initial 15 days flow state machine
     const initial15DaysStateMachine: FlowStateMachine = {
       states: ['enrolled', 'day_1', 'day_2', 'day_3', 'day_7', 'day_10', 'day_15', 'completed', 'paused'],
@@ -53,8 +57,8 @@ export class FlowEngine extends EventEmitter {
   // Load flow templates
   async loadTemplates(): Promise<void> {
     try {
-      const templates = await apiClient.flows.getTemplates()
-      templates.forEach(template => {
+      const templates: FlowTemplate[] = await apiClient.flows.getTemplates()
+      templates.forEach((template: FlowTemplate) => {
         this.templates.set(template.flow_type, template)
       })
       logger.info('Flow templates loaded', { count: templates.length })
@@ -237,14 +241,80 @@ export class FlowEngine extends EventEmitter {
   }
 
   // Get flow analytics
-  async getAnalytics(): Promise<any> {
+  async getAnalytics(): Promise<Record<string, unknown> | null> {
     try {
       const analytics = await apiClient.flows.getAnalytics()
       logger.debug('Flow analytics retrieved', { analytics })
-      return analytics
+      return analytics as Record<string, unknown>
     } catch (error) {
       logger.error('Failed to get flow analytics', { error })
       return null
+    }
+  }
+
+  // Process node execution (internal helper)
+  private async processNode(
+    nodeId: string,
+    context: FlowExecutionContext
+  ): Promise<FlowExecutionResult> {
+    const step: FlowExecutionStep = {
+      node_id: nodeId,
+      executed_at: new Date().toISOString(),
+      result: 'success'
+    }
+
+    try {
+      // Node processing logic would go here
+      context.history.push(step)
+      
+      return {
+        success: true
+      }
+    } catch (error) {
+      step.result = 'failure'
+      step.error = error instanceof Error ? error.message : 'Unknown error'
+      context.history.push(step)
+      
+      return {
+        success: false,
+        error: step.error
+      }
+    }
+  }
+
+  // Evaluate condition (internal helper)
+  private evaluateCondition(
+    field: string,
+    operator: string,
+    value: unknown,
+    contextData: Record<string, unknown>
+  ): ConditionEvaluationResult {
+    const actualValue = contextData[field]
+    
+    let passed = false
+    switch (operator) {
+      case 'equals':
+        passed = actualValue === value
+        break
+      case 'not_equals':
+        passed = actualValue !== value
+        break
+      case 'contains':
+        passed = String(actualValue).includes(String(value))
+        break
+      case 'greater_than':
+        passed = Number(actualValue) > Number(value)
+        break
+      case 'less_than':
+        passed = Number(actualValue) < Number(value)
+        break
+      default:
+        passed = false
+    }
+
+    return {
+      passed,
+      reason: passed ? 'Condition met' : 'Condition not met'
     }
   }
 }

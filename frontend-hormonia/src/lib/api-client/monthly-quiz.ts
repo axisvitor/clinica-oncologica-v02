@@ -18,12 +18,14 @@ export interface QuizLink {
   quiz_template_id: string
   token: string
   link: string
-  delivery_method: 'whatsapp' | 'email' | 'sms'
+  link_url?: string
+  delivery_method: 'whatsapp' | 'email' | 'sms' | 'manual'
   status: 'pending' | 'sent' | 'accessed' | 'completed' | 'expired' | 'cancelled'
   expires_at: string
   sent_at?: string
   accessed_at?: string
   completed_at?: string
+  access_count?: number
   created_at: string
   updated_at: string
 }
@@ -31,7 +33,7 @@ export interface QuizLink {
 export interface QuizLinkCreate {
   patient_id: string
   quiz_template_id: string
-  delivery_method?: 'whatsapp' | 'email' | 'sms'
+  delivery_method?: 'whatsapp' | 'email' | 'sms' | 'manual'
   expiry_hours?: number
   custom_message?: string
 }
@@ -39,7 +41,7 @@ export interface QuizLinkCreate {
 export interface QuizLinkBulkCreate {
   patient_ids: string[]
   quiz_template_id: string
-  delivery_method?: 'whatsapp' | 'email' | 'sms'
+  delivery_method?: 'whatsapp' | 'email' | 'sms' | 'manual'
   expiry_hours?: number
   custom_message?: string
 }
@@ -91,7 +93,13 @@ export interface QuizStats {
   }>
 }
 
-export interface QuizLinkStatus {
+// Import and re-export QuizLinkStatus from centralized types
+import type { QuizLinkStatus as ApiQuizLinkStatus, QuizLinkStatusValue } from '@/types/api'
+export type QuizLinkStatus = ApiQuizLinkStatus
+export type { QuizLinkStatusValue }
+
+// Legacy interface for backward compatibility (deprecated)
+interface _QuizLinkStatus {
   quiz_session_id: string
   patient_name: string
   status: QuizLink['status']
@@ -100,26 +108,31 @@ export interface QuizLinkStatus {
   sent_at?: string
   accessed_at?: string
   completed_at?: string
+  last_sent?: string
+  last_response?: string
+  session_id?: string
   can_resend: boolean
   can_cancel: boolean
 }
 
-export interface QuizHistory {
-  patient_id: string
-  patient_name: string
-  sessions: Array<{
-    id: string
-    quiz_template_name: string
-    status: QuizSession['status']
-    score?: number
-    started_at?: string
-    completed_at?: string
-    created_at: string
-  }>
-  total_sessions: number
-  completed_sessions: number
-  average_score?: number
+export interface QuizHistoryEntry {
+  id: string
+  patient_id?: string
+  patient_name?: string
+  quiz_template_name: string
+  quiz_template_id?: string
+  status: QuizSession['status']
+  score?: number
+  started_at?: string
+  completed_at?: string
+  sent_at?: string
+  accessed_at?: string
+  expires_at?: string
+  created_at?: string
+  delivery_method?: string
 }
+
+export type QuizHistory = QuizHistoryEntry[]
 
 export interface QuizTemplate {
   id: string

@@ -5,18 +5,59 @@
  */
 import { useState, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
-import {
-  MonthlyQuizLinkCreate,
-  MonthlyQuizLink,
-  MonthlyQuizAccessRequest,
-  MonthlyQuizAccess,
-  MonthlyQuizSubmit,
-  MonthlyQuizStats,
-  BulkQuizLinkCreate,
-  BulkQuizLinkResponse
-} from '../types';
+import type { QuizLinkStatus as ApiQuizLinkStatus } from '@/lib/api-client/monthly-quiz';
 
-export function useMonthlyQuiz() {
+// Define types inline since ../types doesn't exist
+interface MonthlyQuizLinkCreate {
+  patient_id: string
+  quiz_template_id: string
+  expires_in_days?: number
+}
+
+interface MonthlyQuizLink {
+  session_id?: string
+  quiz_session_id?: string
+  patient_id: string
+  quiz_template_id: string
+  link_url?: string
+  link?: string
+  expires_at: string
+  created_at: string
+}
+
+interface MonthlyQuizAccessRequest {
+  token: string
+}
+
+// Import types from centralized location
+import type { MonthlyQuizAccess, MonthlyQuizSubmit } from '../types'
+
+interface MonthlyQuizStats {
+  total_sent: number
+  total_accessed?: number
+  total_active?: number
+  total_completed: number
+  total_expired?: number
+  completion_rate: number
+  average_score?: number
+  expiration_rate?: number
+}
+
+// Import bulk types from centralized location
+import type { BulkQuizLinkCreate, BulkQuizLinkResponse } from '../types'
+
+export interface UseMonthlyQuizReturn {
+  loading: boolean
+  error: string | null
+  createQuizLink: (linkData: MonthlyQuizLinkCreate) => Promise<MonthlyQuizLink | null>
+  createBulkQuizLinks: (bulkData: BulkQuizLinkCreate) => Promise<BulkQuizLinkResponse | null>
+  getQuizLinkStatus: (sessionId: string) => Promise<ApiQuizLinkStatus | null>
+  getQuizStats: (startDate?: string, endDate?: string) => Promise<MonthlyQuizStats | null>
+  accessQuiz: (token: string) => Promise<MonthlyQuizAccess | null>
+  submitQuizResponse: (submitData: MonthlyQuizSubmit) => Promise<{ success: boolean; message: string } | null>
+}
+
+export function useMonthlyQuiz(): UseMonthlyQuizReturn {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,7 +106,7 @@ export function useMonthlyQuiz() {
    */
   const getQuizLinkStatus = useCallback(async (
     sessionId: string
-  ): Promise<MonthlyQuizLink | null> => {
+  ): Promise<ApiQuizLinkStatus | null> => {
     setLoading(true);
     setError(null);
 

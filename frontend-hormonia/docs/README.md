@@ -9,6 +9,12 @@
 - [Otimização de Performance](architecture/PERFORMANCE_OPTIMIZATION.md)
 - [Correções TypeScript](architecture/TYPESCRIPT_INITIALIZATION_FIXES.md)
 
+### 📘 TypeScript & Type Safety
+- **[Type Safety Guidelines](TYPE_SAFETY_GUIDELINES.md)** - **Required reading for all contributors**
+- [Type Patterns Guide](TYPE_PATTERNS.md) - Common patterns with examples
+- [Type Usage Guide](TYPE_USAGE_GUIDE.md) - Type usage conventions
+- [Type Consolidation Summary](TYPE_CONSOLIDATION_SUMMARY.md) - Refactoring history
+
 ### 🔐 Autenticação
 - [Uso do MedicoAuthContext](auth/MedicoAuthContext-Usage.md)
 

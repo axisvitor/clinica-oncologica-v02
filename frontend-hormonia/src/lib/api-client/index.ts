@@ -56,6 +56,12 @@ export class ApiClient extends ApiClientCore {
   public readonly alerts: AlertsApi;
   public readonly reports: ReportsApi;
   public readonly admin: AdminApi;
+  public readonly adminUsers: AdminUsersApi;
+  public readonly ai: AiApi;
+  public readonly quiz: QuizApi;
+  public readonly quizzes: QuizTemplatesApi;
+  public readonly notifications: NotificationsApi;
+  public readonly physician: PhysicianApi;
 
   constructor(baseURL: string) {
     super(baseURL);
@@ -72,6 +78,12 @@ export class ApiClient extends ApiClientCore {
     this.alerts = this.createAlertsApi();
     this.reports = this.createReportsApi();
     this.admin = this.createAdminApi();
+    this.adminUsers = this.createAdminUsersApi();
+    this.ai = this.createAiApi();
+    this.quiz = this.createQuizApi();
+    this.quizzes = this.createQuizTemplatesApi();
+    this.notifications = this.createNotificationsApi();
+    this.physician = this.createPhysicianApi();
 
     logger.log("API Client initialized with modular architecture");
   }
@@ -81,8 +93,10 @@ export class ApiClient extends ApiClientCore {
    */
   private createMessagesApi(): MessagesApi {
     return {
-      list: (page = 1, size = 20, filters?: any) =>
-        this.get("/api/v1/messages", { page, size, ...filters }),
+      list: (options: MessagesListOptions = {}) => {
+        const { page = 1, size = 20, ...filters } = options;
+        return this.get("/api/v1/messages", { page, size, ...filters });
+      },
 
       get: (messageId: string) => this.get(`/api/v1/messages/${messageId}`),
 
@@ -97,6 +111,8 @@ export class ApiClient extends ApiClientCore {
 
       sendBulk: (data: { patient_ids: string[]; content: string }) =>
         this.post("/api/v1/messages/bulk", data),
+
+      retry: (messageId: string) => this.post(`/api/v1/messages/${messageId}/retry`),
     };
   }
 
@@ -105,7 +121,7 @@ export class ApiClient extends ApiClientCore {
    */
   private createFlowsApi(): FlowsApi {
     return {
-      list: () => this.get("/api/v1/flows"),
+      list: (options: Record<string, any> = {}) => this.get("/api/v1/flows", options),
 
       get: (flowId: string) => this.get(`/api/v1/flows/${flowId}`),
 
@@ -122,6 +138,47 @@ export class ApiClient extends ApiClientCore {
       execute: (flowId: string, data?: any) => this.post(`/api/v1/flows/${flowId}/execute`, data),
 
       getExecutions: (flowId: string) => this.get(`/api/v1/flows/${flowId}/executions`),
+
+      getState: (patientId: string) => this.get(`/api/v1/flows/${patientId}/state`),
+
+      // Compatibility methods used by FlowEngine/TemplateManager
+      start: (patientId: string, flowType: string) =>
+        this.post("/api/v1/flows/start", { patient_id: patientId, flow_type: flowType }),
+
+      advance: (patientId: string, day?: number) =>
+        this.post(`/api/v1/flows/${patientId}/advance`, day ? { day } : undefined),
+
+      pause: async (patientId: string) => {
+        // If backend endpoint not available yet, fall back to state fetch
+        try {
+          return await this.post(`/api/v1/flows/${patientId}/pause`)
+        } catch {
+          return this.get(`/api/v1/flows/${patientId}/state`)
+        }
+      },
+
+      resume: async (patientId: string) => {
+        try {
+          return await this.post(`/api/v1/flows/${patientId}/resume`)
+        } catch {
+          return this.get(`/api/v1/flows/${patientId}/state`)
+        }
+      },
+
+      processResponse: (
+        patientId: string,
+        responseText: string,
+        metadata?: Record<string, any>,
+      ) => this.post("/api/v1/flows/process-response", { patient_id: patientId, response_text: responseText, metadata }),
+
+      getAnalytics: () => this.get("/api/v1/flows/analytics"),
+
+      // Templates management
+      getTemplates: () => this.get("/api/v1/flows/templates"),
+      createTemplate: (template: any) => this.post("/api/v1/flows/templates", template),
+      updateTemplate: (templateId: string, data: any) =>
+        this.put(`/api/v1/flows/templates/${templateId}`, data),
+      deleteTemplate: (templateId: string) => this.delete(`/api/v1/flows/templates/${templateId}`),
     };
   }
 
@@ -130,8 +187,10 @@ export class ApiClient extends ApiClientCore {
    */
   private createAlertsApi(): AlertsApi {
     return {
-      list: (page = 1, size = 20, filters?: any) =>
-        this.get("/api/v1/alerts", { page, size, ...filters }),
+      list: (options: AlertsListOptions = {}) => {
+        const { page = 1, size = 20, ...filters } = options;
+        return this.get("/api/v1/alerts", { page, size, ...filters });
+      },
 
       get: (alertId: string) => this.get(`/api/v1/alerts/${alertId}`),
 
@@ -146,6 +205,10 @@ export class ApiClient extends ApiClientCore {
       markAllAsRead: () => this.post("/api/v1/alerts/read-all"),
 
       getUnreadCount: () => this.get("/api/v1/alerts/unread-count"),
+
+      acknowledge: (alertId: string) => this.post(`/api/v1/alerts/${alertId}/acknowledge`),
+
+      resolve: (alertId: string) => this.post(`/api/v1/alerts/${alertId}/resolve`),
     };
   }
 
@@ -154,10 +217,24 @@ export class ApiClient extends ApiClientCore {
    */
   private createReportsApi(): ReportsApi {
     return {
-      list: () => this.get("/api/v1/reports"),
+      list: async (options: ReportsListOptions = {}) => {
+        const { page = 1, size = 20, ...filters } = options;
+        const res: any = await this.get("/api/v1/reports", { page, size, ...filters });
+        if (Array.isArray(res)) {
+          return { items: res };
+        }
+        if (Array.isArray(res?.data)) {
+          return { items: res.data, total: res.total ?? res.total_count ?? res.data.length };
+        }
+        return res;
+      },
 
-      generate: (type: string, params?: any) =>
-        this.post(`/api/v1/reports/generate/${type}`, params),
+      generate: (patientId: string, reportType: string, config?: Record<string, any>) =>
+        this.post("/api/v1/reports/generate", {
+          patient_id: patientId,
+          type: reportType,
+          config,
+        }),
 
       download: async (reportId: string, format: "pdf" | "excel" | "csv" = "pdf") => {
         const response = await fetch(
@@ -263,9 +340,173 @@ export class ApiClient extends ApiClientCore {
 
         getMetrics: () => this.get("/api/v1/admin/system/metrics"),
 
+        systemStats: () => this.get("/api/v1/admin/system/stats"),
+
         clearCache: () => this.post("/api/v1/admin/system/clear-cache"),
 
         runMaintenance: () => this.post("/api/v1/admin/system/maintenance"),
+      },
+    };
+  }
+
+  private createAdminUsersApi(): AdminUsersApi {
+    return {
+      list: (options: AdminUsersListOptions = {}) => {
+        const { page = 1, size = 20, ...filters } = options;
+        return this.get("/api/v1/admin/users", { page, size, ...filters });
+      },
+
+      get: (userId: string) => this.get(`/api/v1/admin/users/${userId}`),
+
+      create: (data: any) => this.post("/api/v1/admin/users", data),
+
+      update: (userId: string, data: any) => this.put(`/api/v1/admin/users/${userId}`, data),
+
+      delete: (userId: string) => this.delete(`/api/v1/admin/users/${userId}`),
+
+      activate: (userId: string) => this.post(`/api/v1/admin/users/${userId}/activate`),
+
+      deactivate: (userId: string) => this.post(`/api/v1/admin/users/${userId}/deactivate`),
+
+      updatePermissions: (userId: string, permissions: string[]) =>
+        this.put(`/api/v1/admin/users/${userId}/permissions`, { permissions }),
+
+      updateRole: (userId: string, role: string) =>
+        this.put(`/api/v1/admin/users/${userId}/role`, { role }),
+
+      getActivity: (userId: string, options: AdminUserActivityOptions = {}) => {
+        const { page = 1, size = 20, ...filters } = options;
+        return this.get(`/api/v1/admin/users/${userId}/activity`, { page, size, ...filters });
+      },
+
+      resetPassword: (userId: string, payload: { new_password: string; force_change: boolean }) =>
+        this.post(`/api/v1/admin/users/${userId}/reset-password`, payload),
+
+      unlock: (userId: string) => this.post(`/api/v1/admin/users/${userId}/unlock`),
+
+      enable2FA: (userId: string) => this.post(`/api/v1/admin/users/${userId}/2fa/enable`),
+
+      disable2FA: (userId: string) => this.post(`/api/v1/admin/users/${userId}/2fa/disable`),
+    };
+  }
+
+  private createAiApi(): AiApi {
+    return {
+      chat: (message: string, context?: any) =>
+        this.post("/api/v1/ai/chat", { message, context }),
+
+      analyze: (data: any, analysisType: string) =>
+        this.post("/api/v1/ai/analyze", { data, analysis_type: analysisType }),
+
+      generateResponse: (patientId: string, messageHistory: any[], intent?: string) =>
+        this.post("/api/v1/ai/generate-response", {
+          patient_id: patientId,
+          message_history: messageHistory,
+          intent,
+        }),
+
+      sentiment: (text: string) => this.post("/api/v1/ai/sentiment", { text }),
+
+      insights: (patientId: string, timeframe?: string) =>
+        this.get(`/api/v1/ai/insights/${patientId}`, timeframe ? { timeframe } : undefined),
+
+      recommendations: (patientId: string) =>
+        this.get(`/api/v1/ai/recommendations/${patientId}`),
+    };
+  }
+
+  private createQuizApi(): QuizApi {
+    return {
+      templates: async () => {
+        const res: any = await this.get("/api/v1/quiz/templates")
+        return Array.isArray(res) ? { items: res } : res
+      },
+
+      // Create a new quiz session (v2)
+      start: (patientId: string, quizTemplateId: string) =>
+        this.post("/api/v2/quiz", {
+          patient_id: patientId,
+          quiz_template_id: quizTemplateId,
+        }),
+
+      // Get session by ID (v2)
+      getSession: (sessionId: string) => this.get(`/api/v2/quiz/${sessionId}`),
+
+      submitResponse: (
+        sessionId: string,
+        questionId: string,
+        answer: string,
+        responseMetadata?: Record<string, any>,
+      ) => {
+        const params: Record<string, string> = {
+          question_id: questionId,
+          answer,
+        };
+        if (responseMetadata) {
+          params["response_metadata"] = JSON.stringify(responseMetadata);
+        }
+        return this.post(`/api/v1/quiz/sessions/${sessionId}/submit`, undefined, params);
+      },
+
+      // List sessions (v2) with cursor pagination; keep backward-compatible shape
+      sessions: async (filters: Record<string, any> = {}) => {
+        const { page, size, limit, cursor, ...rest } = filters || {}
+        const effLimit = limit ?? size ?? 20
+        const params: Record<string, any> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...rest }
+        const res: any = await this.get("/api/v2/quiz", params)
+        const items = Array.isArray(res?.data) ? res.data : (res?.items ?? [])
+        const total = res?.total ?? 0
+        const has_more = res?.has_more ?? false
+        const next_cursor = res?.next_cursor ?? null
+        return { items, total, has_more, next_cursor }
+      },
+
+      getPatientResponses: (
+        patientId: string,
+        options: Record<string, any> = {},
+      ) => this.get(`/api/v1/patients/${patientId}/quiz-responses`, options),
+
+      // Responses/analysis remain on v1 for now
+      getSessionResponses: (sessionId: string) =>
+        this.get(`/api/v1/quiz/sessions/${sessionId}/responses`),
+
+      getSessionAnalysis: (sessionId: string) =>
+        this.get(`/api/v1/quiz/sessions/${sessionId}/analysis`),
+    };
+  }
+
+  private createQuizTemplatesApi(): QuizTemplatesApi {
+    return {
+      list: () => this.quiz.templates(),
+      listTemplates: () => this.quiz.templates(),
+      createTemplate: (template: any) => this.post("/api/v1/quiz/templates", template),
+      create: (template: any) => this.post("/api/v1/quiz/templates", template),
+      updateTemplate: (templateId: string, data: any) =>
+        this.put(`/api/v1/quiz/templates/${templateId}`, data),
+      deleteTemplate: (templateId: string) =>
+        this.delete(`/api/v1/quiz/templates/${templateId}`),
+      getTemplateAnalytics: (templateId: string) =>
+        this.get(`/api/v1/quiz/templates/${templateId}/analytics`),
+    };
+  }
+
+  private createNotificationsApi(): NotificationsApi {
+    return {
+      list: () => this.get("/api/v1/auth/notifications"),
+    };
+  }
+
+  private createPhysicianApi(): PhysicianApi {
+    return {
+      riskAssessments: (patientId?: string, daysLookback?: number) => {
+        const params: Record<string, string | number> = {};
+        if (patientId) {
+          params["patient_id"] = patientId;
+        }
+        if (daysLookback) {
+          params["days_lookback"] = daysLookback;
+        }
+        return this.get("/api/v1/physician/risk-assessments", params);
       },
     };
   }
@@ -280,18 +521,25 @@ export class ApiClient extends ApiClientCore {
 }
 
 // Type definitions for inline APIs
+interface MessagesListOptions {
+  page?: number;
+  size?: number;
+  [key: string]: any;
+}
+
 interface MessagesApi {
-  list: (page?: number, size?: number, filters?: any) => Promise<any>;
+  list: (options?: MessagesListOptions) => Promise<any>;
   get: (messageId: string) => Promise<any>;
   send: (data: any) => Promise<any>;
   markAsRead: (messageId: string) => Promise<any>;
   delete: (messageId: string) => Promise<any>;
   getConversation: (patientId: string) => Promise<any>;
   sendBulk: (data: { patient_ids: string[]; content: string }) => Promise<any>;
+  retry: (messageId: string) => Promise<any>;
 }
 
 interface FlowsApi {
-  list: () => Promise<any>;
+  list: (options?: Record<string, any>) => Promise<any>;
   get: (flowId: string) => Promise<any>;
   create: (data: any) => Promise<any>;
   update: (flowId: string, data: any) => Promise<any>;
@@ -300,10 +548,27 @@ interface FlowsApi {
   deactivate: (flowId: string) => Promise<any>;
   execute: (flowId: string, data?: any) => Promise<any>;
   getExecutions: (flowId: string) => Promise<any>;
+  getState: (patientId: string) => Promise<any>;
+  start: (patientId: string, flowType: string) => Promise<any>;
+  advance: (patientId: string, day?: number) => Promise<any>;
+  pause: (patientId: string) => Promise<any>;
+  resume: (patientId: string) => Promise<any>;
+  processResponse: (patientId: string, responseText: string, metadata?: Record<string, any>) => Promise<any>;
+  getAnalytics: () => Promise<any>;
+  getTemplates: () => Promise<any>;
+  createTemplate: (template: any) => Promise<any>;
+  updateTemplate: (templateId: string, data: any) => Promise<any>;
+  deleteTemplate: (templateId: string) => Promise<any>;
+}
+
+interface AlertsListOptions {
+  page?: number;
+  size?: number;
+  [key: string]: any;
 }
 
 interface AlertsApi {
-  list: (page?: number, size?: number, filters?: any) => Promise<any>;
+  list: (options?: AlertsListOptions) => Promise<any>;
   get: (alertId: string) => Promise<any>;
   create: (data: any) => Promise<any>;
   update: (alertId: string, data: any) => Promise<any>;
@@ -311,11 +576,19 @@ interface AlertsApi {
   markAsRead: (alertId: string) => Promise<any>;
   markAllAsRead: () => Promise<any>;
   getUnreadCount: () => Promise<any>;
+  acknowledge: (alertId: string) => Promise<any>;
+  resolve: (alertId: string) => Promise<any>;
+}
+
+interface ReportsListOptions {
+  page?: number;
+  size?: number;
+  [key: string]: any;
 }
 
 interface ReportsApi {
-  list: () => Promise<any>;
-  generate: (type: string, params?: any) => Promise<any>;
+  list: (options?: ReportsListOptions) => Promise<any>;
+  generate: (patientId: string, reportType: string, config?: Record<string, any>) => Promise<any>;
   download: (reportId: string, format?: "pdf" | "excel" | "csv") => Promise<Blob>;
   delete: (reportId: string) => Promise<any>;
   schedule: (data: {
@@ -356,9 +629,85 @@ interface AdminApi {
   system: {
     getHealth: () => Promise<any>;
     getMetrics: () => Promise<any>;
+    systemStats: () => Promise<any>;
     clearCache: () => Promise<any>;
     runMaintenance: () => Promise<any>;
   };
+}
+
+interface AdminUsersListOptions {
+  page?: number;
+  size?: number;
+  search?: string;
+  role?: string;
+  status?: string;
+  [key: string]: any;
+}
+
+interface AdminUserActivityOptions {
+  page?: number;
+  size?: number;
+  [key: string]: any;
+}
+
+interface AdminUsersApi {
+  list: (options?: AdminUsersListOptions) => Promise<any>;
+  get: (userId: string) => Promise<any>;
+  create: (data: any) => Promise<any>;
+  update: (userId: string, data: any) => Promise<any>;
+  delete: (userId: string) => Promise<any>;
+  activate: (userId: string) => Promise<any>;
+  deactivate: (userId: string) => Promise<any>;
+  updatePermissions: (userId: string, permissions: string[]) => Promise<any>;
+  updateRole: (userId: string, role: string) => Promise<any>;
+  getActivity: (userId: string, options?: AdminUserActivityOptions) => Promise<any>;
+  resetPassword: (userId: string, payload: { new_password: string; force_change: boolean }) => Promise<any>;
+  unlock: (userId: string) => Promise<any>;
+  enable2FA: (userId: string) => Promise<any>;
+  disable2FA: (userId: string) => Promise<any>;
+}
+
+interface AiApi {
+  chat: (message: string, context?: any) => Promise<any>;
+  analyze: (data: any, analysisType: string) => Promise<any>;
+  generateResponse: (patientId: string, messageHistory: any[], intent?: string) => Promise<any>;
+  sentiment: (text: string) => Promise<any>;
+  insights: (patientId: string, timeframe?: string) => Promise<any>;
+  recommendations: (patientId: string) => Promise<any>;
+}
+
+interface QuizApi {
+  templates: () => Promise<any>;
+  start: (patientId: string, quizTemplateId: string) => Promise<any>;
+  getSession: (sessionId: string) => Promise<any>;
+  submitResponse: (
+    sessionId: string,
+    questionId: string,
+    answer: string,
+    responseMetadata?: Record<string, any>,
+  ) => Promise<any>;
+  sessions: (filters?: Record<string, any>) => Promise<any>;
+  getPatientResponses: (patientId: string, options?: Record<string, any>) => Promise<any>;
+  getSessionResponses: (sessionId: string) => Promise<any>;
+  getSessionAnalysis: (sessionId: string) => Promise<any>;
+}
+
+interface QuizTemplatesApi {
+  list: () => Promise<any>;
+  listTemplates: () => Promise<any>;
+  createTemplate: (template: any) => Promise<any>;
+  create: (template: any) => Promise<any>;
+  updateTemplate: (templateId: string, data: any) => Promise<any>;
+  deleteTemplate: (templateId: string) => Promise<any>;
+  getTemplateAnalytics: (templateId: string) => Promise<any>;
+}
+
+interface NotificationsApi {
+  list: () => Promise<any>;
+}
+
+interface PhysicianApi {
+  riskAssessments: (patientId?: string, daysLookback?: number) => Promise<any>;
 }
 
 // Create singleton instance

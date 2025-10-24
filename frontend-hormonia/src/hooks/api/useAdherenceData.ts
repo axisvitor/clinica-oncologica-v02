@@ -54,9 +54,7 @@ export function useAdherenceData(
     queryFn: async () => {
       const response = await apiClient.get<ApiResponse<TreatmentAdherence[]>>(
         '/api/v1/analytics/adherence',
-        {
-          params: { days }
-        }
+        { days }
       )
       return response.data
     },

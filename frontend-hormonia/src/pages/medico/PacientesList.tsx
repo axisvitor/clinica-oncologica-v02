@@ -1,8 +1,7 @@
 /// <reference types="vite/client" />
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useMedicoAuth } from '../../contexts/MedicoAuthContext'
 import { apiClient } from '../../lib/api-client'
 import { ChevronDown, Phone, Mail, Calendar, User, FileText } from 'lucide-react'
 
@@ -17,18 +16,13 @@ interface Paciente {
 
 export default function PacientesList() {
   const navigate = useNavigate()
-  const { state } = useMedicoAuth()
   const [pacientes, setPacientes] = useState<Paciente[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
 
-  useEffect(() => {
-    fetchPacientes()
-  }, [])
-
-  const fetchPacientes = async () => {
+  const fetchPacientes = useCallback(async () => {
     try {
       setLoading(true)
       const params: { size?: number; search?: string } = { size: 50 }
@@ -48,7 +42,11 @@ export default function PacientesList() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [searchTerm])
+
+  useEffect(() => {
+    fetchPacientes()
+  }, [fetchPacientes])
 
   const filteredPacientes = pacientes.filter(paciente =>
     paciente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||

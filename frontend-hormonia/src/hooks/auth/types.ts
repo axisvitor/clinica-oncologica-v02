@@ -1,24 +1,9 @@
-export interface User {
-  id: string
-  email: string
-  full_name: string
-  role: string
-  is_active: boolean
-  permissions: string[]
-  token?: string  // Token property for WebSocket usage and API auth
-  avatar_url?: string  // Add avatar_url property for profile picture
-  created_at: string
-}
+// Import and re-export centralized types
+import type { User as ApiUser, AuthTokens as ApiAuthTokens, LoginResponse as ApiLoginResponse } from '@/types/api'
 
-export interface AuthTokens {
-  access_token: string
-  refresh_token?: string
-  expires_in?: number
-}
-
-export interface LoginResponse extends AuthTokens {
-  user: User
-}
+export type User = ApiUser
+export type AuthTokens = ApiAuthTokens
+export type LoginResponse = ApiLoginResponse
 
 export interface SupabaseAuthData {
   user: any | null  // Removed Supabase dependency
@@ -38,7 +23,7 @@ export interface PermissionConfig {
 }
 
 export interface AuthState {
-  user: User | null
+  user: ApiUser | null
   token: string | null
   refreshToken: string | null
   isAuthenticated: boolean

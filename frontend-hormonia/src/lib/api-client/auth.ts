@@ -26,12 +26,17 @@ export interface RegisterData {
 export interface User {
   id: string
   email: string
-  name?: string
-  full_name?: string
+  full_name: string
   role: string
-  permissions?: string[]
-  created_at?: string
+  is_active: boolean
+  permissions: string[]
+  created_at: string
+  name?: string
   updated_at?: string
+  firebase_uid?: string
+  session_id?: string
+  token?: string
+  avatar_url?: string
 }
 
 export interface SessionValidationResponse {
@@ -88,16 +93,18 @@ export function createAuthApi(client: ApiClientCore) {
 
     const displayName = sessionUser.full_name ?? sessionUser.name ?? sessionUser.email
 
-    return {
+    const user: User = {
       id: sessionUser.id,
       email: sessionUser.email,
       name: displayName,
       full_name: sessionUser.full_name ?? sessionUser.name ?? displayName,
       role: sessionUser.role ?? 'doctor',
       permissions: sessionUser.permissions ?? [],
-      created_at: sessionUser.created_at,
-      updated_at: sessionUser.updated_at,
+      is_active: sessionUser.is_active ?? true,
+      created_at: sessionUser.created_at ?? new Date().toISOString(),
     }
+    if (sessionUser.updated_at) user.updated_at = sessionUser.updated_at
+    return user
   }
 
   const fetchSession = async (): Promise<SessionValidationResponse> => {
@@ -181,7 +188,7 @@ export function createAuthApi(client: ApiClientCore) {
       })
     },
 
-    me: async (): Promise<{ data: User | null; session?: Record<string, any> }> => {
+    me: async (): Promise<{ data: User | null; session?: Record<string, any> | undefined }> => {
       const session = await fetchSession()
       if (!session.valid || !session.user) {
         return { data: null, session: session.session_data }

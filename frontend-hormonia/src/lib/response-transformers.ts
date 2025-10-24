@@ -6,47 +6,48 @@
  * Transform backend pagination response to frontend format
  */
 export function transformPaginationResponse<T>(
-  backendResponse: any,
+  backendResponse: unknown,
   responseType: 'patients' | 'messages' | 'default' = 'default'
 ): PaginatedResponse<T> {
+  const response = backendResponse as Record<string, unknown>
   switch (responseType) {
     case 'patients':
       // Backend returns: { data, total, page, limit, pages }
       // Frontend expects: { items, total, page, size, pages }
       return {
-        items: backendResponse.data || [],
-        total: backendResponse.total || 0,
-        page: backendResponse.page || 1,
-        size: backendResponse.limit || 20,
-        pages: backendResponse.pages || 1
+        items: (response['data'] as T[]) || [],
+        total: (response['total'] as number) || 0,
+        page: (response['page'] as number) || 1,
+        size: (response['limit'] as number) || 20,
+        pages: (response['pages'] as number) || 1
       };
 
     case 'messages':
       // Backend returns: { messages, total, skip, limit }
       // Frontend expects: { items, total, page, size, pages }
-      const messagesPage = Math.floor((backendResponse.skip || 0) / (backendResponse.limit || 20)) + 1;
-      const messagesPages = Math.ceil((backendResponse.total || 0) / (backendResponse.limit || 20));
+      const messagesPage = Math.floor(((response['skip'] as number) || 0) / ((response['limit'] as number) || 20)) + 1;
+      const messagesPages = Math.ceil(((response['total'] as number) || 0) / ((response['limit'] as number) || 20));
       return {
-        items: backendResponse.messages || [],
-        total: backendResponse.total || 0,
+        items: (response['messages'] as T[]) || [],
+        total: (response['total'] as number) || 0,
         page: messagesPage,
-        size: backendResponse.limit || 20,
+        size: (response['limit'] as number) || 20,
         pages: messagesPages
       };
 
     default:
       // Generic transformation - try to detect the structure
-      if ('data' in backendResponse) {
+      if ('data' in response) {
         return transformPaginationResponse<T>(backendResponse, 'patients');
-      } else if ('messages' in backendResponse) {
+      } else if ('messages' in response) {
         return transformPaginationResponse<T>(backendResponse, 'messages');
-      } else if ('items' in backendResponse) {
+      } else if ('items' in response) {
         // Already in correct format
-        return backendResponse as PaginatedResponse<T>;
+        return response as unknown as PaginatedResponse<T>;
       } else if (Array.isArray(backendResponse)) {
         // Simple array - wrap in pagination structure
         return {
-          items: backendResponse,
+          items: backendResponse as T[],
           total: backendResponse.length,
           page: 1,
           size: backendResponse.length,
@@ -55,7 +56,7 @@ export function transformPaginationResponse<T>(
       }
 
       // Fallback - return as is
-      return backendResponse as PaginatedResponse<T>;
+      return response as unknown as PaginatedResponse<T>;
   }
 }
 
@@ -107,7 +108,7 @@ export interface PaginatedResponse<T> {
  * Transform flow list response
  * Backend returns array, Frontend expects PaginatedResponse
  */
-export function transformFlowListResponse(flows: any[]): PaginatedResponse<any> {
+export function transformFlowListResponse<T = unknown>(flows: T[]): PaginatedResponse<T> {
   return {
     items: flows,
     total: flows.length,

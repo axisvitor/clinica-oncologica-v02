@@ -1,12 +1,11 @@
-import React, { useState, useMemo, useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import React, { useState, useEffect } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
-import { Search, Plus, ListFilter as Filter, MoveHorizontal as MoreHorizontal, FileText, Users, TrendingUp, Clock, Check, X, CircleAlert as AlertCircle, ChevronDown, Eye, CreditCard as Edit, Trash2, ChartBar as BarChart3, Calendar } from 'lucide-react'
+import { Search, Plus, MoveHorizontal as MoreHorizontal, FileText, Users, TrendingUp, Clock, Check, X, CircleAlert as AlertCircle, Eye, CreditCard as Edit, Trash2, ChartBar as BarChart3, Calendar } from 'lucide-react'
 
 import { apiClient } from '@/lib/api-client'
-import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/components/ui/use-toast'
 import { useQuestionarios } from '@/hooks/api/useQuestionarios'
 
@@ -14,14 +13,14 @@ import { useQuestionarios } from '@/hooks/api/useQuestionarios'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+ 
 import { LoadingSpinner, LoadingOverlay } from '@/components/ui/loading-spinner'
 import { Separator } from '@/components/ui/separator'
 import { createLogger } from '@/lib/logger'
@@ -47,7 +46,7 @@ interface QuizQuestion {
   required: boolean
   options?: QuestionOption[]
   validation_rules?: ValidationRule[]
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 interface QuestionOption {
@@ -59,18 +58,11 @@ interface QuestionOption {
 
 interface ValidationRule {
   type: string
-  value: any
+  value: unknown
   message: string
 }
 
-interface QuizAnalytics {
-  quiz_template_id: string
-  total_responses: number
-  completion_rate: number
-  average_completion_time?: number
-  question_analytics: Array<Record<string, any>>
-  trends: Record<string, any>
-}
+ 
 
 // Form schemas
 const questionSchema = z.object({
@@ -106,7 +98,6 @@ interface Filters {
 }
 
 export function QuestionariosPage() {
-  const { user } = useAuth()
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
@@ -123,6 +114,7 @@ export function QuestionariosPage() {
   const [editingTemplate, setEditingTemplate] = useState<QuizTemplate | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 12
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   // Queries - Using useQuestionarios hook with server-side filtering
   const {
@@ -156,11 +148,11 @@ export function QuestionariosPage() {
       setIsCreateDialogOpen(false)
       reset()
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       logger.error('Create quiz error', { error });
       toast({
         title: 'Erro ao criar questionário',
-        description: error?.data?.message || 'Não foi possível criar o questionário.',
+        description: (error as { data?: { message?: string } })?.data?.message || 'Não foi possível criar o questionário.',
         variant: 'destructive',
       })
     }
@@ -180,11 +172,11 @@ export function QuestionariosPage() {
       })
       queryClient.invalidateQueries({ queryKey: ['quiz-templates'] })
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       logger.error('Delete quiz error', { error });
       toast({
         title: 'Erro ao excluir questionário',
-        description: error?.data?.message || 'Não foi possível excluir o questionário.',
+        description: (error as { data?: { message?: string } })?.data?.message || 'Não foi possível excluir o questionário.',
         variant: 'destructive',
       })
     }
@@ -207,11 +199,11 @@ export function QuestionariosPage() {
       setEditingTemplate(null)
       reset()
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       logger.error('Update quiz error', { error });
       toast({
         title: 'Erro ao atualizar questionário',
-        description: error?.data?.message || 'Não foi possível atualizar o questionário.',
+        description: (error as { data?: { message?: string } })?.data?.message || 'Não foi possível atualizar o questionário.',
         variant: 'destructive',
       })
     }
@@ -274,7 +266,7 @@ export function QuestionariosPage() {
     setCurrentPage(1)
   }
 
-  const handleFilterChange = (key: keyof Filters, value: any) => {
+  const handleFilterChange = <K extends keyof Filters>(key: K, value: Filters[K]) => {
     setFilters(prev => ({ ...prev, [key]: value }))
     setCurrentPage(1)
   }
@@ -288,9 +280,20 @@ export function QuestionariosPage() {
   }
 
   const handleDeleteTemplate = (id: string) => {
-    if (window.confirm('Tem certeza que deseja desativar este questionário?')) {
+    if (confirmDeleteId === id) {
+      setConfirmDeleteId(null)
       deleteMutation.mutate(id)
+      return
     }
+    setConfirmDeleteId(id)
+    toast({
+      title: 'Confirme a desativação',
+      description: 'Clique novamente para desativar este questionário.',
+      variant: 'destructive'
+    })
+    setTimeout(() => {
+      setConfirmDeleteId((prev) => (prev === id ? null : prev))
+    }, 3000)
   }
 
   const handleEditTemplate = (template: QuizTemplate) => {
@@ -329,7 +332,7 @@ export function QuestionariosPage() {
     setValue('questions', questions.filter((_, i) => i !== index))
   }
 
-  const updateQuestion = (index: number, field: string, value: any) => {
+  const updateQuestion = (index: number, field: string, value: unknown) => {
     const updatedQuestions = [...questions]
     const currentQuestion = updatedQuestions[index]
     if (!currentQuestion) return
@@ -348,10 +351,12 @@ export function QuestionariosPage() {
 
   // Get summary statistics from server data
   const totalTemplates = templatesData?.total || 0
-  const activeTemplates = (templatesData?.data || []).filter((t: any) => t.is_active).length
-  const totalResponses = (templatesData?.data || []).reduce((sum: number, t: any) => sum + (t.analytics?.total_responses || 0), 0)
-  const averageCompletionRate = templatesData?.data && templatesData.data.length > 0 ?
-    templatesData.data.reduce((sum: number, t: any) => sum + (t.analytics?.completion_rate || 0), 0) / templatesData.data.length : 0
+  const analyticsList = (templatesData?.data ?? []) as Array<QuizTemplate & { analytics?: { total_responses?: number; completion_rate?: number } }>
+  const activeTemplates = analyticsList.filter((t) => t.is_active).length
+  const totalResponses = analyticsList.reduce((sum, t) => sum + (t.analytics?.total_responses ?? 0), 0)
+  const averageCompletionRate = analyticsList.length > 0
+    ? analyticsList.reduce((sum, t) => sum + (t.analytics?.completion_rate ?? 0), 0) / analyticsList.length
+    : 0
 
   return (
     <div className="container mx-auto py-4 sm:py-6 lg:py-8 px-3 sm:px-4 lg:px-6 max-w-7xl">
@@ -446,7 +451,7 @@ export function QuestionariosPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Select
                 value={filters.type}
-                onValueChange={(value) => handleFilterChange('type', value)}
+                onValueChange={(value: 'all' | 'medical' | 'wellness') => handleFilterChange('type', value)}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Tipo" />
@@ -460,7 +465,7 @@ export function QuestionariosPage() {
 
               <Select
                 value={filters.status}
-                onValueChange={(value) => handleFilterChange('status', value)}
+                onValueChange={(value: 'all' | 'active' | 'inactive') => handleFilterChange('status', value)}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Status" />
@@ -475,7 +480,7 @@ export function QuestionariosPage() {
               <Select
                 value={`${filters.sortBy}-${filters.sortOrder}`}
                 onValueChange={(value) => {
-                  const [sortBy, sortOrder] = value.split('-')
+                  const [sortBy, sortOrder] = value.split('-') as ['created_at' | 'name' | 'responses', 'asc' | 'desc']
                   handleFilterChange('sortBy', sortBy)
                   handleFilterChange('sortOrder', sortOrder)
                 }}

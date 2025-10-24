@@ -73,12 +73,12 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
       return {
         users: {
           total: usersResponse?.total || 0,
-          active: usersResponse?.items?.filter(u => u.is_active).length || 0,
-          locked: usersResponse?.items?.filter(u => u.locked_until && new Date(u.locked_until) > new Date()).length || 0,
+          active: (usersResponse?.items as AdminUser[] | undefined)?.filter((u: AdminUser) => u.is_active).length || 0,
+          locked: (usersResponse?.items as AdminUser[] | undefined)?.filter((u: AdminUser) => u.locked_until && new Date(u.locked_until) > new Date()).length || 0,
           new_today: 0
         },
         security: {
-          failed_logins: usersResponse?.items?.reduce((sum, u) => sum + u.failed_login_attempts, 0) || 0,
+          failed_logins: (usersResponse?.items as AdminUser[] | undefined)?.reduce((sum: number, u: AdminUser) => sum + (u.failed_login_attempts || 0), 0) || 0,
           active_sessions: 0,
           blocked_ips: 0
         },

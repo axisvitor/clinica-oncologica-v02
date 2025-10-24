@@ -418,7 +418,7 @@ export function UserDetailsPanel({
                       </div>
                     ) : userActivity?.items && userActivity.items.length > 0 ? (
                       <div className="space-y-4">
-                        {userActivity.items.map((activity) => (
+                        {userActivity.items.map((activity: AdminUserActivity) => (
                           <div key={activity.id} className="flex items-start space-x-3 p-3 border rounded-lg">
                             <div className="mt-1">
                               {getActivityIcon(activity.action)}

@@ -110,25 +110,31 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const token = await firebaseUser.getIdToken()
 
-      // Call /auth/me with auth header
-      apiClient.setAuthToken(token)
-      const response = await apiClient.auth.me()
+      try {
+        // Call /auth/me with auth header
+        apiClient.setAuthToken(token)
+        const response = await apiClient.auth.me()
 
-      if (!response || !response.data) {
-        // No user data returned, force sign out (lazy loaded)
-        logger.warn('No user data from /auth/me, signing out')
-        await firebaseAuthLazy.signOut()
+        if (!response || !response.data) {
+          // No user data returned, force sign out (lazy loaded)
+          logger.warn('No user data from /auth/me, signing out')
+          await firebaseAuthLazy.signOut()
 
-        toast({
-          title: 'Sessão expirada',
-          description: 'Sua sessão expirou. Por favor, faça login novamente.',
-          variant: 'destructive'
-        })
+          toast({
+            title: 'Sessão expirada',
+            description: 'Sua sessão expirou. Por favor, faça login novamente.',
+            variant: 'destructive'
+          })
 
-        return null
+          return null
+        }
+
+        return response.data
+      } finally {
+        // SECURITY FIX: Ensure Authorization header is cleared after validation
+        apiClient.clearAuthToken()
+        logger.log('Cleared Firebase token after transformFirebaseUser - using cookie-only auth')
       }
-
-      return response.data
 
     } catch (error: any) {
       // ANY error from /auth/me = force sign out (lazy loaded)
@@ -203,7 +209,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
               if (appUser) {
                 setUser(appUser)
                 setSession({ access_token: token })
-                apiClient.setAuthToken(token)
 
                 // Connect WebSocket with Firebase token
                 logger.log('Connecting WebSocket...')
@@ -213,21 +218,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 logger.warn('Backend rejected Firebase user - session cleared')
                 setUser(null)
                 setSession(null)
-                apiClient.setAuthToken(null)
+                apiClient.clearAuthToken()
                 wsManager.disconnect()
               }
             } catch (error) {
               logger.error('Error transforming Firebase user:', error)
               setUser(null)
               setSession(null)
-              apiClient.setAuthToken(null)
+              apiClient.clearAuthToken()
               wsManager.disconnect()
             }
           } else {
             logger.log('No Firebase user signed in')
             setUser(null)
             setSession(null)
-            apiClient.setAuthToken(null)
+            apiClient.clearAuthToken()
 
             // Disconnect WebSocket when user logs out
             logger.log('Disconnecting WebSocket...')
@@ -246,8 +251,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
               // Update WebSocket with new token
               wsManager.updateToken(newToken)
 
-              // Update API client with new token
-              apiClient.setAuthToken(newToken)
+              // SECURITY: keep API client cookie-only; token stored only for WebSocket usage
               setSession({ access_token: newToken })
             } catch (error) {
               logger.error('Error refreshing token:', error)
@@ -274,7 +278,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       logger.log('Attempting login:', email)
 
       // Clear any previous errors
-      apiClient.setAuthToken(null)
+      apiClient.clearAuthToken()
 
       if (isMockAuthEnabled()) {
         const result = await mockAuthService.signIn(email, password)
@@ -314,10 +318,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const firebaseToken = currentFirebaseUser ? await currentFirebaseUser.getIdToken() : ''
 
         setUser(loginResponse.user)
-        setSession({
-          access_token: firebaseToken,
-          session_id: loginResponse.session_id // 'cookie' placeholder
-        })
+        const sessionData: { access_token: string; session_id?: string } = {
+          access_token: firebaseToken
+        }
+        if (loginResponse.session_id) {
+          sessionData.session_id = loginResponse.session_id
+        }
+        setSession(sessionData)
 
         // Connect WebSocket with Firebase token
         if (firebaseToken) {
@@ -330,7 +337,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Comprehensive cleanup on login failure
       setUser(null)
       setSession(null)
-      apiClient.setAuthToken(null)
+      apiClient.clearAuthToken()
 
       // Disconnect WebSocket on login failure
       wsManager.disconnect()
@@ -375,7 +382,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await firebaseAuthService.logoutUser()
       }
 
-      apiClient.setAuthToken(null)
+      apiClient.clearAuthToken()
       setUser(null)
       setSession(null)
 
@@ -386,7 +393,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       logger.error('Logout error:', error)
 
       // Force cleanup even on error (cookie cleared by backend)
-      apiClient.setAuthToken(null)
+      apiClient.clearAuthToken()
       setUser(null)
       setSession(null)
 
@@ -406,7 +413,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         logger.log(`${result.sessions_deleted} sessions invalidated`)
       }
 
-      apiClient.setAuthToken(null)
+      apiClient.clearAuthToken()
       setUser(null)
       setSession(null)
 
@@ -423,7 +430,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       logger.error('Logout all error:', error)
 
       // Force cleanup even on error (cookie cleared by backend)
-      apiClient.setAuthToken(null)
+      apiClient.clearAuthToken()
       setUser(null)
       setSession(null)
       // Firebase Auth SDK automatically clears in-memory token
@@ -463,7 +470,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (currentUser) {
         const newToken = await currentUser.getIdToken(true) // force refresh
         // Token automatically updated in lazy-loaded Firebase Auth SDK (in-memory)
-        apiClient.setAuthToken(newToken)
         logger.info('Firebase token refreshed successfully (lazy loaded)')
       }
     } catch (error) {

@@ -1,5 +1,5 @@
 import { AdminUser } from '@/types/admin'
-import { ROLE_LABELS, ROLE_COLORS, getRoleLabel, getRoleColor } from '@/types/shared'
+import { getRoleLabel } from '@/types/shared'
 
 /**
  * Utility functions for user administration

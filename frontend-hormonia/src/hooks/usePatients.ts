@@ -1,8 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
+
 import { useDebounce } from './useDebounce'
 import { apiClient } from '../lib/api-client'
-import type { Patient, PaginatedResponse } from '../lib/types/api'
+import type { Patient } from '../lib/types/api'
 
 export interface PatientFilters {
   search?: string
@@ -140,6 +141,9 @@ export function usePatientFilters(options: UsePatientFiltersOptions = {}) {
 
 export function usePatients(filterOptions?: UsePatientFiltersOptions) {
   const queryClient = useQueryClient()
+  // Maintain cursor map per page and persistent total across pages
+  const [cursorsByPage, setCursorsByPage] = useState<Record<number, string | undefined>>({ 1: undefined })
+  const [persistedTotal, setPersistedTotal] = useState<number>(0)
   const {
     filters,
     queryParams,
@@ -150,6 +154,26 @@ export function usePatients(filterOptions?: UsePatientFiltersOptions) {
     activeFilterCount
   } = usePatientFilters(filterOptions)
 
+  // Reset cursors when non-page filters change
+  const filtersKey = useMemo(() => {
+    const { page: _p, size: _s, ...rest } = filters || ({} as any)
+    return JSON.stringify(rest)
+  }, [filters])
+
+  useEffect(() => {
+    // When filters (except page/size) change, reset to page 1 and clear cursors
+    setCursorsByPage({ 1: undefined })
+    setPersistedTotal(0)
+  }, [filtersKey])
+
+  // Compute effective API params using cursor-based pagination
+  const effectiveParams = useMemo(() => {
+    const limit = queryParams['size'] || filterOptions?.pageSize || 20
+    const cursor = cursorsByPage[filters.page || 1]
+    const { page: _page, size: _size, ...rest } = queryParams as any
+    return { limit, ...(cursor ? { cursor } : {}), ...rest }
+  }, [queryParams, filters.page, cursorsByPage, filterOptions?.pageSize])
+
   // Fetch patients with current filters
   const {
     data,
@@ -158,25 +182,42 @@ export function usePatients(filterOptions?: UsePatientFiltersOptions) {
     refetch,
     isFetching
   } = useQuery({
-    queryKey: ['patients', queryParams],
+    queryKey: ['patients', effectiveParams, filters.page],
     queryFn: async () => {
-      const response = await apiClient.patients.list(queryParams)
-      // Handle both possible response formats
-      if ('items' in response) {
-        return {
-          data: response.items,
-          total: response.total,
-          page: response['page'],
-          limit: response.size || 10,
-          has_more: response['page'] < response.pages
-        } as unknown as PaginatedResponse<Patient>
-      }
-      return response as unknown as PaginatedResponse<Patient>
+      const response: any = await apiClient.patients.list({ ...effectiveParams })
+      // Prefer has_more from API; fallback to pages computation only if absent
+      const has_more = (typeof response?.has_more === 'boolean')
+        ? response.has_more
+        : (typeof response?.pages === 'number' && (response?.page ?? 1) < response.pages)
+
+      const normalized = {
+        data: (response?.data ?? response?.items) || [],
+        total: response?.total ?? 0,
+        page: filters.page || 1,
+        size: effectiveParams['limit'] || 20,
+        has_more,
+        next_cursor: response?.next_cursor
+      } as any
+
+      return normalized as any
     },
     staleTime: 30000, // 30 seconds
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000)
   })
+
+  // Handle success effects since we removed onSuccess for typing compatibility
+  useEffect(() => {
+    const resp: any = data as any
+    if (!resp) return
+    if (typeof resp?.total === 'number' && resp.total > 0) {
+      setPersistedTotal(resp.total)
+    }
+    const currentPage = filters.page || 1
+    if (resp?.next_cursor) {
+      setCursorsByPage(prev => ({ ...prev, [currentPage + 1]: resp.next_cursor }))
+    }
+  }, [data, filters.page])
 
   // Invalidate patients query to force refresh
   const invalidatePatients = useCallback(() => {
@@ -185,50 +226,53 @@ export function usePatients(filterOptions?: UsePatientFiltersOptions) {
 
   // Pre-fetch next page
   const prefetchNextPage = useCallback(() => {
-    if (data?.has_more) {
-      const nextPageParams = {
-        ...queryParams,
-        page: (queryParams['page'] || 1) + 1
-      }
-      
+    if ((data as any)?.has_more) {
+      const nextPage = (filters.page || 1) + 1
+      const nextCursor = (data as any)?.next_cursor || cursorsByPage[nextPage]
+      const limit = queryParams['size'] || filterOptions?.pageSize || 20
+      const nextParams = { ...effectiveParams, cursor: nextCursor, limit }
+
       queryClient.prefetchQuery({
-        queryKey: ['patients', nextPageParams],
+        queryKey: ['patients', nextParams, nextPage],
         queryFn: async () => {
-          const response = await apiClient.patients.list(nextPageParams)
-          // Handle both possible response formats
-          if ('items' in response) {
-            return {
-              data: response.items,
-              total: response.total,
-              page: response['page'],
-              limit: response.size || 10,
-              has_more: response['page'] < response.pages
-            } as unknown as PaginatedResponse<Patient>
-          }
-          return response as unknown as PaginatedResponse<Patient>
+          const response: any = await apiClient.patients.list(nextParams as any)
+          const has_more = (typeof response?.has_more === 'boolean')
+            ? response.has_more
+            : (typeof response?.pages === 'number' && (response?.page ?? 1) < response.pages)
+
+          return {
+            data: (response?.data ?? response?.items) || [],
+            total: response?.total ?? 0,
+            page: nextPage,
+            size: limit,
+            has_more,
+            next_cursor: response?.next_cursor
+          } as any
         },
         staleTime: 30000
       })
     }
-  }, [data?.has_more, queryParams, queryClient])
+  }, [data, filters.page, queryParams, filterOptions?.pageSize, effectiveParams, cursorsByPage, queryClient])
 
   return {
     // Data
-    patients: data?.data || [],
-    total: data?.total || 0,
-    page: data?.['page'] || 1,
-    limit: data?.size || 20,
-    hasMore: data?.has_more || false,
-    
+    patients: (data as any)?.data || [],
+    total: (persistedTotal || (data as any)?.total || 0),
+    page: filters.page || 1,
+    limit: (data as any)?.size || (queryParams['size'] || 20),
+    hasMore: (data as any)?.has_more || false,
+
     // Loading states
     isLoading,
     isFetching,
+
     error,
-    
+
     // Filters
     filters,
     hasActiveFilters,
     activeFilterCount,
+
     
     // Actions
     updateFilter,
