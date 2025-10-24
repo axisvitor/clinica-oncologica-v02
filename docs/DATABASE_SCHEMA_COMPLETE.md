@@ -23,7 +23,7 @@
 
 ### admin_users
 **Purpose:** Administrative user accounts with role-based access control  
-**Row Count:** 0  
+**Row Count:** 0 (system ready, no admins created yet)  
 **Primary Key:** id (UUID)
 
 **Key Columns:**
@@ -253,7 +253,7 @@
 
 ### patients
 **Purpose:** Core patient records with medical information  
-**Row Count:** TBD  
+**Row Count:** 1 (test/demo patient)  
 **Primary Key:** id (UUID)
 
 **Key Columns:**
@@ -278,14 +278,14 @@
 
 ### user_profiles
 **Purpose:** Extended user profile information  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
 
 ### contacts
 **Purpose:** Contact information for messaging  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
@@ -294,7 +294,7 @@
 
 ### quiz_templates
 **Purpose:** Quiz template definitions  
-**Row Count:** TBD  
+**Row Count:** 1 (active template)  
 **Primary Key:** id (UUID)
 
 **Key Columns:**
@@ -311,7 +311,7 @@
 
 ### quiz_sessions
 **Purpose:** Patient quiz session tracking  
-**Row Count:** TBD  
+**Row Count:** 3 (test sessions)  
 **Primary Key:** id (UUID)
 
 **Key Columns:**
@@ -335,14 +335,14 @@
 
 ### quiz_sessions_v2
 **Purpose:** Enhanced quiz sessions with additional features  
-**Row Count:** TBD  
+**Row Count:** 0 (v2 not yet in use)  
 **Primary Key:** id (UUID)
 
 ---
 
 ### quiz_responses
 **Purpose:** Individual quiz question responses  
-**Row Count:** TBD  
+**Row Count:** 30 (responses from 3 sessions)  
 **Primary Key:** id (UUID)
 
 **Key Columns:**
@@ -361,7 +361,7 @@
 
 ### quiz_template_versions_v2
 **Purpose:** Version control for quiz templates  
-**Row Count:** TBD  
+**Row Count:** 0 (v2 not yet in use)  
 **Primary Key:** id (UUID)
 
 ---
@@ -370,70 +370,70 @@
 
 ### flow_kinds
 **Purpose:** Flow type definitions  
-**Row Count:** TBD  
+**Row Count:** 4 (configured flow types)  
 **Primary Key:** id (UUID)
 
 ---
 
 ### flow_states
 **Purpose:** Patient flow state machine tracking  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
 
 ### patient_flow_states
 **Purpose:** Current flow state per patient  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
 
 ### flow_messages
 **Purpose:** Messages sent within flows  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
 
 ### flow_analytics
 **Purpose:** Flow execution analytics  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
 
 ### flow_template_categories
 **Purpose:** Flow template categorization  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
 
 ### flow_template_shares
 **Purpose:** Flow template sharing permissions  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
 
 ### flow_template_stats
 **Purpose:** Flow template usage statistics  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
 
 ### flow_template_versions
 **Purpose:** Flow template version control  
-**Row Count:** TBD  
+**Row Count:** 7 (template versions)  
 **Primary Key:** id (UUID)
 
 ---
 
 ### patient_onboarding_saga
 **Purpose:** Patient onboarding workflow state  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
@@ -442,49 +442,49 @@
 
 ### messages
 **Purpose:** Core messaging system  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
 
 ### message_status_events
 **Purpose:** Message delivery status tracking  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
 
 ### whatsapp_messages
 **Purpose:** WhatsApp message tracking  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
 
 ### whatsapp_contacts
 **Purpose:** WhatsApp contact information  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
 
 ### whatsapp_instances
 **Purpose:** WhatsApp instance configuration  
-**Row Count:** TBD  
+**Row Count:** 1 (configured instance)  
 **Primary Key:** id (UUID)
 
 ---
 
 ### whatsapp_delivery_failures
 **Purpose:** Failed WhatsApp delivery tracking  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
 
 ### webhook_events
 **Purpose:** Incoming webhook event log  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
@@ -493,35 +493,35 @@
 
 ### audit_logs
 **Purpose:** General application audit trail  
-**Row Count:** TBD  
+**Row Count:** 45 (audit events logged)  
 **Primary Key:** id (UUID)
 
 ---
 
 ### audit_log_entries
 **Purpose:** Detailed audit log entries  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
 
 ### audit_trail
 **Purpose:** Comprehensive audit trail  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
 
 ### error_logs
 **Purpose:** Application error logging  
-**Row Count:** TBD  
+**Row Count:** 4 (logged errors)  
 **Primary Key:** id (UUID)
 
 ---
 
 ### security_audit_log
 **Purpose:** Security-specific audit events  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
@@ -530,54 +530,54 @@
 
 ### alembic_version
 **Purpose:** Database migration version tracking  
-**Row Count:** TBD  
+**Row Count:** 1 (current migration version)  
 **Primary Key:** version_num
 
 ---
 
 ### pg_stat_statements
 **Purpose:** PostgreSQL query statistics (extension)  
-**Row Count:** TBD
+**Row Count:** 4,795 (query statistics tracked)
 
 ---
 
 ### pg_stat_statements_info
 **Purpose:** pg_stat_statements metadata  
-**Row Count:** TBD
+**Row Count:** 1
 
 ---
 
 ### user_sync_log
 **Purpose:** User synchronization tracking  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
 
 ### users
 **Purpose:** System user accounts  
-**Row Count:** TBD  
+**Row Count:** 1 (test/admin user)  
 **Primary Key:** id (UUID)
 
 ---
 
 ### appointments
 **Purpose:** Appointment scheduling (legacy/external system)  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
 
 ### alerts
 **Purpose:** System alerts and notifications  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
 
 ### medical_reports
 **Purpose:** Medical report storage  
-**Row Count:** TBD  
+**Row Count:** 0  
 **Primary Key:** id (UUID)
 
 ---
@@ -595,6 +595,19 @@ Values: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`
 ## Database Statistics
 
 - **Total Tables:** 48
+- **Tables with Data:** 12 (25%)
+- **Empty Tables:** 36 (75% - system ready for production)
+- **Total Rows:** ~4,900 (mostly pg_stat_statements)
+- **Active Data:**
+  - 1 patient (test/demo)
+  - 1 quiz template
+  - 3 quiz sessions
+  - 30 quiz responses
+  - 4 flow kinds
+  - 7 flow template versions
+  - 45 audit log entries
+  - 4 error logs
+  - 1 WhatsApp instance configured
 - **Tables with RLS:** Multiple (security-focused)
 - **Total Indexes:** 100+ (estimated)
 - **Foreign Key Relationships:** 50+ (estimated)
