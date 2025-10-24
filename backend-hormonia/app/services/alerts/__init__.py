@@ -161,7 +161,7 @@ from .adapter import (
     AlertManagerAdapter,
 )
 
-__all__ = [</text>
+__all__ = [
     # ===== TYPES =====
     # Enums
     "AlertSeverity",
