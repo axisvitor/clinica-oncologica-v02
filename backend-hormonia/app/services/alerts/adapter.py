@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.repositories.alert import AlertRepository
 from app.repositories.patient import PatientRepository
 from app.repositories.message import MessageRepository
-from app.repositories.quiz_response import QuizResponseRepository
+from app.repositories.quiz import QuizResponseRepository
 from app.models.alert import Alert, AlertSeverity, AlertStatus
 
 from .alert_manager import AlertManager

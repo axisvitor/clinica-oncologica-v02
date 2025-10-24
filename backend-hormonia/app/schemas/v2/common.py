@@ -109,7 +109,7 @@ class PaginationParams(BaseModel):
     limit: int = Field(20, ge=1, le=100, description="Items per page")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "cursor": "eyJpZCI6MTIzfQ==",
                 "limit": 20
@@ -126,7 +126,7 @@ class CursorPaginatedResponse(BaseModel, Generic[T]):
     total: Optional[int] = Field(None, description="Total count (optional)")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "data": [],
                 "next_cursor": "eyJpZCI6MTQzfQ==",
@@ -148,7 +148,7 @@ class FieldSelection(BaseModel):
         return v
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "fields": ["id", "name", "email"]
             }
@@ -170,7 +170,7 @@ class EagerLoadParams(BaseModel):
         return v
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "include": ["doctor", "quizzes"]
             }
@@ -186,7 +186,7 @@ class ErrorResponse(BaseModel):
     request_id: Optional[str] = Field(None, description="Request ID for tracking")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "error": "ValidationError",
                 "message": "Invalid field selection",
@@ -204,7 +204,7 @@ class HealthResponse(BaseModel):
     timestamp: str = Field(description="Current timestamp")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "status": "healthy",
                 "version": "2.0.0",

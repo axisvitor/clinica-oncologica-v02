@@ -19,7 +19,7 @@ class AnalyticsOverview(BaseModel):
     period: Dict[str, Optional[str]] = Field(..., description="Date range for filtering")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "total_patients": 150,
                 "total_quizzes": 450,
@@ -42,7 +42,7 @@ class QuizStatusDistribution(BaseModel):
     filters: Dict[str, Optional[int]] = Field(..., description="Applied filters")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "distribution": {
                     "started": 45,
@@ -68,7 +68,7 @@ class CompletionTrendPoint(BaseModel):
     completion_rate: float = Field(..., ge=0, le=100, description="Completion rate percentage")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "year": 2025,
                 "month": 1,
@@ -86,7 +86,7 @@ class CompletionTrend(BaseModel):
     period: Dict[str, Any] = Field(..., description="Period information")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "trend": [
                     {
@@ -121,7 +121,7 @@ class EngagementLevels(BaseModel):
     high_engagement: int = Field(..., description="Patients with 6+ quizzes")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "no_quizzes": 15,
                 "low_engagement": 85,
@@ -138,7 +138,7 @@ class PatientEngagement(BaseModel):
     total_active_patients: int = Field(..., description="Total active patients")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "engagement_levels": {
                     "no_quizzes": 15,
@@ -160,7 +160,7 @@ class TreatmentDistributionItem(BaseModel):
     color: Optional[str] = Field(None, description="Hex color code for visualization")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "treatment_type": "Quimioterapia",
                 "count": 45,
@@ -180,7 +180,7 @@ class TreatmentDistribution(BaseModel):
     last_updated: datetime = Field(..., description="Last generated timestamp")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "period": "30d",
                 "total_patients": 140,
