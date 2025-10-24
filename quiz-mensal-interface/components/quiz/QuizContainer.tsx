@@ -32,49 +32,18 @@ export default function QuizContainer({
   })
   const quizAnswer = useQuizAnswer()
 
-  // Handle token updates securely
-  const handleTokenUpdate = (newToken: string) => {
-    quizState.updateToken(newToken, session.expires_at)
-    onTokenUpdate?.(newToken)
-  }
-
-  // Show error if token is expired
-  if (quizState.isExpired) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
-          <h2 className="text-xl font-semibold text-destructive">Token Expirado</h2>
-          <p className="text-muted-foreground">
-            Sua sessão expirou. Por favor, acesse o quiz novamente através do link enviado.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  // Show error if no valid token
-  if (!quizState.hasToken) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
-          <h2 className="text-xl font-semibold text-destructive">Token Inválido</h2>
-          <p className="text-muted-foreground">
-            Não foi possível validar seu acesso. Por favor, use o link correto enviado para você.
-          </p>
-        </div>
-      </div>
-    )
-  }
+  // SECURITY: No token handling in JavaScript - using httpOnly cookies
+  // Token is managed server-side via /api/quiz/initialize-session
+  // All requests use credentials: 'include' to send cookie automatically
 
   const navigation = useQuizNavigation({
-    currentToken: token, // Use original token for navigation
+    currentToken: token, // Only used for initial setup, not stored
     currentQuestionIndex: quizState.currentQuestionIndex,
     currentQuestionId: quizState.currentQuestion.id,
     isLastQuestion: quizState.isLastQuestion,
     selectedAnswer: quizState.selectedAnswer,
     validateAnswer: quizAnswer.validateAnswer,
     prepareAnswerPayload: quizAnswer.prepareAnswerPayload,
-    onTokenUpdate: handleTokenUpdate,
     onAnswerSaved: (questionId, answer) => {
       quizState.setAnswers(new Map(quizState.answers.set(questionId, answer)))
     },
