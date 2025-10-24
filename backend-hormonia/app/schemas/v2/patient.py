@@ -18,7 +18,7 @@ class DoctorV2Brief(BaseModel):
     email: Optional[str] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class QuizV2Brief(BaseModel):
@@ -32,7 +32,7 @@ class QuizV2Brief(BaseModel):
     passed: Optional[bool] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class PatientV2Base(BaseModel):
@@ -57,7 +57,7 @@ class PatientV2Create(PatientV2Base):
     doctor_id: str = Field(..., description="Doctor UUID")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "name": "João Silva",
                 "email": "joao@example.com",
@@ -80,7 +80,7 @@ class PatientV2Update(BaseModel):
     doctor_id: Optional[str] = Field(None, description="Doctor UUID")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "phone": "(11) 91234-5678",
                 "email": "joao.novo@example.com"
@@ -101,8 +101,8 @@ class PatientV2Response(PatientV2Base):
     quiz_sessions: Optional[List[QuizV2Brief]] = None
     
     class Config:
-        orm_mode = True
-        schema_extra = {
+        from_attributes = True
+        json_schema_extra = {
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "name": "João Silva",
@@ -126,7 +126,7 @@ class PatientV2List(CursorPaginatedResponse[PatientV2Response]):
     """Paginated list of patients"""
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "data": [
                     {

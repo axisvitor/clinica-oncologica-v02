@@ -278,9 +278,11 @@ def integrate_humanization_into_quiz_service():
     return True
 
 
-# Auto-integrate on import (idempotent - will only patch and log once)
-if __name__ != "__main__":
-    try:
-        integrate_humanization_into_quiz_service()
-    except Exception as e:
-        logger.error(f"Failed to auto-integrate quiz humanization: {e}")
+# Auto-integrate disabled - patch causes issues with instance methods
+# To enable humanization, call integrate_humanization_into_quiz_service() explicitly
+# after proper refactoring to support instance method patching
+# if __name__ != "__main__":
+#     try:
+#         integrate_humanization_into_quiz_service()
+#     except Exception as e:
+#         logger.error(f"Failed to auto-integrate quiz humanization: {e}")

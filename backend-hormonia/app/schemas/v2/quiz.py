@@ -18,7 +18,7 @@ class PatientV2Brief(BaseModel):
     email: str
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class QuizV2Base(BaseModel):
@@ -41,7 +41,7 @@ class QuizV2Create(QuizV2Base):
     quiz_template_id: str = Field(..., description="Quiz template UUID")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
                 "quiz_template_id": "223e4567-e89b-12d3-a456-426614174001",
@@ -68,7 +68,7 @@ class QuizV2Update(BaseModel):
         return v
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "status": "completed",
                 "score": 85.5,
@@ -97,8 +97,8 @@ class QuizV2Response(QuizV2Base):
     patient: Optional[PatientV2Brief] = None
     
     class Config:
-        orm_mode = True
-        schema_extra = {
+        from_attributes = True
+        json_schema_extra = {
             "example": {
                 "id": "456e4567-e89b-12d3-a456-426614174002",
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -124,7 +124,7 @@ class QuizV2List(CursorPaginatedResponse[QuizV2Response]):
     """Paginated list of quizzes"""
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "data": [
                     {
