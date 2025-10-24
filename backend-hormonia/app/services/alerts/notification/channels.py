@@ -8,7 +8,7 @@ for the alert system (Email, WebSocket, Webhook, Dashboard, etc.).
 import logging
 import smtplib
 import asyncio
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
