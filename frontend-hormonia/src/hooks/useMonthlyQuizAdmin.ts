@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '@/components/ui/use-toast'
 import { apiClient } from '@/lib/api-client'
-import type { QuizLinkStatus } from '@/lib/api-client/monthly-quiz'
+import type { QuizHistoryEntry, QuizLinkStatus } from '@/lib/api-client/monthly-quiz'
 
 type DeliveryMethod = 'whatsapp' | 'email' | 'sms' | 'manual'
 
@@ -91,7 +91,7 @@ export function useMonthlyQuizAdmin() {
 
   // Use query to get quiz link history with caching
   const useQuizLinkHistory = (patientId: string) => {
-    return useQuery({
+    return useQuery<QuizHistoryEntry[]>({
       queryKey: ['monthly-quiz-history', patientId],
       queryFn: () => getQuizLinkHistory(patientId),
       enabled: !!patientId

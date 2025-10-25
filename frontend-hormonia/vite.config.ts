@@ -8,6 +8,145 @@ import react from "@vitejs/plugin-react";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+const DEFAULT_API_BASE_URL = "https://clinica-oncologica-v02-production.up.railway.app";
+const DEFAULT_WS_BASE_URL = "wss://clinica-oncologica-v02-production.up.railway.app/ws";
+
+const trimTrailingSlash = (value?: string) => {
+  if (!value) {
+    return DEFAULT_API_BASE_URL;
+  }
+  return value.replace(/\/+$/, "") || DEFAULT_API_BASE_URL;
+};
+
+const buildApiUrl = (baseUrl: string) => {
+  const normalized = trimTrailingSlash(baseUrl);
+  return normalized.endsWith("/api/v1") ? normalized : `${normalized}/api/v1`;
+};
+
+const buildWsUrl = (baseUrl: string) => {
+  const normalized = trimTrailingSlash(baseUrl);
+  if (normalized.startsWith("https://")) {
+    return `wss://${normalized.slice("https://".length)}/ws`;
+  }
+  if (normalized.startsWith("http://")) {
+    return `ws://${normalized.slice("http://".length)}/ws`;
+  }
+  return `${normalized}/ws`;
+};
+
+const createRuntimeFallbackConfig = (mode: string) => {
+  const apiBase = trimTrailingSlash(
+    process.env["VITE_API_BASE_URL"] ||
+      process.env["API_BASE_URL"] ||
+      DEFAULT_API_BASE_URL
+  );
+
+  const apiUrl =
+    process.env["VITE_API_URL"] ||
+    process.env["API_URL"] ||
+    buildApiUrl(apiBase);
+
+  const wsBase =
+    process.env["VITE_WS_BASE_URL"] ||
+    process.env["WS_BASE_URL"] ||
+    process.env["VITE_WS_URL"] ||
+    buildWsUrl(apiBase) ||
+    DEFAULT_WS_BASE_URL;
+
+  return {
+    VITE_SUPABASE_URL: process.env["VITE_SUPABASE_URL"] || "",
+    VITE_SUPABASE_ANON_KEY: process.env["VITE_SUPABASE_ANON_KEY"] || "",
+    VITE_SUPABASE_REALTIME_ENABLED:
+      process.env["VITE_SUPABASE_REALTIME_ENABLED"] || "true",
+    VITE_API_URL: apiUrl,
+    VITE_API_BASE_URL: apiBase,
+    VITE_WS_URL: wsBase,
+    VITE_WS_BASE_URL: wsBase,
+    VITE_WHATSAPP_INSTANCE_NAME:
+      process.env["VITE_WHATSAPP_INSTANCE_NAME"] || "hormonia-instance",
+    VITE_ENVIRONMENT:
+      process.env["VITE_ENVIRONMENT"] ||
+      (mode === "production" ? "production" : "development"),
+    VITE_DEBUG_MODE: process.env["VITE_DEBUG_MODE"] || "false",
+    VITE_SESSION_TIMEOUT: process.env["VITE_SESSION_TIMEOUT"] || "3600000",
+    VITE_TOKEN_REFRESH_THRESHOLD:
+      process.env["VITE_TOKEN_REFRESH_THRESHOLD"] || "300000",
+    VITE_MAX_FILE_SIZE: process.env["VITE_MAX_FILE_SIZE"] || "10485760",
+    VITE_SUPPORTED_FILE_TYPES:
+      process.env["VITE_SUPPORTED_FILE_TYPES"] ||
+      "image/jpeg,image/png,image/gif,application/pdf",
+  };
+};
+
+const createRuntimeLoaderSource = (serializedFallback: string) =>
+  `
+(function () {
+  const FALLBACK_CONFIG = ${serializedFallback};
+  const globalScope = typeof window !== 'undefined' ? window : globalThis;
+  const runtime = globalScope.__RUNTIME_CONFIG__ || {};
+  if (!globalScope.__ENV_CONFIG__) {
+    globalScope.__ENV_CONFIG__ = FALLBACK_CONFIG;
+  }
+
+  let cachedConfig = runtime.getConfigSync ? runtime.getConfigSync() : null;
+  let inflightPromise = null;
+
+  function mergeAndStore(payload) {
+    const source = payload && typeof payload === 'object' ? payload : {};
+    const nextConfig = Object.assign({}, FALLBACK_CONFIG, source);
+    globalScope.__ENV_CONFIG__ = nextConfig;
+    cachedConfig = nextConfig;
+    return nextConfig;
+  }
+
+  async function fetchRuntimeConfig() {
+    if (cachedConfig) {
+      return cachedConfig;
+    }
+
+    if (!inflightPromise) {
+      inflightPromise = (async () => {
+        if (typeof fetch === 'function') {
+          try {
+            const response = await fetch('/api/config', {
+              method: 'GET',
+              cache: 'no-store',
+              credentials: 'same-origin',
+              headers: { 'Accept': 'application/json' }
+            });
+            if (response.ok) {
+              const data = await response.json();
+              return mergeAndStore(data);
+            }
+          } catch (error) {
+            console.warn('[RuntimeConfig] Failed to fetch /api/config', error);
+          }
+        }
+        return mergeAndStore(null);
+      })().finally(() => {
+        inflightPromise = null;
+      });
+    }
+
+    return inflightPromise;
+  }
+
+  runtime.loadConfig = function loadRuntimeConfig() {
+    return fetchRuntimeConfig();
+  };
+
+  runtime.getConfigSync = function getRuntimeConfigSync() {
+    return cachedConfig || globalScope.__ENV_CONFIG__ || FALLBACK_CONFIG;
+  };
+
+  globalScope.__RUNTIME_CONFIG__ = runtime;
+
+  if (typeof window !== 'undefined') {
+    fetchRuntimeConfig();
+  }
+})();
+`.trim();
+
 export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
@@ -22,47 +161,19 @@ export default defineConfig(({ mode }) => ({
     // Runtime config injection plugin
     {
       name: "runtime-config-injection",
-      generateBundle(options, bundle) {
-        if (mode === "production") {
-          // Create runtime config endpoint
-          this.emitFile({
-            type: "asset",
-            fileName: "config.js",
-            source: `
-// Runtime configuration loader for Railway deployment
-// This script loads environment variables at runtime, not build time
-window.__RUNTIME_CONFIG__ = {
-  loadConfig: async function() {
-    try {
-      // Try to load from Railway environment variables endpoint
-      const response = await fetch('/api/config');
-      if (response.ok) {
-        const config = await response.json();
-        window.__ENV_CONFIG__ = config;
-        return config;
-      }
-    } catch (error) {
-      console.warn('Failed to load runtime config from API:', error);
-    }
-
-    // Fallback to production Railway defaults if API fails
-    const fallbackConfig = {
-      VITE_API_URL: process.env['VITE_API_URL'] || 'https://clinica-oncologica-v02-production.up.railway.app/api/v1',
-      VITE_WS_BASE_URL: process.env['VITE_WS_BASE_URL'] || 'wss://clinica-oncologica-v02-production.up.railway.app/ws',
-      VITE_API_BASE_URL: process.env['VITE_API_BASE_URL'] || 'https://clinica-oncologica-v02-production.up.railway.app'
-    };
-
-    window.__ENV_CONFIG__ = fallbackConfig;
-    return fallbackConfig;
-  }
-};
-
-// Auto-load config when script is loaded
-if (typeof window !== 'undefined') {
-  window.__RUNTIME_CONFIG__.loadConfig().catch(console.error);
-}`,
-          });
+      generateBundle() {
+        if (mode !== "production") {
+          return;
         }
+
+        const fallbackConfig = createRuntimeFallbackConfig(mode);
+        const serializedFallback = JSON.stringify(fallbackConfig, null, 2);
+
+        this.emitFile({
+          type: "asset",
+          fileName: "config.js",
+          source: createRuntimeLoaderSource(serializedFallback),
+        });
       },
     },
   ],

@@ -213,24 +213,19 @@ restartPolicyType = "never"
 name = "frontend"
 
 [services.variables]
-# These will be provided by Railway at runtime
 NODE_ENV = "production"
 PORT = "3000"
 
-# Supabase Configuration (Override in Railway dashboard)
-VITE_SUPABASE_URL = process.env['VITE_SUPABASE_URL'] || ""
-VITE_SUPABASE_ANON_KEY = process.env['VITE_SUPABASE_ANON_KEY'] || ""
-
-# API Configuration (Override in Railway dashboard)
-VITE_API_URL = process.env['VITE_API_URL'] || "http://localhost:8000/api/v1"
-VITE_API_BASE_URL = process.env['VITE_API_BASE_URL'] || "http://localhost:8000"
-VITE_WS_BASE_URL = process.env['VITE_WS_BASE_URL'] || "ws://localhost:8000/ws"
-
-# Application Configuration
+# Override the following via the Railway dashboard or CLI
+VITE_SUPABASE_URL = ""
+VITE_SUPABASE_ANON_KEY = ""
+VITE_API_URL = "https://api.example.com/api/v1"
+VITE_API_BASE_URL = "https://api.example.com"
+VITE_WS_BASE_URL = "wss://api.example.com/ws"
 VITE_WHATSAPP_INSTANCE_NAME = "hormonia-instance"
 VITE_ENVIRONMENT = "production"
 VITE_DEBUG_MODE = "false"
-`;
+`.trim() + '\n';
 
     const railwayConfigPath = path.join(__dirname, '..', 'railway.toml');
     fs.writeFileSync(railwayConfigPath, railwayTomlContent);

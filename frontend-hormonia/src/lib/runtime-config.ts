@@ -240,16 +240,109 @@ async function loadRuntimeConfiguration(): Promise<RuntimeConfig> {
 
 /**
  * Attempts to load config from runtime API endpoint
- * DISABLED: /api/config endpoint not accessible from browser in Railway
- * Frontend uses Railway internal domain which is server-to-server only
  */
 async function loadFromRuntimeAPI(): Promise<RuntimeConfig | null> {
-  // Skip API endpoint loading - not accessible from browser
-  // Railway internal URLs (.railway.internal) only work server-to-server
-  if (import.meta.env['DEV']) {
-    logger.log('Skipping /api/config endpoint (not accessible from browser)');
+  if (typeof fetch !== 'function') {
+    if (import.meta.env['DEV']) {
+      logger.log('Fetch API unavailable, skipping /api/config');
+    }
+    return null;
   }
+
+  const controller = typeof AbortController !== 'undefined'
+    ? new AbortController()
+    : null;
+  const timeoutId = controller
+    ? setTimeout(() => controller.abort(), 4000)
+    : null;
+
+  try {
+    const requestInit: RequestInit = {
+      method: 'GET',
+      cache: 'no-store',
+      credentials: 'same-origin',
+      headers: {
+        'Accept': 'application/json'
+      },
+      ...(controller ? { signal: controller.signal } : {})
+    };
+
+    const response = await fetch('/api/config', requestInit);
+
+    if (!response.ok) {
+      if (import.meta.env['DEV']) {
+        logger.warn(`/api/config responded with status ${response.status}`);
+      }
+      return null;
+    }
+
+    const payload = await response.json();
+    const normalizedConfig = normalizeRuntimeApiPayload(payload);
+
+    if (normalizedConfig) {
+      if (typeof window !== 'undefined') {
+        (window as any).__ENV_CONFIG__ = {
+          ...(window as any).__ENV_CONFIG__ || {},
+          ...normalizedConfig
+        };
+      }
+      return normalizedConfig;
+    }
+  } catch (error) {
+    if (import.meta.env['DEV']) {
+      logger.warn('Failed to fetch /api/config', error);
+    }
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+
   return null;
+}
+
+function normalizeRuntimeApiPayload(payload: unknown): RuntimeConfig | null {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  const fallbackKeys = new Set(Object.keys(PRODUCTION_FALLBACK_CONFIG));
+  const normalized: Partial<RuntimeConfig> = {};
+
+  for (const [key, value] of Object.entries(payload as Record<string, unknown>)) {
+    if (!fallbackKeys.has(key)) {
+      continue;
+    }
+    if (typeof value === 'string' && value.length > 0) {
+      (normalized as Record<string, string>)[key] = value;
+    }
+  }
+
+  const legacyApiUrl = (payload as Record<string, unknown>)['apiUrl'];
+  if (typeof legacyApiUrl === 'string' && legacyApiUrl.length > 0 && !normalized.VITE_API_URL) {
+    normalized.VITE_API_URL = legacyApiUrl;
+  }
+
+  const legacyBackend = (payload as Record<string, unknown>)['backendUrl'];
+  if (typeof legacyBackend === 'string' && legacyBackend.length > 0 && !normalized.VITE_API_BASE_URL) {
+    normalized.VITE_API_BASE_URL = legacyBackend;
+  }
+
+  const legacyWs = (payload as Record<string, unknown>)['wsUrl'];
+  if (typeof legacyWs === 'string' && legacyWs.length > 0) {
+    if (!normalized.VITE_WS_URL) {
+      normalized.VITE_WS_URL = legacyWs;
+    }
+    if (!normalized.VITE_WS_BASE_URL) {
+      normalized.VITE_WS_BASE_URL = legacyWs;
+    }
+  }
+
+  if (Object.keys(normalized).length === 0) {
+    return null;
+  }
+
+  return { ...PRODUCTION_FALLBACK_CONFIG, ...normalized };
 }
 
 /**

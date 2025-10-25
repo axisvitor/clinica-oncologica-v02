@@ -59,6 +59,14 @@ export function PatientDetailPage() {
   const { data: quizStatus, isLoading: quizStatusLoading } = useQuizLinkStatus(id!)
   const { data: quizHistory, isLoading: quizHistoryLoading } = useQuizLinkHistory(id!)
 
+  const totalQuizzes = quizHistory?.length ?? 0
+  const completedQuizCount = quizHistory
+    ? quizHistory.filter((entry: QuizHistoryEntry) => entry.status === 'completed').length
+    : 0
+  const quizCompletionRate = totalQuizzes > 0
+    ? Math.round((completedQuizCount / totalQuizzes) * 100)
+    : 0
+
   if (patientLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -276,7 +284,7 @@ export function PatientDetailPage() {
                     <span className="text-sm text-gray-600">Completados</span>
                   </div>
                   <p className="text-2xl font-bold mt-2">
-                    {quizHistory.filter((h: any) => h.status === 'completed').length}
+                    {completedQuizCount}
                   </p>
                 </div>
                 <div className="p-4 border rounded-lg">
@@ -285,9 +293,7 @@ export function PatientDetailPage() {
                     <span className="text-sm text-gray-600">Taxa de Conclusão</span>
                   </div>
                   <p className="text-2xl font-bold mt-2">
-                    {quizHistory.length > 0
-                      ? Math.round((quizHistory.filter((h: unknown) => h.status === 'completed').length / quizHistory.length) * 100)
-                      : 0}%
+                    {quizCompletionRate}%
                   </p>
                 </div>
               </div>
