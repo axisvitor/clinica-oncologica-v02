@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { supabase } from './lib/supabase'
+// import { supabase } from './lib/supabase' // DEPRECATED: Supabase no longer used
 
 function AppDebug() {
   const [status, setStatus] = useState<any>({
@@ -21,14 +21,8 @@ function AppDebug() {
           VITE_API_URL: import.meta.env['VITE_API_URL'] || 'NOT SET',
         }
 
-        // Check Supabase connection
-        let supabaseConnected = false
-        try {
-          const { error } = await supabase.auth.getSession()
-          supabaseConnected = !error
-        } catch (e) {
-          console.error('Supabase error:', e)
-        }
+        // Supabase is no longer used
+        const supabaseConnected = false
 
         // Check API connection
         let apiConnected = false

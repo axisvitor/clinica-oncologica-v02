@@ -20,8 +20,15 @@
 interface ImportMetaEnv {
   // Core API Configuration
   readonly VITE_API_URL: string
+  readonly VITE_API_BASE_URL: string
+  readonly VITE_WS_URL: string
   readonly VITE_WS_BASE_URL: string
   readonly VITE_WHATSAPP_INSTANCE_NAME: string
+
+  // Supabase Configuration (DEPRECATED - no longer used)
+  readonly VITE_SUPABASE_URL?: string
+  readonly VITE_SUPABASE_ANON_KEY?: string
+  readonly VITE_SUPABASE_REALTIME_ENABLED?: string
 
   // AI Service API Keys
   readonly VITE_OPENAI_API_KEY: string
@@ -46,8 +53,25 @@ interface ImportMetaEnv {
   readonly VITE_SESSION_TIMEOUT: string
   readonly VITE_TOKEN_REFRESH_THRESHOLD: string
   readonly VITE_CLIENT_TARGET: string
+  readonly VITE_ENABLE_PREFETCH: string
+
+  // Vite Built-in
+  readonly MODE: string
+  readonly DEV: boolean
+  readonly PROD: boolean
+  readonly SSR: boolean
+  readonly BASE_URL: string
 }
 
 interface ImportMeta {
   readonly env: ImportMetaEnv
+}
+
+// Node.js process.env types
+declare namespace NodeJS {
+  interface ProcessEnv {
+    readonly CI?: string
+    readonly NODE_ENV?: string
+    readonly PORT?: string
+  }
 }

@@ -7,10 +7,10 @@ import { ConfigProvider } from "@/lib/config-initializer";
 import "./index.css";
 
 // Debug: Log environment variables
-if (import.meta.env['DEV']) {
-  console.log('Environment:', import.meta.env['MODE']);
-  console.log('API URL:', import.meta.env['VITE_API_BASE_URL']);
-  console.log('Supabase URL:', import.meta.env['VITE_SUPABASE_URL']);
+if (import.meta.env.DEV) {
+  console.warn('[Dev] Environment:', import.meta.env.MODE);
+  console.warn('[Dev] API URL:', import.meta.env.VITE_API_BASE_URL);
+  console.warn('[Dev] Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
 }
 
 const rootElement = document.getElementById("root");

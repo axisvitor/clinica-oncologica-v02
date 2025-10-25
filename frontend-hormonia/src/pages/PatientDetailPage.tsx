@@ -31,33 +31,33 @@ export function PatientDetailPage() {
   const [searchParams] = useSearchParams()
   const defaultTab = searchParams.get('tab') || 'overview'
   const [showSendQuizModal, setShowSendQuizModal] = useState(false)
-  const { user, hasRole } = useAuth()
+  const { hasRole } = useAuth()
   const { useQuizLinkStatus, useQuizLinkHistory, resendQuizLink, cancelQuizLink } = useMonthlyQuizAdmin()
 
   // AI Hooks - Hooks will return mock data if AI is not configured
-  const { data: aiInsights, isLoading: insightsLoading } = useAIInsights(id || '')
-  const { data: aiRecommendations, isLoading: recommendationsLoading } = useAIRecommendations(id || '')
+  const { data: aiInsights } = useAIInsights(id || '')
+  const { data: aiRecommendations } = useAIRecommendations(id || '')
 
   const { data: patient, isLoading: patientLoading } = useQuery({
     queryKey: ['patient', id],
-    queryFn: () => apiClient.patients.get(id!),
+    queryFn: () => {
+      if (!id) throw new Error('Patient ID is required')
+      return apiClient.patients.get(id)
+    },
     enabled: !!id
   })
 
   const { data: timeline, isLoading: timelineLoading } = useQuery({
     queryKey: ['patient-timeline', id],
-    queryFn: () => apiClient.patients.timeline(id!),
+    queryFn: () => {
+      if (!id) throw new Error('Patient ID is required')
+      return apiClient.patients.timeline(id)
+    },
     enabled: !!id
   })
 
-  const { data: flowState } = useQuery({
-    queryKey: ['flow-state', id],
-    queryFn: () => apiClient.flows.getState(id!),
-    enabled: !!id
-  })
-
-  const { data: quizStatus, isLoading: quizStatusLoading } = useQuizLinkStatus(id!)
-  const { data: quizHistory, isLoading: quizHistoryLoading } = useQuizLinkHistory(id!)
+  const { data: quizStatus } = useQuizLinkStatus(id || '')
+  const { data: quizHistory, isLoading: quizHistoryLoading } = useQuizLinkHistory(id || '')
 
   const totalQuizzes = quizHistory?.length ?? 0
   const completedQuizCount = quizHistory
@@ -225,9 +225,9 @@ export function PatientDetailPage() {
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>Quiz Mensal</span>
-            {quizStatus && (
+            {quizStatus && id && (
               <QuizLinkStatus
-                patientId={id!}
+                patientId={id}
                 {...(quizStatus.last_sent && { lastSent: new Date(quizStatus.last_sent) })}
                 {...(quizStatus.access_date && { lastResponse: new Date(quizStatus.access_date) })}
                 linkStatus={quizStatus.status}
@@ -316,13 +316,15 @@ export function PatientDetailPage() {
                           {entry.sent_at && new Date(entry.sent_at).toLocaleDateString('pt-BR')}
                         </p>
                       </div>
-                      <QuizLinkStatus
-                        patientId={id!}
-                        {...(entry.sent_at && { lastSent: new Date(entry.sent_at) })}
-                        {...(entry.accessed_at && { lastResponse: new Date(entry.accessed_at) })}
-                        linkStatus={entry.status}
-                        {...(entry.expires_at && { expiresAt: new Date(entry.expires_at) })}
-                      />
+                      {id && (
+                        <QuizLinkStatus
+                          patientId={id}
+                          {...(entry.sent_at && { lastSent: new Date(entry.sent_at) })}
+                          {...(entry.accessed_at && { lastResponse: new Date(entry.accessed_at) })}
+                          linkStatus={entry.status}
+                          {...(entry.expires_at && { expiresAt: new Date(entry.expires_at) })}
+                        />
+                      )}
                     </div>
                   ))}
                 </div>
@@ -359,10 +361,12 @@ export function PatientDetailPage() {
 
             {/* Right Column - Flow Status and Actions */}
             <div className="space-y-6">
-              <FlowStatus
-                patientId={id!}
-              />
-              <QuickActions patientId={id!} />
+              {id && (
+                <>
+                  <FlowStatus patientId={id} />
+                  <QuickActions patientId={id} />
+                </>
+              )}
             </div>
           </div>
         </TabsContent>
@@ -378,12 +382,14 @@ export function PatientDetailPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left Column - Quiz Responses */}
             <div className="lg:col-span-2">
-              <QuizResponseViewer patientId={id!} patientName={patient.name} />
+              {id && patient && (
+                <QuizResponseViewer patientId={id} patientName={patient.name} />
+              )}
             </div>
 
             {/* Right Column - Timeline and Actions */}
             <div className="space-y-6">
-              <QuizResponseTimeline patientId={id!} />
+              {id && <QuizResponseTimeline patientId={id} />}
 
               {/* Quick Actions for Quiz Responses */}
               <Card>
@@ -419,11 +425,13 @@ export function PatientDetailPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <AIAnalyticsDashboard
-                    patientId={id!}
-                    timeframe="week"
-                    className="mt-4"
-                  />
+                  {id && (
+                    <AIAnalyticsDashboard
+                      patientId={id}
+                      timeframe="week"
+                      className="mt-4"
+                    />
+                  )}
                 </CardContent>
               </Card>
 
@@ -526,7 +534,7 @@ export function PatientDetailPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <AIChatInterface patientId={id!} />
+                  {id && <AIChatInterface patientId={id} />}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -547,12 +555,14 @@ export function PatientDetailPage() {
       </Tabs>
 
       {/* Send Quiz Modal */}
-      <SendQuizLinkModal
-        open={showSendQuizModal}
-        onOpenChange={setShowSendQuizModal}
-        patientId={id!}
-        patientName={patient?.name || ''}
-      />
+      {id && (
+        <SendQuizLinkModal
+          open={showSendQuizModal}
+          onOpenChange={setShowSendQuizModal}
+          patientId={id}
+          patientName={patient?.name || ''}
+        />
+      )}
     </div>
   )
 }

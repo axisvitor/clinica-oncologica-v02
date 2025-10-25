@@ -32,7 +32,10 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
-    "src/**/*.d.ts"
+    "src/**/*.d.ts",
+    "*.tsx",
+    "*.ts",
+    "vite-env.d.ts"
   ],
   "exclude": [
     "node_modules",

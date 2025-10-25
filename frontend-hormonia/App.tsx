@@ -1,7 +1,6 @@
 import React, { Suspense, lazy, useEffect } from "react";
-import { QueryClientProvider } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -115,8 +114,8 @@ function App() {
   // Prefetch critical routes after initial load for better performance
   useEffect(() => {
     // Only prefetch in production or when explicitly enabled
-    if (import.meta.env.PROD || import.meta.env.VITE_ENABLE_PREFETCH === "true") {
-      console.log("[App] Initializing critical route prefetch");
+    if (import.meta.env.PROD || import.meta.env['VITE_ENABLE_PREFETCH'] === "true") {
+      console.warn("[App] Initializing critical route prefetch");
       prefetchCriticalRoutes();
     }
   }, []);
