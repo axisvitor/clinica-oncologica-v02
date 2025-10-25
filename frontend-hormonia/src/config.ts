@@ -30,9 +30,6 @@ export async function loadConfig() {
         const runtimeConfig = await getRuntimeConfig();
 
         const config = {
-          // Supabase Configuration
-          SUPABASE_URL: runtimeConfig.VITE_SUPABASE_URL,
-          SUPABASE_ANON_KEY: runtimeConfig.VITE_SUPABASE_ANON_KEY,
 
           // API Configuration
           // Prefer API base (domain) if provided; otherwise derive from VITE_API_URL
@@ -78,14 +75,6 @@ export async function loadConfig() {
           throw new Error('API URL is required. Check your environment configuration.');
         }
 
-        // Supabase is optional (only required if using Supabase features)
-        if (!config.SUPABASE_URL) {
-          logger.warn('Supabase URL not configured. Supabase features will be disabled.');
-        }
-        if (!config.SUPABASE_ANON_KEY) {
-          logger.warn('Supabase Anon Key not configured. Supabase features will be disabled.');
-        }
-
         // WebSocket is optional
         if (!config.WS_BASE_URL) {
           logger.warn('WebSocket URL not configured. Real-time features may be limited.');
@@ -104,8 +93,6 @@ export async function loadConfig() {
 }
 
 // Backward compatibility exports - these will work once config is loaded
-export let SUPABASE_URL = '';
-export let SUPABASE_ANON_KEY = '';
 export let API_BASE_URL = '';
 export let WS_BASE_URL = '';
 export let WHATSAPP_INSTANCE_NAME = '';
@@ -120,15 +107,12 @@ export let SESSION_TIMEOUT = 3600000;
 export let TOKEN_REFRESH_THRESHOLD = 300000;
 
 // Update exports when config is loaded
-  loadConfig().then(config => {
-    // Only update if different to avoid circular assignments
-    if (config.SUPABASE_URL !== SUPABASE_URL) SUPABASE_URL = config.SUPABASE_URL;
-    if (config.SUPABASE_ANON_KEY !== SUPABASE_ANON_KEY) SUPABASE_ANON_KEY = config.SUPABASE_ANON_KEY;
-    if (config.API_BASE_URL !== API_BASE_URL) API_BASE_URL = config.API_BASE_URL;
-    if (config.WS_BASE_URL !== WS_BASE_URL) WS_BASE_URL = config.WS_BASE_URL;
-  }).catch(error => {
-    logger.error('Failed to initialize configuration:', error);
-  });
+loadConfig().then(config => {
+  if (config.API_BASE_URL !== API_BASE_URL) API_BASE_URL = config.API_BASE_URL;
+  if (config.WS_BASE_URL !== WS_BASE_URL) WS_BASE_URL = config.WS_BASE_URL;
+}).catch(error => {
+  logger.error('Failed to initialize configuration:', error);
+});
 
 // Static fallback values from environment
 const STATIC_WHATSAPP_INSTANCE_NAME = import.meta.env['VITE_WHATSAPP_INSTANCE_NAME'] || 'hormonia-instance';

@@ -31,8 +31,6 @@
       console.warn('[Config] Failed to load config from /api/config.js, using defaults');
 
       window.__ENV_CONFIG__ = {
-        VITE_SUPABASE_URL: '',
-        VITE_SUPABASE_ANON_KEY: '',
         VITE_API_URL: 'https://backend-production-e0bd.up.railway.app/api/v1',
         VITE_API_BASE_URL: 'https://backend-production-e0bd.up.railway.app',
         VITE_WS_BASE_URL: 'wss://backend-production-e0bd.up.railway.app/ws',

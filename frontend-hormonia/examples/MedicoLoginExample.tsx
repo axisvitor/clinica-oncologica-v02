@@ -16,7 +16,7 @@ interface LoginFormData {
 }
 
 export const MedicoLoginExample: React.FC = () => {
-  const { signIn, state } = useMedicoAuth()
+  const { signIn, signOut, state } = useMedicoAuth()
 
   // Form state
   const [formData, setFormData] = useState<LoginFormData>({
@@ -49,7 +49,7 @@ export const MedicoLoginExample: React.FC = () => {
     setLoginResponse(null)
 
     try {
-      console.log('[MedicoLogin] Attempting login for:', formData.email)
+      console.warn('[MedicoLogin] Attempting login for:', formData.email)
 
       const response = await signIn(
         formData.email,
@@ -60,10 +60,10 @@ export const MedicoLoginExample: React.FC = () => {
       setLoginResponse(response)
 
       if (response.success && response.user) {
-        console.log('[MedicoLogin] Login successful!')
-        console.log('[MedicoLogin] User:', response.user)
-        console.log('[MedicoLogin] CRM:', response.user.crm)
-        console.log('[MedicoLogin] Especialidade:', response.user.especialidade)
+        console.warn('[MedicoLogin] Login successful!')
+        console.warn('[MedicoLogin] User:', response.user)
+        console.warn('[MedicoLogin] CRM:', response.user.crm)
+        console.warn('[MedicoLogin] Especialidade:', response.user.especialidade)
 
         // Redirect to medico dashboard
         setTimeout(() => {
@@ -84,7 +84,6 @@ export const MedicoLoginExample: React.FC = () => {
    * Handle logout (for testing)
    */
   const handleLogout = async () => {
-    const { signOut } = useMedicoAuth()
     await signOut()
     setFormData({ email: '', password: '', rememberMe: false })
     setLoginResponse(null)

@@ -1,10 +1,17 @@
 import React, { useEffect, useState } from 'react'
-// import { supabase } from './lib/supabase' // DEPRECATED: Supabase no longer used
+
+interface DebugStatus {
+  loading: boolean
+  firebaseConfigured: boolean
+  apiConnected: boolean
+  error: string | null
+  envVars: Record<string, string>
+}
 
 function AppDebug() {
-  const [status, setStatus] = useState<any>({
+  const [status, setStatus] = useState<DebugStatus>({
     loading: true,
-    supabaseConnected: false,
+    firebaseConfigured: false,
     apiConnected: false,
     error: null,
     envVars: {}
@@ -14,15 +21,17 @@ function AppDebug() {
     async function checkConnections() {
       try {
         // Check environment variables
-        const envVars = {
-          VITE_SUPABASE_URL: import.meta.env['VITE_SUPABASE_URL'] || 'NOT SET',
-          VITE_SUPABASE_ANON_KEY: import.meta.env['VITE_SUPABASE_ANON_KEY'] ? 'SET' : 'NOT SET',
+        const envVars: Record<string, string> = {
+          VITE_FIREBASE_PROJECT_ID: import.meta.env['VITE_FIREBASE_PROJECT_ID'] || 'NOT SET',
+          VITE_FIREBASE_API_KEY: import.meta.env['VITE_FIREBASE_API_KEY'] ? 'SET' : 'NOT SET',
           VITE_API_BASE_URL: import.meta.env['VITE_API_BASE_URL'] || 'NOT SET',
           VITE_API_URL: import.meta.env['VITE_API_URL'] || 'NOT SET',
         }
 
-        // Supabase is no longer used
-        const supabaseConnected = false
+        const firebaseConfigured = Boolean(
+          import.meta.env['VITE_FIREBASE_PROJECT_ID'] &&
+          import.meta.env['VITE_FIREBASE_API_KEY']
+        )
 
         // Check API connection
         let apiConnected = false
@@ -36,17 +45,18 @@ function AppDebug() {
 
         setStatus({
           loading: false,
-          supabaseConnected,
+          firebaseConfigured,
           apiConnected,
           error: null,
           envVars
         })
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
         setStatus({
           loading: false,
-          supabaseConnected: false,
+          firebaseConfigured: false,
           apiConnected: false,
-          error: error.message,
+          error: errorMessage,
           envVars: {}
         })
       }
@@ -72,9 +82,9 @@ function AppDebug() {
 
         <div style={{ marginTop: '10px' }}>
           <p>
-            <strong>Supabase:</strong>{' '}
-            <span style={{ color: status.supabaseConnected ? 'green' : 'red' }}>
-              {status.supabaseConnected ? '✅ Conectado' : '❌ Desconectado'}
+            <strong>Firebase Auth:</strong>{' '}
+            <span style={{ color: status.firebaseConfigured ? 'green' : 'red' }}>
+              {status.firebaseConfigured ? '✅ Configurado' : '❌ Pendente'}
             </span>
           </p>
 
@@ -104,9 +114,8 @@ function AppDebug() {
       <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#e0f2fe', borderRadius: '8px' }}>
         <h3>Próximos Passos</h3>
         <ol>
-          <li>Verificar se as variáveis de ambiente estão configuradas no Railway</li>
-          <li>Verificar se o Supabase está acessível</li>
-          <li>Verificar se o Backend está respondendo</li>
+          <li>Verificar se as variáveis de ambiente estão configuradas (Firebase + API)</li>
+          <li>Confirmar se o backend na AWS (FastAPI + RDS) está respondendo</li>
           <li>Após tudo verde, voltar para o App principal</li>
         </ol>
       </div>

@@ -9,7 +9,7 @@ echo "============================================"
 echo "📝 Setting up environment variables for build..."
 
 # Railway injects these variables - do not hardcode
-# Required: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_API_URL, VITE_API_BASE_URL, VITE_WS_BASE_URL
+# Required: VITE_API_URL, VITE_API_BASE_URL, VITE_WS_BASE_URL, Firebase client keys
 
 # Additional environment variables
 export NODE_ENV="production"
@@ -18,10 +18,10 @@ export GENERATE_SOURCEMAP="false"
 export CI="true"
 
 echo "✅ Environment variables configured:"
-echo "   VITE_SUPABASE_URL=$VITE_SUPABASE_URL"
 echo "   VITE_API_URL=$VITE_API_URL"
 echo "   VITE_API_BASE_URL=$VITE_API_BASE_URL"
 echo "   VITE_WS_BASE_URL=$VITE_WS_BASE_URL"
+echo "   VITE_FIREBASE_PROJECT_ID=$VITE_FIREBASE_PROJECT_ID"
 echo "   NODE_ENV=$NODE_ENV"
 
 echo ""

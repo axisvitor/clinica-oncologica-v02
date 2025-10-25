@@ -16,9 +16,10 @@ export const mockUser = {
   created_at: '2023-01-01T00:00:00Z'
 }
 
-export const mockSupabaseUser = {
+export const mockFirebaseUser = {
   id: 'test-user-id',
   email: 'test@example.com',
+  getIdToken: vi.fn().mockResolvedValue('mock-firebase-token'),
   created_at: '2023-01-01T00:00:00Z',
   user_metadata: {
     full_name: 'Test User',
@@ -31,13 +32,13 @@ export const mockSession = {
   access_token: 'test-access-token',
   refresh_token: 'test-refresh-token',
   expires_in: 3600,
-  user: mockSupabaseUser
+  user: mockFirebaseUser
 }
 
 // Mock auth context values
 export const createMockAuthContext = (overrides: Partial<AuthContextType> = {}): AuthContextType => ({
   user: mockUser,
-  supabaseUser: mockSupabaseUser,
+  firebaseUser: mockFirebaseUser,
   session: mockSession,
   isAuthenticated: true,
   isLoading: false,
@@ -153,7 +154,7 @@ export const renderUnauthenticated = (
     ...options,
     authContextValue: {
       user: null,
-      supabaseUser: null,
+      firebaseUser: null,
       session: null,
       isAuthenticated: false,
       isLoading: false
@@ -169,7 +170,7 @@ export const renderWithLoading = (
     ...options,
     authContextValue: {
       user: null,
-      supabaseUser: null,
+      firebaseUser: null,
       session: null,
       isAuthenticated: false,
       isLoading: true

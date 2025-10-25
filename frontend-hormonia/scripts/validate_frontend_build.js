@@ -113,8 +113,8 @@ class BuildValidator {
       const envChecks = [
         'import.meta.env',
         'VITE_API_URL',
-        'VITE_SUPABASE_URL',
-        'VITE_SUPABASE_ANON_KEY'
+        'VITE_FIREBASE_PROJECT_ID',
+        'VITE_FIREBASE_API_KEY'
       ];
 
       for (const envCheck of envChecks) {
@@ -139,10 +139,11 @@ class BuildValidator {
     try {
       // Create a test environment
       const testEnv = {
-        VITE_API_URL: 'http://test-api.local',
-        VITE_SUPABASE_URL: 'http://test-supabase.local',
-        VITE_SUPABASE_ANON_KEY: 'test-anon-key',
-        VITE_WEBSOCKET_URL: 'ws://test-ws.local'
+        VITE_API_URL: 'http://test-api.local/api/v1',
+        VITE_API_BASE_URL: 'http://test-api.local',
+        VITE_WEBSOCKET_URL: 'ws://test-ws.local',
+        VITE_FIREBASE_PROJECT_ID: 'test-project',
+        VITE_FIREBASE_API_KEY: 'test-api-key'
       };
 
       // Create a temporary test script to validate runtime config
@@ -155,7 +156,7 @@ class BuildValidator {
         global.window = {
           APP_CONFIG: {
             API_URL: 'http://window-api.local',
-            SUPABASE_URL: 'http://window-supabase.local'
+            WS_URL: 'ws://window-ws.local'
           }
         };
 
@@ -172,8 +173,8 @@ class BuildValidator {
           throw new Error('API_URL not found in runtime config');
         }
 
-        if (!config.SUPABASE.URL) {
-          throw new Error('SUPABASE.URL not found in runtime config');
+        if (!config.WEBSOCKET_URL) {
+          throw new Error('WEBSOCKET_URL not found in runtime config');
         }
 
         console.log('Runtime config validation passed');

@@ -26,9 +26,10 @@ describe('Configuration Initializer - Unit Tests', () => {
 
   const mockConfig = {
     VITE_API_URL: 'http://localhost:8000/api/v1',
+    VITE_API_BASE_URL: 'http://localhost:8000',
     VITE_WS_URL: 'ws://localhost:8000/ws',
-    VITE_SUPABASE_URL: 'https://test.supabase.co',
-    VITE_SUPABASE_ANON_KEY: 'test-anon-key-12345'
+    VITE_WS_BASE_URL: 'ws://localhost:8000/ws',
+    VITE_ENVIRONMENT: 'test'
   };
 
   beforeEach(() => {
@@ -332,7 +333,6 @@ describe('Configuration Initializer - Unit Tests', () => {
         return (
           <div>
             <p>Valid: {validation.isValid.toString()}</p>
-            <p>Has Supabase: {validation.hasSupabase.toString()}</p>
             <p>Has API: {validation.hasAPI.toString()}</p>
             <p>Has WebSocket: {validation.hasWebSocket.toString()}</p>
           </div>
@@ -347,21 +347,20 @@ describe('Configuration Initializer - Unit Tests', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Valid: true')).toBeInTheDocument();
-        expect(screen.getByText('Has Supabase: true')).toBeInTheDocument();
         expect(screen.getByText('Has API: true')).toBeInTheDocument();
         expect(screen.getByText('Has WebSocket: true')).toBeInTheDocument();
       });
     });
 
-    it('should detect incomplete Supabase configuration', async () => {
+    it('should detect incomplete API configuration', async () => {
       vi.mocked(runtimeConfig.getRuntimeConfig).mockResolvedValue({
         ...mockConfig,
-        VITE_SUPABASE_URL: undefined
+        VITE_API_URL: undefined
       } as any);
 
       const TestComponent = () => {
-        const { hasSupabase } = useConfigValidation();
-        return <div>Has Supabase: {hasSupabase.toString()}</div>;
+        const { hasAPI } = useConfigValidation();
+        return <div>Has API: {hasAPI.toString()}</div>;
       };
 
       render(
@@ -371,7 +370,7 @@ describe('Configuration Initializer - Unit Tests', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText('Has Supabase: false')).toBeInTheDocument();
+        expect(screen.getByText('Has API: false')).toBeInTheDocument();
       });
     });
 

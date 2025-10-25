@@ -10,7 +10,7 @@ Este guia é para fazer deploy **APENAS** do frontend como serviço independente
 
 1. Conta no Railway
 2. Backend já deployed (para obter URL)
-3. Credenciais do Supabase (apenas chaves públicas)
+3. Configuração do Firebase (credenciais públicas do SDK Web)
 
 ---
 
@@ -41,9 +41,11 @@ VITE_WS_BASE_URL=wss://<backend-domain>.up.railway.app/ws
 # NGINX BACKEND PROXY (OBRIGATÓRIO - mesmo valor do VITE_API_BASE_URL)
 BACKEND_URL=https://<backend-domain>.up.railway.app
 
-# SUPABASE (mesmas chaves do backend - PÚBLICAS)
-VITE_SUPABASE_URL=https://<seu-projeto>.supabase.co
-VITE_SUPABASE_ANON_KEY=<anon-key-publico>
+# FIREBASE (credenciais públicas do SDK)
+VITE_FIREBASE_API_KEY=<api-key>
+VITE_FIREBASE_AUTH_DOMAIN=<project>.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=<project-id>
+VITE_FIREBASE_APP_ID=<firebase-app-id>
 ```
 
 > **⚠️ IMPORTANTE**: A variável `BACKEND_URL` é obrigatória para o Nginx funcionar.
@@ -127,7 +129,7 @@ Redeploy o backend.
 │         │                            │
 │         ├─ Vite Build (React)       │
 │         ├─ Nginx (Static + Proxy)   │
-│         └─ Supabase Client (Auth)   │
+│         └─ Firebase Client (Auth)   │
 └─────────────────────────────────────┘
 ```
 

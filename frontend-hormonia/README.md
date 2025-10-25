@@ -70,12 +70,15 @@ Create a `.env` file in the Frontend-v2 directory:
 VITE_ENVIRONMENT=development
 VITE_DEBUG_MODE=true
 
-# Supabase Configuration
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
-VITE_SUPABASE_REALTIME_ENABLED=true
+# Firebase Authentication
+VITE_FIREBASE_API_KEY=your-firebase-api-key
+VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-project-id
+VITE_FIREBASE_APP_ID=your-firebase-app-id
+VITE_FIREBASE_MESSAGING_SENDER_ID=your-messaging-id
+VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
 
-# Backend API Configuration
+# Backend API Configuration (FastAPI + AWS RDS)
 VITE_API_URL=http://127.0.0.1:8000/api/v1
 VITE_API_BASE_URL=http://127.0.0.1:8000
 VITE_WS_BASE_URL=ws://127.0.0.1:8000/ws
@@ -116,9 +119,9 @@ VITE_SUPPORTED_FILE_TYPES=image/jpeg,image/png,image/gif,application/pdf
 | **Routing** | React Router v6 | Client-side navigation |
 | **Forms** | React Hook Form + Zod | Form handling and validation |
 | **Charts** | Recharts | Data visualization |
-| **Real-time** | Supabase Realtime + WebSockets | Live data updates |
+| **Real-time** | WebSockets (FastAPI) | Live data updates |
 | **AI Integration** | OpenAI + Google Gemini | Artificial intelligence features |
-| **Database** | Supabase (PostgreSQL) | Data persistence and auth |
+| **Database** | AWS RDS PostgreSQL | Data persistence |
 
 ### Runtime Configuration System
 

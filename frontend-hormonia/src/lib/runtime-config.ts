@@ -21,9 +21,6 @@ const logger = createLogger('RuntimeConfig');
 
 // Environment configuration interface
 export interface RuntimeConfig {
-  VITE_SUPABASE_URL: string;
-  VITE_SUPABASE_ANON_KEY: string;
-  VITE_SUPABASE_REALTIME_ENABLED?: string;
   VITE_API_URL: string;
   VITE_API_BASE_URL?: string; // Base URL without /api/v1 suffix
   VITE_WS_URL: string;
@@ -69,12 +66,7 @@ export interface RuntimeConfig {
 }
 
 // Production fallback configuration
-// SECURITY: Supabase credentials MUST be provided via environment variables
-// WARNING: Hardcoded URLs removed - configuration MUST be provided via environment
 const PRODUCTION_FALLBACK_CONFIG: RuntimeConfig = {
-  VITE_SUPABASE_URL: '',
-  VITE_SUPABASE_ANON_KEY: '',
-  VITE_SUPABASE_REALTIME_ENABLED: 'true',
   VITE_API_URL: '', // MUST be set via environment variable
   VITE_API_BASE_URL: '', // MUST be set via environment variable
   VITE_WS_URL: '', // MUST be set via environment variable
@@ -154,9 +146,6 @@ async function loadRuntimeConfiguration(): Promise<RuntimeConfig> {
     const wsBaseUrl = import.meta.env['VITE_WS_BASE_URL'] || import.meta.env['VITE_WS_URL'] || 'ws://localhost:8000/ws';
 
     const devConfig: RuntimeConfig = {
-      VITE_SUPABASE_URL: import.meta.env['VITE_SUPABASE_URL'] || '',
-      VITE_SUPABASE_ANON_KEY: import.meta.env['VITE_SUPABASE_ANON_KEY'] || '',
-      ...(import.meta.env['VITE_SUPABASE_REALTIME_ENABLED'] && { VITE_SUPABASE_REALTIME_ENABLED: import.meta.env['VITE_SUPABASE_REALTIME_ENABLED'] }),
       VITE_API_URL: apiUrl,
       ...(apiBaseUrl && { VITE_API_BASE_URL: apiBaseUrl }),
       VITE_WS_URL: wsBaseUrl,
@@ -449,23 +438,7 @@ async function loadFromFallback(): Promise<RuntimeConfig> {
  * Validates that a configuration object has required fields
  */
 function isValidConfig(config: any): config is RuntimeConfig {
-  // In development mode with mock auth, we don't need Supabase credentials
-  const isDev = !isProductionMode();
-  const useMockAuth = import.meta.env['VITE_USE_MOCK_AUTH'] === 'true' || isDev;
-
-  // Check if Firebase is configured (Firebase-only auth in production)
-  const hasFirebase = Boolean(
-    import.meta.env['VITE_FIREBASE_API_KEY'] &&
-    import.meta.env['VITE_FIREBASE_PROJECT_ID']
-  );
-
-  // Required fields depend on environment and auth method
-  // Firebase-only production: only needs API URL (Supabase optional)
-  // Mock auth: only needs API URL
-  // Supabase auth: needs Supabase credentials + API URL
-  const requiredFields = useMockAuth || hasFirebase
-    ? ['VITE_API_URL'] // Mock auth or Firebase auth only needs API URL
-    : ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', 'VITE_API_URL'];
+  const requiredFields = ['VITE_API_URL'];
 
   const missingFields = requiredFields.filter(field => {
     const hasField = config && typeof config[field] === 'string' && config[field].length > 0;
@@ -475,20 +448,7 @@ function isValidConfig(config: any): config is RuntimeConfig {
     return !hasField;
   });
 
-  // Warn if Supabase is missing but allow Firebase-only configuration
-  if (!useMockAuth && !config?.VITE_SUPABASE_URL && hasFirebase) {
-    logger.warn('Supabase not configured - using Firebase-only authentication');
-  }
-
   if (missingFields.length > 0) {
-    if (import.meta.env['DEV']) {
-      logger.warn(`Configuration validation: missing ${missingFields.join(', ')}`);
-      // In dev mode with mock auth or Firebase, allow partial config
-      if (useMockAuth || hasFirebase) {
-        logger.log('Using mock auth or Firebase, allowing configuration without Supabase');
-        return true;
-      }
-    }
     logger.error(`Configuration validation failed. Missing required fields: ${missingFields.join(', ')}`);
     return false;
   }

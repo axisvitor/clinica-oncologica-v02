@@ -1,5 +1,4 @@
 import { defineConfig, devices } from '@playwright/test';
-import path from 'path';
 
 /**
  * Playwright Configuration for Frontend-v2 E2E Tests
@@ -9,6 +8,7 @@ import path from 'path';
  */
 
 // Test environment configuration
+const isCI = Boolean(process.env['CI']);
 const TEST_ENV = {
   // Base URL for the application (Railway deployment or local)
   baseURL: process.env['PLAYWRIGHT_TEST_BASE_URL'] ||
@@ -44,9 +44,9 @@ export default defineConfig({
 
   // Test execution configuration
   fullyParallel: true, // Run tests in parallel
-  forbidOnly: !!process.env['CI'], // Forbid test.only in CI
-  retries: process.env['CI'] ? 2 : 0, // Retry failed tests in CI
-  workers: process.env['CI'] ? 2 : undefined, // Limit workers in CI
+  forbidOnly: isCI, // Forbid test.only in CI
+  retries: isCI ? 2 : 0, // Retry failed tests in CI
+  ...(isCI ? { workers: 2 } : {}), // Limit workers in CI
 
   // Test reporting configuration
   reporter: [
@@ -73,7 +73,7 @@ export default defineConfig({
     baseURL: TEST_ENV.baseURL,
 
     // Browser configuration
-    headless: process.env['CI'] ? true : false,
+    headless: isCI ? true : false,
     viewport: { width: 1280, height: 720 },
 
     // Action timeouts
@@ -81,12 +81,12 @@ export default defineConfig({
     navigationTimeout: 15 * 1000,
 
     // Screenshot and video configuration
-    screenshot: process.env['CI'] ? 'only-on-failure' : 'off',
-    video: process.env['CI'] ? 'retain-on-failure' : 'off',
-    trace: process.env['CI'] ? 'retain-on-failure' : 'off',
+    screenshot: isCI ? 'only-on-failure' : 'off',
+    video: isCI ? 'retain-on-failure' : 'off',
+    trace: isCI ? 'retain-on-failure' : 'off',
 
     // Ignore HTTPS errors in development
-    ignoreHTTPSErrors: !process.env['CI'],
+    ignoreHTTPSErrors: !isCI,
 
     // Accept downloads
     acceptDownloads: true,
@@ -228,28 +228,29 @@ export default defineConfig({
   ],
 
   // Web server configuration for local development
-  ...(process.env['CI'] ? {} : {
+  ...(isCI ? {} : {
     webServer: {
-    command: process.env['PLAYWRIGHT_SKIP_BUILD'] ? 'npm run preview' : 'npm run build && npm run preview',
-    url: TEST_ENV.baseURL,
-    reuseExistingServer: !process.env['CI'],
-    timeout: 120 * 1000, // 2 minutes to start the server
-    env: {
-      NODE_ENV: 'test',
-      VITE_ENVIRONMENT: 'test',
-      // Pass through test environment variables
-      VITE_SUPABASE_URL: process.env['VITE_SUPABASE_URL'] || 'https://test.supabase.co',
-      VITE_SUPABASE_ANON_KEY: process.env['VITE_SUPABASE_ANON_KEY'] || 'test-anon-key',
-      VITE_API_URL: TEST_ENV.apiURL,
-      VITE_WS_BASE_URL: process.env['VITE_WS_BASE_URL'] || `ws://localhost:8000/ws`,
-      VITE_DEBUG_MODE: 'true',
-      // AI feature flags for testing
-      VITE_AI_CHAT_ENABLED: 'true',
-      VITE_AI_ANALYTICS_ENABLED: 'true',
-      VITE_AI_INSIGHTS_ENABLED: 'true',
-      VITE_AI_RECOMMENDATIONS_ENABLED: 'false',
+      command: process.env['PLAYWRIGHT_SKIP_BUILD'] ? 'npm run preview' : 'npm run build && npm run preview',
+      url: TEST_ENV.baseURL,
+      reuseExistingServer: !isCI,
+      timeout: 120 * 1000, // 2 minutes to start the server
+      env: {
+        NODE_ENV: 'test',
+        VITE_ENVIRONMENT: 'test',
+        // Pass through test environment variables
+        VITE_SUPABASE_URL: process.env['VITE_SUPABASE_URL'] || 'https://test.supabase.co',
+        VITE_SUPABASE_ANON_KEY: process.env['VITE_SUPABASE_ANON_KEY'] || 'test-anon-key',
+        VITE_API_URL: TEST_ENV.apiURL,
+        VITE_WS_BASE_URL: process.env['VITE_WS_BASE_URL'] || `ws://localhost:8000/ws`,
+        VITE_DEBUG_MODE: 'true',
+        // AI feature flags for testing
+        VITE_AI_CHAT_ENABLED: 'true',
+        VITE_AI_ANALYTICS_ENABLED: 'true',
+        VITE_AI_INSIGHTS_ENABLED: 'true',
+        VITE_AI_RECOMMENDATIONS_ENABLED: 'false',
+      },
     },
-  }}),
+  }),
 
   // Global test setup and teardown
   globalSetup: './tests/e2e/global-setup.ts',

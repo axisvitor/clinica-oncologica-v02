@@ -11,7 +11,6 @@ import {
   XCircle,
   AlertTriangle,
   Settings,
-  Database,
   Cloud,
   Shield,
   RefreshCw,
@@ -34,7 +33,7 @@ interface EnvironmentCheck {
   required: boolean
   value?: string | undefined
   error?: string | undefined
-  category: 'api' | 'database' | 'services' | 'security'
+  category: 'api' | 'services' | 'security'
 }
 
 interface EnvironmentSetupProps {
@@ -60,24 +59,6 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
       status: 'pending',
       required: false,
       category: 'api'
-    },
-
-    // Database Configuration
-    {
-      id: 'supabase_url',
-      name: 'Supabase URL',
-      description: 'URL do projeto Supabase',
-      status: 'pending',
-      required: false,
-      category: 'database'
-    },
-    {
-      id: 'supabase_key',
-      name: 'Supabase Anon Key',
-      description: 'Chave anônima do Supabase',
-      status: 'pending',
-      required: false,
-      category: 'database'
     },
 
     // External Services
@@ -124,7 +105,6 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
 
   const categoryIcons = {
     api: <Cloud className="w-5 h-5" />,
-    database: <Database className="w-5 h-5" />,
     services: <Settings className="w-5 h-5" />,
     security: <Shield className="w-5 h-5" />
   }
@@ -191,16 +171,6 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
         updateCheckStatus('ws_url', 'success', config.WS_BASE_URL)
       } else {
         updateCheckStatus('ws_url', 'warning', '', 'WebSocket não configurado')
-      }
-
-      // Check Supabase configuration
-      updateCheckStatus('supabase_url', 'checking')
-      if (config.SUPABASE_URL && config.SUPABASE_ANON_KEY) {
-        updateCheckStatus('supabase_url', 'success', config.SUPABASE_URL)
-        updateCheckStatus('supabase_key', 'success', '****')
-      } else {
-        updateCheckStatus('supabase_url', 'warning', '', 'Supabase não configurado')
-        updateCheckStatus('supabase_key', 'warning', '', 'Chave Supabase não configurada')
       }
 
       // Check Firebase configuration

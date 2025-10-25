@@ -60,37 +60,6 @@ export interface ValidationWarning {
 
 // Environment variable validation rules
 const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
-  // Supabase Configuration (Optional - fallback to mock if missing)
-  VITE_SUPABASE_URL: {
-    required: false,  // Changed to optional - app can run without Supabase
-    type: 'url',
-    format: /^https:\/\/[a-zA-Z0-9-]+\.supabase\.co$/,
-    description: 'Supabase project URL',
-    security: {
-      sensitive: false,
-      shouldNotBeHardcoded: true
-    }
-  },
-
-  VITE_SUPABASE_ANON_KEY: {
-    required: false,  // Changed to optional - app can run without Supabase
-    type: 'string',
-    format: /^eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*$/,
-    minLength: 100,
-    description: 'Supabase anonymous public key (JWT token)',
-    security: {
-      sensitive: true,
-      shouldNotBeHardcoded: true
-    }
-  },
-
-  VITE_SUPABASE_REALTIME_ENABLED: {
-    required: false,
-    type: 'boolean',
-    allowedValues: ['true', 'false'],
-    description: 'Enable Supabase real-time features'
-  },
-
   // API Configuration (Critical)
   VITE_API_URL: {
     required: true,
@@ -548,16 +517,6 @@ export function validateRuntimeConfig(config: Partial<RuntimeConfig>): Validatio
         suggestion: 'Use production API URL'
       })
     }
-  }
-
-  // Check for common configuration issues
-  if (!config.VITE_SUPABASE_URL && !config.VITE_API_URL) {
-    errors.push({
-      field: 'configuration',
-      message: 'No backend configuration found',
-      severity: 'critical',
-      suggestion: 'Configure either Supabase or custom API backend'
-    })
   }
 
   const summary = {

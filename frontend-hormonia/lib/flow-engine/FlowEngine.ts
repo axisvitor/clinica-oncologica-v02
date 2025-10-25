@@ -5,10 +5,10 @@ import {
   InboundMessage,
   ResponseResult,
   FlowEvent,
-  FlowTransition,
-  FlowStateMachine
+  FlowStateMachine,
+  ResponseType
 } from '../types/flow'
-import { FlowType, FlowStatus, MessageDirection, MessageStatus } from '../../types/api'
+import { FlowType } from '../../types/api'
 import { apiClient } from '../api-client'
 import * as EventEmitter from 'eventemitter3'
 
@@ -49,7 +49,7 @@ export class FlowEngine extends EventEmitter.EventEmitter {
   async loadTemplates(): Promise<void> {
     try {
       // TODO: Implement template loading from API
-      console.log('Flow templates loading not yet implemented')
+      console.warn('Flow templates loading not yet implemented')
     } catch (error) {
       console.error('Failed to load flow templates:', error)
     }
@@ -156,28 +156,18 @@ export class FlowEngine extends EventEmitter.EventEmitter {
   // Process patient response
   async processResponse(patientId: string, message: InboundMessage): Promise<ResponseResult> {
     try {
-      // Convert InboundMessage to Message format expected by API
-      const apiMessage = {
-        id: message.id,
-        patient_id: message.patient_id,
-        direction: MessageDirection.INBOUND,
-        type: message.message_type,
-        content: message.content,
-        status: MessageStatus.SENT,
-        created_at: message.timestamp,
-        updated_at: message.timestamp,
-        metadata: message.metadata || {}
-      }
+      const apiResult = await apiClient.flows.processResponse(
+        patientId,
+        message.content,
+        message.metadata || {}
+      ) as Partial<ResponseResult> | undefined
 
-      const result = await apiClient.flows.processResponse(patientId, apiMessage)
-
-      // Create a proper ResponseResult if API doesn't return one
       const responseResult: ResponseResult = {
-        response_type: 'TEXT' as any, // Default response type
-        extracted_data: {},
-        sentiment_score: 0.5, // Default neutral sentiment
-        requires_attention: false,
-        follow_up_actions: []
+        response_type: (apiResult?.response_type as ResponseResult['response_type']) || ResponseType.TEXT,
+        extracted_data: apiResult?.extracted_data || {},
+        sentiment_score: typeof apiResult?.sentiment_score === 'number' ? apiResult.sentiment_score : 0.5,
+        requires_attention: apiResult?.requires_attention ?? false,
+        follow_up_actions: apiResult?.follow_up_actions || []
       }
 
       this.emit('response_received', {
@@ -225,7 +215,7 @@ export class FlowEngine extends EventEmitter.EventEmitter {
   }
 
   // Get flow analytics
-  async getAnalytics(): Promise<any> {
+  async getAnalytics(): Promise<Record<string, unknown> | null> {
     try {
       return await apiClient.flows.getAnalytics()
     } catch (error) {

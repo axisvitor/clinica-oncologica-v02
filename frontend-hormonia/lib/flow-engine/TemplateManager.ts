@@ -1,11 +1,18 @@
 import {
   FlowTemplate,
   MessageTemplate,
-  InteractiveElements,
   Condition
 } from '../types/flow'
 import { FlowType, MessageType } from '../../types/api'
 import { apiClient } from '../api-client'
+
+type ApiTemplatePayload = Partial<FlowTemplate> & {
+  id: string
+  flow_type: FlowType
+  messages?: Record<number, MessageTemplate>
+}
+
+type PersonalizationValue = string | number | boolean | null | undefined
 
 export class TemplateManager {
   private templates: Map<FlowType, FlowTemplate> = new Map()
@@ -106,19 +113,18 @@ export class TemplateManager {
   // Load templates from API
   async loadTemplates(): Promise<void> {
     try {
-      const response = await apiClient.flows.getTemplates()
-      // Handle paginated response
-      const templates = Array.isArray(response) ? response : response?.data || []
-      templates.forEach((apiTemplate: any) => {
+      const response = await apiClient.flows.getTemplates() as ApiTemplatePayload[] | { data?: ApiTemplatePayload[] } | undefined
+      const templates: ApiTemplatePayload[] = Array.isArray(response) ? response : response?.data || []
+      templates.forEach((apiTemplate) => {
         // Convert API template to internal template format
         const template: FlowTemplate = {
           id: apiTemplate.id,
           flow_type: apiTemplate.flow_type,
-          name: apiTemplate.name,
-          description: apiTemplate.description,
+          name: apiTemplate.name || 'Template sem nome',
+          description: apiTemplate.description || '',
           messages: apiTemplate.messages || {},
           metadata: apiTemplate.metadata || {},
-          humanization_level: apiTemplate.humanization_level || 'medium'
+          humanization_level: (apiTemplate.humanization_level as FlowTemplate['humanization_level']) || 'medium'
         }
         this.templates.set(template.flow_type, template)
       })
@@ -145,13 +151,14 @@ export class TemplateManager {
   }
 
   // Personalize message content
-  personalizeMessage(template: MessageTemplate, patientData: Record<string, any>): string {
+  personalizeMessage(template: MessageTemplate, patientData: Record<string, PersonalizationValue>): string {
     let content = template.content
 
     // Replace placeholders
     Object.entries(patientData).forEach(([key, value]) => {
       const placeholder = `{${key}}`
-      content = content.replace(new RegExp(placeholder, 'g'), value)
+      const safeValue = value ?? ''
+      content = content.replace(new RegExp(placeholder, 'g'), String(safeValue))
     })
 
     return content
@@ -164,7 +171,7 @@ export class TemplateManager {
     }
 
     // Validate each message
-    for (const [day, message] of Object.entries(template.messages)) {
+    for (const message of Object.values(template.messages)) {
       if (!this.validateMessage(message)) {
         return false
       }
@@ -254,7 +261,7 @@ export class TemplateManager {
   }
 
   // Check if conditions are met
-  evaluateConditions(conditions: Condition[], patientData: Record<string, any>): boolean {
+  evaluateConditions(conditions: Condition[], patientData: Record<string, unknown>): boolean {
     if (!conditions || conditions.length === 0) return true
 
     return conditions.every(condition => {
@@ -263,14 +270,12 @@ export class TemplateManager {
       switch (condition.operator) {
         case 'equals':
           return value === condition.value
-        case 'equals':
-          return value === condition.value
         case 'contains':
-          return String(value).includes(String(condition.value))
+          return String(value ?? '').includes(String(condition.value ?? ''))
         case 'greater_than':
-          return Number(value) > Number(condition.value)
+          return Number(value ?? 0) > Number(condition.value ?? 0)
         case 'less_than':
-          return Number(value) < Number(condition.value)
+          return Number(value ?? 0) < Number(condition.value ?? 0)
         default:
           return false
       }

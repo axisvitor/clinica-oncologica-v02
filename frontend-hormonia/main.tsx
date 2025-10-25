@@ -10,7 +10,7 @@ import "./index.css";
 if (import.meta.env.DEV) {
   console.warn('[Dev] Environment:', import.meta.env.MODE);
   console.warn('[Dev] API URL:', import.meta.env.VITE_API_BASE_URL);
-  console.warn('[Dev] Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
+  console.warn('[Dev] Firebase project:', import.meta.env['VITE_FIREBASE_PROJECT_ID']);
 }
 
 const rootElement = document.getElementById("root");

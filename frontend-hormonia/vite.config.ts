@@ -54,10 +54,6 @@ const createRuntimeFallbackConfig = (mode: string) => {
     DEFAULT_WS_BASE_URL;
 
   return {
-    VITE_SUPABASE_URL: process.env["VITE_SUPABASE_URL"] || "",
-    VITE_SUPABASE_ANON_KEY: process.env["VITE_SUPABASE_ANON_KEY"] || "",
-    VITE_SUPABASE_REALTIME_ENABLED:
-      process.env["VITE_SUPABASE_REALTIME_ENABLED"] || "true",
     VITE_API_URL: apiUrl,
     VITE_API_BASE_URL: apiBase,
     VITE_WS_URL: wsBase,

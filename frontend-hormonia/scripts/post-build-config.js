@@ -64,8 +64,6 @@ if (typeof process !== 'undefined' && process.env) {
   const wsBaseUrl = process.env['VITE_WS_BASE_URL'] || process.env['WS_BASE_URL'] || process.env['VITE_WS_URL'] || 'ws://localhost:8000/ws';
 
   const config = {
-    VITE_SUPABASE_URL: process.env['VITE_SUPABASE_URL'] || process.env['SUPABASE_URL'] || '',
-    VITE_SUPABASE_ANON_KEY: process.env['VITE_SUPABASE_ANON_KEY'] || process.env['SUPABASE_ANON_KEY'] || '',
     VITE_API_URL: apiUrl,
     VITE_API_BASE_URL: apiBaseUrl,
     VITE_WS_URL: wsBaseUrl, // Emit both WS variables for compatibility
@@ -97,8 +95,6 @@ if (typeof process !== 'undefined' && process.env) {
 } else {
   // Browser environment: provide fallback configuration
   const fallbackConfig = {
-    VITE_SUPABASE_URL: '',
-    VITE_SUPABASE_ANON_KEY: '',
     VITE_API_URL: 'http://localhost:8000/api/v1',
     VITE_API_BASE_URL: 'http://localhost:8000',
     VITE_WS_URL: 'ws://localhost:8000/ws', // Emit both WS variables
@@ -129,8 +125,6 @@ if (typeof process !== 'undefined' && process.env) {
     const staticWsBase = process.env['VITE_WS_BASE_URL'] || process.env['VITE_WS_URL'] || 'ws://localhost:8000/ws';
 
     const staticConfig = {
-      VITE_SUPABASE_URL: process.env['VITE_SUPABASE_URL'] || '',
-      VITE_SUPABASE_ANON_KEY: process.env['VITE_SUPABASE_ANON_KEY'] || '',
       VITE_API_URL: staticApiUrl,
       VITE_API_BASE_URL: staticApiBase,
       VITE_WS_URL: staticWsBase, // Emit both WS variables
@@ -217,8 +211,6 @@ NODE_ENV = "production"
 PORT = "3000"
 
 # Override the following via the Railway dashboard or CLI
-VITE_SUPABASE_URL = ""
-VITE_SUPABASE_ANON_KEY = ""
 VITE_API_URL = "https://api.example.com/api/v1"
 VITE_API_BASE_URL = "https://api.example.com"
 VITE_WS_BASE_URL = "wss://api.example.com/ws"

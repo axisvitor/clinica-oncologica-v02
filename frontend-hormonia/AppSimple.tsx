@@ -1,8 +1,14 @@
-import React from 'react'
+import React, { useState } from 'react'
 
 function AppSimple() {
-  // Teste mais básico possível
-  console.log('AppSimple carregou!')
+  const [interactionMessage, setInteractionMessage] = useState<string | null>(null)
+
+  console.warn('AppSimple carregou!')
+
+  const handleInteractionTest = () => {
+    setInteractionMessage('Botão funcionando! React está operacional.')
+    console.warn('AppSimple: teste de interatividade executado.')
+  }
 
   return (
     <div style={{
@@ -13,7 +19,7 @@ function AppSimple() {
       minHeight: '100vh'
     }}>
       <h1 style={{ color: '#333', marginBottom: '20px' }}>
-        🏥 Hormonia - Sistema Funcionando!
+        🌡️ Hormonia - Sistema Funcionando!
       </h1>
 
       <div style={{
@@ -40,10 +46,7 @@ function AppSimple() {
 
         <div style={{ marginTop: '30px' }}>
           <button
-            onClick={() => {
-              alert('Botão funcionando! React está operacional.')
-              console.log('Botão clicado')
-            }}
+            onClick={handleInteractionTest}
             style={{
               backgroundColor: '#4CAF50',
               color: 'white',
@@ -56,13 +59,18 @@ function AppSimple() {
           >
             Testar Interatividade
           </button>
+          {interactionMessage && (
+            <p style={{ marginTop: '12px', color: '#2563EB', fontWeight: 600 }}>
+              {interactionMessage}
+            </p>
+          )}
         </div>
       </div>
 
       <div style={{ marginTop: '40px', color: '#999', fontSize: '14px' }}>
         <p>Próximo passo: Substituir este componente pelo App completo</p>
-        <p>URL Backend: {import.meta.env['VITE_API_BASE_URL'] || 'Não configurado'}</p>
-        <p>URL Supabase: {import.meta.env['VITE_SUPABASE_URL'] || 'Não configurado'}</p>
+        <p>API Backend (AWS RDS via FastAPI): {import.meta.env['VITE_API_BASE_URL'] || 'Não configurado'}</p>
+        <p>Firebase Project: {import.meta.env['VITE_FIREBASE_PROJECT_ID'] || 'Não configurado'}</p>
       </div>
     </div>
   )

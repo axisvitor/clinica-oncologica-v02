@@ -1,373 +1,131 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import { AuthProvider, useAuth } from '../../../contexts/AuthContext'
-import { createWrapperWithProviders, mockUser, mockSupabaseUser, mockSession } from '../../test-utils'
+import { AuthProvider, useAuth } from '@/contexts/AuthContext'
+import {
+  mockUser,
+  mockSession,
+  mockFirebaseUser,
+  createMockFirebaseAuth
+} from '../../test-utils'
 
-// Mock the Supabase client
-const mockAuth = {
-  onAuthStateChange: vi.fn(),
-  getCurrentSession: vi.fn(),
-  signIn: vi.fn(),
-  signOut: vi.fn(),
+const mockFirebaseAuth = createMockFirebaseAuth()
+const mockWsManager = {
+  connect: vi.fn(),
+  disconnect: vi.fn(),
+  updateToken: vi.fn()
 }
-
-const mockRealtimeManager = {
-  unsubscribeAll: vi.fn(),
-}
-
 const mockApiClient = {
+  auth: {
+    me: vi.fn()
+  },
   setAuthToken: vi.fn(),
-  setSessionToken: vi.fn(),
+  clearAuthToken: vi.fn(),
+  fetchCsrfToken: vi.fn()
 }
+const mockLoginUser = vi.fn()
+const mockLogoutAllDevices = vi.fn()
 
-vi.mock('../../../lib/supabase-client', () => ({
-  auth: mockAuth,
-  realtimeManager: mockRealtimeManager,
+vi.mock('../../../lib/firebase-lazy', () => ({
+  firebaseAuthLazy: mockFirebaseAuth
+}))
+
+vi.mock('../../../lib/websocket', () => ({
+  wsManager: mockWsManager
 }))
 
 vi.mock('../../../lib/api-client', () => ({
-  apiClient: mockApiClient,
+  apiClient: mockApiClient
 }))
 
-describe('AuthContext', () => {
-  let mockSubscription: any
+vi.mock('../../../services/firebase-auth', () => ({
+  loginUser: mockLoginUser,
+  logoutAllDevices: mockLogoutAllDevices
+}))
+
+vi.mock('../../../hooks/use-toast', () => ({
+  toast: vi.fn()
+}))
+
+describe('AuthContext (Firebase)', () => {
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <AuthProvider>{children}</AuthProvider>
+  )
 
   beforeEach(() => {
     vi.clearAllMocks()
 
-    // Mock subscription object
-    mockSubscription = {
-      unsubscribe: vi.fn(),
-    }
-
-    mockAuth.onAuthStateChange.mockReturnValue({
-      data: { subscription: mockSubscription }
+    mockApiClient.auth.me.mockResolvedValue({ data: mockUser })
+    mockFirebaseAuth.isConfigured.mockReturnValue(true)
+    mockFirebaseAuth.getCurrentUser.mockResolvedValue(mockFirebaseUser as any)
+    ;(mockFirebaseUser.getIdToken as unknown as ReturnType<typeof vi.fn>).mockResolvedValue('firebase-token')
+    mockFirebaseAuth.onAuthStateChanged.mockImplementation(async (handler: (user: any) => void) => {
+      await handler(mockFirebaseUser as any)
+      return () => {}
     })
-
-    mockAuth.getCurrentSession.mockResolvedValue(mockSession)
+    mockFirebaseAuth.onIdTokenChanged.mockResolvedValue(() => {})
+    mockFirebaseAuth.signOut.mockResolvedValue({ error: null })
+    mockLoginUser.mockResolvedValue({ user: mockUser, session_id: 'session-abc' })
+    mockLogoutAllDevices.mockResolvedValue({ sessions_deleted: 1 })
   })
 
-  afterEach(() => {
-    vi.clearAllMocks()
+  it('throws when useAuth is called outside provider', () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(() => renderHook(() => useAuth())).toThrow('useAuth must be used within an AuthProvider')
+    consoleSpy.mockRestore()
   })
 
-  describe('useAuth hook', () => {
-    it('should throw error when used outside provider', () => {
-      // Suppress console error for this test
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+  it('initializes with authenticated user when Firebase session exists', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper })
 
-      expect(() => {
-        renderHook(() => useAuth())
-      }).toThrow('useAuth must be used within an AuthProvider')
-
-      consoleSpy.mockRestore()
-    })
-
-    it('should return auth context when used within provider', () => {
-      const wrapper = createWrapperWithProviders()
-
-      const { result } = renderHook(() => useAuth(), { wrapper })
-
-      expect(result.current).toBeDefined()
-      expect(typeof result.current.login).toBe('function')
-      expect(typeof result.current.logout).toBe('function')
-      expect(typeof result.current.hasPermission).toBe('function')
-      expect(typeof result.current.hasRole).toBe('function')
-    })
-  })
-
-  describe('AuthProvider initialization', () => {
-    it('should initialize with loading state', () => {
-      const wrapper = createWrapperWithProviders()
-
-      const { result } = renderHook(() => useAuth(), { wrapper })
-
-      expect(result.current.isLoading).toBe(true)
-      expect(result.current.isAuthenticated).toBe(false)
-      expect(result.current.user).toBe(null)
-    })
-
-    it('should set up auth state change listener on mount', () => {
-      const wrapper = createWrapperWithProviders()
-
-      renderHook(() => useAuth(), { wrapper })
-
-      expect(mockAuth.onAuthStateChange).toHaveBeenCalledWith(expect.any(Function))
-    })
-
-    it('should get current session on mount', async () => {
-      const wrapper = createWrapperWithProviders()
-
-      renderHook(() => useAuth(), { wrapper })
-
-      expect(mockAuth.getCurrentSession).toHaveBeenCalled()
-    })
-
-    it('should clean up subscription on unmount', () => {
-      const wrapper = createWrapperWithProviders()
-
-      const { unmount } = renderHook(() => useAuth(), { wrapper })
-
-      unmount()
-
-      expect(mockSubscription.unsubscribe).toHaveBeenCalled()
-    })
-  })
-
-  describe('authentication state management', () => {
-    it('should handle SIGNED_IN event', async () => {
-      let authStateHandler: any
-      mockAuth.onAuthStateChange.mockImplementation((handler) => {
-        authStateHandler = handler
-        return { data: { subscription: mockSubscription } }
-      })
-
-      const wrapper = createWrapperWithProviders()
-      const { result } = renderHook(() => useAuth(), { wrapper })
-
-      await act(async () => {
-        await authStateHandler('SIGNED_IN', mockSession)
-      })
-
-      await waitFor(() => {
-        expect(result.current.isAuthenticated).toBe(true)
-        expect(result.current.user).toEqual(mockUser)
-        expect(result.current.session).toEqual(mockSession)
-        expect(result.current.isLoading).toBe(false)
-      })
-
-      expect(mockApiClient.setSessionToken).toHaveBeenCalledWith(mockSession)
-    })
-
-    it('should handle SIGNED_OUT event', async () => {
-      let authStateHandler: any
-      mockAuth.onAuthStateChange.mockImplementation((handler) => {
-        authStateHandler = handler
-        return { data: { subscription: mockSubscription } }
-      })
-
-      const wrapper = createWrapperWithProviders()
-      const { result } = renderHook(() => useAuth(), { wrapper })
-
-      // First sign in
-      await act(async () => {
-        await authStateHandler('SIGNED_IN', mockSession)
-      })
-
-      // Then sign out
-      await act(async () => {
-        await authStateHandler('SIGNED_OUT', null)
-      })
-
-      await waitFor(() => {
-        expect(result.current.isAuthenticated).toBe(false)
-        expect(result.current.user).toBe(null)
-        expect(result.current.session).toBe(null)
-      })
-
-      expect(mockApiClient.setAuthToken).toHaveBeenCalledWith(null)
-      expect(mockRealtimeManager.unsubscribeAll).toHaveBeenCalled()
-    })
-  })
-
-  describe('login function', () => {
-    it('should call supabase signIn', async () => {
-      mockAuth.signIn.mockResolvedValue({ user: mockSupabaseUser, error: null })
-
-      const wrapper = createWrapperWithProviders()
-      const { result } = renderHook(() => useAuth(), { wrapper })
-
-      await act(async () => {
-        await result.current.login('test@example.com', 'password')
-      })
-
-      expect(mockAuth.signIn).toHaveBeenCalledWith('test@example.com', 'password')
-    })
-
-    it('should handle login errors', async () => {
-      const error = new Error('Invalid credentials')
-      mockAuth.signIn.mockRejectedValue(error)
-
-      const wrapper = createWrapperWithProviders()
-      const { result } = renderHook(() => useAuth(), { wrapper })
-
-      await expect(
-        act(async () => {
-          await result.current.login('test@example.com', 'wrongpassword')
-        })
-      ).rejects.toThrow('Invalid credentials')
-    })
-
-    it('should set loading state during login', async () => {
-      let resolveLogin: any
-      mockAuth.signIn.mockReturnValue(
-        new Promise(resolve => { resolveLogin = resolve })
-      )
-
-      const wrapper = createWrapperWithProviders()
-      const { result } = renderHook(() => useAuth(), { wrapper })
-
-      act(() => {
-        result.current.login('test@example.com', 'password')
-      })
-
-      expect(result.current.isLoading).toBe(true)
-
-      await act(async () => {
-        resolveLogin({ user: mockSupabaseUser })
-      })
-
+    await waitFor(() => {
       expect(result.current.isLoading).toBe(false)
     })
+
+    expect(result.current.isAuthenticated).toBe(true)
+    expect(result.current.user?.id).toBe(mockUser.id)
+    expect(mockApiClient.auth.me).toHaveBeenCalled()
   })
 
-  describe('logout function', () => {
-    it('should call supabase signOut', async () => {
-      const wrapper = createWrapperWithProviders()
-      const { result } = renderHook(() => useAuth(), { wrapper })
+  it('performs login using Firebase + backend session', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper })
 
-      await act(async () => {
-        await result.current.logout()
-      })
-
-      expect(mockAuth.signOut).toHaveBeenCalled()
+    await act(async () => {
+      await result.current.login('admin@example.com', 'secret123', true)
     })
 
-    it('should clear state on logout', async () => {
-      const wrapper = createWrapperWithProviders()
-      const { result } = renderHook(() => useAuth(), { wrapper })
-
-      await act(async () => {
-        await result.current.logout()
-      })
-
-      expect(result.current.user).toBe(null)
-      expect(result.current.session).toBe(null)
-      expect(result.current.isAuthenticated).toBe(false)
-      expect(mockApiClient.setAuthToken).toHaveBeenCalledWith(null)
-      expect(mockRealtimeManager.unsubscribeAll).toHaveBeenCalled()
-    })
-
-    it('should handle logout errors gracefully', async () => {
-      const error = new Error('Network error')
-      mockAuth.signOut.mockRejectedValue(error)
-
-      const wrapper = createWrapperWithProviders()
-      const { result } = renderHook(() => useAuth(), { wrapper })
-
-      await act(async () => {
-        await result.current.logout()
-      })
-
-      // Should still clear state even if signOut fails
-      expect(result.current.user).toBe(null)
-      expect(result.current.session).toBe(null)
-      expect(result.current.isAuthenticated).toBe(false)
-    })
+    expect(mockLoginUser).toHaveBeenCalledWith('admin@example.com', 'secret123')
+    expect(mockFirebaseAuth.setPersistence).toHaveBeenCalledWith(true)
+    expect(mockWsManager.connect).toHaveBeenCalledWith('firebase-token')
   })
 
-  describe('permission and role checking', () => {
-    it('should check permissions correctly', () => {
-      const wrapper = createWrapperWithProviders({
-        user: mockUser,
-        isAuthenticated: true
-      })
+  it('signs out and clears session data', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper })
 
-      const { result } = renderHook(() => useAuth(), { wrapper })
-
-      expect(result.current.hasPermission('read:patients')).toBe(true)
-      expect(result.current.hasPermission('write:patients')).toBe(true)
-      expect(result.current.hasPermission('nonexistent:permission')).toBe(false)
+    await waitFor(() => {
+      expect(result.current.isAuthenticated).toBe(true)
     })
 
-    it('should check roles correctly', () => {
-      const wrapper = createWrapperWithProviders({
-        user: mockUser,
-        isAuthenticated: true
-      })
-
-      const { result } = renderHook(() => useAuth(), { wrapper })
-
-      expect(result.current.hasRole('admin')).toBe(true)
-      expect(result.current.hasRole('user')).toBe(false)
+    await act(async () => {
+      await result.current.logout()
     })
 
-    it('should return false for permissions when no user', () => {
-      const wrapper = createWrapperWithProviders({
-        user: null,
-        isAuthenticated: false
-      })
-
-      const { result } = renderHook(() => useAuth(), { wrapper })
-
-      expect(result.current.hasPermission('read:patients')).toBe(false)
-      expect(result.current.hasRole('admin')).toBe(false)
-    })
+    expect(mockFirebaseAuth.signOut).toHaveBeenCalled()
+    expect(mockWsManager.disconnect).toHaveBeenCalled()
+    expect(mockApiClient.clearAuthToken).toHaveBeenCalledTimes(2)
   })
 
-  describe('user conversion', () => {
-    it('should convert supabase user to app user format', async () => {
-      let authStateHandler: any
-      mockAuth.onAuthStateChange.mockImplementation((handler) => {
-        authStateHandler = handler
-        return { data: { subscription: mockSubscription } }
-      })
+  it('invalidates all sessions via logoutAll', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper })
 
-      const wrapper = createWrapperWithProviders()
-      const { result } = renderHook(() => useAuth(), { wrapper })
-
-      await act(async () => {
-        await authStateHandler('SIGNED_IN', mockSession)
-      })
-
-      await waitFor(() => {
-        expect(result.current.user).toEqual({
-          id: mockSupabaseUser.id,
-          email: mockSupabaseUser.email,
-          full_name: mockSupabaseUser.user_metadata['full_name'],
-          role: mockSupabaseUser.user_metadata['role'],
-          is_active: true,
-          permissions: mockSupabaseUser.user_metadata['permissions'],
-          created_at: mockSupabaseUser.created_at
-        })
-      })
+    await waitFor(() => {
+      expect(result.current.isAuthenticated).toBe(true)
     })
 
-    it('should handle missing user metadata', async () => {
-      const userWithoutMetadata = {
-        ...mockSupabaseUser,
-        user_metadata: {}
-      }
-
-      const sessionWithoutMetadata = {
-        ...mockSession,
-        user: userWithoutMetadata
-      }
-
-      let authStateHandler: any
-      mockAuth.onAuthStateChange.mockImplementation((handler) => {
-        authStateHandler = handler
-        return { data: { subscription: mockSubscription } }
-      })
-
-      const wrapper = createWrapperWithProviders()
-      const { result } = renderHook(() => useAuth(), { wrapper })
-
-      await act(async () => {
-        await authStateHandler('SIGNED_IN', sessionWithoutMetadata)
-      })
-
-      await waitFor(() => {
-        expect(result.current.user).toEqual({
-          id: userWithoutMetadata['id'],
-          email: userWithoutMetadata['email'],
-          full_name: userWithoutMetadata['email'],
-          role: 'user',
-          is_active: true,
-          permissions: [],
-          created_at: userWithoutMetadata.created_at
-        })
-      })
+    await act(async () => {
+      await result.current.logoutAll()
     })
+
+    expect(mockLogoutAllDevices).toHaveBeenCalled()
+    expect(mockWsManager.disconnect).toHaveBeenCalled()
   })
 })

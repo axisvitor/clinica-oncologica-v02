@@ -1,9 +1,11 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test'
 
 /**
  * Playwright Configuration for Local Development Testing
  * Use this config when dev server is already running on localhost:5175
  */
+const isCI = Boolean(process.env['CI'])
+
 export default defineConfig({
   testDir: './tests/e2e',
   outputDir: './test-results/e2e-artifacts',
@@ -12,13 +14,13 @@ export default defineConfig({
   fullyParallel: true,
 
   // Fail the build on CI if you accidentally left test.only in the source code
-  forbidOnly: !!process.env['CI'],
+  forbidOnly: isCI,
 
   // Retry on CI only
-  retries: process.env['CI'] ? 2 : 0,
+  retries: isCI ? 2 : 0,
 
   // Opt out of parallel tests on CI
-  workers: process.env['CI'] ? 1 : 4,
+  workers: isCI ? 1 : 4,
 
   // Reporter to use
   reporter: [

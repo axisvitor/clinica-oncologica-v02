@@ -25,11 +25,6 @@ interface ImportMetaEnv {
   readonly VITE_WS_BASE_URL: string
   readonly VITE_WHATSAPP_INSTANCE_NAME: string
 
-  // Supabase Configuration (DEPRECATED - no longer used)
-  readonly VITE_SUPABASE_URL?: string
-  readonly VITE_SUPABASE_ANON_KEY?: string
-  readonly VITE_SUPABASE_REALTIME_ENABLED?: string
-
   // AI Service API Keys
   readonly VITE_OPENAI_API_KEY: string
   readonly VITE_LANGCHAIN_API_KEY: string

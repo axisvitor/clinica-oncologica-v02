@@ -21,10 +21,11 @@ export const mockUser = {
   created_at: new Date().toISOString()
 }
 
-export const mockSupabaseUser = {
+export const mockFirebaseUser = {
   id: 'test-user-id',
   email: 'test@example.com',
   created_at: new Date().toISOString(),
+  getIdToken: vi.fn().mockResolvedValue('mock-firebase-token'),
   user_metadata: {
     full_name: 'Test User',
     role: 'admin',
@@ -38,7 +39,7 @@ export const mockSession = {
   expires_in: 3600,
   expires_at: Date.now() + 3600000,
   token_type: 'bearer',
-  user: mockSupabaseUser
+  user: mockFirebaseUser
 }
 
 // Create a query client for tests
@@ -59,7 +60,7 @@ export function createTestQueryClient() {
 // Mock AuthContext value
 export const mockAuthContext = {
   user: mockUser,
-  supabaseUser: mockSupabaseUser,
+  firebaseUser: mockFirebaseUser,
   session: mockSession,
   isAuthenticated: true,
   isLoading: false,
@@ -149,16 +150,17 @@ export function createMockApiClient() {
   }
 }
 
-// Mock Supabase client
-export function createMockSupabaseAuth() {
+// Mock Firebase Auth client (replaces legacy auth mocks)
+export function createMockFirebaseAuth() {
   return {
+    isConfigured: vi.fn(() => true),
     getCurrentSession: vi.fn().mockResolvedValue(mockSession),
-    getCurrentUser: vi.fn().mockResolvedValue(mockSupabaseUser),
-    signIn: vi.fn().mockResolvedValue({ user: mockSupabaseUser, session: mockSession }),
-    signOut: vi.fn().mockResolvedValue(undefined),
-    onAuthStateChange: vi.fn().mockReturnValue({
-      data: { subscription: { unsubscribe: vi.fn() } }
-    }),
+    getCurrentUser: vi.fn().mockResolvedValue(mockFirebaseUser),
+    signInWithPassword: vi.fn().mockResolvedValue({ user: mockFirebaseUser, session: mockSession, error: null }),
+    signOut: vi.fn().mockResolvedValue({ error: null }),
+    setPersistence: vi.fn().mockResolvedValue(undefined),
+    onAuthStateChanged: vi.fn().mockResolvedValue(() => {}),
+    onIdTokenChanged: vi.fn().mockResolvedValue(() => {})
   }
 }
 

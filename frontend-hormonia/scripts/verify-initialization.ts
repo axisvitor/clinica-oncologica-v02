@@ -4,14 +4,12 @@
  * This script verifies all critical frontend initialization steps:
  * - Runtime configuration loading
  * - API client setup
- * - Supabase client initialization
  * - WebSocket connection capability
  * - Environment variables validation
  */
 
 import { getRuntimeConfig, isProduction } from '../src/lib/runtime-config'
 import { apiClient } from '../src/lib/api-client'
-import { isSupabaseInitialized } from '../src/lib/supabase-client'
 
 interface InitializationStatus {
   timestamp: string
@@ -19,7 +17,6 @@ interface InitializationStatus {
   checks: {
     runtimeConfig: CheckResult
     apiClient: CheckResult
-    supabaseClient: CheckResult
     environmentVars: CheckResult
     apiConnectivity: CheckResult
   }
@@ -42,8 +39,6 @@ async function verifyRuntimeConfig(): Promise<CheckResult> {
     const config = await getRuntimeConfig()
 
     const requiredFields = [
-      'VITE_SUPABASE_URL',
-      'VITE_SUPABASE_ANON_KEY',
       'VITE_API_URL',
       'VITE_API_BASE_URL',
       'VITE_WS_BASE_URL'
@@ -63,7 +58,6 @@ async function verifyRuntimeConfig(): Promise<CheckResult> {
       status: 'pass',
       message: 'Runtime configuration loaded successfully',
       details: {
-        supabaseUrl: config.VITE_SUPABASE_URL,
         apiUrl: config.VITE_API_URL,
         wsUrl: config.VITE_WS_BASE_URL,
         environment: config.VITE_ENVIRONMENT || 'unknown'
@@ -113,43 +107,16 @@ async function verifyApiClient(): Promise<CheckResult> {
   }
 }
 
-async function verifySupabaseClient(): Promise<CheckResult> {
-  try {
-    const isInit = isSupabaseInitialized()
-
-    if (!isInit) {
-      return {
-        status: 'warning',
-        message: 'Supabase client not explicitly initialized (will use lazy initialization)',
-        details: { isInitialized: isInit }
-      }
-    }
-
-    return {
-      status: 'pass',
-      message: 'Supabase client initialized successfully',
-      details: { isInitialized: isInit }
-    }
-  } catch (error) {
-    return {
-      status: 'fail',
-      message: `Supabase client verification failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      details: { error }
-    }
-  }
-}
-
 async function verifyEnvironmentVars(): Promise<CheckResult> {
   try {
     const config = await getRuntimeConfig()
 
     const criticalVars = {
-      VITE_SUPABASE_URL: config.VITE_SUPABASE_URL,
-      VITE_SUPABASE_ANON_KEY: config.VITE_SUPABASE_ANON_KEY ? '***' : undefined,
       VITE_API_URL: config.VITE_API_URL,
       VITE_API_BASE_URL: config.VITE_API_BASE_URL,
       VITE_WS_BASE_URL: config.VITE_WS_BASE_URL,
-      VITE_ENVIRONMENT: config.VITE_ENVIRONMENT
+      VITE_ENVIRONMENT: config.VITE_ENVIRONMENT,
+      VITE_FIREBASE_PROJECT_ID: config.VITE_FIREBASE_PROJECT_ID
     }
 
     const missingCritical = Object.entries(criticalVars)
@@ -267,7 +234,6 @@ async function runVerification(): Promise<InitializationStatus> {
   const checks = {
     runtimeConfig: await verifyRuntimeConfig(),
     apiClient: await verifyApiClient(),
-    supabaseClient: await verifySupabaseClient(),
     environmentVars: await verifyEnvironmentVars(),
     apiConnectivity: await verifyApiConnectivity()
   }
