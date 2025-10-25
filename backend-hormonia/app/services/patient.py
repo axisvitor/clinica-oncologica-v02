@@ -83,7 +83,8 @@ class PatientService:
             IntegrityError: If database integrity constraints are violated
         """
         # Use Saga Pattern for robust patient onboarding
-        use_saga = settings.get("ENABLE_SAGA_PATTERN", True)
+        # Default to True since saga is the recommended approach
+        use_saga = getattr(settings, "ENABLE_SAGA_PATTERN", True)
 
         if use_saga:
             logger.info(f"Creating patient using Saga Pattern for doctor {doctor_id}")

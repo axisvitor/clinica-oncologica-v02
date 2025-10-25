@@ -44,6 +44,14 @@ class FeaturesSettings(BaseAppSettings):
     )
 
     # ============================================================================
+    # Saga Pattern Configuration
+    # ============================================================================
+    ENABLE_SAGA_PATTERN: bool = Field(
+        default=True,
+        description="Enable Saga Pattern for patient onboarding (recommended for production)",
+    )
+
+    # ============================================================================
     # Flow Auto-Enrollment Configuration
     # ============================================================================
     ENABLE_AUTO_FLOW_ENROLLMENT: bool = Field(
