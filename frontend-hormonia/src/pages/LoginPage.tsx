@@ -37,7 +37,7 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 
 export function LoginPage() {
-  const { login, isAuthenticated, isLoading } = useAuth();
+  const { login, isAuthenticated, isInitializing } = useAuth();
   const { config } = useConfig();
   const location = useLocation();
   const [showPassword, setShowPassword] = useState(false);
@@ -85,7 +85,9 @@ export function LoginPage() {
     setShowForgotPassword(true);
   };
 
-  if (isLoading) {
+  // Only show full-page spinner during initial Firebase bootstrap
+  // During login attempts, the form stays visible with inline spinner
+  if (isInitializing) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size="lg" />
@@ -258,12 +260,11 @@ export function LoginPage() {
                 type="submit"
                 className="w-full"
                 disabled={isSubmittingAuth}
-                aria-describedby="submit-status"
               >
                 {isSubmittingAuth ? (
                   <>
                     <LoadingSpinner size="sm" className="mr-2" />
-                    <span aria-live="polite">Entrando...</span>
+                    <span aria-live="polite" id="submit-status">Entrando...</span>
                   </>
                 ) : (
                   'Entrar'

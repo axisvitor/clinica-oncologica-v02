@@ -204,6 +204,7 @@ export class ApiClientCore {
 
   /**
    * Fetch CSRF token from backend
+   * Non-blocking: returns gracefully on failure to prevent app initialization blocking
    */
   async fetchCsrfToken(): Promise<void> {
     if (this.csrfTokenPromise) {
@@ -212,10 +213,15 @@ export class ApiClientCore {
     }
 
     this.csrfTokenPromise = (async () => {
+      // Shorter timeout for CSRF fetch (5s) to prevent blocking
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
       try {
         logger.debug("[ApiClient] Initiating CSRF token fetch...");
         const response = await fetch(`${this.baseURL}/api/v1/csrf-token`, {
           credentials: "include",
+          signal: controller.signal,
         });
 
         if (response.ok) {
@@ -227,19 +233,26 @@ export class ApiClientCore {
             csrfToken = csrfToken[1];
             logger.debug("[ApiClient] CSRF token extracted from array format");
           } else if (typeof csrfToken !== "string") {
-            logger.error("[ApiClient] Unexpected CSRF token format:", typeof csrfToken);
-            throw new Error("Invalid CSRF token format received from server");
+            logger.warn("[ApiClient] Unexpected CSRF token format:", typeof csrfToken);
+            // Don't throw - just skip setting token
+            return;
           }
 
           this.csrfToken = csrfToken;
           logger.debug("[ApiClient] CSRF token fetched successfully");
         } else {
           logger.warn("[ApiClient] Failed to fetch CSRF token:", response.status);
+          // Don't throw - CSRF token is optional for GET requests
         }
       } catch (error) {
-        logger.error("[ApiClient] Error fetching CSRF token:", error);
-        throw error;
+        // Log but don't throw - CSRF failure should not block app initialization
+        if (error instanceof Error && error.name === 'AbortError') {
+          logger.warn("[ApiClient] CSRF token fetch timed out (5s)");
+        } else {
+          logger.warn("[ApiClient] Error fetching CSRF token (non-critical):", error);
+        }
       } finally {
+        clearTimeout(timeoutId);
         this.csrfTokenPromise = null;
       }
     })();

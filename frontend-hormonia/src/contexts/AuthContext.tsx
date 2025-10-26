@@ -16,7 +16,9 @@ interface AuthContextType {
   user: User | null
   session: { access_token: string; session_id?: string } | null
   isAuthenticated: boolean
-  isLoading: boolean
+  isLoading: boolean // DEPRECATED: Use isInitializing instead
+  isInitializing: boolean // Bootstrap/Firebase initialization
+  isAuthenticating: boolean // Active login/logout operation
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>
   logout: () => void
   logoutAll: () => Promise<void>
@@ -44,9 +46,12 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<{ access_token: string; session_id?: string } | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isInitializing, setIsInitializing] = useState(true) // Bootstrap phase
+  const [isAuthenticating, setIsAuthenticating] = useState(false) // Active login/logout
 
   const isAuthenticated = !!user
+  // DEPRECATED: Keep for backward compatibility, remove in next major version
+  const isLoading = isInitializing
 
   // Permission and role checking functions
   const hasPermission = useCallback((permission: string): boolean => {
@@ -159,12 +164,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const init = async (): Promise<void | (() => void)> => {
       logger.log('Initializing authentication...')
 
-      // Fetch CSRF token on app initialization
+      // Fetch CSRF token on app initialization (non-blocking)
       try {
         await apiClient.fetchCsrfToken()
-        logger.log('CSRF token initialized')
+        logger.log('CSRF token initialized successfully')
       } catch (error) {
-        logger.warn('Failed to initialize CSRF token:', error)
+        // CSRF token fetch failure should NOT block authentication
+        logger.warn('Failed to initialize CSRF token (non-critical):', error)
+        // Authentication will still work; token fetched lazily if needed
       }
 
       if (isMockAuthEnabled()) {
@@ -184,7 +191,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         } catch (error) {
           logger.error('Mock auth initialization error:', error)
         }
-        setIsLoading(false)
+        setIsInitializing(false)
         return undefined
       } else {
         logger.log('Using Firebase authentication (lazy loaded)')
@@ -193,7 +200,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (!firebaseAuthLazy.isConfigured()) {
           logger.warn('Firebase not configured - falling back to unauthenticated state')
           logger.info('Set VITE_USE_MOCK_AUTH=true or configure Firebase credentials')
-          setIsLoading(false)
+          setIsInitializing(false)
           return undefined
         }
 
@@ -238,7 +245,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             logger.log('Disconnecting WebSocket...')
             wsManager.disconnect()
           }
-          setIsLoading(false)
+          setIsInitializing(false)
         })
 
         // Set up Firebase token refresh listener (lazy loaded)
@@ -273,7 +280,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [transformFirebaseUser])
 
   const login = async (email: string, password: string, rememberMe: boolean = false) => {
-    setIsLoading(true)
+    setIsAuthenticating(true)
     try {
       logger.log('Attempting login:', email)
 
@@ -367,7 +374,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       throw error
     } finally {
-      setIsLoading(false)
+      setIsAuthenticating(false)
     }
   }
 
@@ -483,6 +490,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     session,
     isAuthenticated,
     isLoading,
+    isInitializing,
+    isAuthenticating,
     login,
     logout,
     logoutAll,
@@ -495,6 +504,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     session,
     isAuthenticated,
     isLoading,
+    isInitializing,
+    isAuthenticating,
     login,
     logout,
     logoutAll,

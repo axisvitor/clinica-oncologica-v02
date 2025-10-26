@@ -41,15 +41,19 @@ export function ConfigProvider({
 
   const loadConfiguration = async () => {
     try {
+      logger.info('🚀 [ConfigProvider] Starting configuration loading...');
       setLoading(true);
       setError(null);
 
-      logger.info('Loading runtime configuration...');
+      logger.info('📋 [ConfigProvider] Step 1: Loading runtime configuration...');
 
       // Load config directly without timeout race condition
       // getRuntimeConfig already has internal timeout handling
       const runtimeConfig = await getRuntimeConfig();
-      logger.info('Configuration loaded successfully');
+      logger.info('✅ [ConfigProvider] Step 1: Configuration loaded successfully', {
+        apiUrl: runtimeConfig.VITE_API_URL,
+        apiBaseUrl: runtimeConfig.VITE_API_BASE_URL
+      });
 
       // Initialize API client with runtime config
       // Use VITE_API_BASE_URL (without /api/v1) to avoid path duplication
@@ -58,26 +62,35 @@ export function ConfigProvider({
       const apiBaseUrl = runtimeConfig.VITE_API_BASE_URL ||
                          runtimeConfig.VITE_API_URL?.replace(/\/api\/v1$/, '') ||
                          FALLBACK_PROD_API;
-      logger.info('Initializing API client with base URL:', apiBaseUrl);
+      logger.info('📡 [ConfigProvider] Step 2: Initializing API client...', { apiBaseUrl });
       apiClient.setBaseURL(apiBaseUrl);
+      logger.info('✅ [ConfigProvider] Step 2: API client initialized');
 
-      // Fetch CSRF token for session security
-      logger.info('Fetching CSRF token...');
-      await apiClient.fetchCsrfToken();
+      // Fetch CSRF token for session security (non-blocking)
+      logger.info('🔐 [ConfigProvider] Step 3: Fetching CSRF token...');
+      try {
+        await apiClient.fetchCsrfToken();
+        logger.info('✅ [ConfigProvider] Step 3: CSRF token fetched successfully');
+      } catch (csrfError) {
+        // CSRF token fetch failure should NOT block app initialization
+        logger.warn('⚠️ [ConfigProvider] Step 3: Failed to fetch CSRF token (non-critical):', csrfError);
+        // App will still work; CSRF token will be fetched on first API call if needed
+      }
 
       // Supabase removed - using Firebase exclusively
-      logger.info('Using Firebase for authentication and backend API for data');
+      logger.info('🔥 [ConfigProvider] Step 4: Using Firebase for authentication');
 
       setConfig(runtimeConfig);
-      logger.info('Configuration initialization complete');
+      logger.info('✅ [ConfigProvider] Configuration initialization complete!');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load configuration';
-      logger.error('Configuration loading failed:', err);
+      logger.error('❌ [ConfigProvider] Configuration loading failed:', err);
       setError(errorMessage);
     } finally {
       // CRITICAL: Always set loading to false, no matter what happens
-      logger.info('Setting loading state to false');
+      logger.info('🏁 [ConfigProvider] Finalizing - setting loading state to false');
       setLoading(false);
+      logger.info('✓ [ConfigProvider] Loading state updated, app ready to render');
     }
   };
 
