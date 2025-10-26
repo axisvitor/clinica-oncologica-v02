@@ -191,8 +191,8 @@ export default defineConfig(({ mode }) => ({
               return "vendor-react";
             }
 
-            // Libraries that depend on React - MUST LOAD AFTER vendor-react
-            // class-variance-authority uses React.useLayoutEffect
+            // CRITICAL: class-variance-authority uses React.useLayoutEffect
+            // MUST be in same chunk as React to avoid "Cannot read properties of undefined"
             if (id.includes("class-variance-authority")) {
               return "vendor-react";
             }
