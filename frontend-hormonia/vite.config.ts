@@ -186,8 +186,14 @@ export default defineConfig(({ mode }) => ({
         manualChunks(id) {
           // Vendor chunks - separate by weight and usage
           if (id.includes("node_modules")) {
-            // Core React (always needed)
+            // Core React (always needed) - MUST LOAD FIRST
             if (id.includes("react") || id.includes("react-dom")) {
+              return "vendor-react";
+            }
+
+            // Libraries that depend on React - MUST LOAD AFTER vendor-react
+            // class-variance-authority uses React.useLayoutEffect
+            if (id.includes("class-variance-authority")) {
               return "vendor-react";
             }
 
