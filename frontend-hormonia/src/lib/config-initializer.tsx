@@ -54,7 +54,7 @@ export function ConfigProvider({
       // Initialize API client with runtime config
       // Use VITE_API_BASE_URL (without /api/v1) to avoid path duplication
       // If only VITE_API_URL is available, sanitize it by removing /api/v1 suffix
-      const FALLBACK_PROD_API = 'http://localhost:8000';
+      const FALLBACK_PROD_API = 'https://clinica-oncologica-v02-production.up.railway.app';
       const apiBaseUrl = runtimeConfig.VITE_API_BASE_URL ||
                          runtimeConfig.VITE_API_URL?.replace(/\/api\/v1$/, '') ||
                          FALLBACK_PROD_API;

@@ -67,10 +67,10 @@ export interface RuntimeConfig {
 
 // Production fallback configuration
 const PRODUCTION_FALLBACK_CONFIG: RuntimeConfig = {
-  VITE_API_URL: '', // MUST be set via environment variable
-  VITE_API_BASE_URL: '', // MUST be set via environment variable
-  VITE_WS_URL: '', // MUST be set via environment variable
-  VITE_WS_BASE_URL: '', // MUST be set via environment variable
+  VITE_API_URL: 'https://clinica-oncologica-v02-production.up.railway.app/api/v1',
+  VITE_API_BASE_URL: 'https://clinica-oncologica-v02-production.up.railway.app',
+  VITE_WS_URL: 'wss://clinica-oncologica-v02-production.up.railway.app/ws',
+  VITE_WS_BASE_URL: 'wss://clinica-oncologica-v02-production.up.railway.app/ws',
   VITE_WHATSAPP_INSTANCE_NAME: 'hormonia-instance',
 
   // Firebase Client Configuration (must be provided via environment)
