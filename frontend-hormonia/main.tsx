@@ -1,4 +1,3 @@
-import "./react-shim"; // CRITICAL: Must be first to ensure React is globally available
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App"; // App completo com autenticação

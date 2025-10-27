@@ -153,10 +153,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     tailwindcss(),
-    react({
-      jsxRuntime: 'automatic',
-      // CRITICAL: React 19 compatibility fix for class-variance-authority
-    }),
+    react(),
     // Runtime config injection plugin
     {
       name: "runtime-config-injection",
@@ -186,110 +183,33 @@ export default defineConfig(({ mode }) => ({
     reportCompressedSize: false,
     rollupOptions: {
       output: {
-        manualChunks(id) {
-          // Vendor chunks - separate by weight and usage
-          if (id.includes("node_modules")) {
-            // Core React (always needed) - MUST LOAD FIRST
-            if (id.includes("react") || id.includes("react-dom")) {
-              return "vendor-react";
-            }
+        manualChunks: {
+          // Core React vendor libraries
+          vendor: ["react", "react-dom"],
 
-            // CRITICAL: class-variance-authority uses React.useLayoutEffect
-            // MUST be in same chunk as React to avoid "Cannot read properties of undefined"
-            if (id.includes("class-variance-authority")) {
-              return "vendor-react";
-            }
+          // Router and state management
+          router: ["react-router-dom", "@tanstack/react-query"],
 
-            // CRITICAL: clsx and tailwind-merge are used by CVA
-            // Keep together to avoid circular dependencies
-            if (id.includes("clsx") || id.includes("tailwind-merge")) {
-              return "vendor-react";
-            }
+          // UI component libraries
+          ui: [
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-dropdown-menu",
+            "@radix-ui/react-select",
+            "@radix-ui/react-toast",
+            "lucide-react",
+          ],
 
-            // React Query (used in most pages)
-            if (id.includes("@tanstack/react-query")) {
-              return "vendor-query";
-            }
+          // Charts and data visualization
+          charts: ["recharts"],
 
-            // Router (always needed for navigation)
-            if (id.includes("react-router-dom")) {
-              return "vendor-router";
-            }
+          // Firebase and backend integration
+          firebase: ["firebase/app", "firebase/auth"],
 
-            // Radix UI components (heavy, ~150KB total)
-            if (id.includes("@radix-ui")) {
-              return "vendor-ui";
-            }
+          // Utility libraries
+          utils: ["lodash", "date-fns", "clsx", "tailwind-merge"],
 
-            // Lucide icons (separate for better caching)
-            if (id.includes("lucide-react")) {
-              return "vendor-icons";
-            }
-
-            // Charts library (heavy, only on analytics/dashboard)
-            if (id.includes("recharts") || id.includes("d3-")) {
-              return "vendor-charts";
-            }
-
-            // Date manipulation
-            if (id.includes("date-fns")) {
-              return "vendor-date";
-            }
-
-            // Firebase (only on auth pages)
-            if (id.includes("firebase")) {
-              return "vendor-firebase";
-            }
-
-            // Form libraries
-            if (id.includes("react-hook-form") || id.includes("zod")) {
-              return "vendor-forms";
-            }
-
-            // Lodash utilities
-            if (id.includes("lodash")) {
-              return "vendor-lodash";
-            }
-
-            // Other vendor libraries
-            return "vendor-misc";
-          }
-
-          // Feature-based code splitting for pages
-          if (id.includes("/src/pages/")) {
-            const pageName = id.split("/pages/")[1]?.split(/[/.]/)[0];
-            if (pageName) {
-              return `page-${pageName.toLowerCase()}`;
-            }
-          }
-
-          // Feature modules
-          if (id.includes("/src/features/")) {
-            const featureName = id.split("/features/")[1]?.split("/")[0];
-            if (featureName) {
-              return `feature-${featureName.toLowerCase()}`;
-            }
-          }
-
-          // Components that are shared but heavy
-          if (id.includes("/src/components/")) {
-            // Charts components
-            if (id.includes("/charts/")) {
-              return "components-charts";
-            }
-            // Tables/DataGrid
-            if (id.includes("/tables/") || id.includes("DataTable")) {
-              return "components-tables";
-            }
-            // Editors (TipTap, etc)
-            if (id.includes("/editors/") || id.includes("RichText")) {
-              return "components-editors";
-            }
-            // Calendar components
-            if (id.includes("/calendar/")) {
-              return "components-calendar";
-            }
-          }
+          // Large form and validation libraries
+          forms: ["react-hook-form", "zod"],
         },
         chunkFileNames: (chunkInfo) => {
           const facadeModuleId = chunkInfo.facadeModuleId
@@ -381,29 +301,25 @@ export default defineConfig(({ mode }) => ({
     include: [
       "react",
       "react-dom",
-      "react/jsx-runtime",
       "react-router-dom",
       "@tanstack/react-query",
       "firebase/app",
       "firebase/auth",
       "clsx",
       "tailwind-merge",
-      "class-variance-authority", // CRITICAL: Pre-bundle to ensure React hooks available
       "date-fns",
       "lucide-react",
       "recharts",
       "lodash",
       "lodash/*",
     ],
-    exclude: [],
+    exclude: ["@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu"],
     esbuildOptions: {
       target: "es2020",
       supported: {
         "top-level-await": true,
       },
     },
-    // Force dependency re-optimization on server start
-    force: mode === "development",
   },
   esbuild: {
     drop: mode === "production" ? ["console", "debugger"] : [],
