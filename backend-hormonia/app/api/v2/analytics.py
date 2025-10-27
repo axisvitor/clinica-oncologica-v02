@@ -524,22 +524,36 @@ async def get_treatment_distribution(
             }
         )
 
-    trend_query = db.query(
-        func.date_trunc('week', Patient.created_at).label('week_start'),
-        func.count(Patient.id).label('count'),
-    )
-    if role != UserRole.ADMIN and user_uuid:
-        trend_query = trend_query.filter(Patient.doctor_id == user_uuid)
-    if start_date:
-        trend_query = trend_query.filter(Patient.created_at >= start_date)
+    try:
+        logger.info("Building trend query...")
+        # Use a subquery or alias to avoid GROUP BY issues
+        week_start_expr = func.date_trunc('week', Patient.created_at)
+        
+        trend_query = db.query(
+            week_start_expr.label('week_start'),
+            func.count(Patient.id).label('count'),
+        )
+        
+        if role != UserRole.ADMIN and user_uuid:
+            trend_query = trend_query.filter(Patient.doctor_id == user_uuid)
+            logger.info(f"Trend filtered by doctor_id: {user_uuid}")
+        
+        if start_date:
+            trend_query = trend_query.filter(Patient.created_at >= start_date)
+            logger.info(f"Trend filtered by start_date: {start_date}")
 
-    trend_results = (
-        trend_query
-        .group_by(func.date_trunc('week', Patient.created_at))
-        .order_by(func.date_trunc('week', Patient.created_at))
-        .limit(12)
-        .all()
-    )
+        logger.info("Executing trend query...")
+        trend_results = (
+            trend_query
+            .group_by(week_start_expr)
+            .order_by(week_start_expr)
+            .limit(12)
+            .all()
+        )
+        logger.info(f"Trend query returned {len(trend_results)} results")
+    except Exception as e:
+        logger.error(f"Error in trend query: {e}")
+        raise
 
     trend_data = []
     for week_start, count in trend_results:

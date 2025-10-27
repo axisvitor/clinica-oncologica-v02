@@ -57,15 +57,18 @@ def test_treatment_distribution_query():
         now = datetime.utcnow()
         start_date = now - timedelta(days=30)
         
+        # Use a variable to avoid GROUP BY issues
+        week_start_expr = func.date_trunc('week', Patient.created_at)
+        
         trend_query = db.query(
-            func.date_trunc('week', Patient.created_at).label('week_start'),
+            week_start_expr.label('week_start'),
             func.count(Patient.id).label('count'),
         ).filter(Patient.created_at >= start_date)
         
         trend_results = (
             trend_query
-            .group_by(func.date_trunc('week', Patient.created_at))
-            .order_by(func.date_trunc('week', Patient.created_at))
+            .group_by(week_start_expr)
+            .order_by(week_start_expr)
             .limit(12)
             .all()
         )
