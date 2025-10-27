@@ -86,6 +86,9 @@ async def _get_cached_result(cache_key: str):
     try:
         from app.core.redis_unified import get_async_redis
         redis_client = await get_async_redis()
+        if redis_client is None:
+            logger.debug("Redis not available, skipping cache read")
+            return None
         cached = await redis_client.get(cache_key)
         if cached:
             logger.debug(f"Cache HIT: {cache_key}")
@@ -102,6 +105,9 @@ async def _set_cached_result(cache_key: str, data: dict, ttl: int = ANALYTICS_CA
     try:
         from app.core.redis_unified import get_async_redis
         redis_client = await get_async_redis()
+        if redis_client is None:
+            logger.debug("Redis not available, skipping cache write")
+            return
         await redis_client.setex(cache_key, ttl, json.dumps(data, default=str))
         logger.debug(f"Cache SET: {cache_key} (TTL: {ttl}s)")
     except Exception as e:
@@ -445,37 +451,64 @@ async def get_treatment_distribution(
     current_user = Depends(get_current_user_from_session),
 ):
     """Return treatment distribution data with optional period filtering."""
-    role, user_uuid = _get_role_and_user(current_user)
+    try:
+        logger.info(f"Starting treatment-distribution endpoint, period={period}")
+        
+        role, user_uuid = _get_role_and_user(current_user)
+        logger.info(f"User role: {role}, user_uuid: {user_uuid}")
+    except Exception as e:
+        logger.error(f"Error getting role and user: {e}")
+        raise
 
-    cache_key = _get_cache_key(
-        "treatment-distribution",
-        period=period,
-        role=role.value,
-        user=str(user_uuid) if user_uuid else None,
-    )
-    cached_result = await _get_cached_result(cache_key)
-    if cached_result:
-        return cached_result
+    try:
+        cache_key = _get_cache_key(
+            "treatment-distribution",
+            period=period,
+            role=role.value,
+            user=str(user_uuid) if user_uuid else None,
+        )
+        logger.info(f"Cache key generated: {cache_key}")
+        
+        cached_result = await _get_cached_result(cache_key)
+        if cached_result:
+            logger.info("Returning cached result")
+            return cached_result
+        logger.info("No cached result, proceeding with database query")
 
-    now = datetime.utcnow()
-    period_map = {"7d": 7, "30d": 30, "90d": 90}
-    start_date = now - timedelta(days=period_map.get(period, 30)) if period != "all" else None
+        now = datetime.utcnow()
+        period_map = {"7d": 7, "30d": 30, "90d": 90}
+        start_date = now - timedelta(days=period_map.get(period, 30)) if period != "all" else None
+        logger.info(f"Query period: {period}, start_date: {start_date}")
+    except Exception as e:
+        logger.error(f"Error in cache setup: {e}")
+        raise
 
-    distribution_query = db.query(
-        Patient.treatment_type,
-        func.count(Patient.id).label("count"),
-    )
-    if role != UserRole.ADMIN and user_uuid:
-        distribution_query = distribution_query.filter(Patient.doctor_id == user_uuid)
-    if start_date:
-        distribution_query = distribution_query.filter(Patient.created_at >= start_date)
+    try:
+        logger.info("Building distribution query...")
+        distribution_query = db.query(
+            Patient.treatment_type,
+            func.count(Patient.id).label("count"),
+        )
+        
+        if role != UserRole.ADMIN and user_uuid:
+            distribution_query = distribution_query.filter(Patient.doctor_id == user_uuid)
+            logger.info(f"Filtered by doctor_id: {user_uuid}")
+        
+        if start_date:
+            distribution_query = distribution_query.filter(Patient.created_at >= start_date)
+            logger.info(f"Filtered by start_date: {start_date}")
 
-    distribution_results = (
-        distribution_query
-        .group_by(Patient.treatment_type)
-        .order_by(func.count(Patient.id).desc())
-        .all()
-    )
+        logger.info("Executing distribution query...")
+        distribution_results = (
+            distribution_query
+            .group_by(Patient.treatment_type)
+            .order_by(func.count(Patient.id).desc())
+            .all()
+        )
+        logger.info(f"Distribution query returned {len(distribution_results)} results")
+    except Exception as e:
+        logger.error(f"Error in distribution query: {e}")
+        raise
 
     total_patients = sum(count for _, count in distribution_results)
     distribution = []
@@ -525,5 +558,13 @@ async def get_treatment_distribution(
         "last_updated": now.isoformat(),
     }
 
-    await _set_cached_result(cache_key, result)
-    return result
+    try:
+        logger.info("Caching result...")
+        await _set_cached_result(cache_key, result)
+        logger.info("Result cached successfully")
+        
+        logger.info(f"Returning result with {result['total_patients']} patients")
+        return result
+    except Exception as e:
+        logger.error(f"Error in final steps: {e}")
+        raise
