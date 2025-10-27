@@ -68,6 +68,22 @@ class QuizTemplateService:
         if not template:
             raise NotFoundError(f"Template {template_id} not found")
         return QuizTemplateResponse.from_orm(template)
+    
+    @with_db_retry(max_retries=3)
+    def get_templates(self, skip: int = 0, limit: int = 100, active_only: bool = True) -> tuple[list[QuizTemplateResponse], int]:
+        """Get quiz templates with pagination."""
+        from app.repositories.quiz import QuizTemplateRepository
+        
+        query = self.db.query(QuizTemplate)
+        
+        if active_only:
+            query = query.filter(QuizTemplate.is_active == True)
+        
+        total = query.count()
+        templates = query.offset(skip).limit(limit).all()
+        
+        template_responses = [QuizTemplateResponse.from_orm(template) for template in templates]
+        return template_responses, total
 
 
 class QuizSessionService:

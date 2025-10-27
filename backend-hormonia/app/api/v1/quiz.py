@@ -9,16 +9,20 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from app.dependencies import (
+from app.dependencies.service_dependencies import (
     get_quiz_template_service,
     get_quiz_response_service,
     get_quiz_session_service,
     get_quiz_analytics_service,
-    get_current_user,
-    get_admin_user,
-    get_pagination_params,
-    validate_patient_access,
     get_patient_service
+)
+from app.dependencies.auth_dependencies import (
+    get_current_user,
+    get_admin_user
+)
+from app.dependencies.business_dependencies import (
+    get_pagination_params,
+    validate_patient_access
 )
 from app.models.user import User
 from app.models.patient import Patient

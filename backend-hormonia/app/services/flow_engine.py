@@ -27,6 +27,7 @@ from app.exceptions import NotFoundError, ValidationError
 from app.core.event_loop_manager import EventLoopManager, AsyncFlowEngineBase
 from app.core.async_context_manager import safe_create_task, ensure_async_context
 from app.services.ai import get_ai_humanizer, get_context_builder, PatientContext
+from app.services.ai.ai_service import get_ai_service
 from app.config import is_ai_humanization_enabled, should_humanize_message, get_humanization_config
 from app.utils.db_retry import with_db_retry
 from app.services.question_humanizer import get_question_humanizer
@@ -134,9 +135,9 @@ class FlowEngine(AsyncFlowEngineBase):
         self.quiz_session_service = QuizSessionService(db)
         self.quiz_response_service = QuizResponseService(db)
 
-        # AI Humanization services
-        self.ai_service = get_ai_service()
-        self.ai_context_builder = get_ai_service()
+        # AI Humanization services (lazy initialization)
+        self.ai_service = None
+        self.ai_context_builder = None
         self.humanization_config = get_humanization_config()
 
         # Redis client for caching (optional)
@@ -156,6 +157,13 @@ class FlowEngine(AsyncFlowEngineBase):
             logger.warning(f"FlowEngine initialized without Redis cache: {e}")
 
         logger.info("FlowEngine initialized with memory leak protection")
+
+    async def _ensure_ai_services(self):
+        """Ensure AI services are initialized (lazy loading)."""
+        if self.ai_service is None:
+            self.ai_service = await get_ai_service()
+        if self.ai_context_builder is None:
+            self.ai_context_builder = await get_ai_service()
 
     def _get_flow_type_from_state(self, flow_state: PatientFlowState) -> str:
         """
