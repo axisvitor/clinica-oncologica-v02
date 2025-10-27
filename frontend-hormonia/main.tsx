@@ -13,6 +13,27 @@ if (import.meta.env.DEV) {
   console.warn('[Dev] Firebase project:', import.meta.env['VITE_FIREBASE_PROJECT_ID']);
 }
 
+// Global error handling for unhandled promise rejections
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('Unhandled promise rejection:', event.reason);
+  
+  // Prevent the default behavior (error overlay)
+  event.preventDefault();
+  
+  // Check if it's a WebSocket or network error (non-critical)
+  if (event.reason?.message?.includes('WebSocket') || 
+      event.reason?.message?.includes('ws://') ||
+      event.reason?.message?.includes('wss://') ||
+      event.reason?.message?.includes('Failed to fetch') ||
+      event.reason?.message?.includes('NetworkError')) {
+    console.warn('Non-critical error handled gracefully:', event.reason.message);
+    return;
+  }
+  
+  // For other errors, log but don't show overlay
+  console.error('Promise rejection handled:', event.reason);
+});
+
 const rootElement = document.getElementById("root");
 
 if (!rootElement) {

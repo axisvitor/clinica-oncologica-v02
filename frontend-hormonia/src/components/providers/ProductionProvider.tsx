@@ -163,6 +163,17 @@ export const ProductionProvider = memo<ProductionProviderProps>(({ children }) =
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
       console.error('Unhandled promise rejection:', event.reason)
 
+      // Prevent default behavior (showing error overlay)
+      event.preventDefault()
+
+      // Check if it's a WebSocket error (common and non-critical)
+      if (event.reason?.message?.includes('WebSocket') || 
+          event.reason?.message?.includes('ws://') ||
+          event.reason?.message?.includes('wss://')) {
+        console.warn('WebSocket error handled gracefully:', event.reason.message)
+        return
+      }
+
       if (environment.enableErrorReporting) {
         // Report to monitoring service
         if ((window as any).Sentry) {

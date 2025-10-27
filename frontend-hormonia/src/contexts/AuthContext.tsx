@@ -217,9 +217,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 setUser(appUser)
                 setSession({ access_token: token })
 
-                // Connect WebSocket with Firebase token
+                // Connect WebSocket with Firebase token (non-blocking)
                 logger.log('Connecting WebSocket...')
-                wsManager.connect(token)
+                wsManager.connect(token).catch(error => {
+                  logger.warn('WebSocket connection failed during auth state change, continuing without real-time features:', error)
+                  // Don't throw - WebSocket failure shouldn't block authentication
+                })
               } else {
                 // Backend rejected user - already signed out by transformFirebaseUser
                 logger.warn('Backend rejected Firebase user - session cleared')
@@ -299,8 +302,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setSession({ access_token: result.session.access_token })
         apiClient.setAuthToken(result.session.access_token)
 
-        // Connect WebSocket for mock auth
-        wsManager.connect(result.session.access_token)
+        // Connect WebSocket for mock auth (non-blocking)
+        wsManager.connect(result.session.access_token).catch(error => {
+          logger.warn('WebSocket connection failed during mock login, continuing without real-time features:', error)
+          // Don't throw - WebSocket failure shouldn't block login
+        })
       } else {
         // Set persistence BEFORE signIn using lazy-loaded Firebase
         try {
@@ -333,9 +339,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
         setSession(sessionData)
 
-        // Connect WebSocket with Firebase token
+        // Connect WebSocket with Firebase token (non-blocking)
         if (firebaseToken) {
-          wsManager.connect(firebaseToken)
+          wsManager.connect(firebaseToken).catch(error => {
+            logger.warn('WebSocket connection failed during login, continuing without real-time features:', error)
+            // Don't throw - WebSocket failure shouldn't block login
+          })
         }
       }
     } catch (error: any) {

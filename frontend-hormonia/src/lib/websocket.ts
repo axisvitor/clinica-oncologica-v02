@@ -147,8 +147,10 @@ class WebSocketManager {
             this.attemptReconnect(this.currentToken)
           }
 
-          if (event.code !== 1000) {
-            reject(new Error(`WebSocket closed: ${event.reason || 'Unknown reason'}`))
+          // Only reject if it's an unexpected close during initial connection
+          if (event.code !== 1000 && event.code !== 1001) {
+            logger.warn('WebSocket closed unexpectedly:', event.code, event.reason)
+            // Don't reject - just log the warning to avoid unhandled promise rejection
           }
         }
 
@@ -156,7 +158,8 @@ class WebSocketManager {
           logger.error('WebSocket error:', error)
           this.isConnecting = false
           this.emit('error', { error })
-          reject(error)
+          // Don't reject on error - WebSocket errors are common and should be handled gracefully
+          logger.warn('WebSocket connection failed, continuing without real-time features')
         }
       } catch (error) {
         logger.error('Failed to create WebSocket connection:', error)
