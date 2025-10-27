@@ -28,7 +28,8 @@ router = APIRouter()
 @router.websocket("/connect")
 async def websocket_endpoint(
     websocket: WebSocket,
-    token: Optional[str] = Query(None, description="JWT authentication token")
+    token: Optional[str] = Query(None, description="JWT authentication token"),
+    session_id: Optional[str] = Query(None, description="Session ID for session-based auth")
 ) -> None:
     """
     Main WebSocket endpoint for real-time communication.
@@ -85,9 +86,44 @@ async def websocket_endpoint(
         )
         logger.info(f"Welcome message sent result: {result} for {connection_id}")
         
-        # Attempt authentication if token provided in query
+        # Attempt authentication if token or session_id provided in query
         authenticated_user = None
-        if token:
+        
+        # Try session-based authentication first (preferred)
+        if session_id:
+            try:
+                from app.dependencies.auth_dependencies import get_redis_cache
+                from app.core.redis_manager import FirebaseRedisCache, get_redis_manager
+                
+                # Get Redis cache
+                redis_manager = get_redis_manager()
+                redis_client = redis_manager.get_compatible_client("sync")
+                firebase_cache = FirebaseRedisCache(redis_client)
+                
+                # Validate session
+                session_data = await firebase_cache.get_session(session_id)
+                if session_data:
+                    firebase_uid = session_data.get("firebase_uid")
+                    if firebase_uid:
+                        # Get user data from cache or DB
+                        user_data = await firebase_cache.get_user_by_uid(firebase_uid)
+                        if user_data and user_data.get("is_active", False):
+                            # Create a mock user object for compatibility
+                            class MockUser:
+                                def __init__(self, data):
+                                    self.id = data.get("id")
+                                    self.email = data.get("email")
+                                    self.role = data.get("role")
+                                    self.is_active = data.get("is_active", True)
+                            
+                            authenticated_user = MockUser(user_data)
+                            logger.info(f"WebSocket authenticated via session: {user_data.get('email')}")
+                        
+            except Exception as e:
+                logger.warning(f"Session authentication failed for WebSocket: {e}")
+        
+        # Fallback to token authentication if session auth failed
+        if not authenticated_user and token:
             # Get database session
             from app.database import get_db
             db_gen = get_db()

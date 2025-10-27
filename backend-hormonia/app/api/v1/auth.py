@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
 from app.dependencies import get_thread_safe_db as get_db, get_current_user, get_auth_service
+from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.services.auth import AuthService
 from app.schemas.auth import LoginResponse, RefreshTokenRequest, UserResponse, LoginRequest
 from app.schemas.common import SuccessResponse
@@ -179,7 +180,7 @@ async def refresh_token(
     }
 )
 @limiter.limit("100/minute")  # Rate limit: 100 profile fetches per minute per IP
-async def get_current_user_profile(request: Request, current_user: User = Depends(get_current_user)) -> UserResponse:
+async def get_current_user_profile(request: Request, current_user = Depends(get_current_user_from_session)) -> UserResponse:
     """
     Get current user profile.
 
@@ -188,7 +189,17 @@ async def get_current_user_profile(request: Request, current_user: User = Depend
     2. X-Session-ID header (backward compatible)
     3. Bearer token (legacy)
     """
-    return UserResponse.from_orm(current_user)
+    # Handle both dict (session) and User model formats
+    if isinstance(current_user, dict):
+        return UserResponse(
+            id=current_user.get("id"),
+            email=current_user.get("email"),
+            full_name=current_user.get("full_name"),
+            role=current_user.get("role"),
+            is_active=current_user.get("is_active", True)
+        )
+    else:
+        return UserResponse.from_orm(current_user)
 
 
 # User Preferences Endpoints
@@ -384,7 +395,7 @@ async def reset_user_preferences(
 @limiter.limit("100/minute")  # Rate limit: 100 notification fetches per minute per IP
 async def get_notifications(
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user = Depends(get_current_user_from_session),
     db: Session = Depends(get_db),
     limit: int = Query(default=10, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
@@ -404,7 +415,9 @@ async def get_notifications(
         # Example notification structure (to be replaced with actual database query)
         # This would normally query a notifications table
 
-        logger.info(f"Fetching notifications for user {current_user.id}")
+        # Extract user ID from session user (dict format)
+        user_id = current_user.get("id") if isinstance(current_user, dict) else getattr(current_user, "id", None)
+        logger.info(f"Fetching notifications for user {user_id}")
 
         return NotificationListResponse(
             items=notifications,
@@ -430,7 +443,7 @@ async def get_notifications(
 async def mark_notification_as_read(
     request: Request,
     notification_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user = Depends(get_current_user_from_session),
     db: Session = Depends(get_db)
 ) -> SuccessResponse:
     """
@@ -438,7 +451,9 @@ async def mark_notification_as_read(
     """
     try:
         # Implementation would mark the notification as read in the database
-        logger.info(f"Marking notification {notification_id} as read for user {current_user.id}")
+        # Extract user ID from session user (dict format)
+        user_id = current_user.get("id") if isinstance(current_user, dict) else getattr(current_user, "id", None)
+        logger.info(f"Marking notification {notification_id} as read for user {user_id}")
 
         return SuccessResponse(
             success=True,
@@ -462,7 +477,7 @@ async def mark_notification_as_read(
 @limiter.limit("20/hour")  # Rate limit: 20 mark-all operations per hour per IP
 async def mark_all_notifications_as_read(
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user = Depends(get_current_user_from_session),
     db: Session = Depends(get_db)
 ) -> SuccessResponse:
     """
@@ -470,7 +485,9 @@ async def mark_all_notifications_as_read(
     """
     try:
         # Implementation would mark all user's notifications as read
-        logger.info(f"Marking all notifications as read for user {current_user.id}")
+        # Extract user ID from session user (dict format)
+        user_id = current_user.get("id") if isinstance(current_user, dict) else getattr(current_user, "id", None)
+        logger.info(f"Marking all notifications as read for user {user_id}")
 
         return SuccessResponse(
             success=True,
@@ -495,7 +512,7 @@ async def mark_all_notifications_as_read(
 async def delete_notification(
     request: Request,
     notification_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user = Depends(get_current_user_from_session),
     db: Session = Depends(get_db)
 ) -> SuccessResponse:
     """
@@ -503,7 +520,9 @@ async def delete_notification(
     """
     try:
         # Implementation would delete the notification from the database
-        logger.info(f"Deleting notification {notification_id} for user {current_user.id}")
+        # Extract user ID from session user (dict format)
+        user_id = current_user.get("id") if isinstance(current_user, dict) else getattr(current_user, "id", None)
+        logger.info(f"Deleting notification {notification_id} for user {user_id}")
 
         return SuccessResponse(
             success=True,
