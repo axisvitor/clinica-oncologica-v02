@@ -197,6 +197,12 @@ export default defineConfig(({ mode }) => ({
               return "vendor-react";
             }
 
+            // CRITICAL: clsx and tailwind-merge are used by CVA
+            // Keep together to avoid circular dependencies
+            if (id.includes("clsx") || id.includes("tailwind-merge")) {
+              return "vendor-react";
+            }
+
             // React Query (used in most pages)
             if (id.includes("@tanstack/react-query")) {
               return "vendor-query";
@@ -240,11 +246,6 @@ export default defineConfig(({ mode }) => ({
             // Lodash utilities
             if (id.includes("lodash")) {
               return "vendor-lodash";
-            }
-
-            // Tailwind utilities (small, frequently used)
-            if (id.includes("clsx") || id.includes("tailwind-merge")) {
-              return "vendor-tailwind";
             }
 
             // Other vendor libraries
@@ -377,25 +378,29 @@ export default defineConfig(({ mode }) => ({
     include: [
       "react",
       "react-dom",
+      "react/jsx-runtime",
       "react-router-dom",
       "@tanstack/react-query",
       "firebase/app",
       "firebase/auth",
       "clsx",
       "tailwind-merge",
+      "class-variance-authority", // CRITICAL: Pre-bundle to ensure React hooks available
       "date-fns",
       "lucide-react",
       "recharts",
       "lodash",
       "lodash/*",
     ],
-    exclude: ["@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu"],
+    exclude: [],
     esbuildOptions: {
       target: "es2020",
       supported: {
         "top-level-await": true,
       },
     },
+    // Force dependency re-optimization on server start
+    force: mode === "development",
   },
   esbuild: {
     drop: mode === "production" ? ["console", "debugger"] : [],
