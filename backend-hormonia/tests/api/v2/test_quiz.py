@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.models.monthly_quiz import MonthlyQuiz
+from app.models.quiz import QuizSession, QuizTemplate
 from app.models.patient import Patient
 from app.models.doctor import Doctor
 
@@ -84,7 +84,7 @@ class TestQuizV2:
     
     def test_get_quiz_by_id(self, client: TestClient, db: Session, auth_headers: dict):
         """Test getting a single quiz"""
-        quiz = db.query(MonthlyQuiz).first()
+        quiz = db.query(QuizSession).first()
         if not quiz:
             pytest.skip("No quiz available for test")
         
@@ -95,7 +95,7 @@ class TestQuizV2:
         
         assert response.status_code == 200
         data = response.json()
-        assert data["id"] == quiz.id
+        assert data["id"] == str(quiz.id)
     
     def test_get_quiz_not_found(self, client: TestClient, auth_headers: dict):
         """Test getting a non-existent quiz"""
@@ -112,11 +112,20 @@ class TestQuizV2:
         if not patient:
             pytest.skip("No patient available for test")
         
+        # Criar template primeiro
+        template = QuizTemplate(
+            name="Test Template",
+            version="1.0",
+            questions=[{"id": "q1", "text": "Test question"}]
+        )
+        db.add(template)
+        db.commit()
+        db.refresh(template)
+        
         quiz_data = {
-            "patient_id": patient.id,
-            "month": 1,
-            "year": 2025,
-            "status": "pending"
+            "patient_id": str(patient.id),
+            "quiz_template_id": str(template.id),
+            "status": "started"
         }
         
         response = client.post(
@@ -128,8 +137,8 @@ class TestQuizV2:
         assert response.status_code == 201
         data = response.json()
         assert data["patient_id"] == quiz_data["patient_id"]
-        assert data["month"] == quiz_data["month"]
-        assert data["year"] == quiz_data["year"]
+        assert data["quiz_template_id"] == quiz_data["quiz_template_id"]
+        assert data["status"] == quiz_data["status"]
     
     def test_create_quiz_duplicate(self, client: TestClient, db: Session, auth_headers: dict):
         """Test creating a duplicate quiz"""

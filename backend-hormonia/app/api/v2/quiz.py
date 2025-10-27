@@ -220,6 +220,11 @@ async def list_quizzes(
             "score": float(quiz.score) if quiz.score else None,
             "max_score": float(quiz.max_score) if quiz.max_score else None,
             "passed": quiz.passed,
+            "current_question": quiz.current_question,
+            "total_questions": quiz.total_questions,
+            "answered_questions": quiz.answered_questions,
+            "time_spent_seconds": quiz.time_spent_seconds,
+            "session_metadata": quiz.session_metadata,
         }
         
         # Add eager-loaded patient
@@ -373,6 +378,21 @@ async def create_quiz(
         )
 
     _ensure_patient_owner(current_user, patient.doctor_id)
+    
+    # Check if quiz template exists
+    from app.models.quiz import QuizTemplate
+    template = db.query(QuizTemplate).filter(QuizTemplate.id == template_uuid).first()
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Quiz template with id {quiz_data.quiz_template_id} not found"
+        )
+    
+    if not template.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Quiz template is not active"
+        )
     
     # Check for existing active session
     existing_session = db.query(QuizSession).filter(

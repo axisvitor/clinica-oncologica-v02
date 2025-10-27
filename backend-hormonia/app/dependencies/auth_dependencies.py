@@ -411,8 +411,6 @@ async def get_current_user(
         # User doesn't exist - create minimal record
         logger.info(f"User not found in database, creating minimal record for: {user_data.get('email')}")
 
-        from app.models.user import UserRole
-
         # Extract role from Firebase custom claims or default to DOCTOR
         firebase_role = user_data.get("role", "doctor").lower()
         user_role = UserRole.ADMIN if firebase_role == "admin" else UserRole.DOCTOR

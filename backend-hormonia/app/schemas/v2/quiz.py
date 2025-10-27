@@ -93,6 +93,13 @@ class QuizV2Response(QuizV2Base):
     max_score: Optional[float] = None
     passed: Optional[bool] = None
     
+    # Progress tracking fields
+    current_question: Optional[int] = None
+    total_questions: Optional[int] = None
+    answered_questions: Optional[int] = None
+    time_spent_seconds: Optional[int] = None
+    session_metadata: Optional[Dict[str, Any]] = None
+    
     # Optional eager-loaded relationships
     patient: Optional[PatientV2Brief] = None
     

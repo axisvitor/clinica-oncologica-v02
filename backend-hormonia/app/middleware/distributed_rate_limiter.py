@@ -416,16 +416,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Default tier configurations
         self.tier_configs = tier_configs or {
             RateLimitTier.PUBLIC: RateLimitConfig(
-                requests=60, window=60, tier=RateLimitTier.PUBLIC
+                requests=120, window=60, tier=RateLimitTier.PUBLIC  # Aumentado de 60 para 120
             ),
             RateLimitTier.AUTHENTICATED: RateLimitConfig(
-                requests=300, window=60, tier=RateLimitTier.AUTHENTICATED
+                requests=600, window=60, tier=RateLimitTier.AUTHENTICATED  # Aumentado de 300 para 600
             ),
             RateLimitTier.PREMIUM: RateLimitConfig(
-                requests=1000, window=60, tier=RateLimitTier.PREMIUM
+                requests=2000, window=60, tier=RateLimitTier.PREMIUM  # Aumentado de 1000 para 2000
             ),
             RateLimitTier.ADMIN: RateLimitConfig(
-                requests=10000, window=60, tier=RateLimitTier.ADMIN
+                requests=20000, window=60, tier=RateLimitTier.ADMIN  # Aumentado de 10000 para 20000
             ),
         }
 
@@ -434,8 +434,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             "/metrics",
             "/docs",
             "/openapi.json",
+            "/ws/connect",  # WebSocket connections
         ]
-        self.whitelist_ips = set(whitelist_ips or [])
+        self.whitelist_ips = set(whitelist_ips or [
+            "127.0.0.1",
+            "::1",
+            "100.64.0.0/10",  # AWS VPC internal IPs
+            "10.0.0.0/8",     # Private network
+            "172.16.0.0/12",  # Private network
+            "192.168.0.0/16", # Private network
+        ])
 
     def _get_client_identifier(self, request: Request) -> str:
         """

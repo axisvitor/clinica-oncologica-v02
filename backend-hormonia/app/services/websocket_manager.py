@@ -173,8 +173,22 @@ class ConnectionManager:
 
             user_repo = UserRepository(db)
             user: Optional[User] = user_repo.get_by_email(email)
-            if not user or not user.is_active:
-                logger.debug(f"User not found or inactive (Firebase) for connection {connection_id}: {email}")
+            if not user:
+                logger.warning(f"User not found in database (Firebase) for connection {connection_id}: {email}")
+                # Tentar buscar por Firebase UID como fallback
+                firebase_uid = user_data.get("uid") or user_data.get("user_id")
+                if firebase_uid:
+                    user = user_repo.get_by_firebase_uid(firebase_uid)
+                    if user:
+                        logger.info(f"User found by Firebase UID: {firebase_uid}")
+                    else:
+                        logger.warning(f"User not found by Firebase UID either: {firebase_uid}")
+                
+                if not user:
+                    return None
+            
+            if not user.is_active:
+                logger.warning(f"User found but inactive (Firebase) for connection {connection_id}: {email}")
                 return None
 
             # Update connection metadata
