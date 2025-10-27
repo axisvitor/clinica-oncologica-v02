@@ -93,7 +93,16 @@ class WebSocketManager {
         return resolve()
       }
 
-      const wsUrl = `${base}?token=${token}`
+      // HYBRID AUTH: Try session_id first (from cookie), then fallback to token
+      // Backend WebSocket now supports both authentication methods
+      let wsUrl = base
+      
+      // Check if we have session cookie (httpOnly - can't access directly)
+      // Backend will automatically use session_id from cookie if available
+      // If no session cookie, use token parameter as fallback
+      if (token) {
+        wsUrl = `${base}?token=${token}`
+      }
 
       try {
         this.ws = new WebSocket(wsUrl)

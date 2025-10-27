@@ -136,9 +136,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         return response.data
       } finally {
-        // SECURITY FIX: Ensure Authorization header is cleared after validation
-        apiClient.clearAuthToken()
-        logger.log('Cleared Firebase token after transformFirebaseUser - using cookie-only auth')
+        // HYBRID AUTH: Keep Firebase token for backward compatibility
+        // Both session cookie AND Bearer token available for all endpoints
+        logger.log('Keeping Firebase token for hybrid authentication after transformFirebaseUser')
       }
 
     } catch (error: any) {

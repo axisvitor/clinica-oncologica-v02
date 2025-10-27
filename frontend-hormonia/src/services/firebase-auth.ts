@@ -118,10 +118,10 @@ export async function loginUser(
 
     logger.log('Login successful, session created')
 
-    // SECURITY FIX: Clear Authorization header after session is established
-    // From now on, only the httpOnly cookie will be used for authentication
-    apiClient.clearAuthToken()
-    logger.log('Cleared Firebase token from API client - now using cookie-only auth')
+    // HYBRID AUTH: Keep Firebase token for backward compatibility
+    // Both session cookie AND Bearer token will be sent for maximum compatibility
+    // This ensures all endpoints work regardless of their authentication method
+    logger.log('Keeping Firebase token for hybrid authentication (session + Bearer token)')
 
     // Setup automatic token refresh
     setupTokenRefresh()
@@ -267,10 +267,9 @@ export async function getCurrentUser(): Promise<User | null> {
     // Firebase Auth SDK will handle token cleanup
     return null
   } finally {
-    // SECURITY FIX: Always clear Authorization header after session validation
-    // From this point forward, only the httpOnly cookie will be used for authentication
-    apiClient.clearAuthToken()
-    logger.log('Cleared Firebase token after getCurrentUser - using cookie-only auth')
+    // HYBRID AUTH: Keep Firebase token for backward compatibility
+    // Both session cookie AND Bearer token available for all endpoints
+    logger.log('Keeping Firebase token for hybrid authentication after getCurrentUser')
   }
 }
 
@@ -345,10 +344,9 @@ export function setupTokenRefresh(): void {
 
         logger.log('Backend validation successful after token refresh')
 
-        // SECURITY FIX: Clear Authorization header after validation
-        // Continue using only httpOnly cookie for subsequent requests
-        apiClient.clearAuthToken()
-        logger.log('Cleared Firebase token after refresh validation - using cookie-only auth')
+        // HYBRID AUTH: Keep Firebase token for backward compatibility
+        // Both session cookie AND Bearer token available after refresh
+        logger.log('Keeping Firebase token for hybrid authentication after refresh')
       } catch (validationError) {
         logger.error('Token validation failed, forcing logout:', validationError)
 
