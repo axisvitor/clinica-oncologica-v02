@@ -96,7 +96,7 @@ def _ensure_patient_owner(current_user, doctor_id):
 )
 async def list_quizzes(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user),
+    current_user = Depends(get_current_user_from_session),
     pagination = Depends(get_pagination_params),
     fields: Optional[List[str]] = Depends(get_field_selection),
     include: Optional[List[str]] = Depends(get_eager_load_params),
@@ -253,7 +253,7 @@ async def list_quizzes(
 async def get_quiz(
     quiz_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user),
+    current_user = Depends(get_current_user_from_session),
     fields: Optional[List[str]] = Depends(get_field_selection),
     include: Optional[List[str]] = Depends(get_eager_load_params),
 ):
