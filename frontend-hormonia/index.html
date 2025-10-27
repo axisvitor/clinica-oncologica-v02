@@ -23,6 +23,39 @@
     <!-- Runtime configuration loader - DISABLED: causes loading issues -->
     <!-- Config is loaded directly from import.meta.env in runtime-config.ts -->
     <!-- <script src="/config.js"></script> -->
+    <!-- Vite resolves /main.tsx to correct hashed path in production -->
     <script type="module" src="/main.tsx"></script>
+    
+    <!-- PRODUCTION SAFETY: Global error handler for unhandled errors -->
+    <script>
+      window.addEventListener('error', function(e) {
+        console.error('🚨 Global error caught:', e.message, e.filename, e.lineno);
+        // Don't show overlay in development (already has one)
+        if (window.location.hostname.includes('railway.app')) {
+          const existingOverlay = document.getElementById('global-error-overlay');
+          if (!existingOverlay) {
+            const overlay = document.createElement('div');
+            overlay.id = 'global-error-overlay';
+            overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(220,38,38,0.95);color:white;display:flex;align-items:center;justify-content:center;z-index:999999;font-family:system-ui;padding:20px;';
+            overlay.innerHTML = '<div style="max-width:600px;text-align:center;"><h1 style="font-size:48px;margin:0 0 20px;">⚠️</h1><h2 style="margin:0 0 15px;">Erro Crítico</h2><p style="margin:0 0 15px;opacity:0.9;">' + e.message + '</p><button onclick="window.location.reload()" style="background:white;color:#dc2626;border:none;padding:12px 32px;border-radius:8px;cursor:pointer;font-weight:600;font-size:16px;">Recarregar Página</button></div>';
+            document.body.appendChild(overlay);
+          }
+        }
+      });
+      
+      window.addEventListener('unhandledrejection', function(e) {
+        console.error('🚨 Unhandled promise rejection:', e.reason);
+        if (window.location.hostname.includes('railway.app')) {
+          const existingOverlay = document.getElementById('global-error-overlay');
+          if (!existingOverlay) {
+            const overlay = document.createElement('div');
+            overlay.id = 'global-error-overlay';
+            overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(220,38,38,0.95);color:white;display:flex;align-items:center;justify-content:center;z-index:999999;font-family:system-ui;padding:20px;';
+            overlay.innerHTML = '<div style="max-width:600px;text-align:center;"><h1 style="font-size:48px;margin:0 0 20px;">⚠️</h1><h2 style="margin:0 0 15px;">Erro de Promise</h2><p style="margin:0 0 15px;opacity:0.9;">' + (e.reason?.message || e.reason) + '</p><button onclick="window.location.reload()" style="background:white;color:#dc2626;border:none;padding:12px 32px;border-radius:8px;cursor:pointer;font-weight:600;font-size:16px;">Recarregar Página</button></div>';
+            document.body.appendChild(overlay);
+          }
+        }
+      });
+    </script>
   </body>
 </html>

@@ -63,8 +63,34 @@ async function getFirebaseApp(): Promise<FirebaseApp> {
 
   // Validate required fields
   if (!config.apiKey || !config.authDomain || !config.projectId) {
-    const error = 'Firebase configuration is incomplete. Missing required fields.'
+    const error = 'Firebase configuration is incomplete. Missing required fields: ' +
+      (!config.apiKey ? 'apiKey ' : '') +
+      (!config.authDomain ? 'authDomain ' : '') +
+      (!config.projectId ? 'projectId ' : '')
     logger.error(error)
+    logger.error('Current config:', { apiKey: !!config.apiKey, authDomain: !!config.authDomain, projectId: !!config.projectId })
+    
+    // PRODUCTION SAFETY: Show user-friendly error instead of crashing
+    if (typeof window !== 'undefined') {
+      const errorDiv = document.createElement('div')
+      errorDiv.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:#fee;display:flex;align-items:center;justify-content:center;z-index:9999;font-family:system-ui;padding:20px;'
+      errorDiv.innerHTML = `
+        <div style="max-width:500px;background:white;padding:30px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.15);">
+          <h2 style="color:#dc2626;margin:0 0 15px;font-size:24px;">⚠️ Erro de Configuração</h2>
+          <p style="color:#374151;margin:0 0 15px;line-height:1.6;">O sistema não está configurado corretamente. Variáveis de ambiente do Firebase estão ausentes.</p>
+          <details style="margin-bottom:15px;">
+            <summary style="cursor:pointer;color:#2563eb;font-weight:500;">Detalhes Técnicos</summary>
+            <pre style="margin-top:10px;padding:10px;background:#f3f4f6;border-radius:6px;overflow:auto;font-size:12px;">${error}</pre>
+          </details>
+          <button onclick="window.location.reload()" style="background:#2563eb;color:white;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;width:100%;">
+            Recarregar Página
+          </button>
+          <p style="color:#6b7280;font-size:12px;margin-top:15px;text-align:center;">Se o problema persistir, contate o administrador do sistema.</p>
+        </div>
+      `
+      document.body.appendChild(errorDiv)
+    }
+    
     throw new Error(error)
   }
 

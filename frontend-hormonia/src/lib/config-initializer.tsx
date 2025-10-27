@@ -40,6 +40,13 @@ export function ConfigProvider({
   const [error, setError] = useState<string | null>(null);
 
   const loadConfiguration = async () => {
+    // SAFETY: Force timeout after 15 seconds to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      logger.error('⏱️ [ConfigProvider] Configuration loading timeout after 15s');
+      setError('Tempo limite excedido ao carregar configuração. Verifique sua conexão.');
+      setLoading(false);
+    }, 15000);
+
     try {
       logger.info('🚀 [ConfigProvider] Starting configuration loading...');
       setLoading(true);
@@ -81,8 +88,10 @@ export function ConfigProvider({
       logger.info('🔥 [ConfigProvider] Step 4: Using Firebase for authentication');
 
       setConfig(runtimeConfig);
+      clearTimeout(timeoutId); // Clear timeout on success
       logger.info('✅ [ConfigProvider] Configuration initialization complete!');
     } catch (err) {
+      clearTimeout(timeoutId); // Clear timeout on error
       const errorMessage = err instanceof Error ? err.message : 'Failed to load configuration';
       logger.error('❌ [ConfigProvider] Configuration loading failed:', err);
       setError(errorMessage);

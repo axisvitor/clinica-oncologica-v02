@@ -139,7 +139,9 @@
     "clean:full": "rm -rf dist node_modules package-lock.json && npm install",
     "analyze": "npm run build:prod && npx vite-bundle-analyzer dist",
     "health": "curl -f http://localhost:$PORT/ || exit 1",
-    "prepare": "husky"
+    "prepare": "husky",
+    "check:env": "node scripts/check-env.js",
+    "check:railway": "bash scripts/railway-check.sh"
   },
   "engines": {
     "node": ">=18.0.0",
