@@ -370,11 +370,19 @@ class PatientService:
 
     @with_db_retry(max_retries=3)
     def delete_patient(self, patient_id: UUID) -> bool:
-        """Delete patient (soft delete recommended)"""
+        """Delete patient (soft delete - marks as deleted without removing from DB)"""
+        from datetime import datetime
+        
         patient = self.repository.get_by_id(patient_id)
-        result = self.repository.delete(patient_id)
-
-        if result and patient:
+        if not patient:
+            return False
+        
+        # Soft delete: set deleted_at timestamp
+        patient.deleted_at = datetime.utcnow()
+        
+        try:
+            self.repository.db.commit()
+            
             # Invalidate caches on deletion
             invalidate_patient_cache(str(patient_id))
             cache_manager = get_cache_manager()
@@ -384,9 +392,45 @@ class PatientService:
             cache_manager.invalidate_pattern(
                 f"patient_list:*:{patient.doctor_id}*", namespace="cache"
             )
-            logger.debug(f"Invalidated cache for deleted patient: {patient_id}")
+            logger.debug(f"Soft deleted patient: {patient_id}")
+            
+            return True
+            
+        except Exception as e:
+            self.repository.db.rollback()
+            logger.error(f"Failed to soft delete patient {patient_id}: {e}")
+            return False
 
-        return result
+    @with_db_retry(max_retries=3)
+    def restore_patient(self, patient_id: UUID) -> bool:
+        """Restore a soft-deleted patient"""
+        patient = self.repository.db.query(Patient).filter(
+            Patient.id == patient_id,
+            Patient.deleted_at.isnot(None)
+        ).first()
+        
+        if not patient:
+            return False
+        
+        patient.deleted_at = None
+        
+        try:
+            self.repository.db.commit()
+            
+            # Invalidate caches
+            invalidate_patient_cache(str(patient_id))
+            cache_manager = get_cache_manager()
+            cache_manager.invalidate_pattern(
+                f"patient_by_id:*:{patient_id}*", namespace="cache"
+            )
+            
+            logger.debug(f"Restored patient: {patient_id}")
+            return True
+            
+        except Exception as e:
+            self.repository.db.rollback()
+            logger.error(f"Failed to restore patient {patient_id}: {e}")
+            return False
 
     @with_db_retry(max_retries=3)
     def get_patients_by_doctor(

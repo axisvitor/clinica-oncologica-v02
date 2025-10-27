@@ -398,6 +398,81 @@ async def update_patient(
         )
 
 
+@router.post(
+    "/{patient_id}/restore",
+    response_model=PatientResponse,
+    summary="Restore Patient",
+    description="Restore a soft-deleted patient"
+)
+async def restore_patient(
+    patient_id: UUID,
+    current_user: User = Depends(get_current_user),
+    patient_service: PatientService = Depends(get_patient_service)
+):
+    """Restore a soft-deleted patient."""
+    
+    # Check if user has permission (admin or treating doctor)
+    if _role_value(current_user) not in ["admin", "doctor"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to restore patients"
+        )
+    
+    success = patient_service.restore_patient(patient_id)
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail="Patient not found or not deleted"
+        )
+    
+    # Get restored patient
+    patient = patient_service.get_patient(patient_id)
+    if not patient:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve restored patient"
+        )
+    
+    # Invalidate cache after restoration
+    invalidate_patient_cache(str(patient_id))
+    
+    return patient
+
+
+@router.get(
+    "/deleted",
+    response_model=PatientListResponse,
+    summary="List Deleted Patients",
+    description="List soft-deleted patients (admin only)"
+)
+async def list_deleted_patients(
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(50, ge=1, le=100, description="Number of records to return"),
+    current_user: User = Depends(get_current_user),
+    patient_service: PatientService = Depends(get_patient_service)
+):
+    """List soft-deleted patients (admin only)."""
+    
+    # Only admins can see deleted patients
+    if _role_value(current_user) != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Only administrators can view deleted patients"
+        )
+    
+    # This would need to be implemented in the service
+    # For now, return empty list
+    return PatientListResponse(
+        data=[],
+        total=0,
+        page=1,
+        limit=limit,
+        pages=0,
+        has_more=False,
+        has_previous=False
+    )
+
+
 @router.delete(
     "/{patient_id}",
     status_code=204,

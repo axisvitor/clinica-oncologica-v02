@@ -2,7 +2,7 @@
 Patient model for hormone therapy patients.
 Corresponds to the actual Supabase schema structure.
 """
-from sqlalchemy import Column, String, Date, Integer, ForeignKey, Enum, Text, UniqueConstraint, Index
+from sqlalchemy import Column, String, Date, Integer, ForeignKey, Enum, Text, UniqueConstraint, Index, DateTime
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import enum
@@ -82,6 +82,9 @@ class Patient(BaseModel):
     patient_data = Column('metadata', JSONB, nullable=True, default=dict)
     # Legacy alias present in DB
     patient_metadata = Column('patient_metadata', JSONB, nullable=True)
+
+    # Soft delete support
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
     # Relationships
     doctor = relationship("User", back_populates="patients")

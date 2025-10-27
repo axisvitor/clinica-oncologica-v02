@@ -170,6 +170,9 @@ async def list_patients(
     role_enum, user_id = _extract_user_context(current_user)
     current_user_uuid = _ensure_uuid(user_id)
 
+    # Filter out soft-deleted patients by default
+    filters.append(Patient.deleted_at.is_(None))
+
     # RBAC: Non-admin users can only see their own patients
     if role_enum != UserRole.ADMIN:
         if current_user_uuid is None:
@@ -321,7 +324,10 @@ async def get_patient(
         if "quiz_sessions" in include or "quizzes" in include:
             query = query.options(joinedload(Patient.quiz_sessions))
     
-    patient = query.filter(Patient.id == patient_uuid).first()
+    patient = query.filter(
+        Patient.id == patient_uuid,
+        Patient.deleted_at.is_(None)
+    ).first()
 
     if not patient:
         raise HTTPException(
@@ -438,7 +444,10 @@ async def create_patient(
     
     # Check email uniqueness (if provided)
     if patient_data.email:
-        existing_email = db.query(Patient).filter(Patient.email == patient_data.email).first()
+        existing_email = db.query(Patient).filter(
+            Patient.email == patient_data.email,
+            Patient.deleted_at.is_(None)
+        ).first()
         if existing_email:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -447,7 +456,10 @@ async def create_patient(
     
     # Check CPF uniqueness (if provided)
     if normalized_cpf:
-        existing_cpf = db.query(Patient).filter(Patient.cpf == normalized_cpf).first()
+        existing_cpf = db.query(Patient).filter(
+            Patient.cpf == normalized_cpf,
+            Patient.deleted_at.is_(None)
+        ).first()
         if existing_cpf:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -456,7 +468,10 @@ async def create_patient(
     
     # Check phone uniqueness (required field)
     if normalized_phone:
-        existing_phone = db.query(Patient).filter(Patient.phone == normalized_phone).first()
+        existing_phone = db.query(Patient).filter(
+            Patient.phone == normalized_phone,
+            Patient.deleted_at.is_(None)
+        ).first()
         if existing_phone:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -516,7 +531,10 @@ async def update_patient(
             detail="Invalid patient ID format"
         )
     
-    patient = db.query(Patient).filter(Patient.id == patient_uuid).first()
+    patient = db.query(Patient).filter(
+        Patient.id == patient_uuid,
+        Patient.deleted_at.is_(None)
+    ).first()
 
     if not patient:
         raise HTTPException(
@@ -546,7 +564,8 @@ async def update_patient(
         if normalized_cpf:
             existing_cpf = db.query(Patient).filter(
                 Patient.cpf == normalized_cpf,
-                Patient.id != patient.id
+                Patient.id != patient.id,
+                Patient.deleted_at.is_(None)
             ).first()
             if existing_cpf:
                 raise HTTPException(
@@ -562,7 +581,8 @@ async def update_patient(
         if normalized_phone:
             existing_phone = db.query(Patient).filter(
                 Patient.phone == normalized_phone,
-                Patient.id != patient.id
+                Patient.id != patient.id,
+                Patient.deleted_at.is_(None)
             ).first()
             if existing_phone:
                 raise HTTPException(
@@ -615,8 +635,8 @@ async def update_patient(
 @router.delete(
     "/{patient_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete patient",
-    description="Delete a patient record (ADMIN/DOCTOR only)"
+    summary="Delete patient (soft delete)",
+    description="Soft delete a patient record - marks as deleted without removing from database"
 )
 @limiter.limit("10/hour")
 async def delete_patient(
@@ -626,10 +646,59 @@ async def delete_patient(
     current_user = Depends(get_current_user_from_session),
 ):
     """
-    Delete a patient.
+    Soft delete a patient.
     
-    Note: This performs a hard delete. Consider implementing soft delete
-    by adding an is_active or deleted_at field to the Patient model.
+    This marks the patient as deleted (sets deleted_at timestamp) without
+    removing the record from the database. This preserves data for audit
+    purposes and allows restoration if needed.
+    """
+    from uuid import UUID
+    from datetime import datetime
+    
+    try:
+        patient_uuid = UUID(patient_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid patient ID format"
+        )
+    
+    # Only get active patients (not already deleted)
+    patient = db.query(Patient).filter(
+        Patient.id == patient_uuid,
+        Patient.deleted_at.is_(None)
+    ).first()
+    
+    if not patient:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Active patient with id {patient_id} not found"
+        )
+    
+    # Soft delete: set deleted_at timestamp
+    patient.deleted_at = datetime.utcnow()
+    db.commit()
+    
+    return None
+
+
+@router.post(
+    "/{patient_id}/restore",
+    response_model=PatientV2Response,
+    summary="Restore deleted patient",
+    description="Restore a soft-deleted patient record"
+)
+@limiter.limit("10/hour")
+async def restore_patient(
+    request: Request,
+    patient_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user_from_session),
+):
+    """
+    Restore a soft-deleted patient.
+    
+    This removes the deleted_at timestamp, making the patient active again.
     """
     from uuid import UUID
     
@@ -641,15 +710,68 @@ async def delete_patient(
             detail="Invalid patient ID format"
         )
     
-    patient = db.query(Patient).filter(Patient.id == patient_uuid).first()
+    # Only get deleted patients
+    patient = db.query(Patient).filter(
+        Patient.id == patient_uuid,
+        Patient.deleted_at.isnot(None)
+    ).first()
     
     if not patient:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Patient with id {patient_id} not found"
+            detail=f"Deleted patient with id {patient_id} not found"
         )
     
-    db.delete(patient)
+    # Restore: remove deleted_at timestamp
+    patient.deleted_at = None
     db.commit()
+    db.refresh(patient)
     
-    return None
+    return PatientV2Response.from_orm(patient)
+
+
+@router.get(
+    "/deleted",
+    response_model=PatientV2List,
+    summary="List deleted patients",
+    description="Get list of soft-deleted patients (ADMIN only)"
+)
+@limiter.limit("30/minute")
+async def list_deleted_patients(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user_from_session),
+    pagination = Depends(get_pagination_params),
+    field_selection = Depends(get_field_selection),
+):
+    """
+    List soft-deleted patients.
+    
+    Only administrators can view deleted patients.
+    """
+    role_enum, user_id = _extract_user_context(current_user)
+    
+    # Only admins can view deleted patients
+    if role_enum != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can view deleted patients"
+        )
+    
+    # Query deleted patients
+    query = db.query(Patient).filter(Patient.deleted_at.isnot(None))
+    
+    # Apply pagination
+    total = query.count()
+    patients = query.offset(pagination.skip).limit(pagination.limit).all()
+    
+    # Apply field selection
+    patient_data = [apply_field_selection(patient, field_selection) for patient in patients]
+    
+    return PatientV2List(
+        data=patient_data,
+        total=total,
+        page=pagination.page,
+        limit=pagination.limit,
+        has_more=pagination.skip + len(patients) < total
+    )
