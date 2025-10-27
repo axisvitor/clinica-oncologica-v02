@@ -54,25 +54,34 @@ class FlowAnalytics(BaseModel):
 
 
 class FlowMessage(BaseModel):
-    """Messages specific to flow templates."""
+    """Messages specific to flow templates - aligned with DB schema."""
     __tablename__ = "flow_messages"
     
-    # References
-    flow_template_id = Column(UUID(as_uuid=True), ForeignKey("flow_template_versions.id"), nullable=False)
+    # References - aligned with actual DB schema
+    flow_template_version_id = Column(UUID(as_uuid=True), ForeignKey("flow_template_versions.id"), nullable=False)
+    
+    # Message structure - matching DB schema exactly
+    step_number = Column(Integer, nullable=False)
+    message_key = Column(String(100), nullable=False)
+    message_text = Column(Text, nullable=False)
+    message_type = Column(String(50), default="text", nullable=True)
+    
+    # Interactive components - matching DB schema
+    buttons = Column(JSONB, nullable=True)
+    list_items = Column(JSONB, nullable=True)
+    conditions = Column(JSONB, nullable=True)
+    
+    # Timing configuration
+    delay_seconds = Column(Integer, default=0, nullable=True)
+    
+    # Legacy fields for backward compatibility
     patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=True)
     message_id = Column(UUID(as_uuid=True), ForeignKey("messages.id"), nullable=True)
-    
-    # Message details
-    step_name = Column(String(100), nullable=False)
-    message_type = Column(String(50), nullable=False)  # text, image, video, quiz
-    content = Column(String, nullable=False)
-    
-    # Scheduling
+    step_name = Column(String(100), nullable=True)  # Legacy alias for message_key
+    content = Column(Text, nullable=True)  # Legacy alias for message_text
     scheduled_for = Column(DateTime(timezone=True), nullable=True)
     sent_at = Column(DateTime(timezone=True), nullable=True)
-    
-    # Status
-    status = Column(String(50), default="pending")  # pending, sent, delivered, read, failed
+    status = Column(String(50), default="pending", nullable=True)
     
     # Message metadata (renamed from metadata to avoid SQLAlchemy reserved word)
     message_metadata = Column("metadata", JSONB, nullable=True, default=dict)

@@ -99,6 +99,8 @@ class QuizTemplateResponse(BaseModel):
     version: str = Field(..., description="Template version")
     questions: List[QuizQuestion] = Field(..., description="List of questions")
     is_active: bool = Field(..., description="Whether template is active")
+    category: Optional[str] = Field(None, description="Template category")
+    description: Optional[str] = Field(None, description="Template description")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
     

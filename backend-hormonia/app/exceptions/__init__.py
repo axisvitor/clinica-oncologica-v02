@@ -68,6 +68,11 @@ class ProcessingError(HormoniaException):
     pass
 
 
+class ServiceError(HormoniaException):
+    """Raised when a service operation fails."""
+    pass
+
+
 # -------------------------
 # HTTP Exception factories
 # -------------------------
@@ -203,6 +208,7 @@ __all__ = [
     "ExternalServiceError",
     "DatabaseError",
     "ProcessingError",
+    "ServiceError",
     # HTTP helpers
     "create_http_exception",
     "authentication_exception",
