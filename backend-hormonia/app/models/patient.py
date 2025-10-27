@@ -6,9 +6,12 @@ from sqlalchemy import Column, String, Date, Integer, ForeignKey, Enum, Text, Un
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import enum
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, TYPE_CHECKING
 
 from app.models.base import BaseModel
+
+if TYPE_CHECKING:
+    from app.models.patient_onboarding_saga import PatientOnboardingSaga
 
 
 class FlowState(enum.Enum):

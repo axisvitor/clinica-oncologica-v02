@@ -9,7 +9,7 @@ Sprint 1 - Transação Distribuída no Cadastro
 
 from enum import Enum
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 
 from sqlalchemy import (
     Column,
@@ -25,6 +25,9 @@ from sqlalchemy.orm import relationship
 import uuid
 
 from app.models.base import BaseModel
+
+if TYPE_CHECKING:
+    from app.models.patient import Patient
 
 
 class SagaStatus(str, Enum):
