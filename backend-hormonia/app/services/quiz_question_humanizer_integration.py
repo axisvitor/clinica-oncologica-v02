@@ -235,6 +235,10 @@ def integrate_humanization_into_quiz_service():
 
     from app.services.quiz import QuizSessionService
 
+    if not hasattr(QuizSessionService, "_enrich_session_response"):
+        logger.warning("Quiz humanization patch skipped: _enrich_session_response not found on QuizSessionService")
+        return False
+
     # Save original method
     original_enrich = QuizSessionService._enrich_session_response
 

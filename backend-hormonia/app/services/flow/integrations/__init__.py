@@ -14,6 +14,8 @@ Exports:
 from .quiz_integration import QuizFlowIntegration
 from .ai_integration import AIFlowIntegration
 from .manager import FlowIntegrationManager
+from .base import FlowIntegration, LegacyIntegrationAdapter
+from .plugins import QuizIntegrationPlugin, AIIntegrationPlugin
 
 # Singleton instance
 _integration_manager_instance = None
@@ -42,6 +44,10 @@ __all__ = [
     "QuizFlowIntegration",
     "AIFlowIntegration",
     "FlowIntegrationManager",
+    "FlowIntegration",
+    "LegacyIntegrationAdapter",
+    "QuizIntegrationPlugin",
+    "AIIntegrationPlugin",
     "get_integration_manager",
     "reset_integration_manager",
 ]

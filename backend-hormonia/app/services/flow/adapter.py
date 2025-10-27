@@ -48,6 +48,7 @@ from .types import (
     FlowMetrics,
 )
 from .config import get_flow_config
+from app.services.template_cache import get_template_cache
 
 logger = logging.getLogger(__name__)
 
@@ -442,6 +443,53 @@ class FlowManagerAdapter:
         logger.warning("list_patient_flows not fully implemented in adapter")
         return []
 
+    async def health_check(self) -> Dict[str, Any]:
+        """Health check compatible with legacy EnhancedFlowEngine API."""
+        self._emit_deprecation_warning("health_check")
+        status: Dict[str, Any] = {
+            "service": "FlowManagerAdapter",
+            "overall_healthy": True,
+            "flow_core": True,
+            "database": True,
+        }
+
+        # Database basic status
+        try:
+            status["database"] = bool(getattr(self.db, "is_active", True))
+        except Exception:  # pylint: disable=broad-except
+            status["database"] = True
+
+        # Template cache stats (best-effort)
+        try:
+            template_cache = get_template_cache(self.db)
+            cache_stats = await template_cache.get_cache_stats()
+            status["template_cache"] = bool(cache_stats.get("overall_healthy", True)) if isinstance(cache_stats, dict) else True
+            status["components"] = {"template_cache": cache_stats}
+        except Exception:  # pylint: disable=broad-except
+            status["template_cache"] = False
+
+        # Derive overall health
+        status["overall_healthy"] = all(
+            [status.get("flow_core", True), status.get("database", True), status.get("template_cache", True)]
+        )
+        return status
+
+    async def reload_templates(self, flow_type: Optional[str] = None) -> Dict[str, Any]:
+        """Reload templates and refresh cache, keeping legacy API behavior."""
+        self._emit_deprecation_warning("reload_templates")
+        try:
+            template_cache = get_template_cache(self.db)
+            if flow_type:
+                await template_cache.invalidate_template_cache(flow_type)
+                warm_result = await template_cache.warm_cache([flow_type])
+                return {"reloaded": [flow_type], "warm_result": warm_result}
+            # Reload all
+            warm_result = await template_cache.warm_cache(None)
+            return {"reloaded": "all", "warm_result": warm_result}
+        except Exception as e:  # pylint: disable=broad-except
+            logger.error(f"Template reload failed: {e}")
+            return {"reloaded": flow_type or "all", "error": str(e)}
+
     # ========================================================================
     # Helper Methods
     # ========================================================================
@@ -633,7 +681,10 @@ def _add_compatibility_methods():
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-        return loop.run_until_complete(self.manager.cancel_flow(flow_id, reason))
+        kwargs = {}
+        if reason is not None:
+            kwargs["reason"] = reason
+        return loop.run_until_complete(self.manager.cancel_flow(flow_id, **kwargs))
 
     def get_flow_data(self, flow_id: UUID) -> Dict[str, Any]:
         """Get flow data (backward compatibility)."""

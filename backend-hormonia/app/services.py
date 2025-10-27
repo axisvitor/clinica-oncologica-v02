@@ -17,7 +17,7 @@ from app.services.quiz import QuizService
 from app.services.report import ReportService
 from app.services.analytics import AnalyticsService
 from app.services.message import MessageService
-from app.services.flow import FlowEngineIntegrationService
+from app.services.flow import FlowEngineIntegrationService, FlowManagerAdapter, get_flow_config
 from app.services.flow_engine import FlowEngine
 # from app.services.notification import NotificationService  # TODO: Implement when needed
 from app.services.file import FileService
@@ -271,7 +271,11 @@ class ServiceProvider:
     @property
     def flow_service(self) -> FlowEngineIntegrationService:
         if self._flow_service is None:
-            self._flow_service = FlowEngineIntegrationService(self.db)
+            config = get_flow_config()
+            if config.is_consolidated_enabled():
+                self._flow_service = FlowManagerAdapter(self.db, show_warnings=False)
+            else:
+                self._flow_service = FlowEngineIntegrationService(self.db)
         return self._flow_service
 
     # @property

@@ -187,10 +187,11 @@ async def test_simple_session():
     }
 
 @router.post(
-    "/",
+    "",
     response_model=SessionResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(validate_custom_csrf)]
+    dependencies=[Depends(validate_custom_csrf)],
+    include_in_schema=False
 )
 @limiter.limit("20/minute")  # Rate limit: 20 session creations per minute per IP
 async def create_session(
@@ -348,7 +349,7 @@ async def create_session(
             value=session_id,
             httponly=True,      # JavaScript cannot access (XSS protection)
             secure=settings.SESSION_COOKIE_SECURE,  # HTTPS only in production
-            samesite="strict",  # CSRF protection
+            samesite=("none" if settings.ENVIRONMENT.lower() == "production" else "lax"),
             max_age=ttl,        # Cookie expiration (seconds)
             path="/"            # Available for all paths
         )

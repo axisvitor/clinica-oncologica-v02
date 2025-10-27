@@ -14,6 +14,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 from uuid import UUID
 import logging
+import inspect
 
 from ..types import (
     FlowContext,
@@ -23,6 +24,8 @@ from ..config import get_flow_config
 
 from .quiz_integration import QuizFlowIntegration
 from .ai_integration import AIFlowIntegration
+from .base import FlowIntegration
+from .plugins import QuizIntegrationPlugin, AIIntegrationPlugin
 
 
 logger = logging.getLogger(__name__)
@@ -53,8 +56,39 @@ class FlowIntegrationManager:
         # Initialize integrations
         self.quiz = quiz_integration or QuizFlowIntegration()
         self.ai = ai_integration or AIFlowIntegration()
+        self._plugins: Dict[str, FlowIntegration] = {}
+        self._register_builtin_plugins()
 
         logger.info("FlowIntegrationManager initialized")
+
+    # ------------------------------------------------------------------ #
+    # Plugin management
+    # ------------------------------------------------------------------ #
+
+    def _register_builtin_plugins(self) -> None:
+        if self.config.enable_quiz_integration:
+            self.register_plugin(QuizIntegrationPlugin(self.quiz))
+        if self.config.enable_ai_integration:
+            self.register_plugin(AIIntegrationPlugin(self.ai))
+
+    def register_plugin(self, plugin: FlowIntegration) -> None:
+        self._plugins[plugin.name] = plugin
+        logger.info("Registered flow integration plugin: %s", plugin.name)
+
+    async def notify(
+        self,
+        hook: str,
+        context: FlowContext,
+        template: Dict[str, Any],
+        *args: Any,
+    ) -> None:
+        for plugin in self._plugins.values():
+            handler = getattr(plugin, hook, None)
+            if not handler:
+                continue
+            result = handler(context, template, *args)
+            if inspect.isawaitable(result):
+                await result
 
     # ========================================================================
     # Quiz Integration

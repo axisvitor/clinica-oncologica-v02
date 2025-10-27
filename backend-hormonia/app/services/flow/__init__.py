@@ -97,7 +97,7 @@ Example Usage:
     ...     engine = FlowEngine(db)
 
 Migration Strategy:
-    1. Feature flag: USE_CONSOLIDATED_FLOWS (default: False)
+    1. Feature flag: USE_CONSOLIDATED_FLOWS (default: True)
     2. Gradual rollout: 0% → 10% → 50% → 100%
     3. Backward compatibility via adapter pattern
     4. Legacy deprecation warnings
@@ -147,13 +147,13 @@ from .types import (
 )
 
 # Import core components (implementation)
-from .manager import FlowManager
+from .core.manager import FlowManager
 from .core.engine import FlowEngine
 from .adapter import FlowManagerAdapter, get_enhanced_flow_engine
 
 # Import core components
-from .core.validator import FlowValidator
-from .core.error_handler import FlowErrorHandler
+from .validation import FlowValidator
+from .errors import FlowErrorHandler
 
 # Import analytics components
 from .analytics import (
@@ -228,29 +228,8 @@ def get_flow_manager(db, **kwargs):
 # Backward Compatibility Aliases
 # ============================================================================
 
-# Alias for legacy FlowEngineIntegrationService
-# This maintains compatibility with code that imports:
-# from app.services.flow import FlowEngineIntegrationService
-# The actual class exists in app.services.flow module (legacy file)
-# We import it here for backward compatibility
-import sys
-
-if "app.services.flow" in sys.modules:
-    # If flow.py is already loaded, import from it
-    try:
-        from app.services import flow as _flow_module
-
-        if hasattr(_flow_module, "FlowEngineIntegrationService"):
-            FlowEngineIntegrationService = _flow_module.FlowEngineIntegrationService
-        else:
-            # Fallback to FlowIntegrationManager
-            FlowEngineIntegrationService = FlowIntegrationManager
-    except (ImportError, AttributeError):
-        # Fallback to FlowIntegrationManager
-        FlowEngineIntegrationService = FlowIntegrationManager
-else:
-    # Not loaded yet, use FlowIntegrationManager as alias
-    FlowEngineIntegrationService = FlowIntegrationManager
+# Alias for legacy FlowEngineIntegrationService imports
+FlowEngineIntegrationService = FlowManagerAdapter
 
 # ============================================================================
 # Public Exports

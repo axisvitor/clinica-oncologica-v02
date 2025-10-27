@@ -424,6 +424,15 @@ def get_enhanced_flow_engine(db: Session) -> EnhancedFlowEngine:
     Returns:
         EnhancedFlowEngine instance
     """
+    # If QW-021 consolidated flows are enabled, return adapter for compatibility
+    try:
+        from app.services.flow.config import get_flow_config  # local import to avoid cycles
+        if get_flow_config().is_consolidated_enabled():
+            from app.services.flow.adapter import FlowManagerAdapter  # local import
+            return FlowManagerAdapter(db, show_warnings=False)
+    except Exception:  # fallback to legacy engine on any issue
+        pass
+
     return EnhancedFlowEngine(db)
 
 
