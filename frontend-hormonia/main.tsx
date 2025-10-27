@@ -1,3 +1,4 @@
+import "./react-shim"; // CRITICAL: Must be first to ensure React is globally available
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App"; // App completo com autenticação
@@ -25,7 +26,7 @@ if (!rootElement) {
     </div>
   `;
 } else {
-  ReactDOM.createRoot(rootElement).render(
+  ReactDOM.createRoot(rootElement).render( 
     <React.StrictMode>
       <ConfigProvider>
         <App />

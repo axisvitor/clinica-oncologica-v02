@@ -153,7 +153,15 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     tailwindcss(),
-    react(),
+    react({
+      jsxRuntime: 'automatic',
+      // CRITICAL: React 19 compatibility fix for class-variance-authority
+      babel: {
+        plugins: [
+          ['@babel/plugin-transform-react-jsx', { runtime: 'automatic' }]
+        ]
+      }
+    }),
     // Runtime config injection plugin
     {
       name: "runtime-config-injection",
