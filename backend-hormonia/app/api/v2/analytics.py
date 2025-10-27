@@ -16,7 +16,7 @@ from app.database import get_db
 from app.models.quiz import QuizSession
 from app.models.patient import Patient
 from app.models.user import UserRole
-from app.dependencies.auth_dependencies import get_current_user, get_doctor_user
+from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.schemas.v2.analytics import (
     AnalyticsOverview,
     QuizStatusDistribution,
@@ -44,25 +44,31 @@ COLOR_PALETTE = [
 def _get_role_and_user(current_user) -> Tuple[UserRole, Optional[UUID]]:
     """Extract role and user UUID from current_user which can be model or dict."""
     if isinstance(current_user, dict):
-        role_value = current_user.get("role")
+        role_value = current_user.get("role", "doctor")
         user_id = current_user.get("id")
     else:
-        role_value = getattr(current_user, "role", None)
+        role_value = getattr(current_user, "role", "doctor")
         user_id = getattr(current_user, "id", None)
 
+    # Optimize role conversion
     if isinstance(role_value, UserRole):
         role = role_value
     elif isinstance(role_value, str):
-        try:
-            role = UserRole(role_value.lower())
-        except ValueError:
+        role_lower = role_value.lower()
+        if role_lower == "admin":
+            role = UserRole.ADMIN
+        else:
             role = UserRole.DOCTOR
     else:
         role = UserRole.DOCTOR
 
-    try:
-        user_uuid = UUID(str(user_id)) if user_id else None
-    except (TypeError, ValueError):
+    # Optimize UUID conversion
+    if user_id:
+        try:
+            user_uuid = UUID(str(user_id))
+        except (TypeError, ValueError):
+            user_uuid = None
+    else:
         user_uuid = None
 
     return role, user_uuid
@@ -110,7 +116,7 @@ async def _set_cached_result(cache_key: str, data: dict, ttl: int = ANALYTICS_CA
 )
 async def get_analytics_overview(
     db: Session = Depends(get_db),
-    current_user = Depends(get_doctor_user),
+    current_user = Depends(get_current_user_from_session),
     start_date: Optional[datetime] = Query(None, description="Start date for filtering"),
     end_date: Optional[datetime] = Query(None, description="End date for filtering"),
 ):
@@ -211,7 +217,7 @@ async def get_analytics_overview(
 )
 async def get_quiz_status_distribution(
     db: Session = Depends(get_db),
-    current_user = Depends(get_doctor_user),
+    current_user = Depends(get_current_user_from_session),
     month: Optional[int] = Query(None, ge=1, le=12, description="Filter by month"),
     year: Optional[int] = Query(None, ge=2020, description="Filter by year"),
 ):
@@ -279,7 +285,7 @@ async def get_quiz_status_distribution(
 )
 async def get_completion_trend(
     db: Session = Depends(get_db),
-    current_user = Depends(get_doctor_user),
+    current_user = Depends(get_current_user_from_session),
     months: int = Query(6, ge=1, le=24, description="Number of months to include"),
 ):
     """
@@ -364,7 +370,7 @@ async def get_completion_trend(
 )
 async def get_patient_engagement(
     db: Session = Depends(get_db),
-    current_user = Depends(get_doctor_user),
+    current_user = Depends(get_current_user_from_session),
 ):
     """
     Get patient engagement metrics.
@@ -436,7 +442,7 @@ async def get_patient_engagement(
 async def get_treatment_distribution(
     period: str = Query("30d", regex="^(7d|30d|90d|all)$", description="Analytics period"),
     db: Session = Depends(get_db),
-    current_user = Depends(get_doctor_user),
+    current_user = Depends(get_current_user_from_session),
 ):
     """Return treatment distribution data with optional period filtering."""
     role, user_uuid = _get_role_and_user(current_user)

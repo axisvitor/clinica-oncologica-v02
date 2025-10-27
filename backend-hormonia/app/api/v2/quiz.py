@@ -25,7 +25,7 @@ from .dependencies import (
     create_cursor,
     apply_field_selection,
 )
-from app.dependencies.auth_dependencies import get_current_user, get_doctor_user
+from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.utils.rate_limiter import limiter
 
 router = APIRouter()
@@ -340,7 +340,7 @@ async def create_quiz(
     request: Request,
     quiz_data: QuizV2Create,
     db: Session = Depends(get_db),
-    current_user = Depends(get_doctor_user),
+    current_user = Depends(get_current_user_from_session),
 ):
     """Create a new quiz session."""
     from uuid import UUID
@@ -428,7 +428,7 @@ async def update_quiz(
     quiz_id: str,
     quiz_data: QuizV2Update,
     db: Session = Depends(get_db),
-    current_user = Depends(get_doctor_user),
+    current_user = Depends(get_current_user_from_session),
 ):
     """Update a quiz session (partial update)."""
     from uuid import UUID
@@ -494,7 +494,7 @@ async def delete_quiz(
     request: Request,
     quiz_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_doctor_user),
+    current_user = Depends(get_current_user_from_session),
 ):
     """Delete a quiz session."""
     from uuid import UUID

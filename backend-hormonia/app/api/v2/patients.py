@@ -26,7 +26,7 @@ from .dependencies import (
     create_cursor,
     apply_field_selection,
 )
-from app.dependencies.auth_dependencies import get_current_user, get_doctor_user
+from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.utils.rate_limiter import limiter
 
 router = APIRouter()
@@ -386,7 +386,7 @@ async def create_patient(
     request: Request,
     patient_data: PatientV2Create,
     db: Session = Depends(get_db),
-    current_user = Depends(get_doctor_user),
+    current_user = Depends(get_current_user_from_session),
 ):
     """
     Create a new patient.
@@ -499,7 +499,7 @@ async def update_patient(
     patient_id: str,
     patient_data: PatientV2Update,
     db: Session = Depends(get_db),
-    current_user = Depends(get_doctor_user),
+    current_user = Depends(get_current_user_from_session),
 ):
     """
     Update a patient (partial update).
@@ -623,7 +623,7 @@ async def delete_patient(
     request: Request,
     patient_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_doctor_user),
+    current_user = Depends(get_current_user_from_session),
 ):
     """
     Delete a patient.

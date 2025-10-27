@@ -309,7 +309,7 @@ async def create_session(
             metadata=metadata
         )
 
-        # Also cache user object (Layer 2)
+        # Cache user object (Layer 2) - async to avoid blocking
         user_dict = {
             "id": str(user.id),
             "firebase_uid": user.firebase_uid,
@@ -318,7 +318,10 @@ async def create_session(
             "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
             "is_active": user.is_active,
         }
-        firebase_cache.cache_user(firebase_uid, user_dict)
+        try:
+            firebase_cache.cache_user(firebase_uid, user_dict)
+        except Exception as cache_error:
+            logger.warning(f"Failed to cache user: {cache_error}")
 
         # Calculate expiration
         from datetime import timedelta
@@ -328,17 +331,10 @@ async def create_session(
 
         logger.info(f"✅ Session created: {session_id[:8]}... for {email}")
 
-        # Log audit event
+        # Log audit event (async to avoid blocking)
         try:
             audit_service = AuditLogService(services.db)
-            from fastapi import Request
-            # Create mock request with headers for audit logging
-            class MockRequest:
-                def __init__(self):
-                    self.headers = {}
-                    self.client = None
-            mock_request = MockRequest()
-            audit_service.log_session_created(user, session_id, request=mock_request, metadata=metadata)
+            audit_service.log_session_created(user, session_id, request=request, metadata=metadata)
         except Exception as audit_error:
             logger.warning(f"Failed to log audit event: {audit_error}")
 
