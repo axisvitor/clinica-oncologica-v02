@@ -86,7 +86,8 @@ function TemplateManagementPage() {
   const [showFlowDesigner, setShowFlowDesigner] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<FlowTemplate | null>(null);
   
-  const [error, setError] = useState<string | null>(null);
+  const [flowError, setFlowError] = useState<string | null>(null);
+  const [quizError, setQuizError] = useState<string | null>(null);
 
   // Flow versioning controls
   const [flowVersionNumber, setFlowVersionNumber] = useState<number>(1);
@@ -103,7 +104,7 @@ function TemplateManagementPage() {
 
   const loadFlowTemplates = useCallback(async () => {
     try {
-      setError(null)
+      setFlowError(null)
       const params: any = { page: flowPage, size: 10 };
 
       if (activeFilter === 'active') params.is_active = true;
@@ -116,7 +117,7 @@ function TemplateManagementPage() {
       }
     } catch (error) {
       console.error('Failed to load flow templates:', error)
-      setError('Erro ao carregar templates de flow')
+      setFlowError('Erro ao carregar templates de flow')
       toast({
         title: 'Erro',
         description: 'Falha ao carregar templates de flow',
@@ -127,7 +128,7 @@ function TemplateManagementPage() {
 
   const loadQuizTemplates = useCallback(async () => {
     try {
-      setError(null)
+      setQuizError(null)
       const params: any = { page: quizPage, size: 10 };
 
       if (activeFilter === 'active') params.is_active = true;
@@ -139,7 +140,7 @@ function TemplateManagementPage() {
       }
     } catch (error) {
       console.error('Failed to load quiz templates:', error)
-      setError('Erro ao carregar templates de quiz')
+      setQuizError('Erro ao carregar templates de quiz')
       toast({
         title: 'Erro',
         description: 'Falha ao carregar templates de quiz',
@@ -167,16 +168,25 @@ function TemplateManagementPage() {
       t.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Valid message types based on backend enum
+  const VALID_MESSAGE_TYPES = ['text', 'image', 'audio', 'video', 'document'];
+
   // Handle Flow Designer save
   const handleFlowSave = async (design: any) => {
-    // Convert FlowDesign to API format
-    const steps: Record<string, any> = {};
+    // Convert FlowDesign to API format as array
+    const steps: any[] = design.nodes.map((node: any, index: number) => {
+      const messageType = node.type || 'text';
+      
+      // Validate message type
+      if (!VALID_MESSAGE_TYPES.includes(messageType)) {
+        console.warn(`Invalid message_type '${messageType}', defaulting to 'text'`);
+      }
 
-    design.nodes.forEach((node: any, index: number) => {
-      steps[String(index + 1)] = {
+      return {
+        step_number: index + 1,
         intent: node.data.label || 'unknown',
         ai_instructions: node.data.aiInstructions || '',
-        message_type: node.type || 'text',
+        message_type: VALID_MESSAGE_TYPES.includes(messageType) ? messageType : 'text',
         base_content: node.data.content || '',
         personalization_hints: node.data.personalizationHints || [],
       };
@@ -198,11 +208,13 @@ function TemplateManagementPage() {
     };
 
     if (editingTemplate) {
-      // Update existing
+      // Update existing - include status fields
       const updated = await updateFlowTemplate(editingTemplate.id, {
         steps,
         template_name: design.metadata?.name,
         description: design.metadata?.description,
+        is_active: flowIsActive,
+        is_draft: flowIsDraft,
       });
 
       if (updated) {
@@ -247,18 +259,25 @@ function TemplateManagementPage() {
   };
 
   const handleCreateNewFlowVersion = (template: FlowTemplate) => {
-    // Pre-fill the designer with existing template data
-    setEditingTemplate(null); // Clear editing mode to create new
-    setFlowVersionNumber((template.version_number || 1) + 1); // Increment version
-    setFlowIsDraft(true); // New versions start as draft
-    setFlowIsActive(false); // New versions start inactive
-
-    // Open designer with template data
+    // Create new version based on existing template
+    // Set editing template temporarily to prefill designer, but mark as new version
+    const newVersionTemplate = {
+      ...template,
+      id: '', // Clear ID to create new
+      version_number: (template.version_number || 1) + 1,
+      is_draft: true,
+      is_active: false,
+    };
+    
+    setEditingTemplate(newVersionTemplate as FlowTemplate);
+    setFlowVersionNumber((template.version_number || 1) + 1);
+    setFlowIsDraft(true);
+    setFlowIsActive(false);
     setShowFlowDesigner(true);
 
     toast({
       title: 'Nova Versão',
-      description: `Criando versão ${(template.version_number || 1) + 1} baseada no template existente`,
+      description: `Criando versão ${(template.version_number || 1) + 1} baseada no template '${template.template_name}'`,
     });
   };
 
@@ -327,11 +346,11 @@ function TemplateManagementPage() {
 
         {/* Flow Templates Tab */}
         <TabsContent value="flows" className="space-y-4">
-          {error ? (
+          {flowError ? (
             <Card>
               <CardContent className="text-center py-12">
                 <AlertTriangle className="h-12 w-12 mx-auto text-red-500 mb-4" />
-                <p className="text-red-600 mb-4">{error}</p>
+                <p className="text-red-600 mb-4">{flowError}</p>
                 <Button onClick={loadFlowTemplates} variant="outline">
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Tentar Novamente
@@ -379,7 +398,7 @@ function TemplateManagementPage() {
                       </p>
                       <div className="text-sm text-muted-foreground">
                         <div>Versão: {template.version_number}</div>
-                        <div>Steps: {Object.keys(template.steps || {}).length}</div>
+                        <div>Steps: {Array.isArray(template.steps) ? template.steps.length : Object.keys(template.steps || {}).length}</div>
                       </div>
                       <div className="flex gap-2">
                         <Button
@@ -443,11 +462,11 @@ function TemplateManagementPage() {
 
         {/* Quiz Templates Tab */}
         <TabsContent value="quizzes" className="space-y-4">
-          {error ? (
+          {quizError ? (
             <Card>
               <CardContent className="text-center py-12">
                 <AlertTriangle className="h-12 w-12 mx-auto text-red-500 mb-4" />
-                <p className="text-red-600 mb-4">{error}</p>
+                <p className="text-red-600 mb-4">{quizError}</p>
                 <Button onClick={loadQuizTemplates} variant="outline">
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Tentar Novamente
@@ -589,9 +608,19 @@ function TemplateManagementPage() {
 
 // Helper function to convert template to FlowDesign format
 function convertTemplateToDesign(template: FlowTemplate): any {
-  const nodes = Object.entries(template.steps || {}).map(([day, step]: [string, any], index) => ({
-    id: `node-${day}`,
-    type: step.message_type || 'message',
+  // Handle both array and dict formats for steps
+  let stepsArray: any[] = [];
+  
+  if (Array.isArray(template.steps)) {
+    stepsArray = template.steps;
+  } else if (template.steps && typeof template.steps === 'object') {
+    // Convert dict to array
+    stepsArray = Object.values(template.steps);
+  }
+
+  const nodes = stepsArray.map((step: any, index) => ({
+    id: `node-${index}`,
+    type: step.message_type || 'text',
     position: { x: 100 + index * 250, y: 100 },
     data: {
       label: step.intent || 'Message',

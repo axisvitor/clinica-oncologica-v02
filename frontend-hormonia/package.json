@@ -128,6 +128,7 @@
     "validate:ai": "npm run validate:config",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:report": "playwright show-report",
+    "test:quiz": "vitest run tests/monthly-quiz/**/*.spec.tsx --reporter=verbose --coverage",
     "test:all": "npm run test:run && npm run test:e2e",
     "test:security": "npm audit --audit-level=moderate",
     "test:performance": "npm run build && npm run test:e2e -- --grep='@performance'",

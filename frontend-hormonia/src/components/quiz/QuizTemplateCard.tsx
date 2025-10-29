@@ -54,9 +54,11 @@ export function QuizTemplateCard({
         <div className="space-y-4">
           <div className="flex items-center justify-between text-sm text-gray-600">
             <span>{template.questions?.length || 0} perguntas</span>
-            <span>
-              Criado em {new Date(template.created_at).toLocaleDateString('pt-BR')}
-            </span>
+            {template.created_at && (
+              <span>
+                Criado em {new Date(template.created_at).toLocaleDateString('pt-BR')}
+              </span>
+            )}
           </div>
 
           <div className="flex space-x-2">

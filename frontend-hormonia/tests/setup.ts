@@ -70,6 +70,17 @@ Object.defineProperty(HTMLButtonElement.prototype, 'indeterminate', {
   configurable: true,
 })
 
+// Polyfill pointer capture APIs used by Radix in JSDOM
+if (!(Element.prototype as any).setPointerCapture) {
+  ;(Element.prototype as any).setPointerCapture = vi.fn()
+}
+if (!(Element.prototype as any).releasePointerCapture) {
+  ;(Element.prototype as any).releasePointerCapture = vi.fn()
+}
+if (!(Element.prototype as any).hasPointerCapture) {
+  ;(Element.prototype as any).hasPointerCapture = vi.fn().mockReturnValue(false)
+}
+
 // Mock console methods to reduce noise in tests
 global.console = {
   ...console,

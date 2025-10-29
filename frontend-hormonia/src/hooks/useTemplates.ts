@@ -12,6 +12,7 @@ import { apiClient } from '@/lib/api-client';
 // ==================== Types ====================
 
 export interface FlowTemplateStep {
+  step_number?: number;
   intent: string;
   ai_instructions?: string;
   personalization_hints?: string[];
@@ -33,7 +34,7 @@ export interface FlowTemplateCreate {
   display_name: string;
   description?: string;
   version_number?: number;
-  steps: Record<string, FlowTemplateStep>;
+  steps: FlowTemplateStep[] | Record<string, FlowTemplateStep>; // Array (preferred) or dict (legacy)
   metadata?: FlowTemplateMetadata;
   is_active?: boolean;
   is_draft?: boolean;
@@ -42,7 +43,7 @@ export interface FlowTemplateCreate {
 export interface FlowTemplateUpdate {
   template_name?: string;
   description?: string;
-  steps?: Record<string, FlowTemplateStep>;
+  steps?: FlowTemplateStep[] | Record<string, FlowTemplateStep>; // Array (preferred) or dict (legacy)
   metadata?: FlowTemplateMetadata;
   is_active?: boolean;
   is_draft?: boolean;
@@ -56,7 +57,7 @@ export interface FlowTemplate {
   version_number: number;
   template_name: string;
   description?: string;
-  steps: Record<string, any>;
+  steps: FlowTemplateStep[] | Record<string, any>; // Array (preferred) or dict (legacy)
   metadata?: any;
   is_active: boolean;
   is_draft: boolean;
@@ -125,15 +126,6 @@ export interface QuizTemplate {
 // Import and re-export PaginatedResponse from shared types
 import type { PaginatedResponse as SharedPaginatedResponse } from '@/types/shared'
 export type PaginatedResponse<T> = SharedPaginatedResponse<T>
-
-// Legacy interface for backward compatibility (deprecated)
-interface _PaginatedResponse<T> {
-  items: T[];
-  total: number;
-  page: number;
-  size: number;
-  total_pages: number;
-}
 
 // ==================== Hook ====================
 
