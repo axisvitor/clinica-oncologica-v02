@@ -69,7 +69,7 @@ messages:
   3:
     intent: "first_check_in"
     base_content: "Como você está se sentindo hoje?"
-    message_type: "interactive"
+    message_type: "text"
     core_elements:
       emotional_check: true
       gentle_inquiry: true
@@ -83,19 +83,6 @@ messages:
       - Aberta para qualquer tipo de resposta
       - Acolhedora independente da resposta
       - Natural e conversacional
-    interactive_elements:
-      type: "buttons"
-      options:
-        - id: "great"
-          title: "Ótima! 😊"
-        - id: "good"
-          title: "Bem"
-        - id: "okay"
-          title: "Mais ou menos"
-        - id: "not_good"
-          title: "Não muito bem"
-        - id: "anxious"
-          title: "Um pouco ansiosa"
     conditions:
       - type: "time_based"
         field: "hours_since_enrollment"
@@ -153,7 +140,7 @@ messages:
   9:
     intent: "emotional_support_check"
     base_content: "Como você está se sentindo em relação ao tratamento?"
-    message_type: "interactive"
+    message_type: "text"
     core_elements:
       emotional_support: true
       treatment_feelings: true

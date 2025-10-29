@@ -2,6 +2,7 @@
 Message handling endpoints for Hormonia Backend System.
 """
 from typing import List, Optional, Any
+import asyncio
 from uuid import UUID
 from datetime import datetime
 
@@ -19,12 +20,14 @@ from app.models.user import User
 from app.models.message import MessageStatus, MessageType
 from app.services.message import MessageService
 from app.services.message_sender import MessageSender
+from app.services.unified_whatsapp_service import MessagingMode
 from app.services.patient import PatientService
 from app.schemas.message import (
     MessageResponse, 
     MessageListResponse, 
     ScheduleMessageRequest,
-    InboundMessageRequest
+    InboundMessageRequest,
+    MessageUpdate,
 )
 from app.schemas.common import PaginationParams
 
@@ -136,7 +139,7 @@ async def send_manual_message(
 ):
     """Send a manual message to a patient."""
     message_service = MessageService(db)
-    message_sender = MessageSender(db)
+    message_sender = MessageSender(db, messaging_mode=MessagingMode.LEGACY)
     patient_service = PatientService(db)
     
     # Verify patient exists
@@ -278,7 +281,7 @@ async def get_message_status(
     current_user: User = Depends(get_current_user)
 ) -> dict[str, Any]:
     """Get detailed delivery status for a message."""
-    message_sender = MessageSender(db)
+    message_sender = MessageSender(db, messaging_mode=MessagingMode.LEGACY)
     
     status_info = await message_sender.get_message_delivery_status(message_id)
     
@@ -297,7 +300,7 @@ async def retry_message(
 ):
     """Retry sending a specific failed message."""
     message_service = MessageService(db)
-    message_sender = MessageSender(db)
+    message_sender = MessageSender(db, messaging_mode=MessagingMode.LEGACY)
 
     # Get message
     message = message_service.get_message(message_id)
@@ -311,14 +314,11 @@ async def retry_message(
             detail="Message can only be retried if it's in FAILED or PENDING status"
         )
 
-    # Retry the message in background
-    background_tasks.add_task(
-        message_sender.retry_message,
-        message
-    )
+    # Retry the message em background (Starlette suporta corrotinas em BackgroundTasks)
+    background_tasks.add_task(message_sender.send_message, message)
 
-    # Update status to pending
-    message_service.update_message_status(message_id, MessageStatus.PENDING)
+    # Update status to pending (por ID)
+    message_service.update_message(message_id, MessageUpdate(status=MessageStatus.PENDING))
 
     # Return updated message
     updated_message = message_service.get_message(message_id)
@@ -334,9 +334,9 @@ async def retry_failed_messages(
     current_user: User = Depends(get_current_user)
 ) -> dict[str, Any]:
     """Retry sending failed messages."""
-    message_sender = MessageSender(db)
+    message_sender = MessageSender(db, messaging_mode=MessagingMode.LEGACY)
     
-    retry_count = await message_sender.retry_failed_messages(limit, max_retries)
+    retry_count = await message_sender.retry_failed_messages(limit)
     
     return {
         "message": f"Retry process completed",

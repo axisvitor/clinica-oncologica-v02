@@ -4,6 +4,7 @@ from datetime import datetime
 from dataclasses import dataclass
 from base64 import b64encode
 import json
+import hashlib
 
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
@@ -76,9 +77,16 @@ class MessageService:
         content: str,
         scheduled_for: datetime,
         message_type: MessageType = MessageType.TEXT,
-        message_metadata: Optional[dict[str, Any]] = None
+        message_metadata: Optional[dict[str, Any]] = None,
+        idempotency_key: Optional[str] = None
     ) -> Message:
         """Schedule a message for later delivery"""
+        # Generate deterministic idempotency key if not provided (minute precision)
+        if idempotency_key is None:
+            ts = scheduled_for.replace(second=0, microsecond=0).isoformat() if scheduled_for else datetime.utcnow().replace(second=0, microsecond=0).isoformat()
+            base = f"{patient_id}:{message_type.value}:{content}:{ts}"
+            idempotency_key = hashlib.sha256(base.encode('utf-8')).hexdigest()[:32]
+
         message_data = {
             "patient_id": patient_id,
             "direction": MessageDirection.OUTBOUND,
@@ -86,7 +94,8 @@ class MessageService:
             "content": content,
             "scheduled_for": scheduled_for,
             "message_metadata": message_metadata or {},
-            "status": MessageStatus.PENDING
+            "status": MessageStatus.PENDING,
+            "idempotency_key": idempotency_key,
         }
         return self.repository.create(message_data)
 

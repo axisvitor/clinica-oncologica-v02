@@ -139,6 +139,12 @@ celery_app.conf.beat_schedule = {
         "schedule": 7200.0,  # Every 2 hours
         "kwargs": {"limit": 50}
     },
+    # Monthly quiz processor: checks eligible patients and triggers monthly quizzes
+    "process-monthly-quizzes": {
+        "task": "app.tasks.flows.process_monthly_quizzes",
+        "schedule": 3600.0,  # Every hour
+        "kwargs": {"limit": 100}
+    },
 }
 
 # Celery worker initialization with asyncio support

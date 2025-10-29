@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.models.patient import Patient
-from app.models.doctor import Doctor
+from app.models.user import User, UserRole
 
 
 class TestPatientsV2:
@@ -83,7 +83,7 @@ class TestPatientsV2:
     def test_get_patient_by_id(self, client: TestClient, db: Session, auth_headers: dict):
         """Test getting a single patient"""
         # Create a test patient first
-        doctor = db.query(Doctor).first()
+        doctor = db.query(User).filter(User.role == UserRole.DOCTOR).first()
         if not doctor:
             pytest.skip("No doctor available for test")
         
@@ -118,7 +118,7 @@ class TestPatientsV2:
     
     def test_create_patient(self, client: TestClient, db: Session, auth_headers: dict):
         """Test creating a new patient"""
-        doctor = db.query(Doctor).first()
+        doctor = db.query(User).filter(User.role == UserRole.DOCTOR).first()
         if not doctor:
             pytest.skip("No doctor available for test")
         
@@ -142,7 +142,7 @@ class TestPatientsV2:
     
     def test_create_patient_duplicate_email(self, client: TestClient, db: Session, auth_headers: dict):
         """Test creating a patient with duplicate email"""
-        doctor = db.query(Doctor).first()
+        doctor = db.query(User).filter(User.role == UserRole.DOCTOR).first()
         if not doctor:
             pytest.skip("No doctor available for test")
         
@@ -172,7 +172,7 @@ class TestPatientsV2:
     
     def test_update_patient(self, client: TestClient, db: Session, auth_headers: dict):
         """Test updating a patient"""
-        doctor = db.query(Doctor).first()
+        doctor = db.query(User).filter(User.role == UserRole.DOCTOR).first()
         if not doctor:
             pytest.skip("No doctor available for test")
         
@@ -203,7 +203,7 @@ class TestPatientsV2:
     
     def test_delete_patient(self, client: TestClient, db: Session, auth_headers: dict):
         """Test soft deleting a patient"""
-        doctor = db.query(Doctor).first()
+        doctor = db.query(User).filter(User.role == UserRole.DOCTOR).first()
         if not doctor:
             pytest.skip("No doctor available for test")
         

@@ -255,6 +255,17 @@ class TemplateValidator:
             if not message.base_content:
                 errors.append(f"Message for day {day} missing base_content")
 
+            # Validate message_type against allowed values to avoid DB enum mismatches
+            try:
+                allowed_types = {"text", "media", "quiz_trigger"}
+                mt_value = message.message_type.value if hasattr(message.message_type, "value") else str(message.message_type)
+                if mt_value not in allowed_types:
+                    errors.append(
+                        f"Invalid message_type '{mt_value}' for day {day}. Allowed: {sorted(allowed_types)}"
+                    )
+            except Exception:
+                errors.append(f"Invalid message_type for day {day}")
+
             # Check AI optimization
             if message.ai_instructions or message.personalization_hints:
                 ai_optimized_count += 1

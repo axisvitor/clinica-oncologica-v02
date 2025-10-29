@@ -28,6 +28,10 @@ from app.utils.db_retry import with_db_retry
 from app.config import settings
 from app.coordination.saga_orchestrator import SagaOrchestrator
 from app.core.redis_client import get_redis_client
+from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
+from app.services.message import MessageService
+from app.models.message import MessageType
+from app.templates.whatsapp import get_welcome_message
 
 logger = logging.getLogger(__name__)
 
@@ -572,41 +576,35 @@ class PatientService:
             Exception: If message sending fails after max retries
         """
         try:
-            from app.services.whatsapp_unified import (
-                WhatsAppUnifiedService,
-                MessageType,
-                MessagePriority,
-            )
-            from app.templates.whatsapp import get_welcome_message
-
-            # Get WhatsApp service instance
-            whatsapp_service = WhatsAppUnifiedService()
-
-            # Generate welcome message
+            # Generate welcome message content
             welcome_text = get_welcome_message(
                 patient_name=patient.name,
                 clinic_name=settings.CLINIC_NAME,
                 support_phone=settings.CLINIC_SUPPORT_PHONE,
             )
 
-            # Send message with high priority (non-blocking)
-            result = await whatsapp_service.send_message(
-                phone_number=patient.phone,
+            # Schedule message for immediate sending and send via unified service
+            message_service = MessageService(self.db)
+            message = message_service.schedule_message(
+                patient_id=patient.id,
+                content=welcome_text,
+                scheduled_for=datetime.utcnow(),
                 message_type=MessageType.TEXT,
-                content={"text": welcome_text},
-                priority=MessagePriority.HIGH,
-                metadata={
+                message_metadata={
                     "patient_id": str(patient.id),
                     "patient_name": patient.name,
                     "message_type": "welcome",
-                    "created_by": current_user.email if current_user else "system",
+                    "created_by": getattr(current_user, "email", None) if current_user else "system",
                     "treatment_type": patient.treatment_type,
                 },
             )
 
+            unified_service = UnifiedWhatsAppService(db=self.db, messaging_mode=MessagingMode.LEGACY)
+            success = await unified_service.send_message(message)
+
             logger.info(
                 f"Welcome message sent to patient {patient.id} ({patient.name}): "
-                f"status={result.get('status')}, phone={patient.phone}"
+                f"status={'success' if success else 'failed'}, phone={patient.phone}"
             )
 
         except ImportError as e:

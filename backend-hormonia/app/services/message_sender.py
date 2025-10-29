@@ -180,7 +180,7 @@ class MessageSender:
                     
             except Exception as e:
                 logger.error(f"Failed to send scheduled message {message.id}: {e}", exc_info=True)
-                await self._mark_message_failed(message, {
+                self.message_service.mark_as_failed(message.id, {
                     "error": "Scheduled send failed",
                     "message": str(e)
                 })

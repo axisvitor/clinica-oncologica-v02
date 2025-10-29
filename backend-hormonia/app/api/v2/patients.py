@@ -12,6 +12,10 @@ from sqlalchemy import and_, func
 from app.database import get_db
 from app.models.patient import Patient
 from app.models.user import User, UserRole
+from app.repositories.patient import PatientRepository
+from app.services.flow_engine import FlowEngine
+from app.services.patient import PatientService, PatientIntegrityService
+from app.schemas.patient import PatientCreate
 from app.schemas.v2.patient import (
     PatientV2Response,
     PatientV2List,
@@ -478,27 +482,40 @@ async def create_patient(
                 detail=f"Patient with phone already exists"
             )
     
-    # Create patient with normalized data
-    patient_dict = patient_data.dict()
-    patient_dict["doctor_id"] = doctor_uuid
-    patient_dict["cpf"] = normalized_cpf
-    patient_dict["phone"] = normalized_phone
-    new_patient = Patient(**patient_dict)
-    db.add(new_patient)
-    db.commit()
-    db.refresh(new_patient)
-    
-    # Return formatted response
+    # Use service layer (Saga + welcome WhatsApp + auto flow) for creation
+    # Ensure phone matches PatientCreate validator (E.164 starting with '+')
+    e164_phone = normalized_phone if (normalized_phone and normalized_phone.startswith('+')) else (f"+{normalized_phone}" if normalized_phone else None)
+
+    service = PatientService(
+        db=db,
+        patient_repository=PatientRepository(db),
+        integrity_service=PatientIntegrityService(db, PatientRepository(db)),
+        flow_engine=FlowEngine(db),
+    )
+
+    created = await service.create_patient(
+        patient_data=PatientCreate(
+            phone=e164_phone,
+            name=patient_data.name,
+            email=patient_data.email,
+            birth_date=patient_data.birth_date,
+            cpf=normalized_cpf,
+        ),
+        doctor_id=doctor_uuid,
+        current_user=current_user,
+    )
+
+    # Return formatted response from created entity
     return {
-        "id": str(new_patient.id),
-        "name": new_patient.name,
-        "email": new_patient.email,
-        "phone": new_patient.phone,
-        "birth_date": new_patient.birth_date,
-        "cpf": new_patient.cpf,
-        "doctor_id": str(new_patient.doctor_id),
-        "created_at": new_patient.created_at,
-        "updated_at": new_patient.updated_at,
+        "id": str(created.id),
+        "name": created.name,
+        "email": created.email,
+        "phone": created.phone,
+        "birth_date": created.birth_date,
+        "cpf": created.cpf,
+        "doctor_id": str(created.doctor_id),
+        "created_at": created.created_at,
+        "updated_at": created.updated_at,
     }
 
 

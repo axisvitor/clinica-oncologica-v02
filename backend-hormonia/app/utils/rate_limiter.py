@@ -49,6 +49,23 @@ limiter = NoOpLimiter()
 logger.info("⚠️  Rate limiting DISABLED - using no-op limiter")
 
 
+def rate_limit_handler(request: Request, exc: Exception):
+    """
+    No-op rate limit exception handler for compatibility.
+    
+    Since rate limiting is disabled, this should never be called,
+    but it's here for compatibility with the application factory.
+    
+    Args:
+        request: FastAPI request
+        exc: Exception (ignored)
+        
+    Returns:
+        None (rate limiting disabled)
+    """
+    pass
+
+
 def get_rate_limit(limit_type: str) -> str:
     """
     Get rate limit string for a specific endpoint type.

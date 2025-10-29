@@ -35,7 +35,7 @@ messages:
   18:
     intent: "deeper_wellness_check"
     base_content: "Como seu corpo tem respondido ao tratamento?"
-    message_type: "interactive"
+    message_type: "text"
     core_elements:
       body_awareness: true
       treatment_response: true
@@ -49,21 +49,6 @@ messages:
       - Validando qualquer experiência
       - Focando em mudanças positivas quando possível
       - Oferecendo apoio para desafios
-    interactive_elements:
-      type: "buttons"
-      options:
-        - id: "very_well"
-          title: "Muito bem!"
-        - id: "well"
-          title: "Bem"
-        - id: "some_changes"
-          title: "Algumas mudanças"
-        - id: "adjusting"
-          title: "Ainda me adaptando"
-        - id: "challenges"
-          title: "Alguns desafios"
-        - id: "need_support"
-          title: "Preciso de apoio"
 
   20:
     intent: "lifestyle_integration_challenge"
@@ -94,7 +79,7 @@ messages:
   22:
     intent: "movement_and_energy"
     base_content: "Como está sua energia e disposição para atividades?"
-    message_type: "interactive"
+    message_type: "text"
     core_elements:
       energy_levels: true
       activity_interest: true
@@ -108,22 +93,6 @@ messages:
       - Sem pressão por performance
       - Focando em bem-estar, não exercício
       - Adaptando sugestões ao nível atual
-    interactive_elements:
-      type: "list"
-      header: "Como você se sente para atividades?"
-      options:
-        - id: "energetic"
-          title: "Cheia de energia"
-          description: "Me sinto disposta para várias atividades"
-        - id: "moderate"
-          title: "Energia moderada"
-          description: "Consigo fazer atividades leves"
-        - id: "low_energy"
-          title: "Pouca energia"
-          description: "Prefiro atividades mais tranquilas"
-        - id: "variable"
-          title: "Varia muito"
-          description: "Alguns dias melhor que outros"
 
   24:
     intent: "progress_celebration"
@@ -224,7 +193,7 @@ messages:
   32:
     intent: "nutrition_and_wellness"
     base_content: "Como está sua relação com a alimentação?"
-    message_type: "interactive"
+    message_type: "text"
     core_elements:
       nutrition_focus: true
       relationship_with_food: true

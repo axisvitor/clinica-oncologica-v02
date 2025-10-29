@@ -2,6 +2,7 @@ name: "monthly_comprehensive"
 version: "1.0.0"
 description: "Comprehensive monthly health assessment for hormone therapy patients"
 is_active: true
+category: "monthly_comprehensive"
 
 questions:
   - id: "overall_wellbeing"
@@ -141,7 +142,7 @@ questions:
       importance: "critical"
 
   - id: "side_effects"
-    type: "open_text"
+    type: "text"
     text: "Você tem sentido algum efeito colateral que gostaria de relatar?"
     description: "Descreva qualquer sintoma ou mudança que você acredita estar relacionada ao tratamento"
     required: false
@@ -154,7 +155,7 @@ questions:
       importance: "high"
 
   - id: "lifestyle_changes"
-    type: "open_text"
+    type: "text"
     text: "Houve alguma mudança importante na sua rotina ou estilo de vida neste mês?"
     description: "Mudanças na alimentação, exercícios, trabalho, relacionamentos, etc."
     required: false
@@ -167,7 +168,7 @@ questions:
       importance: "medium"
 
   - id: "concerns_questions"
-    type: "open_text"
+    type: "text"
     text: "Há alguma preocupação ou pergunta que você gostaria de compartilhar com sua equipe médica?"
     required: false
     validation_rules:

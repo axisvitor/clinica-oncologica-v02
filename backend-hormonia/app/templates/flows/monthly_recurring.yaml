@@ -65,7 +65,7 @@ messages:
   8:
     intent: "emotional_wellness_deep_check"
     base_content: "Como está seu coração? Como você tem se sentido emocionalmente?"
-    message_type: "interactive"
+    message_type: "text"
     core_elements:
       emotional_depth: true
       heart_connection: true
@@ -79,21 +79,10 @@ messages:
       - Usando linguagem do coração, não clínica
       - Validando qualquer sentimento compartilhado
       - Oferecendo apoio emocional genuíno
-    interactive_elements:
-      type: "buttons"
-      options:
-        - id: "thriving"
-          title: "Florescendo 🌸"
-        - id: "stable"
-          title: "Estável"
-        - id: "ups_downs"
-          title: "Altos e baixos"
-        - id: "struggling"
-          title: "Lutando"
-        - id: "overwhelmed"
-          title: "Sobrecarregada"
-        - id: "need_talk"
-          title: "Preciso conversar"
+    variations:
+      - "Como você tem se sentido ultimamente?"
+      - "O que tem estado em sua mente e coração?"
+      - "Como você está cuidando de si mesma?"
 
   11:
     intent: "lightness_and_joy_check"
@@ -188,7 +177,7 @@ messages:
   22:
     intent: "preferences_and_comfort_check"
     base_content: "Como posso te apoiar melhor? O que você mais precisa agora?"
-    message_type: "interactive"
+    message_type: "text"
     core_elements:
       preference_inquiry: true
       support_customization: true
