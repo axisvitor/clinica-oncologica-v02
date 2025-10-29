@@ -46,13 +46,11 @@ logger = logging.getLogger(__name__)
 
 
 class RateLimitTier(str, Enum):
-    """Rate limit tiers for different user types."""
+    """Rate limit tiers - aligned with actual system roles."""
 
-    PUBLIC = "public"  # Unauthenticated users
-    AUTHENTICATED = "authenticated"  # Authenticated users
-    PREMIUM = "premium"  # Premium/paid users
-    ADMIN = "admin"  # Admin users
-    SYSTEM = "system"  # System-to-system calls
+    PUBLIC = "public"    # Unauthenticated requests (quiz público, health checks)
+    DOCTOR = "doctor"    # Médicos autenticados
+    ADMIN = "admin"      # Administradores do sistema
 
 
 @dataclass
@@ -416,16 +414,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Default tier configurations
         self.tier_configs = tier_configs or {
             RateLimitTier.PUBLIC: RateLimitConfig(
-                requests=120, window=60, tier=RateLimitTier.PUBLIC  # Aumentado de 60 para 120
+                requests=200, window=60, tier=RateLimitTier.PUBLIC  # Quiz público, health checks
             ),
-            RateLimitTier.AUTHENTICATED: RateLimitConfig(
-                requests=600, window=60, tier=RateLimitTier.AUTHENTICATED  # Aumentado de 300 para 600
-            ),
-            RateLimitTier.PREMIUM: RateLimitConfig(
-                requests=2000, window=60, tier=RateLimitTier.PREMIUM  # Aumentado de 1000 para 2000
+            RateLimitTier.DOCTOR: RateLimitConfig(
+                requests=1000, window=60, tier=RateLimitTier.DOCTOR  # Médicos - operações clínicas
             ),
             RateLimitTier.ADMIN: RateLimitConfig(
-                requests=20000, window=60, tier=RateLimitTier.ADMIN  # Aumentado de 10000 para 20000
+                requests=10000, window=60, tier=RateLimitTier.ADMIN  # Administradores - sem limitação prática
             ),
         }
 

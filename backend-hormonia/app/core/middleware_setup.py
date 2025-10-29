@@ -125,37 +125,9 @@ def setup_middleware(app: FastAPI) -> None:
     app.add_middleware(EnhancedSecurityMiddleware)
     logger.info("Enhanced security middleware added")
 
-    # Distributed rate limiting middleware with Redis backend
-    try:
-        from app.core.redis_client import get_redis_client
-
-        redis_client = get_redis_client()
-
-        app.add_middleware(
-            RateLimitMiddleware,
-            redis=redis_client,
-            default_limit=200,  # Increased for better throughput
-            default_window=60,
-        )
-        logger.info(
-            "✅ Distributed rate limiting middleware added (Redis-backed, sliding window)"
-        )
-    except Exception as e:
-        logger.warning(
-            f"⚠️  Failed to initialize distributed rate limiter with Redis: {e}. "
-            "Falling back to in-memory rate limiting."
-        )
-        # Fallback to enhanced rate limiter without Redis
-        from app.middleware.enhanced_middleware import EnhancedRateLimitMiddleware
-
-        app.add_middleware(
-            EnhancedRateLimitMiddleware,
-            default_limit=200,
-            default_window=60,
-            whitelist_ips=getattr(settings, "RATE_LIMIT_WHITELIST_IPS", []),
-            blacklist_ips=getattr(settings, "RATE_LIMIT_BLACKLIST_IPS", []),
-        )
-        logger.info("Enhanced rate limiting middleware added (in-memory fallback)")
+    # Rate limiting middleware DISABLED per user request
+    # The rate limiter was causing issues for admin operations
+    logger.info("⚠️  Rate limiting middleware DISABLED - removed per admin request")
 
     # Request validation middleware - validates and sanitizes request parameters
     app.add_middleware(RequestValidationMiddleware, max_page_size=100)
