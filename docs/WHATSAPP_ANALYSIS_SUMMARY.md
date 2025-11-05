@@ -228,8 +228,13 @@ PENDING (retry attempt) → loop back to SENDING
 - ⚠️ **Zero production flows** - patient_flow_states table empty (0 rows)
 - ⚠️ **No active messages** - messages table empty (0 rows)
 - ⚠️ **No active alerts** - alerts table empty (0 rows)
-- ⚠️ **Missing templates** - message_templates table empty (0 rows)
+- ℹ️ **Templates configured** - Message templates in Python code & YAML flows (not DB table)
 - ⚠️ **Celery Beat status** - Need verification it's running
+
+**Note on Templates**: The system does NOT use a `message_templates` database table. Instead:
+- Welcome messages: Python functions in `app/templates/whatsapp/welcome_message.py`
+- Flow messages: Embedded in YAML templates stored in `flow_template_versions.steps`
+- Dynamic messages: Created in `flow_messages` table when flows execute
 
 ### Recommendations 🎯
 
@@ -240,7 +245,7 @@ PENDING (retry attempt) → loop back to SENDING
 4. Monitor first 10 messages for delivery confirmation
 
 **Priority 2 (High):**
-1. Configure message templates for common flows
+1. Verify flow templates are loaded (`populate_templates.py` script)
 2. Create dashboard for message monitoring
 3. Set up alert rules for undelivered messages
 4. Document manual DLQ recovery procedures
