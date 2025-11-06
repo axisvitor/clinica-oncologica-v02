@@ -69,7 +69,7 @@ export class MockApiHandler {
     }
 
     // Route to appropriate handler
-    if (pathname.startsWith('/api/v1/patients')) {
+    if (pathname.startsWith('/api/v2/patients')) {
       return this.handlePatientsEndpoint(pathname, searchParams, method, body) as T
     } else if (pathname.startsWith('/api/v1/messages')) {
       return this.handleMessagesEndpoint(pathname, searchParams, method, body) as T
@@ -99,8 +99,8 @@ export class MockApiHandler {
    * Handle patients endpoints
    */
   private handlePatientsEndpoint(pathname: string, params: URLSearchParams, method: string, body?: unknown): unknown {
-    // GET /api/v1/patients - List patients
-    if (pathname === '/api/v1/patients' && method === 'GET') {
+    // GET /api/v2/patients - List patients
+    if (pathname === '/api/v2/patients' && method === 'GET') {
       const search = params.get('search')
       const status = params.get('status')
       const treatmentType = params.get('treatment_type')
@@ -114,8 +114,8 @@ export class MockApiHandler {
       })
     }
 
-    // GET /api/v1/patients/:id - Get patient by ID
-    const patientIdMatch = pathname.match(/^\/api\/v1\/patients\/([^/]+)$/)
+    // GET /api/v2/patients/:id - Get patient by ID
+    const patientIdMatch = pathname.match(/^\/api\/v2\/patients\/([^/]+)$/)
     if (patientIdMatch && method === 'GET') {
       const patientId = patientIdMatch[1]
       if (patientId) {
@@ -125,25 +125,25 @@ export class MockApiHandler {
       return { error: 'Invalid patient ID' }
     }
 
-    // POST /api/v1/patients - Create patient
-    if (pathname === '/api/v1/patients' && method === 'POST') {
+    // POST /api/v2/patients - Create patient
+    if (pathname === '/api/v2/patients' && method === 'POST') {
       const bodyData = (body as Record<string, unknown>) || {}
       return { id: `patient-${Date.now()}`, ...bodyData, created_at: new Date().toISOString() }
     }
 
-    // PUT /api/v1/patients/:id - Update patient
-    if (patientIdMatch && method === 'PUT') {
+    // PATCH /api/v2/patients/:id - Update patient
+    if (patientIdMatch && method === 'PATCH') {
       const bodyData = (body as Record<string, unknown>) || {}
       return { id: patientIdMatch[1], ...bodyData, updated_at: new Date().toISOString() }
     }
 
-    // DELETE /api/v1/patients/:id - Delete patient
+    // DELETE /api/v2/patients/:id - Delete patient
     if (patientIdMatch && method === 'DELETE') {
       return { message: 'Patient deleted successfully' }
     }
 
-    // GET /api/v1/patients/:id/timeline - Get patient timeline
-    const timelineMatch = pathname.match(/^\/api\/v1\/patients\/([^/]+)\/timeline$/)
+    // GET /api/v2/patients/:id/timeline - Get patient timeline
+    const timelineMatch = pathname.match(/^\/api\/v2\/patients\/([^/]+)\/timeline$/)
     if (timelineMatch && method === 'GET') {
       return { items: [], total: 0 }
     }
@@ -246,6 +246,36 @@ export class MockApiHandler {
     if (pathname === '/api/v2/analytics/treatment-distribution') {
       const period = (params.get('period') as '7d' | '30d' | '90d' | 'all') ?? '30d'
       return getMockTreatmentDistribution(period)
+    }
+
+    if (pathname === '/api/v2/analytics/risk-assessment') {
+      return {
+        success: true,
+        risk_level_filter: params.get('risk_level') ?? 'all',
+        lookback_days: Number(params.get('lookback_days') ?? 7),
+        total_patients: 2,
+        generated_at: new Date().toISOString(),
+        risk_assessments: [
+          {
+            id: 'patient-1',
+            patient_id: 'patient-1',
+            name: 'João Silva',
+            risk_level: 'high',
+            risk_factors: ['Sem resposta há 5 dias'],
+            last_response: new Date(Date.now() - 5 * 86400000).toISOString(),
+            recommended_actions: ['Contato telefônico'],
+          },
+          {
+            id: 'patient-2',
+            patient_id: 'patient-2',
+            name: 'Maria Santos',
+            risk_level: 'medium',
+            risk_factors: ['Baixo engajamento'],
+            last_response: new Date(Date.now() - 2 * 86400000).toISOString(),
+            recommended_actions: [],
+          },
+        ],
+      }
     }
 
     return { error: 'Endpoint not found' }

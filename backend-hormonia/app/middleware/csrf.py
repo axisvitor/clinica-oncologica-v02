@@ -35,14 +35,15 @@ Configuration:
 from fastapi import Request
 from fastapi_csrf_protect import CsrfProtect
 from fastapi_csrf_protect.exceptions import CsrfProtectError
-from pydantic import BaseModel, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class CsrfSettings(BaseModel):
+class CsrfSettings(BaseSettings):
     """
     CSRF protection configuration.
 
@@ -93,6 +94,8 @@ class CsrfSettings(BaseModel):
         default=3600,
         description="CSRF token expiration time in seconds (1 hour default)"
     )
+
+    model_config = SettingsConfigDict(extra="ignore")
 
 
 def get_csrf_settings() -> CsrfSettings:

@@ -3,19 +3,23 @@ Patients API v2
 Enhanced patient endpoints with cursor pagination, field selection, and eager loading.
 """
 
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
+from datetime import date, datetime
+from uuid import UUID
 import re
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, func
 
 from app.database import get_db
-from app.models.patient import Patient
+from app.models.patient import Patient, FlowState
 from app.models.user import User, UserRole
 from app.repositories.patient import PatientRepository
 from app.services.flow_engine import FlowEngine
 from app.services.patient import PatientService, PatientIntegrityService
-from app.schemas.patient import PatientCreate
+from app.schemas.patient import PatientCreate, validate_cpf as validate_cpf_value
 from app.schemas.v2.patient import (
     PatientV2Response,
     PatientV2List,
@@ -30,10 +34,72 @@ from .dependencies import (
     create_cursor,
     apply_field_selection,
 )
-from app.dependencies.auth_dependencies import get_current_user_from_session
+from app.dependencies.auth_dependencies import get_current_user_from_session, get_redis_cache
+from app.dependencies import get_patient_service
 from app.utils.rate_limiter import limiter
+from app.utils.unified_cache import invalidate_patient_cache
+from fastapi import Cookie, Header
+import asyncio
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+async def _get_current_user_simple(
+    session_id: str = Cookie(None, alias="session_id"),
+    x_session_id: str = Header(None, alias="X-Session-ID"),
+    db: Session = Depends(get_db),
+    redis_cache = Depends(get_redis_cache)
+):
+    """Simplified session validation without ServiceProvider."""
+    final_session_id = session_id or x_session_id
+    if not final_session_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session ID not provided"
+        )
+    
+    session_data = await redis_cache.get_session(final_session_id)
+    if not session_data:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired session"
+        )
+    
+    firebase_uid = session_data.get("firebase_uid")
+    if not firebase_uid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid session data"
+        )
+    
+    # Get user from cache or DB
+    user_data = await redis_cache.get_user_by_uid(firebase_uid)
+    if not user_data:
+        # Query DB directly
+        user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found"
+            )
+        user_data = {
+            "id": str(user.id),
+            "firebase_uid": user.firebase_uid,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
+            "is_active": user.is_active
+        }
+        await redis_cache.cache_user_data(firebase_uid, user_data, ttl=900)
+    
+    if not user_data.get("is_active", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is inactive"
+        )
+    
+    return user_data
 
 
 def _extract_user_context(current_user) -> Tuple[Optional[UserRole], Optional[str]]:
@@ -129,6 +195,57 @@ def _normalize_phone(phone: Optional[str]) -> Optional[str]:
     return normalized if normalized else None
 
 
+def _serialize_patient(patient) -> Optional[dict]:
+    """Serialize Patient SQLAlchemy model to API-friendly dict."""
+    if patient is None:
+        return None
+
+    flow_state = getattr(patient, "flow_state", None)
+    if isinstance(flow_state, FlowState):
+        flow_state_value = flow_state.value
+    else:
+        flow_state_value = flow_state
+
+    created_at = getattr(patient, "created_at", None)
+    updated_at = getattr(patient, "updated_at", None)
+
+    return {
+        "id": str(getattr(patient, "id")),
+        "name": getattr(patient, "name"),
+        "email": getattr(patient, "email"),
+        "phone": getattr(patient, "phone"),
+        "birth_date": getattr(patient, "birth_date"),
+        "cpf": getattr(patient, "cpf"),
+        "doctor_id": str(getattr(patient, "doctor_id")) if getattr(patient, "doctor_id", None) else None,
+        "treatment_type": getattr(patient, "treatment_type", None),
+        "treatment_start_date": getattr(patient, "treatment_start_date", None),
+        "doctor_notes": getattr(patient, "doctor_notes", None),
+        "diagnosis": getattr(patient, "diagnosis", None),
+        "treatment_phase": getattr(patient, "treatment_phase", None),
+        "current_day": getattr(patient, "current_day", None),
+        "flow_state": flow_state_value,
+        "created_at": created_at,
+        "updated_at": updated_at,
+    }
+
+
+class PatientStatsResponse(BaseModel):
+    total_patients: int
+    active_patients: int
+    inactive_patients: int
+    new_this_month: int
+    by_status: Dict[str, int]
+
+
+class CPFValidationRequest(BaseModel):
+    cpf: str
+
+
+class EmailCheckResponse(BaseModel):
+    email: EmailStr
+    exists: bool
+
+
 @router.get(
     "",
     response_model=PatientV2List,
@@ -142,6 +259,10 @@ async def list_patients(
     fields: Optional[List[str]] = Depends(get_field_selection),
     include: Optional[List[str]] = Depends(get_eager_load_params),
     search: Optional[str] = Query(None, description="Search by name or email"),
+    status_filter: Optional[str] = Query(None, alias="status", description="Filter by patient status/flow state"),
+    treatment_type: Optional[str] = Query(None, description="Filter by treatment type"),
+    start_date_from: Optional[date] = Query(None, description="Filter patients with treatment_start_date on or after this date"),
+    start_date_to: Optional[date] = Query(None, description="Filter patients with treatment_start_date on or before this date"),
 ):
     """
     List patients with cursor-based pagination.
@@ -206,6 +327,33 @@ async def list_patients(
             (Patient.name.ilike(search_filter)) | (Patient.email.ilike(search_filter))
         )
     
+    if status_filter:
+        status_value = status_filter.strip().lower()
+        status_aliases = {
+            "inactive": FlowState.CANCELLED,
+            "canceled": FlowState.CANCELLED,
+            "cancelled": FlowState.CANCELLED,
+        }
+        target_state = status_aliases.get(status_value)
+        if target_state is None:
+            try:
+                target_state = FlowState(status_value)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid status filter. Use active, paused, completed, cancelled or inactive."
+                )
+        filters.append(Patient.flow_state == target_state)
+    
+    if treatment_type:
+        filters.append(Patient.treatment_type.ilike(f"%{treatment_type.strip()}%"))
+    
+    if start_date_from:
+        filters.append(Patient.treatment_start_date >= start_date_from)
+    
+    if start_date_to:
+        filters.append(Patient.treatment_start_date <= start_date_to)
+    
     if filters:
         query = query.filter(and_(*filters))
 
@@ -239,17 +387,7 @@ async def list_patients(
     # Convert to response models
     patient_responses = []
     for patient in patients:
-        patient_dict = {
-            "id": str(patient.id),
-            "name": patient.name,
-            "email": patient.email,
-            "phone": patient.phone,
-            "birth_date": patient.birth_date,
-            "cpf": patient.cpf,
-            "doctor_id": str(patient.doctor_id),
-            "created_at": patient.created_at,
-            "updated_at": patient.updated_at,
-        }
+        patient_dict = _serialize_patient(patient)
         
         # Add eager-loaded relationships
         if include:
@@ -284,6 +422,45 @@ async def list_patients(
         "has_more": has_more,
         "total": total,
     }
+
+
+@router.get(
+    "/search",
+    response_model=List[PatientV2Response],
+    summary="Search patients",
+    description="Search patients by name or email (doctor/admin only)",
+)
+@limiter.limit("120/minute")
+async def search_patients(
+    q: str = Query(..., min_length=1, description="Search term"),
+    limit: int = Query(20, ge=1, le=50),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user_from_session),
+):
+    role_enum, user_id = _extract_user_context(current_user)
+    current_user_uuid = _ensure_uuid(user_id)
+
+    query = db.query(Patient).filter(Patient.deleted_at.is_(None))
+
+    if role_enum != UserRole.ADMIN:
+        if current_user_uuid is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Unable to determine user permissions",
+            )
+        query = query.filter(Patient.doctor_id == current_user_uuid)
+
+    search_filter = f"%{q}%"
+    patients = (
+        query.filter(
+            (Patient.name.ilike(search_filter)) | (Patient.email.ilike(search_filter))
+        )
+        .order_by(Patient.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return [_serialize_patient(patient) for patient in patients]
 
 
 @router.get(
@@ -344,17 +521,7 @@ async def get_patient(
     _ensure_patient_access(current_user, patient.doctor_id)
     
     # Build response
-    patient_dict = {
-        "id": str(patient.id),
-        "name": patient.name,
-        "email": patient.email,
-        "phone": patient.phone,
-        "birth_date": patient.birth_date,
-        "cpf": patient.cpf,
-        "doctor_id": str(patient.doctor_id),
-        "created_at": patient.created_at,
-        "updated_at": patient.updated_at,
-    }
+    patient_dict = _serialize_patient(patient)
     
     # Add eager-loaded relationships
     if include:
@@ -396,7 +563,7 @@ async def create_patient(
     request: Request,
     patient_data: PatientV2Create,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
+    current_user = Depends(_get_current_user_simple),
 ):
     """
     Create a new patient.
@@ -485,12 +652,38 @@ async def create_patient(
     # Use service layer (Saga + welcome WhatsApp + auto flow) for creation
     # Ensure phone matches PatientCreate validator (E.164 starting with '+')
     e164_phone = normalized_phone if (normalized_phone and normalized_phone.startswith('+')) else (f"+{normalized_phone}" if normalized_phone else None)
+    if not e164_phone:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Phone number is required"
+        )
 
+    # Instantiate services directly (thread-safe per-request pattern)
+    patient_repo = PatientRepository(db)
+    integrity_service = PatientIntegrityService(db, patient_repo)
+    flow_engine = FlowEngine(db)
+    
+    # Create SagaOrchestrator using the same DB session to maintain consistency
+    saga_orchestrator = None
+    try:
+        from app.coordination.saga_orchestrator import SagaOrchestrator
+        from app.core.redis_client import get_redis_client
+        from app.integrations.evolution import EvolutionClient
+        
+        saga_orchestrator = SagaOrchestrator(
+            db=db,
+            redis=get_redis_client(),
+            evolution_client=EvolutionClient()
+        )
+    except Exception as e:
+        logger.warning(f"Failed to initialize SagaOrchestrator: {e}. Patient will be created without Saga.")
+    
     service = PatientService(
         db=db,
-        patient_repository=PatientRepository(db),
-        integrity_service=PatientIntegrityService(db, PatientRepository(db)),
-        flow_engine=FlowEngine(db),
+        patient_repository=patient_repo,
+        integrity_service=integrity_service,
+        flow_engine=flow_engine,
+        saga_orchestrator=saga_orchestrator
     )
 
     created = await service.create_patient(
@@ -500,23 +693,18 @@ async def create_patient(
             email=patient_data.email,
             birth_date=patient_data.birth_date,
             cpf=normalized_cpf,
+            treatment_type=patient_data.treatment_type,
+            treatment_start_date=patient_data.treatment_start_date,
+            doctor_notes=patient_data.doctor_notes,
+            diagnosis=patient_data.diagnosis,
+            treatment_phase=patient_data.treatment_phase,
         ),
         doctor_id=doctor_uuid,
         current_user=current_user,
     )
 
     # Return formatted response from created entity
-    return {
-        "id": str(created.id),
-        "name": created.name,
-        "email": created.email,
-        "phone": created.phone,
-        "birth_date": created.birth_date,
-        "cpf": created.cpf,
-        "doctor_id": str(created.doctor_id),
-        "created_at": created.created_at,
-        "updated_at": created.updated_at,
-    }
+    return _serialize_patient(created)
 
 
 @router.patch(
@@ -636,17 +824,85 @@ async def update_patient(
     db.refresh(patient)
     
     # Return formatted response
-    return {
-        "id": str(patient.id),
-        "name": patient.name,
-        "email": patient.email,
-        "phone": patient.phone,
-        "birth_date": patient.birth_date,
-        "cpf": patient.cpf,
-        "doctor_id": str(patient.doctor_id),
-        "created_at": patient.created_at,
-        "updated_at": patient.updated_at,
-    }
+    return _serialize_patient(patient)
+
+
+@router.post(
+    "/{patient_id}/activate",
+    response_model=PatientV2Response,
+    summary="Activate patient flow",
+    description="Set patient flow_state to active (doctor/admin only)",
+)
+@limiter.limit("30/hour")
+async def activate_patient(
+    patient_id: str,
+    current_user = Depends(get_current_user_from_session),
+    patient_service: PatientService = Depends(get_patient_service),
+):
+    patient_uuid = _ensure_uuid(patient_id)
+    if patient_uuid is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid patient ID format",
+        )
+
+    patient = patient_service.repository.get_by_id(patient_uuid)
+    if not patient:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Patient not found",
+        )
+
+    _ensure_patient_access(current_user, patient.doctor_id)
+
+    updated_patient = await patient_service.activate_patient(patient_uuid)
+    if not updated_patient:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to activate patient",
+        )
+
+    invalidate_patient_cache(str(patient_uuid))
+    return _serialize_patient(updated_patient)
+
+
+@router.post(
+    "/{patient_id}/deactivate",
+    response_model=PatientV2Response,
+    summary="Deactivate patient flow",
+    description="Pause/mark patient as inactive (doctor/admin only)",
+)
+@limiter.limit("30/hour")
+async def deactivate_patient(
+    patient_id: str,
+    current_user = Depends(get_current_user_from_session),
+    patient_service: PatientService = Depends(get_patient_service),
+):
+    patient_uuid = _ensure_uuid(patient_id)
+    if patient_uuid is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid patient ID format",
+        )
+
+    patient = patient_service.repository.get_by_id(patient_uuid)
+    if not patient:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Patient not found",
+        )
+
+    _ensure_patient_access(current_user, patient.doctor_id)
+
+    updated_patient = await patient_service.deactivate_patient(patient_uuid)
+    if not updated_patient:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to deactivate patient",
+        )
+
+    invalidate_patient_cache(str(patient_uuid))
+    return _serialize_patient(updated_patient)
 
 
 @router.delete(
@@ -745,6 +1001,140 @@ async def restore_patient(
     db.refresh(patient)
     
     return PatientV2Response.from_orm(patient)
+
+
+@router.get(
+    "/{patient_id}/timeline",
+    summary="Get patient timeline",
+    description="Return a lightweight patient timeline for activity feeds",
+)
+@limiter.limit("60/minute")
+async def get_patient_timeline(
+    patient_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user_from_session),
+):
+    patient_uuid = _ensure_uuid(patient_id)
+    if patient_uuid is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid patient ID format",
+        )
+
+    patient = (
+        db.query(Patient)
+        .filter(Patient.id == patient_uuid, Patient.deleted_at.is_(None))
+        .first()
+    )
+
+    if not patient:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Patient not found",
+        )
+
+    _ensure_patient_access(current_user, patient.doctor_id)
+
+    created_event = {
+        "date": patient.created_at,
+        "event": "patient_created",
+        "details": f"Paciente {patient.name} foi cadastrado",
+        "metadata": {
+            "doctor_id": str(patient.doctor_id) if patient.doctor_id else None,
+            "treatment_type": patient.treatment_type,
+        },
+    }
+
+    return {
+        "patient_id": patient_id,
+        "events": [created_event],
+    }
+
+
+@router.get(
+    "/stats",
+    response_model=PatientStatsResponse,
+    summary="Get patient statistics summary",
+)
+@limiter.limit("30/minute")
+async def get_patient_stats(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user_from_session),
+):
+    role_enum, user_id = _extract_user_context(current_user)
+    current_user_uuid = _ensure_uuid(user_id)
+
+    base_query = db.query(Patient).filter(Patient.deleted_at.is_(None))
+    if role_enum != UserRole.ADMIN:
+        if current_user_uuid is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Unable to determine user permissions",
+            )
+        base_query = base_query.filter(Patient.doctor_id == current_user_uuid)
+
+    total_patients = base_query.count()
+    active_patients = base_query.filter(Patient.flow_state == FlowState.ACTIVE).count()
+    inactive_patients = base_query.filter(Patient.flow_state == FlowState.CANCELLED).count()
+
+    start_of_month = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    new_this_month = base_query.filter(Patient.created_at >= start_of_month).count()
+
+    by_status: Dict[str, int] = {}
+    for state in FlowState:
+        by_status[state.value] = base_query.filter(Patient.flow_state == state).count()
+
+    return PatientStatsResponse(
+        total_patients=total_patients,
+        active_patients=active_patients,
+        inactive_patients=inactive_patients,
+        new_this_month=new_this_month,
+        by_status=by_status,
+    )
+
+
+@router.post(
+    "/validate-cpf",
+    summary="Validate CPF",
+)
+@limiter.limit("60/minute")
+async def validate_cpf_endpoint(payload: CPFValidationRequest):
+    if not payload.cpf:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CPF is required",
+        )
+
+    if not validate_cpf_value(payload.cpf):
+        return {"valid": False, "message": "CPF inválido"}
+
+    normalized = _normalize_cpf(payload.cpf)
+    if normalized and len(normalized) != 11:
+        return {"valid": False, "message": "CPF deve conter 11 dígitos"}
+
+    return {"valid": True}
+
+
+@router.get(
+    "/check-email",
+    response_model=EmailCheckResponse,
+    summary="Check if patient email exists",
+)
+@limiter.limit("60/minute")
+async def check_email_exists(
+    email: EmailStr = Query(..., description="Email to validate"),
+    db: Session = Depends(get_db),
+):
+    exists = (
+        db.query(Patient)
+        .filter(
+            Patient.deleted_at.is_(None),
+            func.lower(Patient.email) == email.lower(),
+        )
+        .first()
+        is not None
+    )
+    return EmailCheckResponse(email=email, exists=exists)
 
 
 @router.get(

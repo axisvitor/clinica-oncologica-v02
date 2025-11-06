@@ -21,6 +21,9 @@ export interface Patient {
   birth_date?: string
   treatment_type?: string
   treatment_start_date?: string
+  doctor_notes?: string
+  diagnosis?: string
+  treatment_phase?: string
   gender?: 'M' | 'F' | 'other'
   address?: {
     street?: string
@@ -43,18 +46,22 @@ export interface Patient {
   updated_at?: string
   doctor_id?: string
   current_day?: number
+  flow_state?: string
 }
 
 export interface PatientCreate {
   name: string
   email?: string
-  phone?: string
+  phone: string
   cpf?: string
   birth_date?: string
   gender?: 'M' | 'F' | 'other'
   address?: Patient['address']
   medical_info?: Patient['medical_info']
-  doctor_id?: string
+  doctor_id: string
+  treatment_type?: string
+  treatment_start_date?: string
+  doctor_notes?: string
 }
 
 export interface PatientUpdate extends Partial<PatientCreate> {
@@ -115,6 +122,24 @@ export interface PatientStats {
   by_doctor?: Record<string, number>
 }
 
+type PatientApiResponse = Patient & { flow_state?: string }
+
+const normalizePatientResponse = (patient: PatientApiResponse): Patient => {
+  if (!patient) {
+    return patient
+  }
+  const flowState = patient.flow_state ?? patient.status
+  const normalizedStatus = (flowState || patient.status || 'active') as Patient['status']
+  return {
+    ...patient,
+    flow_state: flowState,
+    status: normalizedStatus
+  }
+}
+
+const normalizePatientList = (patients: PatientApiResponse[] = []): Patient[] =>
+  patients.map((patient) => normalizePatientResponse(patient))
+
 /**
  * Patients API methods
  */
@@ -155,8 +180,9 @@ export function createPatientsApi(client: ApiClientCore) {
       const res: any = await client.get<any>('/api/v2/patients', query)
 
       // Normalize to keep backward compatibility with components expecting `items`
-      const items = Array.isArray(res?.data) ? res.data : (res?.items ?? [])
-      const total = res?.total ?? res?.total_count ?? 0
+      const rawItems = Array.isArray(res?.data) ? res.data : (res?.items ?? [])
+      const items = normalizePatientList(rawItems as PatientApiResponse[])
+      const total = res?.total ?? res?.total_count ?? items.length ?? 0
       const has_more = res?.has_more ?? (typeof res?.pages === 'number' && page < res.pages)
       const next_cursor = res?.next_cursor ?? null
       const normalized: any = {
@@ -178,21 +204,27 @@ export function createPatientsApi(client: ApiClientCore) {
      * Get patient by ID
      */
     get: async (patientId: string): Promise<Patient> => {
-      return client.get<Patient>(`/api/v2/patients/${patientId}`)
+      const patient = await client.get<PatientApiResponse>(`/api/v2/patients/${patientId}`)
+      return normalizePatientResponse(patient)
     },
 
     /**
      * Create new patient
      */
     create: async (data: PatientCreate): Promise<Patient> => {
-      return client.post<Patient>('/api/v2/patients', data)
+      if (!data?.doctor_id) {
+        throw new Error('doctor_id is required to create a patient')
+      }
+      const patient = await client.post<PatientApiResponse>('/api/v2/patients', data)
+      return normalizePatientResponse(patient)
     },
 
     /**
      * Update patient
      */
     update: async (patientId: string, data: PatientUpdate): Promise<Patient> => {
-      return client.patch<Patient>(`/api/v2/patients/${patientId}`, data)
+      const patient = await client.patch<PatientApiResponse>(`/api/v2/patients/${patientId}`, data)
+      return normalizePatientResponse(patient)
     },
 
     /**
@@ -206,12 +238,14 @@ export function createPatientsApi(client: ApiClientCore) {
       return client.delete<{ message: string }>(`/api/v2/patients/${patientId}`)
     },
 
-    activate: async (patientId: string): Promise<any> => {
-      return client.post(`/api/v1/patients/${patientId}/activate`)
+    activate: async (patientId: string): Promise<Patient> => {
+      const patient = await client.post<PatientApiResponse>(`/api/v2/patients/${patientId}/activate`)
+      return normalizePatientResponse(patient)
     },
 
-    deactivate: async (patientId: string): Promise<any> => {
-      return client.post(`/api/v1/patients/${patientId}/deactivate`)
+    deactivate: async (patientId: string): Promise<Patient> => {
+      const patient = await client.post<PatientApiResponse>(`/api/v2/patients/${patientId}/deactivate`)
+      return normalizePatientResponse(patient)
     },
 
     /**
@@ -225,21 +259,22 @@ export function createPatientsApi(client: ApiClientCore) {
      * Restore archived patient
      */
     restore: async (patientId: string): Promise<Patient> => {
-      return client.patch<Patient>(`/api/v1/patients/${patientId}/restore`)
+      const patient = await client.post<PatientApiResponse>(`/api/v2/patients/${patientId}/restore`)
+      return normalizePatientResponse(patient)
     },
 
     /**
      * Get patient timeline events
      */
-    timeline: async (patientId: string): Promise<{ events: TimelineEvent[]; total?: number }> => {
-      return client.get<{ events: TimelineEvent[]; total?: number }>(`/api/v1/patients/${patientId}/timeline`)
+    timeline: async (patientId: string): Promise<{ patient_id: string; events: TimelineEvent[] }> => {
+      return client.get<{ patient_id: string; events: TimelineEvent[] }>(`/api/v2/patients/${patientId}/timeline`)
     },
 
     /**
      * Search patients
      */
     search: async (query: string): Promise<Patient[]> => {
-      return client.get<Patient[]>('/api/v1/patients/search', { q: query })
+      return client.get<Patient[]>(`/api/v2/patients/search`, { q: query })
     },
 
     /**
@@ -359,7 +394,7 @@ export function createPatientsApi(client: ApiClientCore) {
       start_date?: string
       end_date?: string
     }): Promise<PatientStats> => {
-      return client.get<PatientStats>('/api/v1/patients/stats', filters)
+      return client.get<PatientStats>('/api/v2/patients/stats', filters)
     },
 
     /**
@@ -419,7 +454,7 @@ export function createPatientsApi(client: ApiClientCore) {
      */
     validateCpf: async (cpf: string): Promise<{ valid: boolean; message?: string }> => {
       return client.post<{ valid: boolean; message?: string }>(
-        '/api/v1/patients/validate-cpf',
+        '/api/v2/patients/validate-cpf',
         { cpf }
       )
     },
@@ -428,7 +463,7 @@ export function createPatientsApi(client: ApiClientCore) {
      * Check if email is already registered
      */
     checkEmailExists: async (email: string): Promise<{ exists: boolean }> => {
-      return client.get<{ exists: boolean }>('/api/v1/patients/check-email', { email })
+      return client.get<{ exists: boolean }>('/api/v2/patients/check-email', { email })
     }
   }
 }

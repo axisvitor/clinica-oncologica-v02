@@ -132,8 +132,9 @@ async def readiness_check(
         from app.config import settings
 
         firebase_healthy = bool(
-            settings.FIREBASE_PROJECT_ID and
-            settings.FIREBASE_PRIVATE_KEY_ID
+            getattr(settings, 'FIREBASE_ADMIN_PROJECT_ID', None) and
+            getattr(settings, 'FIREBASE_ADMIN_PRIVATE_KEY', None) and
+            getattr(settings, 'FIREBASE_ADMIN_CLIENT_EMAIL', None)
         )
 
         dependencies["firebase"] = {

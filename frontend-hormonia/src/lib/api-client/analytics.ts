@@ -79,6 +79,25 @@ export interface TreatmentDistribution {
   last_updated: string
 }
 
+export interface PatientRiskAssessment {
+  id: string
+  patient_id: string
+  name?: string | null
+  risk_level: 'low' | 'medium' | 'high' | 'critical'
+  risk_factors: string[]
+  last_response?: string | null
+  recommended_actions: string[]
+}
+
+export interface RiskAssessmentResponse {
+  success: boolean
+  risk_level_filter: string
+  risk_assessments: PatientRiskAssessment[]
+  total_patients: number
+  generated_at: string
+  lookback_days: number
+}
+
 interface AnalyticsOverviewResponse {
   total_patients: number
   total_quizzes: number
@@ -286,6 +305,18 @@ export function createAnalyticsApi(client: ApiClientCore) {
         period: overview.period,
       }
     },
+
+    async riskAssessment(params?: {
+      risk_level?: PatientRiskAssessment['risk_level']
+      limit?: number
+      lookback_days?: number
+    }): Promise<RiskAssessmentResponse> {
+      const query: Record<string, string | number> = {}
+      if (params?.risk_level) query.risk_level = params.risk_level
+      if (params?.limit) query.limit = params.limit
+      if (params?.lookback_days) query.lookback_days = params.lookback_days
+      return client.get<RiskAssessmentResponse>('/api/v2/analytics/risk-assessment', query)
+    }
   }
 }
 

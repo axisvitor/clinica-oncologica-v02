@@ -174,7 +174,7 @@ export const handlers = [
   }),
 
   // Patients endpoints
-  http.get('/api/v1/patients', ({ request }) => {
+  http.get('/api/v2/patients', ({ request }) => {
     const url = new URL(request.url)
     const search = url.searchParams.get('search')
     const status = url.searchParams.get('status')
@@ -211,7 +211,7 @@ export const handlers = [
     })
   }),
 
-  http.get('/api/v1/patients/:id', ({ params }) => {
+  http.get('/api/v2/patients/:id', ({ params }) => {
     const patient = mockPatients.find(p => p.id === params.id)
 
     if (!patient) {
@@ -224,7 +224,7 @@ export const handlers = [
     return HttpResponse.json(patient)
   }),
 
-  http.post('/api/v1/patients', async ({ request }) => {
+  http.post('/api/v2/patients', async ({ request }) => {
     const body = await request.json() as any
 
     // Validate required fields
@@ -256,7 +256,7 @@ export const handlers = [
     return HttpResponse.json(newPatient, { status: 201 })
   }),
 
-  http.put('/api/v1/patients/:id', async ({ params, request }) => {
+  http.patch('/api/v2/patients/:id', async ({ params, request }) => {
     const body = await request.json() as any
     const patientIndex = mockPatients.findIndex(p => p.id === params.id)
 
@@ -276,7 +276,7 @@ export const handlers = [
     return HttpResponse.json(mockPatients[patientIndex])
   }),
 
-  http.delete('/api/v1/patients/:id', ({ params }) => {
+  http.delete('/api/v2/patients/:id', ({ params }) => {
     const patientIndex = mockPatients.findIndex(p => p.id === params.id)
 
     if (patientIndex === -1) {
@@ -291,7 +291,7 @@ export const handlers = [
     return HttpResponse.json({ message: 'Patient deleted successfully' })
   }),
 
-  http.get('/api/v1/patients/:id/timeline', ({ params }) => {
+  http.get('/api/v2/patients/:id/timeline', ({ params }) => {
     return HttpResponse.json([
       {
         id: 'event-1',
@@ -444,6 +444,36 @@ export const handlers = [
     return HttpResponse.json({
       ...mockTreatmentDistribution,
       period
+    })
+  }),
+
+  http.get('/api/v2/analytics/risk-assessment', () => {
+    return HttpResponse.json({
+      success: true,
+      risk_level_filter: 'all',
+      total_patients: 2,
+      generated_at: new Date().toISOString(),
+      lookback_days: 7,
+      risk_assessments: [
+        {
+          id: 'patient-1',
+          patient_id: 'patient-1',
+          name: 'João Silva',
+          risk_level: 'high',
+          risk_factors: ['Sem resposta há 7 dias'],
+          last_response: new Date(Date.now() - 7 * 86400000).toISOString(),
+          recommended_actions: ['Entrar em contato', 'Revisar tratamento']
+        },
+        {
+          id: 'patient-2',
+          patient_id: 'patient-2',
+          name: 'Maria Santos',
+          risk_level: 'medium',
+          risk_factors: ['Baixo engajamento'],
+          last_response: new Date(Date.now() - 3 * 86400000).toISOString(),
+          recommended_actions: []
+        }
+      ]
     })
   }),
 
