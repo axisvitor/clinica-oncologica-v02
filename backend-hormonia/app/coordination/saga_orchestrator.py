@@ -34,8 +34,9 @@ Usage:
 import logging
 import uuid
 import time
+import json
 from typing import Optional, Dict, Any, List, Callable
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from enum import Enum
 from dataclasses import dataclass, field
 
@@ -59,6 +60,35 @@ from app.integrations.evolution import EvolutionClient
 from app.services.idempotent_message_sender import IdempotentMessageSender
 
 logger = logging.getLogger(__name__)
+
+
+def _make_json_serializable(data: Any) -> Any:
+    """
+    Convert data to JSON-serializable format.
+    
+    Handles:
+    - datetime/date objects -> ISO format strings
+    - UUID objects -> strings
+    - Nested dicts and lists recursively
+    
+    Args:
+        data: Data to convert
+        
+    Returns:
+        JSON-serializable version of data
+    """
+    if isinstance(data, (datetime, date)):
+        return data.isoformat()
+    elif isinstance(data, uuid.UUID):
+        return str(data)
+    elif isinstance(data, dict):
+        return {k: _make_json_serializable(v) for k, v in data.items()}
+    elif isinstance(data, (list, tuple)):
+        return [_make_json_serializable(item) for item in data]
+    elif isinstance(data, Enum):
+        return data.value
+    else:
+        return data
 
 
 class SagaStatus(str, Enum):
@@ -285,6 +315,12 @@ class SagaOrchestrator:
                     exc_info=True,
                 )
 
+                # Ensure DB session is clean before next retry/operations
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
+
                 # If max retries exceeded, mark as failed
                 if step.retry_count > step.max_retries:
                     step.status = SagaStepStatus.FAILED
@@ -391,6 +427,12 @@ class SagaOrchestrator:
 
                 await self._persist_saga_state(saga_state)
 
+                # Ensure DB session is clean before compensation operations
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
+
                 # Compensate completed steps in reverse order
                 for j in range(i - 1, -1, -1):
                     completed_step = saga_state.steps[j]
@@ -411,6 +453,14 @@ class SagaOrchestrator:
                 saga_state.updated_at = datetime.utcnow()
 
                 await self._persist_saga_state(saga_state)
+                
+                # Commit compensation changes
+                try:
+                    self.db.commit()
+                    logger.info(f"✅ Saga compensation committed to database: {saga_state.saga_id}")
+                except Exception as e:
+                    logger.error(f"Failed to commit saga compensation: {e}")
+                    self.db.rollback()
 
                 logger.warning(
                     f"⚠️ Saga compensated: {saga_state.saga_type} "
@@ -425,6 +475,15 @@ class SagaOrchestrator:
         saga_state.updated_at = datetime.utcnow()
 
         await self._persist_saga_state(saga_state)
+        
+        # Commit all changes to database
+        try:
+            self.db.commit()
+            logger.info(f"✅ Saga changes committed to database: {saga_state.saga_id}")
+        except Exception as e:
+            logger.error(f"Failed to commit saga changes: {e}")
+            self.db.rollback()
+            raise
 
         logger.info(
             f"✅ Saga completed successfully: {saga_state.saga_type} "
@@ -459,19 +518,38 @@ class SagaOrchestrator:
         """
         saga_id = uuid.uuid4()
 
+        # Prepare patient data dict early for error handling
+        patient_dict = (
+            patient_data.dict(exclude_unset=True)
+            if hasattr(patient_data, "dict")
+            else patient_data
+        )
+        # Preserve UUID type for doctor_id to satisfy ORM
+        patient_dict["doctor_id"] = doctor_id
+
         try:
-            # Convert patient_data to dict
-            patient_dict = (
-                patient_data.dict(exclude_unset=True)
-                if hasattr(patient_data, "dict")
-                else patient_data
-            )
-            patient_dict["doctor_id"] = str(doctor_id)
+            # Optionally generate initial welcome message
+            initial_message_text = None
+            try:
+                from app.config import settings
+                if getattr(settings, "ENABLE_WHATSAPP_ON_REGISTRATION", True) and getattr(settings, "WHATSAPP_WELCOME_MESSAGE_ENABLED", True):
+                    try:
+                        from app.templates.whatsapp.welcome_message import get_welcome_message
+                        initial_message_text = get_welcome_message(
+                            patient_name=patient_dict.get("name"),
+                            clinic_name=getattr(settings, "CLINIC_NAME", "Clínica"),
+                            support_phone=getattr(settings, "CLINIC_SUPPORT_PHONE", None),
+                        )
+                    except Exception:
+                        # Fallback: no initial message if template import fails
+                        initial_message_text = None
+            except Exception:
+                initial_message_text = None
 
             # Execute saga
             saga_state = await self.execute_patient_onboarding(
                 patient_data=patient_dict,
-                initial_message=None,  # Will be sent after creation
+                initial_message=initial_message_text,
                 flow_kind=FlowKind.ONBOARDING,
             )
 
@@ -484,45 +562,96 @@ class SagaOrchestrator:
                     )
 
                     # Persist saga to database
-                    from app.models.patient_onboarding_saga import (
-                        PatientOnboardingSaga as SagaModel,
-                    )
+                    try:
+                        from app.models.patient_onboarding_saga import (
+                            PatientOnboardingSaga as SagaModel,
+                            SagaStatus as ModelSagaStatus,
+                        )
 
-                    saga_record = SagaModel(
-                        id=saga_id,
-                        patient_id=patient_id,
-                        doctor_id=doctor_id,
-                        status="COMPLETED",
-                        current_step=3,  # Step 3 completed
-                        patient_data=saga_state.context.get("patient_data", {}),
-                        execution_log=[],
-                        started_at=saga_state.created_at,
-                        completed_at=saga_state.completed_at,
-                    )
-                    self.db.add(saga_record)
-                    self.db.commit()
+                        logger.info(f"Attempting to persist COMPLETED saga {saga_id} to database...")
+                        
+                        # Determine final step number: 3 if message step included, else 2
+                        final_step = 3 if saga_state.context.get("initial_message") else 2
+                        
+                        # Convert patient_data to JSON-serializable format
+                        patient_data_json = _make_json_serializable(
+                            saga_state.context.get("patient_data", {})
+                        )
+                        
+                        saga_record = SagaModel(
+                            id=saga_id,
+                            patient_id=patient_id,
+                            doctor_id=doctor_id,
+                            status=ModelSagaStatus.COMPLETED,
+                            current_step=final_step,
+                            patient_data=patient_data_json,
+                            execution_log=[],
+                            started_at=saga_state.created_at,
+                            completed_at=saga_state.completed_at,
+                        )
+                        logger.info(f"Saga record created in memory: {saga_record}")
+                        
+                        self.db.add(saga_record)
+                        logger.info("Saga record added to session, committing...")
+                        
+                        self.db.commit()
+                        logger.info(f"✅ Saga record persisted to database: {saga_id}")
+                        
+                    except Exception as persist_error:
+                        logger.error(
+                            f"❌ FAILED to persist COMPLETED saga {saga_id}: {persist_error}",
+                            exc_info=True
+                        )
+                        try:
+                            self.db.rollback()
+                        except Exception:
+                            pass
 
                     return patient
             else:
                 # Saga failed - persist for retry
                 patient_id = saga_state.context.get("patient_id")
-                from app.models.patient_onboarding_saga import (
-                    PatientOnboardingSaga as SagaModel,
-                )
+                try:
+                    from app.models.patient_onboarding_saga import (
+                        PatientOnboardingSaga as SagaModel,
+                        SagaStatus as ModelSagaStatus,
+                    )
 
-                saga_record = SagaModel(
-                    id=saga_id,
-                    patient_id=patient_id,
-                    doctor_id=doctor_id,
-                    status="FAILED",
-                    current_step=saga_state.context.get("last_completed_step", 0),
-                    error_message=saga_state.error,
-                    patient_data=saga_state.context.get("patient_data", {}),
-                    execution_log=[],
-                    started_at=saga_state.created_at,
-                )
-                self.db.add(saga_record)
-                self.db.commit()
+                    logger.warning(f"Attempting to persist FAILED saga {saga_id} to database...")
+                    
+                    # Convert patient_data to JSON-serializable format
+                    patient_data_json = _make_json_serializable(
+                        saga_state.context.get("patient_data", {})
+                    )
+                    
+                    saga_record = SagaModel(
+                        id=saga_id,
+                        patient_id=patient_id,
+                        doctor_id=doctor_id,
+                        status=ModelSagaStatus.FAILED,
+                        current_step=saga_state.context.get("last_completed_step", 0),
+                        error_message=saga_state.error,
+                        patient_data=patient_data_json,
+                        execution_log=[],
+                        started_at=saga_state.created_at,
+                    )
+                    logger.warning(f"Failed saga record created in memory: {saga_record}")
+                    
+                    self.db.add(saga_record)
+                    logger.warning("Failed saga record added to session, committing...")
+                    
+                    self.db.commit()
+                    logger.warning(f"⚠️ Failed Saga record persisted to database: {saga_id}")
+                    
+                except Exception as persist_error:
+                    logger.error(
+                        f"❌ FAILED to persist FAILED saga {saga_id}: {persist_error}",
+                        exc_info=True
+                    )
+                    try:
+                        self.db.rollback()
+                    except Exception:
+                        pass
 
                 # Return patient if at least created
                 if patient_id:
@@ -537,6 +666,37 @@ class SagaOrchestrator:
             logger.error(
                 f"Error in execute_patient_onboarding_saga: {e}", exc_info=True
             )
+            # Try to return existing patient to avoid duplication on fallback
+            try:
+                # Reset session after saga failure to allow queries
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
+                email = patient_dict.get("email") if isinstance(patient_dict, dict) else None
+                phone = patient_dict.get("phone") if isinstance(patient_dict, dict) else None
+                existing = None
+                if email:
+                    existing = (
+                        self.db.query(Patient)
+                        .filter(Patient.email == email)
+                        .first()
+                    )
+                if not existing and phone:
+                    existing = (
+                        self.db.query(Patient)
+                        .filter(Patient.phone == phone)
+                        .first()
+                    )
+                if existing:
+                    logger.warning(
+                        "Saga failed but patient already exists; returning existing record"
+                    )
+                    return existing
+            except Exception as lookup_err:
+                logger.warning(
+                    f"Failed to lookup existing patient after saga error: {lookup_err}"
+                )
             return None
 
     async def resume_saga(self, saga_id: uuid.UUID) -> Dict[str, Any]:
@@ -740,6 +900,31 @@ class SagaOrchestrator:
         patient_data = context["patient_data"]
 
         logger.info(f"Creating patient: {patient_data.get('name')}")
+
+        # Idempotency: if a patient with same email or phone already exists, reuse it
+        try:
+            existing = None
+            email = patient_data.get("email")
+            phone = patient_data.get("phone")
+            if email:
+                existing = (
+                    self.db.query(Patient)
+                    .filter(Patient.email == email)
+                    .first()
+                )
+            if not existing and phone:
+                existing = (
+                    self.db.query(Patient)
+                    .filter(Patient.phone == phone)
+                    .first()
+                )
+            if existing:
+                context["patient_id"] = existing.id
+                context["patient"] = existing
+                logger.info(f"✅ Using existing patient for idempotent saga: {existing.id}")
+                return existing
+        except Exception as e:
+            logger.warning(f"Idempotency check failed, proceeding to create patient: {e}")
 
         # Create patient
         patient = Patient(

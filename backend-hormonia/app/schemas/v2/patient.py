@@ -39,10 +39,15 @@ class PatientV2Base(BaseModel):
     """Base patient schema"""
     
     name: str = Field(..., min_length=1, max_length=200)
-    email: EmailStr
+    email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=20)
     birth_date: Optional[date] = None
     cpf: Optional[str] = Field(None, max_length=14)
+    treatment_type: Optional[str] = Field(None, max_length=150)
+    treatment_start_date: Optional[date] = None
+    doctor_notes: Optional[str] = Field(None, max_length=2000)
+    diagnosis: Optional[str] = Field(None, max_length=500)
+    treatment_phase: Optional[str] = Field(None, max_length=100)
     
     @validator("cpf")
     def validate_cpf(cls, v):
@@ -54,6 +59,7 @@ class PatientV2Base(BaseModel):
 class PatientV2Create(PatientV2Base):
     """Schema for creating a patient"""
     
+    phone: str = Field(..., max_length=20, description="Patient phone number (E.164)")
     doctor_id: str = Field(..., description="Doctor UUID")
     
     class Config:
@@ -64,6 +70,9 @@ class PatientV2Create(PatientV2Base):
                 "phone": "(11) 98765-4321",
                 "birth_date": "1980-05-15T00:00:00Z",
                 "cpf": "123.456.789-00",
+                "treatment_type": "Reposição Hormonal",
+                "treatment_start_date": "2025-01-10",
+                "doctor_notes": "Paciente apresentou boa resposta ao tratamento.",
                 "doctor_id": "123e4567-e89b-12d3-a456-426614174000"
             }
         }
@@ -78,12 +87,19 @@ class PatientV2Update(BaseModel):
     birth_date: Optional[date] = None
     cpf: Optional[str] = Field(None, max_length=14)
     doctor_id: Optional[str] = Field(None, description="Doctor UUID")
+    treatment_type: Optional[str] = Field(None, max_length=150)
+    treatment_start_date: Optional[date] = None
+    doctor_notes: Optional[str] = Field(None, max_length=2000)
+    diagnosis: Optional[str] = Field(None, max_length=500)
+    treatment_phase: Optional[str] = Field(None, max_length=100)
     
     class Config:
         json_schema_extra = {
             "example": {
                 "phone": "(11) 91234-5678",
-                "email": "joao.novo@example.com"
+                "email": "joao.novo@example.com",
+                "treatment_type": "Tratamento Personalizado",
+                "doctor_notes": "Ajuste de dosagem realizado em 12/02."
             }
         }
 
@@ -95,6 +111,8 @@ class PatientV2Response(PatientV2Base):
     doctor_id: str
     created_at: datetime
     updated_at: datetime
+    current_day: Optional[int] = None
+    flow_state: Optional[str] = Field(None, description="Patient flow state/status")
     
     # Optional eager-loaded relationships
     doctor: Optional[DoctorV2Brief] = None
@@ -113,6 +131,11 @@ class PatientV2Response(PatientV2Base):
                 "doctor_id": "223e4567-e89b-12d3-a456-426614174001",
                 "created_at": "2025-01-01T10:00:00Z",
                 "updated_at": "2025-01-15T14:30:00Z",
+                "treatment_type": "Reposição Hormonal",
+                "treatment_start_date": "2025-01-10",
+                "doctor_notes": "Paciente apresentou boa resposta ao tratamento.",
+                "flow_state": "active",
+                "current_day": 12,
                 "doctor": {
                     "id": "223e4567-e89b-12d3-a456-426614174001",
                     "name": "Dr. Maria Santos",

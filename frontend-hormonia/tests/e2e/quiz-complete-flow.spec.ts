@@ -81,7 +81,7 @@ async function createPatient(page: Page) {
   await page.fill('[data-testid="patient-email"]', PATIENT_DATA.email);
 
   await Promise.all([
-    page.waitForResponse(resp => resp.url().includes('/api/v1/patients') && resp.status() === 201),
+    page.waitForResponse(resp => resp.url().includes('/api/v2/patients') && resp.status() === 201),
     page.click('[data-testid="save-patient"]'),
   ]);
 

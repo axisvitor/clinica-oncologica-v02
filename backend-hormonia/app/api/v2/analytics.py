@@ -3,7 +3,7 @@ Analytics API v2
 Enhanced analytics endpoints with caching and aggregation.
 """
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Dict, Any
 import json
 import hashlib
 from fastapi import APIRouter, Depends, Query
@@ -17,6 +17,7 @@ from app.models.quiz import QuizSession
 from app.models.patient import Patient
 from app.models.user import UserRole
 from app.dependencies.auth_dependencies import get_current_user_from_session
+from app.dependencies.service_dependencies import get_flow_analytics_service
 from app.schemas.v2.analytics import (
     AnalyticsOverview,
     QuizStatusDistribution,
@@ -24,6 +25,7 @@ from app.schemas.v2.analytics import (
     PatientEngagement,
     TreatmentDistribution,
 )
+from app.services.flow_analytics import FlowAnalyticsService, RiskLevel, PatientRisk
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -72,6 +74,37 @@ def _get_role_and_user(current_user) -> Tuple[UserRole, Optional[UUID]]:
         user_uuid = None
 
     return role, user_uuid
+
+
+def _serialize_patient_risk(
+    patient_risk: PatientRisk,
+    patient_lookup: Optional[Dict[UUID, Patient]] = None,
+) -> Dict[str, Any]:
+    """Convert PatientRisk objects into JSON-serializable dicts."""
+    if patient_risk is None:
+        return {}
+
+    last_response = (
+        patient_risk.last_response.isoformat() if patient_risk.last_response else None
+    )
+    patient_obj = (
+        patient_lookup.get(patient_risk.patient_id)
+        if patient_lookup and patient_risk.patient_id in patient_lookup
+        else None
+    )
+    patient_name = patient_obj.name if patient_obj else None
+
+    return {
+        "id": str(patient_risk.patient_id),
+        "patient_id": str(patient_risk.patient_id),
+        "name": patient_name,
+        "risk_level": patient_risk.risk_level.value
+        if isinstance(patient_risk.risk_level, RiskLevel)
+        else patient_risk.risk_level,
+        "risk_factors": patient_risk.risk_factors,
+        "last_response": last_response,
+        "recommended_actions": patient_risk.recommended_actions,
+    }
 
 
 def _get_cache_key(endpoint: str, **params) -> str:
@@ -578,7 +611,63 @@ async def get_treatment_distribution(
         logger.info("Result cached successfully")
         
         logger.info(f"Returning result with {result['total_patients']} patients")
-        return result
+    return result
+
+
+@router.get(
+    "/risk-assessment",
+    summary="Get patient risk assessment",
+    description="Identify at-risk patients with recommended actions",
+)
+async def get_risk_assessment(
+    risk_level: Optional[RiskLevel] = Query(None, description="Filter by risk level"),
+    limit: int = Query(50, ge=1, le=200, description="Maximum number of patients"),
+    lookback_days: int = Query(7, ge=1, le=90, description="Days to look back for engagement data"),
+    current_user = Depends(get_current_user_from_session),
+    analytics_service: FlowAnalyticsService = Depends(get_flow_analytics_service),
+    db: Session = Depends(get_db),
+):
+    """
+    Analyze patient interactions to surface at-risk patients along with context.
+    """
+    # Ensure user is authenticated (role used for auditing/logging)
+    _get_role_and_user(current_user)
+
+    at_risk_patients = await analytics_service.identify_at_risk_patients(
+        lookback_days=lookback_days
+    )
+
+    # Filter by requested risk level
+    if risk_level:
+        at_risk_patients = [
+            patient for patient in at_risk_patients if patient.risk_level == risk_level
+        ]
+
+    # Apply limit
+    limited_patients = at_risk_patients[:limit]
+
+    patient_ids = [risk.patient_id for risk in limited_patients]
+    patient_lookup: Dict[UUID, Patient] = {}
+    if patient_ids:
+        db_patients = (
+            db.query(Patient.id, Patient.name)
+            .filter(Patient.id.in_(patient_ids))
+            .all()
+        )
+        patient_lookup = {row.id: row for row in db_patients}
+
+    serialized = [
+        _serialize_patient_risk(patient, patient_lookup) for patient in limited_patients
+    ]
+
+    return {
+        "success": True,
+        "risk_level_filter": risk_level.value if risk_level else "all",
+        "risk_assessments": serialized,
+        "total_patients": len(serialized),
+        "generated_at": datetime.utcnow().isoformat(),
+        "lookback_days": lookback_days,
+    }
     except Exception as e:
         logger.error(f"Error in final steps: {e}")
         raise

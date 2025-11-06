@@ -32,7 +32,6 @@ from app.services.unified_whatsapp_service import UnifiedWhatsAppService, Messag
 from app.services.message import MessageService
 from app.models.message import MessageType
 from app.templates.whatsapp import get_welcome_message
-
 logger = logging.getLogger(__name__)
 
 
@@ -51,9 +50,9 @@ class PatientService:
         self.repository = patient_repository
         self.integrity_service = integrity_service
         self.flow_engine = flow_engine
-        self.saga_orchestrator = saga_orchestrator or SagaOrchestrator(
-            db=db, redis_client=get_redis_client()
-        )
+        # Saga orchestrator is optional - will be None if not provided
+        # This allows creating patients without Saga (direct mode)
+        self.saga_orchestrator = saga_orchestrator
 
     @with_db_retry(max_retries=3)
     async def create_patient(
@@ -87,8 +86,8 @@ class PatientService:
             IntegrityError: If database integrity constraints are violated
         """
         # Use Saga Pattern for robust patient onboarding
-        # Default to True since saga is the recommended approach
-        use_saga = getattr(settings, "ENABLE_SAGA_PATTERN", True)
+        # Only use Saga if orchestrator is available
+        use_saga = self.saga_orchestrator is not None and getattr(settings, "ENABLE_SAGA_PATTERN", True)
 
         if use_saga:
             logger.info(f"Creating patient using Saga Pattern for doctor {doctor_id}")
@@ -110,6 +109,11 @@ class PatientService:
                     logger.warning(
                         "Saga failed, falling back to direct patient creation"
                     )
+                    # Ensure session is clean before fallback
+                    try:
+                        self.db.rollback()
+                    except Exception:
+                        pass
                     return await self._create_patient_direct(
                         patient_data, doctor_id, current_user
                     )
@@ -119,6 +123,10 @@ class PatientService:
                     f"Saga execution failed: {e}, falling back to direct creation"
                 )
                 # Fall back to direct creation if saga fails
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
                 return await self._create_patient_direct(
                     patient_data, doctor_id, current_user
                 )
@@ -192,15 +200,18 @@ class PatientService:
             self.db.rollback()
             raise
 
-        # Publish WebSocket event for new patient
-        await websocket_events.publish_patient_event(
-            event_type=WebSocketEventType.PATIENT_UPDATED,
-            patient_id=patient.id,
-            patient_name=patient.name,
-            doctor_id=doctor_id,
-            changes={"action": "created"},
-            metadata={"treatment_type": patient.treatment_type},
-        )
+        # Publish WebSocket event for new patient (optional)
+        try:
+            await websocket_events.publish_patient_event(
+                event_type=WebSocketEventType.PATIENT_UPDATED,
+                patient_id=patient.id,
+                patient_name=patient.name,
+                doctor_id=doctor_id,
+                changes={"action": "created"},
+                metadata={"treatment_type": patient.treatment_type},
+            )
+        except Exception as e:
+            logger.warning(f"Failed to publish WebSocket event: {e}")
 
         # WHATSAPP INTEGRATION: Send welcome message after patient creation
         if (

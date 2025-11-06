@@ -44,7 +44,7 @@ try {
     
     # 2. Preparar headers da API
     $apiHeaders = @{
-        "Authorization" = "Bearer $firebaseToken"
+        "Authorization" = "Bearer $firebaseToken"  # pragma: allowlist secret - header construído dinamicamente
         "Content-Type" = "application/json"
     }
     

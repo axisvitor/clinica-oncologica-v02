@@ -80,7 +80,7 @@ test.describe('Application Smoke Tests', () => {
       user: { id: '1', email: 'test@example.com', name: 'Test User' }
     });
 
-    await testUtils.mockApiResponse('/api/v1/patients', {
+    await testUtils.mockApiResponse('/api/v2/patients', {
       data: [],
       total: 0,
       page: 1,

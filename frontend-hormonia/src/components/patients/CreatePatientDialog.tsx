@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
 import { LoadingSpinner } from '../ui/loading-spinner'
+import { useAuth } from '@/contexts/AuthContext'
 
 const normalizePhoneNumber = (value: string) => {
   if (!value) return value
@@ -66,6 +67,7 @@ interface CreatePatientDialogProps {
 export function CreatePatientDialog({ open, onOpenChange }: CreatePatientDialogProps) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const { user } = useAuth()
 
   const {
     register,
@@ -80,11 +82,15 @@ export function CreatePatientDialog({ open, onOpenChange }: CreatePatientDialogP
 
   const createPatientMutation = useMutation({
     mutationFn: (data: CreatePatientFormData) => {
+      if (!user?.id) {
+        throw new Error('Não foi possível identificar o médico autenticado. Refaça o login e tente novamente.')
+      }
       // Build payload omitting undefined optional fields (exactOptionalPropertyTypes compliance)
       const cleanData: any = {
         name: data.name,
         phone: data.phone,
-        treatment_type: data.treatment_type
+        treatment_type: data.treatment_type,
+        doctor_id: user.id
       }
 
       // Only include optional fields if they have values

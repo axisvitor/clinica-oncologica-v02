@@ -7,7 +7,7 @@ import { useEffect } from 'react'
 import { apiClient } from '@/lib/api-client'
 
 /**
- * Patient risk assessment structure from /api/v1/patients/at-risk
+ * Patient risk assessment structure from /api/v2/analytics/risk-assessment
  */
 export interface PatientRisk {
   id: string
@@ -17,15 +17,6 @@ export interface PatientRisk {
   sentiment: number
   adherence: number
   alerts: string[]
-}
-
-/**
- * API response wrapper
- */
-interface ApiResponse<T> {
-  data: T
-  message?: string
-  timestamp?: string
 }
 
 /**
@@ -67,10 +58,16 @@ export function useRiskPatients(
   return useQuery<PatientRisk[], Error>({
     queryKey: ['clinical', 'risk-patients'],
     queryFn: async () => {
-      const response = await apiClient.get<ApiResponse<PatientRisk[]>>(
-        '/api/v1/patients/at-risk'
-      )
-      return response.data
+      const response = await apiClient.analytics.riskAssessment()
+      return response.risk_assessments.map((assessment) => ({
+        id: assessment.id,
+        name: assessment.name ?? 'Paciente sem nome',
+        riskLevel: (assessment.risk_level as PatientRisk['riskLevel']) ?? 'low',
+        lastInteraction: assessment.last_response ?? '',
+        sentiment: 0,
+        adherence: 0,
+        alerts: assessment.risk_factors ?? []
+      }))
     },
     staleTime: 60000, // 60 seconds
     refetchInterval,

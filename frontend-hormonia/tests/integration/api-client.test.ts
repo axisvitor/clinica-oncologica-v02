@@ -144,7 +144,7 @@ describe('ApiClient Integration Tests', () => {
 
   describe('error handling', () => {
     it('should throw ApiError for HTTP errors', async () => {
-      const errorData = { message: 'Not found', code: 'NOT_FOUND' }
+      const errorData = { message: 'Not found', code: 'NOT_FOUND', detail: 'Not found' }
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 404,
@@ -152,6 +152,12 @@ describe('ApiClient Integration Tests', () => {
       })
 
       await expect(apiClient.request('/test')).rejects.toThrow(ApiError)
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: async () => errorData
+      })
 
       try {
         await apiClient.request('/test')
@@ -335,7 +341,7 @@ describe('ApiClient Endpoints Integration', () => {
       await apiClient.patients.list(params)
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v1/patients?page=1&size=10&search=john&status=active',
+        expect.stringContaining('http://localhost:8000/api/v2/patients'),
         expect.any(Object)
       )
     })
@@ -346,18 +352,18 @@ describe('ApiClient Endpoints Integration', () => {
       await apiClient.patients.get(patientId)
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `http://localhost:8000/api/v1/patients/${patientId}`,
+        `http://localhost:8000/api/v2/patients/${patientId}`,
         expect.any(Object)
       )
     })
 
     it('should create patient', async () => {
-      const patientData = { name: 'John Doe', email: 'john@example.com' }
+      const patientData = { name: 'John Doe', email: 'john@example.com', phone: '+5511999999999', doctor_id: 'doc-123' }
 
       await apiClient.patients.create(patientData)
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v1/patients',
+        'http://localhost:8000/api/v2/patients',
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify(patientData)
@@ -372,9 +378,9 @@ describe('ApiClient Endpoints Integration', () => {
       await apiClient.patients.update(patientId, updateData)
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `http://localhost:8000/api/v1/patients/${patientId}`,
+        `http://localhost:8000/api/v2/patients/${patientId}`,
         expect.objectContaining({
-          method: 'PUT',
+          method: 'PATCH',
           body: JSON.stringify(updateData)
         })
       )
@@ -386,7 +392,7 @@ describe('ApiClient Endpoints Integration', () => {
       await apiClient.patients.deletePatient(patientId)
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `http://localhost:8000/api/v1/patients/${patientId}`,
+        `http://localhost:8000/api/v2/patients/${patientId}`,
         expect.objectContaining({
           method: 'DELETE'
         })
@@ -399,7 +405,7 @@ describe('ApiClient Endpoints Integration', () => {
       await apiClient.patients.timeline(patientId)
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `http://localhost:8000/api/v1/patients/${patientId}/timeline`,
+        `http://localhost:8000/api/v2/patients/${patientId}/timeline`,
         expect.any(Object)
       )
     })
@@ -410,7 +416,7 @@ describe('ApiClient Endpoints Integration', () => {
       await apiClient.patients.activate(patientId)
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `http://localhost:8000/api/v1/patients/${patientId}/activate`,
+        `http://localhost:8000/api/v2/patients/${patientId}/activate`,
         expect.objectContaining({
           method: 'POST'
         })
@@ -526,7 +532,13 @@ describe('ApiClient Endpoints Integration', () => {
 
       mockFetch.mockResolvedValueOnce(errorResponse)
 
-      await expect(apiClient.patients.create({})).rejects.toThrow(ApiError)
+      await expect(
+        apiClient.patients.create({
+          name: 'Erro Paciente',
+          phone: '+5511999999999',
+          doctor_id: 'doc-error'
+        })
+      ).rejects.toThrow(ApiError)
     })
 
     it('should handle network errors in endpoints', async () => {

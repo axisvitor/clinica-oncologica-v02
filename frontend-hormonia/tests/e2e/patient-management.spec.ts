@@ -156,7 +156,7 @@ test.describe('Patient Management Flow', () => {
 
     test('should handle server errors gracefully', async ({ page }) => {
       // Mock network failure
-      await page.route('**/api/v1/patients', route => {
+      await page.route('**/api/v2/patients', route => {
         route.fulfill({
           status: 500,
           contentType: 'application/json',
