@@ -48,7 +48,8 @@ from .types import (
     FlowMetrics,
 )
 from .config import get_flow_config
-from app.services.template_cache import get_template_cache
+from app.services.unified_cache import UnifiedCacheService
+
 
 logger = logging.getLogger(__name__)
 

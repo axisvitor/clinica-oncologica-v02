@@ -55,6 +55,7 @@ from app.schemas.v2.performance import (
     IndexType,
 )
 from app.utils.logging import get_logger
+from app.services.unified_cache import UnifiedCacheService
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -191,7 +192,7 @@ def _calculate_performance_score(
 def _get_cache_service():
     """Get cache service (analytics cache or unified cache)."""
     try:
-        from app.services.analytics_cache import get_analytics_cache
+        
         return get_analytics_cache()
     except Exception:
         try:
@@ -205,7 +206,7 @@ def _get_cache_service():
 def _get_cache_invalidation_service():
     """Get cache invalidation service."""
     try:
-        from app.services.cache_invalidation import get_cache_invalidation_service
+        
         return get_cache_invalidation_service()
     except Exception as e:
         logger.error(f"Failed to get cache invalidation service: {e}")

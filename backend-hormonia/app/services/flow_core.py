@@ -18,8 +18,9 @@ from app.repositories.patient import PatientRepository
 from app.services.flow_event_broadcaster import flow_event_broadcaster
 from app.services.platform_synchronization import get_platform_sync_service
 from app.services.template_loader import EnhancedTemplateLoader, MessageTemplate
-from app.services.template_cache import get_template_cache
+
 from app.exceptions import NotFoundError, ValidationError
+from app.services.unified_cache import UnifiedCacheService
 
 logger = logging.getLogger(__name__)
 

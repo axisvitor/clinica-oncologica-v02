@@ -11,12 +11,13 @@ from uuid import UUID
 
 from app.database import get_db
 from app.services.enhanced_flow_engine import get_enhanced_flow_engine, EnhancedFlowEngine
-from app.services.template_cache import get_template_cache, TemplateRedisCache
+
 from app.services.flow_template import FlowTemplateService
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.flow import FlowTemplateResponse, FlowTemplateValidationResult
 from app.exceptions import internal_server_exception, flow_operation_exception
+from app.services.unified_cache import UnifiedCacheService
 
 logger = logging.getLogger(__name__)
 

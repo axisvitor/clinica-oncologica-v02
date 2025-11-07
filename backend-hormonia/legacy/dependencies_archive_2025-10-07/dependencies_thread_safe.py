@@ -282,6 +282,7 @@ def get_metrics_redis_storage(services: ThreadSafeServiceProvider = Depends(get_
 # Pagination dependency (unchanged)
 from app.schemas.common import PaginationParams
 from fastapi import Query
+from app.services.unified_cache import UnifiedCacheService
 
 
 def get_pagination_params(
@@ -420,7 +421,7 @@ def verify_patient_access(
 # Enhanced service dependencies for caching and performance (thread-safe)
 async def get_cache_service() -> 'CacheService':
     """Get cache service instance (thread-safe)."""
-    from app.services.cache import CacheService
+    
     return CacheService()
 
 

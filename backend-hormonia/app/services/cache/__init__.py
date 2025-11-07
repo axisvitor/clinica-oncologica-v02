@@ -32,7 +32,7 @@ Public API:
     CacheInvalidator: Cache invalidation utilities
 
 Example:
-    >>> from app.services.cache import CacheService
+    >>> 
     >>>
     >>> # Use base cache service
     >>> cache = CacheService()
@@ -41,13 +41,13 @@ Example:
     >>> result = await cache.get("key", CacheOperation.RESPONSE_GENERATION)
     >>>
     >>> # Use specialized cache
-    >>> from app.services.cache import JWTCache
+    >>> 
     >>> jwt_cache = JWTCache()
     >>> await jwt_cache.initialize()
     >>> await jwt_cache.cache_token("user:123", token_data, ttl=300)
     >>>
     >>> # Use invalidator
-    >>> from app.services.cache import CacheInvalidator
+    >>> 
     >>> invalidator = CacheInvalidator()
     >>> await invalidator.initialize()
     >>> await invalidator.invalidate_pattern("patient:*")
@@ -58,7 +58,7 @@ Date: 20 Jan 2025
 """
 
 # Base cache (from QW-018 - reuse existing implementation)
-from app.services.ai.cache_layer import (
+
     CacheLayer as CacheService,
     CacheOperation,
     CacheStrategy,
@@ -76,6 +76,7 @@ from .specialized.query_cache import QueryCache, get_query_cache
 
 # Invalidation utilities
 from .invalidation.invalidator import (
+from app.services.unified_cache import UnifiedCacheService
     CacheInvalidator,
     InvalidationStrategy,
     InvalidationScope,

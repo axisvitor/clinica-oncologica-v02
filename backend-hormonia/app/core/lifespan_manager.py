@@ -16,6 +16,7 @@ from app.config import settings
 from app.database import get_db
 from app.utils.logging import setup_logging, get_logger
 from app.utils.security import mask_sensitive_url
+from app.services.unified_cache import UnifiedCacheService
 
 
 @asynccontextmanager
@@ -104,7 +105,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize Redis-backed query caching and invalidation
     try:
-        from app.services.cache import init_cache_system
+        
         init_cache_system()
         logger.info("Redis query caching system initialized successfully")
     except Exception as e:

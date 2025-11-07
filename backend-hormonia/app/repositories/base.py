@@ -5,7 +5,8 @@ import logging
 from sqlalchemy.orm import Session
 
 from app.models.base import BaseModel
-from app.services.cache_service import get_cache_service
+from app.services.unified_cache import UnifiedCacheService
+
 
 ModelType = TypeVar("ModelType", bound=BaseModel)
 logger = logging.getLogger(__name__)
