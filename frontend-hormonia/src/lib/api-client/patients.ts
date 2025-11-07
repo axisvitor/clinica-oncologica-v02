@@ -305,12 +305,11 @@ export function createPatientsApi(client: ApiClientCore) {
     },
 
     /**
-     * Export patients to CSV (V1 - no V2 equivalent yet)
-     * TODO: Migrate when V2 export endpoint is available
+     * Export patients to CSV (V2)
      */
     exportToCsv: async (filters?: PatientFilters): Promise<Blob> => {
       const response = await fetch(
-        `${client.getBaseURL()}/api/v1/patients/export?${new URLSearchParams(filters as any)}`,
+        `${client.getBaseURL()}/api/v2/patients/export?${new URLSearchParams(filters as any)}`,
         {
           method: 'GET',
           headers: {
@@ -328,8 +327,7 @@ export function createPatientsApi(client: ApiClientCore) {
     },
 
     /**
-     * Import patients from CSV (V1 - no V2 equivalent yet)
-     * TODO: Migrate when V2 import endpoint is available
+     * Import patients from CSV (V2)
      */
     importFromCsv: async (file: File): Promise<{
       success: number
@@ -340,7 +338,7 @@ export function createPatientsApi(client: ApiClientCore) {
       formData.append('file', file)
 
       const response = await fetch(
-        `${client.getBaseURL()}/api/v1/patients/import`,
+        `${client.getBaseURL()}/api/v2/patients/import`,
         {
           method: 'POST',
           headers: {

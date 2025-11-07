@@ -179,13 +179,16 @@ export class ApiClient extends ApiClientCore {
       resume: (patientId: string) =>
         this.post(`/api/v2/flows/${patientId}/resume`),
 
-      // processResponse still on V1 - no direct V2 equivalent yet
-      // TODO: Migrate when V2 response processing endpoint is available
+      // processResponse migrated to V2
       processResponse: (
         patientId: string,
         responseText: string,
         metadata?: Record<string, any>,
-      ) => this.post("/api/v1/flows/process-response", { patient_id: patientId, response_text: responseText, metadata }),
+      ) => this.post(`/api/v2/flows/${patientId}/process-response`, {
+        response_text: responseText,
+        day: metadata?.day || 1,
+        flow_type: metadata?.flow_type || 'default'
+      }),
 
       getAnalytics: () => this.get("/api/v1/flows/analytics"),
 
@@ -464,22 +467,21 @@ export class ApiClient extends ApiClientCore {
       // Get session by ID (V2)
       getSession: (sessionId: string) => this.get(`/api/v2/quiz/${sessionId}`),
 
-      // Submit response - V1 only (no V2 equivalent for individual question submission)
-      // TODO: Migrate when V2 submission endpoint is available
+      // Submit response - migrated to V2
       submitResponse: (
         sessionId: string,
         questionId: string,
         answer: string,
         responseMetadata?: Record<string, any>,
       ) => {
-        const params: Record<string, string> = {
+        const payload: Record<string, any> = {
           question_id: questionId,
           answer,
         };
         if (responseMetadata) {
-          params["response_metadata"] = JSON.stringify(responseMetadata);
+          payload["response_metadata"] = responseMetadata;
         }
-        return this.post(`/api/v1/quiz/sessions/${sessionId}/submit`, undefined, params);
+        return this.post(`/api/v2/quiz/${sessionId}/submit`, payload);
       },
 
       // List sessions (V2) with cursor pagination; keep backward-compatible shape
@@ -495,22 +497,26 @@ export class ApiClient extends ApiClientCore {
         return { items, total, has_more, next_cursor }
       },
 
-      // Patient responses - V1 only (no V2 endpoint for patient-level quiz responses)
-      // TODO: Migrate when V2 patient quiz responses endpoint is available
-      getPatientResponses: (
+      // Patient responses - migrated to V2 with cursor pagination
+      getPatientResponses: async (
         patientId: string,
         options: Record<string, any> = {},
-      ) => this.get(`/api/v1/patients/${patientId}/quiz-responses`, options),
+      ) => {
+        const { page, size, limit, cursor, ...rest } = options || {};
+        const effLimit = limit ?? size ?? 20;
+        const params: Record<string, any> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...rest };
+        const res: any = await this.get(`/api/v2/quiz/patients/${patientId}/quiz-responses`, params);
+        const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
+        return { items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
+      },
 
-      // Session responses - V1 only (no V2 equivalent)
-      // TODO: Migrate when V2 session responses endpoint is available
+      // Session responses - migrated to V2
       getSessionResponses: (sessionId: string) =>
-        this.get(`/api/v1/quiz/sessions/${sessionId}/responses`),
+        this.get(`/api/v2/quiz/${sessionId}/responses`),
 
-      // Session analysis - V1 only (V2 has /enhanced-quiz/analytics but different format)
-      // TODO: Migrate to /api/v2/enhanced-quiz/analytics when format is compatible
+      // Session analysis - migrated to V2
       getSessionAnalysis: (sessionId: string) =>
-        this.get(`/api/v1/quiz/sessions/${sessionId}/analysis`),
+        this.get(`/api/v2/quiz/${sessionId}/analysis`),
     };
   }
 
@@ -532,11 +538,9 @@ export class ApiClient extends ApiClientCore {
       deleteTemplate: (templateId: string) =>
         this.delete(`/api/v2/templates/quiz/${templateId}`),
 
-      // Analytics available in V2 enhanced-quiz, but different endpoint
-      // Keeping V1 for backward compatibility
-      // TODO: Migrate to /api/v2/enhanced-quiz/analytics when format is compatible
+      // Analytics migrated to V2
       getTemplateAnalytics: (templateId: string) =>
-        this.get(`/api/v1/quiz/templates/${templateId}/analytics`),
+        this.get(`/api/v2/quiz/templates/${templateId}/analytics`),
     };
   }
 
