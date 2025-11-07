@@ -139,7 +139,7 @@ class BuildValidator {
     try {
       // Create a test environment
       const testEnv = {
-        VITE_API_URL: 'http://test-api.local/api/v1',
+        VITE_API_URL: 'http://test-api.local/api/v2',
         VITE_API_BASE_URL: 'http://test-api.local',
         VITE_WEBSOCKET_URL: 'ws://test-ws.local',
         VITE_FIREBASE_PROJECT_ID: 'test-project',

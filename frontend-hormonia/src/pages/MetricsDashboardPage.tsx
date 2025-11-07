@@ -54,7 +54,7 @@ const MetricsDashboardPage: React.FC = () => {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - 30); // Last 30 days
 
-      const response = await fetch('/api/v1/metrics/export', {
+      const response = await fetch('/api/v2/metrics/export', {
         method: 'POST',
         credentials: 'include', // Use httpOnly cookies
         headers: {

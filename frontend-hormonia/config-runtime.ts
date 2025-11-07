@@ -39,7 +39,7 @@ export function getRuntimeConfig(): RuntimeConfig {
 
   // Fallback to build-time environment variables
   const buildTimeConfig: RuntimeConfig = {
-    VITE_API_URL: import.meta.env['VITE_API_URL'] || 'http://localhost:8000/api/v1',
+    VITE_API_URL: import.meta.env['VITE_API_URL'] || 'http://localhost:8000/api/v2',
     VITE_API_BASE_URL: import.meta.env['VITE_API_BASE_URL'] || '',
     VITE_WS_URL: import.meta.env['VITE_WS_URL'] || 'ws://localhost:8000/ws',
     NODE_ENV: import.meta.env['NODE_ENV'] || 'development'

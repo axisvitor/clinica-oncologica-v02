@@ -33,7 +33,7 @@ export async function loadConfig() {
 
           // API Configuration
           // Prefer API base (domain) if provided; otherwise derive from VITE_API_URL
-          API_BASE_URL: runtimeConfig.VITE_API_BASE_URL || (runtimeConfig.VITE_API_URL?.replace(/\/api\/v1$/, '') || runtimeConfig.VITE_API_URL),
+          API_BASE_URL: runtimeConfig.VITE_API_BASE_URL || (runtimeConfig.VITE_API_URL?.replace(/\/api\/v2$/, '') || runtimeConfig.VITE_API_URL),
 
           // WebSocket Configuration
           // Prefer WS base if provided; fallback to WS URL

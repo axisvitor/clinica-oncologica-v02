@@ -118,7 +118,7 @@ export class ApiClient extends ApiClientCore {
         this.post("/api/v2/messages/bulk", data),
 
       // retry endpoint stays on V1 (no V2 equivalent)
-      retry: (messageId: string) => this.post(`/api/v1/messages/${messageId}/retry`),
+      retry: (messageId: string) => this.post(`/api/v2/messages/${messageId}/retry`),
     };
   }
 
@@ -190,14 +190,14 @@ export class ApiClient extends ApiClientCore {
         flow_type: metadata?.flow_type || 'default'
       }),
 
-      getAnalytics: () => this.get("/api/v1/flows/analytics"),
+      getAnalytics: () => this.get("/api/v2/flows/analytics"),
 
       // Templates management
-      getTemplates: () => this.get("/api/v1/flows/templates"),
-      createTemplate: (template: any) => this.post("/api/v1/flows/templates", template),
+      getTemplates: () => this.get("/api/v2/flows/templates"),
+      createTemplate: (template: any) => this.post("/api/v2/flows/templates", template),
       updateTemplate: (templateId: string, data: any) =>
-        this.put(`/api/v1/flows/templates/${templateId}`, data),
-      deleteTemplate: (templateId: string) => this.delete(`/api/v1/flows/templates/${templateId}`),
+        this.put(`/api/v2/flows/templates/${templateId}`, data),
+      deleteTemplate: (templateId: string) => this.delete(`/api/v2/flows/templates/${templateId}`),
     };
   }
 
@@ -229,9 +229,9 @@ export class ApiClient extends ApiClientCore {
       markAllAsRead: () => this.post("/api/v2/alerts/read-all"),
 
       // unread count, acknowledge, resolve not in V2 (use list with filters)
-      getUnreadCount: () => this.get("/api/v1/alerts/unread-count"),
-      acknowledge: (alertId: string) => this.post(`/api/v1/alerts/${alertId}/acknowledge`),
-      resolve: (alertId: string) => this.post(`/api/v1/alerts/${alertId}/resolve`),
+      getUnreadCount: () => this.get("/api/v2/alerts/unread-count"),
+      acknowledge: (alertId: string) => this.post(`/api/v2/alerts/${alertId}/acknowledge`),
+      resolve: (alertId: string) => this.post(`/api/v2/alerts/${alertId}/resolve`),
     };
   }
 
@@ -286,7 +286,7 @@ export class ApiClient extends ApiClientCore {
       }) => this.post("/api/v2/reports/schedule", data),
 
       // getScheduled not in V2 (use list with filter)
-      getScheduled: () => this.get("/api/v1/reports/scheduled"),
+      getScheduled: () => this.get("/api/v2/reports/scheduled"),
     };
   }
 
@@ -320,25 +320,25 @@ export class ApiClient extends ApiClientCore {
 
       // roles/audit/settings remain on V1 (not in V2 user management)
       roles: {
-        list: () => this.get("/api/v1/admin/roles"),
+        list: () => this.get("/api/v2/admin/roles"),
 
-        create: (data: any) => this.post("/api/v1/admin/roles", data),
+        create: (data: any) => this.post("/api/v2/admin/roles", data),
 
-        update: (roleId: string, data: any) => this.put(`/api/v1/admin/roles/${roleId}`, data),
+        update: (roleId: string, data: any) => this.put(`/api/v2/admin/roles/${roleId}`, data),
 
-        delete: (roleId: string) => this.delete(`/api/v1/admin/roles/${roleId}`),
+        delete: (roleId: string) => this.delete(`/api/v2/admin/roles/${roleId}`),
       },
 
       audit: {
         list: (page = 1, size = 20, filters?: any) =>
-          this.get("/api/v1/admin/audit", { page, size, ...filters }),
+          this.get("/api/v2/admin/audit", { page, size, ...filters }),
 
-        get: (auditId: string) => this.get(`/api/v1/admin/audit/${auditId}`),
+        get: (auditId: string) => this.get(`/api/v2/admin/audit/${auditId}`),
 
         export: async (filters?: any) => {
           const queryParams = new URLSearchParams(filters as any);
           const response = await fetch(
-            `${this.getBaseURL()}/api/v1/admin/audit/export?${queryParams}`,
+            `${this.getBaseURL()}/api/v2/admin/audit/export?${queryParams}`,
             {
               method: "GET",
               headers: {
@@ -357,23 +357,23 @@ export class ApiClient extends ApiClientCore {
       },
 
       settings: {
-        get: () => this.get("/api/v1/admin/settings"),
+        get: () => this.get("/api/v2/admin/settings"),
 
-        update: (data: any) => this.put("/api/v1/admin/settings", data),
+        update: (data: any) => this.put("/api/v2/admin/settings", data),
 
-        reset: () => this.post("/api/v1/admin/settings/reset"),
+        reset: () => this.post("/api/v2/admin/settings/reset"),
       },
 
       system: {
-        getHealth: () => this.get("/api/v1/admin/system/health"),
+        getHealth: () => this.get("/api/v2/admin/system/health"),
 
-        getMetrics: () => this.get("/api/v1/admin/system/metrics"),
+        getMetrics: () => this.get("/api/v2/admin/system/metrics"),
 
-        systemStats: () => this.get("/api/v1/admin/system/stats"),
+        systemStats: () => this.get("/api/v2/admin/system/stats"),
 
-        clearCache: () => this.post("/api/v1/admin/system/clear-cache"),
+        clearCache: () => this.post("/api/v2/admin/system/clear-cache"),
 
-        runMaintenance: () => this.post("/api/v1/admin/system/maintenance"),
+        runMaintenance: () => this.post("/api/v2/admin/system/maintenance"),
       },
     };
   }
@@ -382,65 +382,65 @@ export class ApiClient extends ApiClientCore {
     return {
       list: (options: AdminUsersListOptions = {}) => {
         const { page = 1, size = 20, ...filters } = options;
-        return this.get("/api/v1/admin/users", { page, size, ...filters });
+        return this.get("/api/v2/admin/users", { page, size, ...filters });
       },
 
-      get: (userId: string) => this.get(`/api/v1/admin/users/${userId}`),
+      get: (userId: string) => this.get(`/api/v2/admin/users/${userId}`),
 
-      create: (data: any) => this.post("/api/v1/admin/users", data),
+      create: (data: any) => this.post("/api/v2/admin/users", data),
 
-      update: (userId: string, data: any) => this.put(`/api/v1/admin/users/${userId}`, data),
+      update: (userId: string, data: any) => this.put(`/api/v2/admin/users/${userId}`, data),
 
-      delete: (userId: string) => this.delete(`/api/v1/admin/users/${userId}`),
+      delete: (userId: string) => this.delete(`/api/v2/admin/users/${userId}`),
 
-      activate: (userId: string) => this.post(`/api/v1/admin/users/${userId}/activate`),
+      activate: (userId: string) => this.post(`/api/v2/admin/users/${userId}/activate`),
 
-      deactivate: (userId: string) => this.post(`/api/v1/admin/users/${userId}/deactivate`),
+      deactivate: (userId: string) => this.post(`/api/v2/admin/users/${userId}/deactivate`),
 
       updatePermissions: (userId: string, permissions: string[]) =>
-        this.put(`/api/v1/admin/users/${userId}/permissions`, { permissions }),
+        this.put(`/api/v2/admin/users/${userId}/permissions`, { permissions }),
 
       updateRole: (userId: string, role: string) =>
-        this.put(`/api/v1/admin/users/${userId}/role`, { role }),
+        this.put(`/api/v2/admin/users/${userId}/role`, { role }),
 
       getActivity: (userId: string, options: AdminUserActivityOptions = {}) => {
         const { page = 1, size = 20, ...filters } = options;
-        return this.get(`/api/v1/admin/users/${userId}/activity`, { page, size, ...filters });
+        return this.get(`/api/v2/admin/users/${userId}/activity`, { page, size, ...filters });
       },
 
       resetPassword: (userId: string, payload: { new_password: string; force_change: boolean }) =>
-        this.post(`/api/v1/admin/users/${userId}/reset-password`, payload),
+        this.post(`/api/v2/admin/users/${userId}/reset-password`, payload),
 
-      unlock: (userId: string) => this.post(`/api/v1/admin/users/${userId}/unlock`),
+      unlock: (userId: string) => this.post(`/api/v2/admin/users/${userId}/unlock`),
 
-      enable2FA: (userId: string) => this.post(`/api/v1/admin/users/${userId}/2fa/enable`),
+      enable2FA: (userId: string) => this.post(`/api/v2/admin/users/${userId}/2fa/enable`),
 
-      disable2FA: (userId: string) => this.post(`/api/v1/admin/users/${userId}/2fa/disable`),
+      disable2FA: (userId: string) => this.post(`/api/v2/admin/users/${userId}/2fa/disable`),
     };
   }
 
   private createAiApi(): AiApi {
     return {
       chat: (message: string, context?: any) =>
-        this.post("/api/v1/ai/chat", { message, context }),
+        this.post("/api/v2/ai/chat", { message, context }),
 
       analyze: (data: any, analysisType: string) =>
-        this.post("/api/v1/ai/analyze", { data, analysis_type: analysisType }),
+        this.post("/api/v2/ai/analyze", { data, analysis_type: analysisType }),
 
       generateResponse: (patientId: string, messageHistory: any[], intent?: string) =>
-        this.post("/api/v1/ai/generate-response", {
+        this.post("/api/v2/ai/generate-response", {
           patient_id: patientId,
           message_history: messageHistory,
           intent,
         }),
 
-      sentiment: (text: string) => this.post("/api/v1/ai/sentiment", { text }),
+      sentiment: (text: string) => this.post("/api/v2/ai/sentiment", { text }),
 
       insights: (patientId: string, timeframe?: string) =>
-        this.get(`/api/v1/ai/insights/${patientId}`, timeframe ? { timeframe } : undefined),
+        this.get(`/api/v2/ai/insights/${patientId}`, timeframe ? { timeframe } : undefined),
 
       recommendations: (patientId: string) =>
-        this.get(`/api/v1/ai/recommendations/${patientId}`),
+        this.get(`/api/v2/ai/recommendations/${patientId}`),
     };
   }
 
@@ -546,7 +546,7 @@ export class ApiClient extends ApiClientCore {
 
   private createNotificationsApi(): NotificationsApi {
     return {
-      list: () => this.get("/api/v1/auth/notifications"),
+      list: () => this.get("/api/v2/auth/notifications"),
     };
   }
 
@@ -560,7 +560,7 @@ export class ApiClient extends ApiClientCore {
         if (daysLookback) {
           params["days_lookback"] = daysLookback;
         }
-        return this.get("/api/v1/physician/risk-assessments", params);
+        return this.get("/api/v2/physician/risk-assessments", params);
       },
     };
   }

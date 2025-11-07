@@ -11,7 +11,7 @@ from urllib.parse import urlsplit, urlunsplit
 api_base = os.environ.get('VITE_API_BASE_URL', '').strip()
 api_url = os.environ.get('VITE_API_URL', '').strip()
 ws_url = os.environ.get('VITE_WS_BASE_URL', os.environ.get('VITE_WS_URL', '')).strip()
-api_base_path = os.environ.get('VITE_API_BASE_PATH', 'api/v1').strip('/') or 'api/v1'
+api_base_path = os.environ.get('VITE_API_BASE_PATH', 'api/v2').strip('/') or 'api/v2'
 
 # helper functions (same as entrypoint)
 def ensure_scheme(url: str, scheme: str) -> str:

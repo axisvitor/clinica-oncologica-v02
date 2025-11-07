@@ -14,7 +14,7 @@ export function useMedicoDashboardStats(
     queryKey: ['medico', 'dashboard-stats'],
     queryFn: async () => {
       return await apiClient.request<MedicoDashboardStatsResponse>(
-        '/api/v1/medico/dashboard-stats'
+        '/api/v2/medico/dashboard-stats'
       )
     },
     staleTime: 120000, // 2 minutes (match backend cache)

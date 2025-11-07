@@ -67,7 +67,7 @@ export function ConfigProvider({
       // If only VITE_API_URL is available, sanitize it by removing /api/v1 suffix
       const FALLBACK_PROD_API = 'https://clinica-oncologica-v02-production.up.railway.app';
       const apiBaseUrl = runtimeConfig.VITE_API_BASE_URL ||
-                         runtimeConfig.VITE_API_URL?.replace(/\/api\/v1$/, '') ||
+                         runtimeConfig.VITE_API_URL?.replace(/\/api\/v2$/, '') ||
                          FALLBACK_PROD_API;
       logger.info('📡 [ConfigProvider] Step 2: Initializing API client...', { apiBaseUrl });
       apiClient.setBaseURL(apiBaseUrl);

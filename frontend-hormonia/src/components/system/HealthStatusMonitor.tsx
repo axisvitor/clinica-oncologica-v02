@@ -80,7 +80,7 @@ export function HealthStatusMonitor() {
     queryFn: async () => {
       try {
         // Try the health check endpoint first
-        return await apiClient.request<SystemHealth>('/api/v1/health')
+        return await apiClient.request<SystemHealth>('/api/v2/health')
       } catch (healthError) {
         // Fallback to system stats if health endpoint not available
         const stats = await apiClient.admin.system.systemStats()

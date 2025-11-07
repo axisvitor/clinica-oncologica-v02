@@ -68,7 +68,7 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
   // Fetch initial data
   const fetchSummary = useCallback(async () => {
     try {
-      const response = await fetch('/api/v1/metrics/summary', {
+      const response = await fetch('/api/v2/metrics/summary', {
         credentials: 'include' // Use httpOnly cookies
       });
 
@@ -85,7 +85,7 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
 
   const fetchRealTimeMetrics = useCallback(async () => {
     try {
-      const response = await fetch('/api/v1/metrics/realtime', {
+      const response = await fetch('/api/v2/metrics/realtime', {
         credentials: 'include' // Use httpOnly cookies
       });
 
@@ -102,7 +102,7 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
 
   const fetchAlerts = useCallback(async () => {
     try {
-      const response = await fetch('/api/v1/metrics/alerts', {
+      const response = await fetch('/api/v2/metrics/alerts', {
         credentials: 'include' // Use httpOnly cookies
       });
 
@@ -151,7 +151,7 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
 
   const acknowledgeAlert = async (alertId: string) => {
     try {
-      const response = await fetch(`/api/v1/metrics/alerts/${alertId}/acknowledge`, {
+      const response = await fetch(`/api/v2/metrics/alerts/${alertId}/acknowledge`, {
         method: 'POST',
         credentials: 'include', // Use httpOnly cookies
         headers: {

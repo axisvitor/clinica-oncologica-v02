@@ -161,7 +161,7 @@ export function useMonthlyQuiz(): UseMonthlyQuizReturn {
 
     try {
       const response = await apiClient.request<MonthlyQuizAccess>(
-        '/api/v1/monthly-quiz-public/access',
+        '/api/v2/monthly-quiz-public/access',
         {
           method: 'POST',
           body: JSON.stringify({ token })
@@ -187,7 +187,7 @@ export function useMonthlyQuiz(): UseMonthlyQuizReturn {
 
     try {
       const response = await apiClient.request<{ success: boolean; message: string }>(
-        '/api/v1/monthly-quiz-public/submit',
+        '/api/v2/monthly-quiz-public/submit',
         {
           method: 'POST',
           body: JSON.stringify(submitData)

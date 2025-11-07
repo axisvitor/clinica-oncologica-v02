@@ -71,7 +71,7 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${BLUE}Backend API Check${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
 
-check_endpoint "${BACKEND_URL}/api/v1/health" "Backend Health Endpoint"
+check_endpoint "${BACKEND_URL}/api/v2/health" "Backend Health Endpoint"
 BACKEND_STATUS=$?
 
 # Check Frontend
@@ -91,7 +91,7 @@ echo -e "${BLUE}Cross-Origin Check (CORS)${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
 
 echo -e "${BLUE}Checking: CORS Headers${NC}"
-CORS_HEADERS=$(curl -s -I -H "Origin: ${FRONTEND_URL}" "${BACKEND_URL}/api/v1/health" | grep -i "access-control-allow-origin" || echo "")
+CORS_HEADERS=$(curl -s -I -H "Origin: ${FRONTEND_URL}" "${BACKEND_URL}/api/v2/health" | grep -i "access-control-allow-origin" || echo "")
 
 if [ -n "$CORS_HEADERS" ]; then
   echo -e "${GREEN}✅ CORS headers present${NC}"

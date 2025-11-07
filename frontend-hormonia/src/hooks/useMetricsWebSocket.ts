@@ -227,7 +227,7 @@ export function useMetricsWebSocket({
 
       // Build WebSocket URL with Firebase token
       const baseUrl = getWebSocketBaseUrl()
-      const wsUrl = `${baseUrl}/api/v1/metrics/live?token=${firebaseToken}`
+      const wsUrl = `${baseUrl}/api/v2/metrics/live?token=${firebaseToken}`
 
       logger.info('Connecting to metrics WebSocket', { url: baseUrl })
 

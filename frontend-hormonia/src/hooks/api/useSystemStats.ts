@@ -6,7 +6,7 @@ import { useQuery, UseQueryOptions } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 
 /**
- * System statistics response structure from /api/v1/admin/system-stats
+ * System statistics response structure from /api/v2/admin/system-stats
  */
 export interface SystemStats {
   system: {
@@ -52,7 +52,7 @@ export function useSystemStats(
   return useQuery<SystemStats, Error>({
     queryKey: ['admin', 'system-stats'],
     queryFn: async () => {
-      const response = await apiClient.request<SystemStats>('/api/v1/admin/system-stats')
+      const response = await apiClient.request<SystemStats>('/api/v2/admin/system-stats')
       return response
     },
     staleTime: 20000, // Consider data stale after 20s

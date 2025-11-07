@@ -50,7 +50,7 @@ export const MetricsWebSocket = ({
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     // WebSocket connections automatically include cookies
-    return `${protocol}//${host}/api/v1/metrics/live`;
+    return `${protocol}//${host}/api/v2/metrics/live`;
   }, []);
 
   const handleOpen = useCallback(() => {

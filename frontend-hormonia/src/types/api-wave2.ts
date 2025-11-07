@@ -6,7 +6,7 @@
  *
  * Version: 1.0.0
  * Date: 2025-10-06
- * Base URL: https://api.hormonia.com/api/v1
+ * Base URL: https://api.hormonia.com/api/v2
  */
 
 // ============================================================================
@@ -109,7 +109,7 @@ export interface ServiceStatusMetrics {
 }
 
 /**
- * Response schema for GET /api/v1/admin/system-stats
+ * Response schema for GET /api/v2/admin/system-stats
  */
 export interface SystemStatsResponse {
   /** System health and resource metrics */
@@ -232,7 +232,7 @@ export interface RiskAssessmentsSummary {
 }
 
 /**
- * Response schema for GET /api/v1/physician/risk-assessments
+ * Response schema for GET /api/v2/physician/risk-assessments
  */
 export interface RiskAssessmentsResponse {
   /** Individual patient risk assessments */
@@ -337,7 +337,7 @@ export interface PerformanceIndicators {
 }
 
 /**
- * Response schema for GET /api/v1/medico/dashboard-stats
+ * Response schema for GET /api/v2/medico/dashboard-stats
  */
 export interface MedicoDashboardStatsResponse {
   /** Overview metrics */
@@ -613,10 +613,10 @@ export const CACHE_TTL = {
  * API endpoint paths
  */
 export const ENDPOINTS = {
-  SYSTEM_STATS: '/api/v1/admin/system-stats',
+  SYSTEM_STATS: '/api/v2/admin/system-stats',
   TREATMENT_DISTRIBUTION: '/api/v2/analytics/treatment-distribution',
-  RISK_ASSESSMENTS: '/api/v1/physician/risk-assessments',
-  MEDICO_DASHBOARD: '/api/v1/medico/dashboard-stats',
+  RISK_ASSESSMENTS: '/api/v2/physician/risk-assessments',
+  MEDICO_DASHBOARD: '/api/v2/medico/dashboard-stats',
 } as const
 
 // ============================================================================

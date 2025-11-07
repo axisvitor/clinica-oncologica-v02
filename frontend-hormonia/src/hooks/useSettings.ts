@@ -35,7 +35,7 @@ export interface UserPreferences {
 
 // Backend preferences format (flat structure)
 // IMPORTANT: Only includes fields that backend actually supports
-// See backend-hormonia/app/api/v1/auth.py UserPreferences model (lines 31-44)
+// See backend-hormonia/app/api/v2/auth.py UserPreferences model (lines 31-44)
 export interface BackendUserPreferences {
   theme: 'light' | 'dark' | 'system'
   language: string
@@ -147,7 +147,7 @@ function extractFrontendOnlyPreferences(frontend: Partial<UserPreferences>): Par
 const settingsApi = {
   // Profile endpoints
   updateProfile: async (data: Partial<UserProfile>) => {
-    const response = await apiClient.request<UserProfile>('/api/v1/auth/profile', {
+    const response = await apiClient.request<UserProfile>('/api/v2/auth/profile', {
       method: 'PUT',
       body: JSON.stringify(data)
     })
@@ -159,7 +159,7 @@ const settingsApi = {
   changePassword: async (data: PasswordChangeData) => {
     // Note: Backend expects only new_password and handles reauthentication via Firebase
     // The current_password should be used for Firebase reauthentication on the client side
-    const response = await apiClient.request<{ message: string }>('/api/v1/auth/password', {
+    const response = await apiClient.request<{ message: string }>('/api/v2/auth/password', {
       method: 'PUT',
       body: JSON.stringify({
         new_password: data.new_password
@@ -174,7 +174,7 @@ const settingsApi = {
       user_id: string
       preferences: BackendUserPreferences
       updated_at: string
-    }>('/api/v1/users/preferences')
+    }>('/api/v2/users/preferences')
     // Backend returns { user_id, preferences, updated_at } - extract and map preferences
     return mapBackendToFrontend(response.preferences)
   },
@@ -201,7 +201,7 @@ const settingsApi = {
       user_id: string
       preferences: BackendUserPreferences
       updated_at: string
-    }>('/api/v1/users/preferences', {
+    }>('/api/v2/users/preferences', {
       method: 'PATCH',
       body: JSON.stringify(backendData)
     })
@@ -214,7 +214,7 @@ const settingsApi = {
     const formData = new FormData()
     formData.append('file', file) // Backend expects 'file' parameter
 
-    const response = await apiClient.request<{ avatar_url: string }>('/api/v1/auth/avatar', {
+    const response = await apiClient.request<{ avatar_url: string }>('/api/v2/auth/avatar', {
       method: 'POST',
       body: formData
       // Don't set headers - browser will set correct multipart boundary

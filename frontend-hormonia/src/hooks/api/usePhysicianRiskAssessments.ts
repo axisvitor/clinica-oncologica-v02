@@ -35,7 +35,7 @@ export function usePhysicianRiskAssessments(
       params.append('page', page.toString())
       params.append('size', size.toString())
 
-      const endpoint = `/api/v1/physician/risk-assessments?${params}`
+      const endpoint = `/api/v2/physician/risk-assessments?${params}`
       const response = await apiClient.request<RiskAssessmentsResponse>(endpoint)
       return response ?? {
         assessments: [],

@@ -219,7 +219,7 @@ export class ApiClientCore {
 
       try {
         logger.debug("[ApiClient] Initiating CSRF token fetch...");
-        const response = await fetch(`${this.baseURL}/api/v1/csrf-token`, {
+        const response = await fetch(`${this.baseURL}/api/v2/csrf-token`, {
           credentials: "include",
           signal: controller.signal,
         });

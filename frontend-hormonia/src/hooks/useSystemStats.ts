@@ -11,7 +11,7 @@ interface UseSystemStatsOptions {
 }
 
 /**
- * Hook to fetch admin system statistics from /api/v1/admin/system-stats
+ * Hook to fetch admin system statistics from /api/v2/admin/system-stats
  * Maps backend SystemStatsResponse to frontend AdminDashboardStats format
  */
 export function useSystemStats(options: UseSystemStatsOptions = {}) {

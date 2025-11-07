@@ -37,7 +37,7 @@ function AppDebug() {
         let apiConnected = false
         const apiUrl = import.meta.env['VITE_API_BASE_URL'] || 'https://backend-production-e0bd.up.railway.app'
         try {
-          const response = await fetch(`${apiUrl}/api/v1/health`)
+          const response = await fetch(`${apiUrl}/api/v2/health`)
           apiConnected = response.ok
         } catch (e) {
           console.error('API error:', e)

@@ -6,7 +6,7 @@ import { useQuery, UseQueryResult } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 
 /**
- * Clinical metrics response structure from /api/v1/metrics/clinical
+ * Clinical metrics response structure from /api/v2/metrics/clinical
  */
 export interface ClinicalMetrics {
   patientEngagement: number
@@ -59,7 +59,7 @@ export function useClinicalMetrics(
     queryKey: ['clinical', 'metrics', timeRange],
     queryFn: async () => {
       const response = await apiClient.get<ApiResponse<ClinicalMetrics>>(
-        '/api/v1/metrics/clinical',
+        '/api/v2/metrics/clinical',
         { timeRange }
       )
       return response.data
