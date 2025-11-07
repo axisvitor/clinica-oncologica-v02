@@ -102,6 +102,7 @@ class PatientOnboardingSaga(BaseModel):
     retry_count = Column(Integer, nullable=False, default=0)
     max_retries = Column(Integer, nullable=False, default=3)
     next_retry_at = Column(DateTime(timezone=True), nullable=True)
+    last_retry_at = Column(DateTime(timezone=True), nullable=True)
 
     # Data
     patient_data = Column(JSONB, nullable=False)

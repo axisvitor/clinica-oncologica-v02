@@ -12,10 +12,10 @@ from app.models.base import BaseModel
 class PatientFlowState(BaseModel):
     """Patient flow state tracking."""
     __tablename__ = "patient_flow_states"  # Changed to match actual table name
-    
+
     # Patient reference
     patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
-    
+
     # Flow details - using versioned system only
     template_version_id = Column(
         "flow_template_version_id",  # actual column name in database
@@ -24,11 +24,14 @@ class PatientFlowState(BaseModel):
         nullable=False
     )
     current_step = Column(Integer, nullable=True, default=0)
-    
+
+    # Optimistic locking version field for race condition prevention
+    version = Column(Integer, nullable=False, default=0)
+
     # Timing
     started_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
-    
+
     # State-specific data
     state_data = Column("step_data", JSONB, nullable=True, default=dict)
     status = Column(String(50), nullable=True)

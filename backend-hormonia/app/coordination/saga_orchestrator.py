@@ -214,7 +214,7 @@ class SagaOrchestrator:
 
     async def _persist_saga_state(self, saga_state: SagaState) -> None:
         """
-        Persist saga state to Redis.
+        Persist saga state to Redis with graceful degradation.
 
         Args:
             saga_state: Saga state to persist
@@ -232,11 +232,19 @@ class SagaOrchestrator:
             logger.debug(f"Persisted saga state: {saga_state.saga_id}")
 
         except RedisError as e:
-            logger.warning(f"Failed to persist saga state: {e}")
+            # Graceful degradation: Log warning but continue execution
+            logger.warning(
+                f"Redis unavailable for saga state persistence, continuing in degraded mode: {e}"
+            )
+        except Exception as e:
+            # Catch any other errors to prevent saga failure
+            logger.warning(
+                f"Failed to persist saga state (non-critical): {e}"
+            )
 
     async def _load_saga_state(self, saga_id: str) -> Optional[Dict[str, Any]]:
         """
-        Load saga state from Redis.
+        Load saga state from Redis with graceful degradation.
 
         Args:
             saga_id: Saga ID
@@ -259,7 +267,16 @@ class SagaOrchestrator:
             return None
 
         except RedisError as e:
-            logger.warning(f"Failed to load saga state: {e}")
+            # Graceful degradation: Log warning and return None (will fallback to DB)
+            logger.warning(
+                f"Redis unavailable for saga state loading, will use DB fallback: {e}"
+            )
+            return None
+        except Exception as e:
+            # Catch any other errors and fallback gracefully
+            logger.warning(
+                f"Failed to load saga state from Redis, using DB fallback: {e}"
+            )
             return None
 
     async def _execute_step(
@@ -388,9 +405,43 @@ class SagaOrchestrator:
 
         await asyncio.sleep(seconds)
 
-    async def execute_saga(self, saga_state: SagaState) -> SagaState:
+    async def execute_saga(self, saga_state: SagaState, timeout: int = 300) -> SagaState:
         """
         Execute a saga with automatic compensation on failure.
+
+        Args:
+            saga_state: Initial saga state with steps defined
+            timeout: Global timeout in seconds (default: 300 = 5 minutes)
+
+        Returns:
+            Final saga state
+
+        Raises:
+            asyncio.TimeoutError: If saga execution exceeds timeout
+        """
+        import asyncio
+
+        try:
+            # Execute saga with timeout
+            return await asyncio.wait_for(
+                self._execute_saga_internal(saga_state),
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                f"⏱️ Saga execution timeout after {timeout}s: {saga_state.saga_type} "
+                f"(saga_id: {saga_state.saga_id})"
+            )
+            saga_state.status = SagaStatus.FAILED
+            saga_state.error = f"Saga execution timeout after {timeout} seconds"
+            saga_state.completed_at = datetime.utcnow()
+            saga_state.updated_at = datetime.utcnow()
+            await self._persist_saga_state(saga_state)
+            raise
+
+    async def _execute_saga_internal(self, saga_state: SagaState) -> SagaState:
+        """
+        Internal saga execution logic (called by execute_saga with timeout).
 
         Args:
             saga_state: Initial saga state with steps defined
@@ -901,7 +952,20 @@ class SagaOrchestrator:
 
         logger.info(f"Creating patient: {patient_data.get('name')}")
 
-        # Idempotency: if a patient with same email or phone already exists, reuse it
+        # Idempotency Level 1: Check if patient_id already in context (retry scenario)
+        if "patient_id" in context and context.get("patient_id"):
+            try:
+                patient = self.db.query(Patient).filter(
+                    Patient.id == context["patient_id"]
+                ).first()
+                if patient:
+                    context["patient"] = patient
+                    logger.info(f"✅ Reusing patient from context (idempotent retry): {patient.id}")
+                    return patient
+            except Exception as e:
+                logger.warning(f"Failed to retrieve patient from context, continuing: {e}")
+
+        # Idempotency Level 2: if a patient with same email or phone already exists, reuse it
         try:
             existing = None
             email = patient_data.get("email")
@@ -971,6 +1035,24 @@ class SagaOrchestrator:
             self.db.delete(patient)
             self.db.flush()
             logger.info(f"✅ Patient deleted: {patient_id}")
+
+            # Persist compensation to database saga record
+            try:
+                saga_id = context.get("saga_id")
+                if saga_id:
+                    from app.models.patient_onboarding_saga import PatientOnboardingSaga as SagaModel
+                    saga_record = self.db.query(SagaModel).filter(SagaModel.id == saga_id).first()
+                    if saga_record:
+                        saga_record.add_log_entry(
+                            step=1,
+                            action="compensate_delete_patient",
+                            status="compensated",
+                            message=f"Patient {patient_id} deleted successfully"
+                        )
+                        self.db.flush()
+            except Exception as e:
+                logger.warning(f"Failed to log compensation for patient deletion: {e}")
+
             return True
 
         return None
@@ -998,6 +1080,19 @@ class SagaOrchestrator:
 
         logger.info(f"Creating flow state for patient: {patient_id}")
 
+        # Idempotency Level 1: Check if flow_state_id already in context (retry scenario)
+        if "flow_state_id" in context and context.get("flow_state_id"):
+            try:
+                flow_state = self.db.query(PatientFlowState).filter(
+                    PatientFlowState.id == context["flow_state_id"]
+                ).first()
+                if flow_state:
+                    context["flow_state"] = flow_state
+                    logger.info(f"✅ Reusing flow_state from context (idempotent retry): {flow_state.id}")
+                    return flow_state
+            except Exception as e:
+                logger.warning(f"Failed to retrieve flow_state from context, continuing: {e}")
+
         # Get the onboarding flow template version
         # Query for the active onboarding flow template
         from app.models.flow import FlowTemplateVersion, FlowKind as FlowKindModel
@@ -1016,6 +1111,21 @@ class SagaOrchestrator:
 
         if not template_version:
             raise Exception("Active onboarding flow template not found")
+
+        # Idempotency Level 2: Check if flow state already exists for this patient+template
+        try:
+            existing_flow_state = self.db.query(PatientFlowState).filter(
+                PatientFlowState.patient_id == patient_id,
+                PatientFlowState.template_version_id == template_version.id
+            ).first()
+
+            if existing_flow_state:
+                context["flow_state_id"] = existing_flow_state.id
+                context["flow_state"] = existing_flow_state
+                logger.info(f"✅ Reusing existing flow_state (idempotent): {existing_flow_state.id}")
+                return existing_flow_state
+        except Exception as e:
+            logger.warning(f"Idempotency check for flow_state failed, proceeding to create: {e}")
 
         # Create flow state
         flow_state = PatientFlowState(
@@ -1064,6 +1174,24 @@ class SagaOrchestrator:
             self.db.delete(flow_state)
             self.db.flush()
             logger.info(f"✅ Flow state deleted: {flow_state_id}")
+
+            # Persist compensation to database saga record
+            try:
+                saga_id = context.get("saga_id")
+                if saga_id:
+                    from app.models.patient_onboarding_saga import PatientOnboardingSaga as SagaModel
+                    saga_record = self.db.query(SagaModel).filter(SagaModel.id == saga_id).first()
+                    if saga_record:
+                        saga_record.add_log_entry(
+                            step=2,
+                            action="compensate_delete_flow_state",
+                            status="compensated",
+                            message=f"Flow state {flow_state_id} deleted successfully"
+                        )
+                        self.db.flush()
+            except Exception as e:
+                logger.warning(f"Failed to log compensation for flow_state deletion: {e}")
+
             return True
 
         return None
@@ -1142,10 +1270,45 @@ class SagaOrchestrator:
 
             logger.info(f"✅ Cancellation message sent: {message.id}")
 
+            # Persist compensation to database saga record
+            try:
+                saga_id = context.get("saga_id")
+                if saga_id:
+                    from app.models.patient_onboarding_saga import PatientOnboardingSaga as SagaModel
+                    saga_record = self.db.query(SagaModel).filter(SagaModel.id == saga_id).first()
+                    if saga_record:
+                        saga_record.add_log_entry(
+                            step=3,
+                            action="compensate_send_cancellation",
+                            status="compensated",
+                            message=f"Cancellation message {message.id} sent successfully"
+                        )
+                        self.db.flush()
+            except Exception as e:
+                logger.warning(f"Failed to log compensation for cancellation message: {e}")
+
             return message
 
         except Exception as e:
             logger.error(f"Failed to send cancellation message: {e}")
+
+            # Log failed compensation attempt
+            try:
+                saga_id = context.get("saga_id")
+                if saga_id:
+                    from app.models.patient_onboarding_saga import PatientOnboardingSaga as SagaModel
+                    saga_record = self.db.query(SagaModel).filter(SagaModel.id == saga_id).first()
+                    if saga_record:
+                        saga_record.add_log_entry(
+                            step=3,
+                            action="compensate_send_cancellation",
+                            status="failed",
+                            message=f"Failed to send cancellation message: {str(e)}"
+                        )
+                        self.db.flush()
+            except Exception as log_error:
+                logger.warning(f"Failed to log failed compensation: {log_error}")
+
             return None
 
     # ------------------------------------------------------------------------
