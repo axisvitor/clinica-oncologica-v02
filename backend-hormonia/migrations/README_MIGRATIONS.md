@@ -7,7 +7,7 @@ Este diretório contém scripts SQL para alterações de schema do banco de dado
 | Arquivo | Data | Descrição | Status |
 |---------|------|-----------|--------|
 | `002_cleanup_test_data.sql` | - | Limpeza de dados de teste | ✅ Executado |
-| `003_add_gin_indexes_patient_metadata.sql` | 2025-01-15 | Índices GIN para queries JSONB | ⏳ Pendente |
+| `003_add_gin_indexes_patient_metadata.sql` | 2025-01-15 | Índices GIN para queries JSONB | ✅ **PRONTO** (aguardando execução) |
 
 ---
 

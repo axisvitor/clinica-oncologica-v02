@@ -249,7 +249,8 @@ export function createPatientsApi(client: ApiClientCore) {
     },
 
     /**
-     * Archive patient
+     * Archive patient (V1 - no V2 equivalent, use deactivate instead)
+     * @deprecated Use deactivate() for V2 compatibility
      */
     archive: async (patientId: string): Promise<Patient> => {
       return client.patch<Patient>(`/api/v1/patients/${patientId}/archive`)
@@ -278,113 +279,19 @@ export function createPatientsApi(client: ApiClientCore) {
     },
 
     /**
-     * Get patient medical history
+     * REMOVED: Medical History, Appointments, Documents
+     * These methods were defined but never used in any frontend component.
+     * If needed in the future, implement in V2 backend first.
+     *
+     * Removed methods (unused code):
+     * - getMedicalHistory()
+     * - addMedicalHistoryEntry()
+     * - getAppointments()
+     * - scheduleAppointment()
+     * - getDocuments()
+     * - uploadDocument()
+     * - deleteDocument()
      */
-    getMedicalHistory: async (patientId: string): Promise<PatientMedicalHistory> => {
-      return client.get<PatientMedicalHistory>(`/api/v1/patients/${patientId}/medical-history`)
-    },
-
-    /**
-     * Add medical history entry
-     */
-    addMedicalHistoryEntry: async (
-      patientId: string,
-      entry: {
-        type: 'consultation' | 'exam' | 'prescription' | 'note'
-        title: string
-        description?: string
-        date?: string
-      }
-    ): Promise<{ id: string; message: string }> => {
-      return client.post(`/api/v1/patients/${patientId}/medical-history`, entry)
-    },
-
-    /**
-     * Get patient appointments
-     */
-    getAppointments: async (
-      patientId: string,
-      filters?: {
-        status?: PatientAppointment['status']
-        from_date?: string
-        to_date?: string
-      }
-    ): Promise<PatientAppointment[]> => {
-      return client.get<PatientAppointment[]>(
-        `/api/v1/patients/${patientId}/appointments`,
-        filters
-      )
-    },
-
-    /**
-     * Schedule appointment for patient
-     */
-    scheduleAppointment: async (
-      patientId: string,
-      data: {
-        doctor_id: string
-        scheduled_at: string
-        duration_minutes?: number
-        type?: string
-        notes?: string
-      }
-    ): Promise<PatientAppointment> => {
-      return client.post<PatientAppointment>(
-        `/api/v1/patients/${patientId}/appointments`,
-        data
-      )
-    },
-
-    /**
-     * Get patient documents
-     */
-    getDocuments: async (patientId: string): Promise<PatientDocument[]> => {
-      return client.get<PatientDocument[]>(`/api/v1/patients/${patientId}/documents`)
-    },
-
-    /**
-     * Upload document for patient
-     */
-    uploadDocument: async (
-      patientId: string,
-      file: File,
-      metadata?: { name?: string; type?: string }
-    ): Promise<PatientDocument> => {
-      const formData = new FormData()
-      formData.append('file', file)
-      if (metadata?.name) formData.append('name', metadata.name)
-      if (metadata?.type) formData.append('type', metadata.type)
-
-      const response = await fetch(
-        `${client.getBaseURL()}/api/v1/patients/${patientId}/documents`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${client.getAuthToken()}`
-          },
-          credentials: 'include',
-          body: formData
-        }
-      )
-
-      if (!response.ok) {
-        throw new Error('Failed to upload document')
-      }
-
-      return response.json()
-    },
-
-    /**
-     * Delete patient document
-     */
-    deleteDocument: async (
-      patientId: string,
-      documentId: string
-    ): Promise<{ message: string }> => {
-      return client.delete<{ message: string }>(
-        `/api/v1/patients/${patientId}/documents/${documentId}`
-      )
-    },
 
     /**
      * Get patient statistics
@@ -398,7 +305,8 @@ export function createPatientsApi(client: ApiClientCore) {
     },
 
     /**
-     * Export patients to CSV
+     * Export patients to CSV (V1 - no V2 equivalent yet)
+     * TODO: Migrate when V2 export endpoint is available
      */
     exportToCsv: async (filters?: PatientFilters): Promise<Blob> => {
       const response = await fetch(
@@ -420,7 +328,8 @@ export function createPatientsApi(client: ApiClientCore) {
     },
 
     /**
-     * Import patients from CSV
+     * Import patients from CSV (V1 - no V2 equivalent yet)
+     * TODO: Migrate when V2 import endpoint is available
      */
     importFromCsv: async (file: File): Promise<{
       success: number
