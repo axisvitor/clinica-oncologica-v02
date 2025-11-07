@@ -20,6 +20,9 @@ from .enhanced_monitoring import router as enhanced_monitoring_router
 from .enhanced_quiz import router as enhanced_quiz_router
 from .enhanced_reports import router as enhanced_reports_router
 from .alerts import router as alerts_router
+from .templates import router as templates_router
+from .ab_testing import router as ab_testing_router
+from .platform_sync import router as platform_sync_router
 
 api_v2_router = APIRouter(prefix="/api/v2", tags=["v2"])
 
@@ -42,6 +45,11 @@ api_v2_router.include_router(enhanced_monitoring_router, prefix="/monitoring", t
 api_v2_router.include_router(enhanced_quiz_router, prefix="/enhanced-quiz", tags=["enhanced-quiz-v2"])
 api_v2_router.include_router(enhanced_reports_router, prefix="/enhanced-reports", tags=["enhanced-reports-v2"])
 api_v2_router.include_router(alerts_router, prefix="/alerts", tags=["alerts-v2"])
+
+# Phase 6: Templates, A/B Testing, Platform Sync
+api_v2_router.include_router(templates_router, prefix="/templates", tags=["templates-v2"])
+api_v2_router.include_router(ab_testing_router, prefix="/ab-testing", tags=["ab-testing-v2"])
+api_v2_router.include_router(platform_sync_router, prefix="/platform-sync", tags=["platform-sync-v2"])
 
 
 @api_v2_router.get("/health", tags=["health"])
