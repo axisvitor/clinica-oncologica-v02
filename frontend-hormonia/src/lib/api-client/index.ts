@@ -117,54 +117,64 @@ export class ApiClient extends ApiClientCore {
   }
 
   /**
-   * Flows API (inline implementation)
+   * Flows API V2 (migrated from V1)
+   * Backend V2 provides 32 endpoints with enhanced features
    */
   private createFlowsApi(): FlowsApi {
     return {
-      list: (options: Record<string, any> = {}) => this.get("/api/v1/flows", options),
+      // Template Operations (V2: /api/v2/flows/templates)
+      list: (options: Record<string, any> = {}) => this.get("/api/v2/flows/templates", options),
 
-      get: (flowId: string) => this.get(`/api/v1/flows/${flowId}`),
+      get: (flowId: string) => this.get(`/api/v2/flows/templates/${flowId}`),
 
-      create: (data: any) => this.post("/api/v1/flows", data),
+      create: (data: any) => this.post("/api/v2/flows/templates", data),
 
-      update: (flowId: string, data: any) => this.put(`/api/v1/flows/${flowId}`, data),
+      update: (flowId: string, data: any) => this.put(`/api/v2/flows/templates/${flowId}`, data),
 
-      delete: (flowId: string) => this.delete(`/api/v1/flows/${flowId}`),
+      delete: (flowId: string) => this.delete(`/api/v2/flows/templates/${flowId}`),
 
-      activate: (flowId: string) => this.post(`/api/v1/flows/${flowId}/activate`),
+      // V2 doesn't have separate activate/deactivate for templates
+      // Templates are activated when assigned to patients
+      activate: (flowId: string) =>
+        this.put(`/api/v2/flows/templates/${flowId}`, { is_active: true }),
 
-      deactivate: (flowId: string) => this.post(`/api/v1/flows/${flowId}/deactivate`),
+      deactivate: (flowId: string) =>
+        this.put(`/api/v2/flows/templates/${flowId}`, { is_active: false }),
 
-      execute: (flowId: string, data?: any) => this.post(`/api/v1/flows/${flowId}/execute`, data),
+      // Execute not directly available in V2 - use advance instead
+      execute: (flowId: string, data?: any) =>
+        this.post(`/api/v2/flows/${flowId}/advance`, data),
 
-      getExecutions: (flowId: string) => this.get(`/api/v1/flows/${flowId}/executions`),
+      // History endpoint replaces executions
+      getExecutions: (flowId: string) => this.get(`/api/v2/flows/${flowId}/history`),
 
-      getState: (patientId: string) => this.get(`/api/v1/flows/${patientId}/state`),
+      // Flow State Operations (V2: /api/v2/flows/{patient_id}/state)
+      getState: (patientId: string) => this.get(`/api/v2/flows/${patientId}/state`),
 
-      // Compatibility methods used by FlowEngine/TemplateManager
+      // start() removed in V2 - flows are assigned through patient customization
       start: (patientId: string, flowType: string) =>
-        this.post("/api/v1/flows/start", { patient_id: patientId, flow_type: flowType }),
+        this.post(`/api/v2/flows/${patientId}/customize`, {
+          template_id: flowType,
+          schedule_options: { start_immediately: true }
+        }),
 
+      // Flow state control (V2: enhanced with request bodies)
       advance: (patientId: string, day?: number) =>
-        this.post(`/api/v1/flows/${patientId}/advance`, day ? { day } : undefined),
+        this.post(`/api/v2/flows/${patientId}/advance`, {
+          target_day: day,
+          skip_conditions: false
+        }),
 
-      pause: async (patientId: string) => {
-        // If backend endpoint not available yet, fall back to state fetch
-        try {
-          return await this.post(`/api/v1/flows/${patientId}/pause`)
-        } catch {
-          return this.get(`/api/v1/flows/${patientId}/state`)
-        }
-      },
+      pause: (patientId: string) =>
+        this.post(`/api/v2/flows/${patientId}/pause`, {
+          reason: "Manual pause"
+        }),
 
-      resume: async (patientId: string) => {
-        try {
-          return await this.post(`/api/v1/flows/${patientId}/resume`)
-        } catch {
-          return this.get(`/api/v1/flows/${patientId}/state`)
-        }
-      },
+      resume: (patientId: string) =>
+        this.post(`/api/v2/flows/${patientId}/resume`),
 
+      // processResponse still on V1 - no direct V2 equivalent yet
+      // TODO: Migrate when V2 response processing endpoint is available
       processResponse: (
         patientId: string,
         responseText: string,
