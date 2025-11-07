@@ -12,6 +12,8 @@ from .flows import router as flows_router
 from .messages import router as messages_router
 from .reports import router as reports_router
 from .admin import router as admin_router
+from .webhooks import router as webhooks_router
+from .ai import router as ai_router
 
 api_v2_router = APIRouter(prefix="/api/v2", tags=["v2"])
 
@@ -24,6 +26,8 @@ api_v2_router.include_router(flows_router, prefix="/flows", tags=["flows-v2"])
 api_v2_router.include_router(messages_router, prefix="/messages", tags=["messages-v2"])
 api_v2_router.include_router(reports_router, prefix="/reports", tags=["reports-v2"])
 api_v2_router.include_router(admin_router, prefix="/admin", tags=["admin-v2"])
+api_v2_router.include_router(webhooks_router, prefix="/webhooks", tags=["webhooks-v2"])
+api_v2_router.include_router(ai_router, prefix="/ai", tags=["ai-v2"])
 
 
 @api_v2_router.get("/health", tags=["health"])
