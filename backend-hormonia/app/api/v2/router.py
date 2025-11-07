@@ -3,6 +3,8 @@ API v2 Router
 Main router for API v2 endpoints.
 """
 
+import os
+import logging
 from fastapi import APIRouter
 from .patients import router as patients_router
 from .quiz import router as quiz_router
@@ -33,7 +35,11 @@ from .docs import router as docs_router
 from .roles import router as roles_router
 from .system import router as system_router
 from .performance import router as performance_router
+from .health import router as health_router
+from .quiz_extensions import router as quiz_extensions_router
+from .debug import router as debug_router
 
+logger = logging.getLogger(__name__)
 api_v2_router = APIRouter(prefix="/api/v2", tags=["v2"])
 
 # Include sub-routers
@@ -72,22 +78,33 @@ api_v2_router.include_router(docs_router, prefix="/docs", tags=["docs-v2"])
 api_v2_router.include_router(physicians_router, prefix="/physicians", tags=["physicians-v2"])
 api_v2_router.include_router(admin_extensions_router, prefix="/admin-extensions", tags=["admin-extensions-v2"])
 
-# Phase 9: Roles & Permissions, System Management, Performance Monitoring
+# Phase 9: Roles & Permissions, System Management, Performance Monitoring, Quiz Extensions
 api_v2_router.include_router(roles_router, prefix="/roles", tags=["roles-v2"])
 api_v2_router.include_router(system_router, prefix="/system", tags=["system-v2"])
 api_v2_router.include_router(performance_router, prefix="/performance", tags=["performance-v2"])
+api_v2_router.include_router(health_router, tags=["health-v2"])  # Health router has its own /health prefix
+api_v2_router.include_router(quiz_extensions_router, prefix="/quiz-extensions", tags=["quiz-extensions-v2"])
+
+# Phase 9: Debug & Diagnostics (CONDITIONAL - disabled in production by default)
+# ⚠️ SECURITY WARNING: Only register debug endpoints if explicitly enabled
+# NEVER set ENABLE_DEBUG_ENDPOINTS=true in production!
+DEBUG_ENDPOINTS_ENABLED = os.getenv("ENABLE_DEBUG_ENDPOINTS", "false").lower() == "true"
+
+if DEBUG_ENDPOINTS_ENABLED:
+    api_v2_router.include_router(debug_router, prefix="/debug", tags=["debug-v2"])
+    logger.warning(
+        "⚠️  DEBUG ENDPOINTS ENABLED - This should NEVER be enabled in production!\n"
+        "   Debug endpoints provide administrative diagnostic tools with:\n"
+        "   - Environment variable inspection (masked)\n"
+        "   - Database diagnostics and query testing\n"
+        "   - Authentication flow debugging\n"
+        "   - Permission testing and auth simulation\n"
+        "   Set ENABLE_DEBUG_ENDPOINTS=false to disable.\n"
+        "   All debug operations are ADMIN-ONLY and fully audit logged."
+    )
+else:
+    logger.info("Debug endpoints disabled (production mode)")
 
 
-@api_v2_router.get("/health", tags=["health"])
-async def health_check():
-    """
-    Health check endpoint for API v2.
-    
-    Returns:
-        dict: API status and version
-    """
-    return {
-        "status": "healthy",
-        "version": "2.0.0",
-        "api": "v2"
-    }
+# Note: Comprehensive health check endpoints now available at /api/v2/health/*
+# See health router for full health monitoring system
