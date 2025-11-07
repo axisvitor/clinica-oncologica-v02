@@ -18,7 +18,7 @@ from app.services.template_loader import (
 logger = logging.getLogger(__name__)
 
 
-class TemplateManager:
+class MessageTemplateLoader:
     """Manages template loading and fallback generation for flow messages."""
 
     def __init__(self, db: Session, template_loader: Optional[EnhancedTemplateLoader] = None):

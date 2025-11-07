@@ -1,9 +1,12 @@
 """
-Session Manager Module for Monthly Quiz Service.
+Quiz Session Manager Module for Monthly Quiz Service.
 
 Handles quiz session lifecycle, token management, and link operations.
 Responsibilities: Session creation, token generation/verification, link status,
 session state tracking, and patient session queries.
+
+NOTE: Renamed from SessionManager to QuizSessionManager to avoid name collision
+with core.session_manager.SessionManager (database session management).
 """
 import secrets
 import hashlib
@@ -35,8 +38,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class SessionManager:
-    """Manages quiz session lifecycle, tokens, and link operations."""
+class QuizSessionManager:
+    """Manages quiz session lifecycle, tokens, and link operations.
+
+    Renamed from SessionManager to QuizSessionManager to eliminate name
+    collision with core database SessionManager.
+    """
 
     def __init__(self, db: Session):
         self.db = db
