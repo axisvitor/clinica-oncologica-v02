@@ -17,9 +17,10 @@ import { useToast } from "@/hooks/use-toast"
 interface QuizInterfaceProps {
   session: QuizSession
   onComplete?: () => void
+  resumeFromSaved?: boolean
 }
 
-export default function QuizInterface({ session, onComplete }: QuizInterfaceProps) {
+export default function QuizInterface({ session, onComplete, resumeFromSaved = false }: QuizInterfaceProps) {
   const { toast } = useToast()
   const {
     currentQuestionIndex,
@@ -37,7 +38,7 @@ export default function QuizInterface({ session, onComplete }: QuizInterfaceProp
     setAnswers,
     setOtherTexts,
     handleSubmitAnswer
-  } = useQuizState({ session, onComplete })
+  } = useQuizState({ session, onComplete, resumeFromSaved })
 
   // Reset selected answer when question changes
   useEffect(() => {

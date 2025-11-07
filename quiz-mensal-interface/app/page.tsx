@@ -8,13 +8,20 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { AlertCircle, RefreshCcw } from "lucide-react"
 import { ErrorBoundary } from "@/components/error/ErrorBoundary"
+import { ResumeQuizDialog } from "@/components/quiz/ResumeQuizDialog"
+import { loadQuizProgress, clearQuizProgress, cleanupOldProgress, type QuizProgress } from "@/lib/quiz-progress-storage"
 
 export default function Home() {
   const [quizSession, setQuizSession] = useState<QuizSession | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<QuizError | null>(null)
+  const [savedProgress, setSavedProgress] = useState<QuizProgress | null>(null)
+  const [showResumeDialog, setShowResumeDialog] = useState(false)
+  const [shouldResume, setShouldResume] = useState(false)
 
   useEffect(() => {
+    // Cleanup old progress data on mount
+    cleanupOldProgress()
     initializeQuiz()
   }, [])
 
@@ -66,6 +73,14 @@ export default function Home() {
         })
         setIsLoading(false)
         return
+      }
+
+      // Check for saved progress
+      const progress = loadQuizProgress(session.quiz_session_id)
+      if (progress && progress.currentQuestionIndex < session.total_questions) {
+        // Found saved progress - show resume dialog
+        setSavedProgress(progress)
+        setShowResumeDialog(true)
       }
 
       // Session is now stored in httpOnly cookie - no token in JavaScript!
@@ -130,13 +145,33 @@ export default function Home() {
     )
   }
 
+  const handleResume = () => {
+    setShouldResume(true)
+    setShowResumeDialog(false)
+  }
+
+  const handleStartFresh = () => {
+    if (quizSession) {
+      clearQuizProgress(quizSession.quiz_session_id)
+    }
+    setShouldResume(false)
+    setShowResumeDialog(false)
+  }
+
   // Success state - show quiz
   if (quizSession) {
     return (
       <ErrorBoundary>
         <main className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20">
+          <ResumeQuizDialog
+            open={showResumeDialog}
+            progress={savedProgress}
+            onResume={handleResume}
+            onStartFresh={handleStartFresh}
+          />
           <QuizInterface
             session={quizSession}
+            resumeFromSaved={shouldResume}
             onComplete={() => {
               // Quiz completed - could redirect or show completion message
               console.log("Quiz completed successfully!")
