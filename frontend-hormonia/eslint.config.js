@@ -50,6 +50,11 @@ export default tseslint.config(
       "no-alert": "error",
       "prefer-const": "error",
       "no-var": "error",
+
+      // Code quality rules - file size and complexity limits
+      "max-lines": ["warn", { max: 300, skipBlankLines: true, skipComments: true }],
+      "max-lines-per-function": ["warn", { max: 50, skipBlankLines: true, skipComments: true }],
+      "complexity": ["warn", 10],
     },
   },
   {
