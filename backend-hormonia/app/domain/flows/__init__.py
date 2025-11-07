@@ -68,6 +68,12 @@ from .error_handling import (
     FallbackRecoveryStrategy
 )
 
+# Data Integrity (Phase 3 - NEW)
+from .integrity import FlowDataIntegrityChecker, get_flow_data_integrity_checker
+
+# Event Broadcasting (Phase 3 - NEW)
+from .events import FlowEventBroadcaster
+
 
 __all__ = [
     # Main orchestrator
@@ -115,6 +121,13 @@ __all__ = [
     'RecoveryStrategy',
     'RetryRecoveryStrategy',
     'FallbackRecoveryStrategy',
+
+    # Data Integrity (Phase 3)
+    'FlowDataIntegrityChecker',
+    'get_flow_data_integrity_checker',
+
+    # Event Broadcasting (Phase 3)
+    'FlowEventBroadcaster',
 ]
 
 
