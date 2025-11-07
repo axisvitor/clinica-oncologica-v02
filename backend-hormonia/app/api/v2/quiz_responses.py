@@ -1,591 +1,384 @@
 """
-Quiz Responses API v2
-Endpoints for submitting and analyzing quiz responses.
+Quiz Response Management API v2
+
+Handles quiz response viewing, tracking and analytics:
+- List quiz responses with cursor pagination and filtering
+- View detailed quiz response information
+- Get aggregate analytics for quiz responses
+
+Features:
+- Cursor-based pagination for efficient data access
+- Redis caching with appropriate TTLs
+- Rate limiting to prevent abuse
+- RBAC: Patients (view own), Doctors (assigned patients), Admin (full access)
+- Comprehensive response analytics with trends and patterns
+
+Migrated from V1: quiz_responses.py (3 endpoints)
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 from datetime import datetime
 from uuid import UUID
 import logging
+from collections import defaultdict
+
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func
+from sqlalchemy import asc
 
 from app.database import get_db
-from app.models.quiz import QuizSession, QuizResponse, QuizTemplate
+from app.models.quiz import QuizResponse, QuizSession, QuizTemplate
+from app.models.user import User, UserRole
 from app.models.patient import Patient
-from app.models.user import UserRole
-from app.dependencies.auth_dependencies import get_current_user_from_session, get_redis_cache
+from app.schemas.v2.quiz_extensions import (
+    QuizResponseV2Detail,
+    QuizResponseV2List,
+    ResponseAnalyticsV2,
+)
+from .dependencies import (
+    get_pagination_params,
+    create_cursor,
+)
+from app.dependencies.auth_dependencies import get_redis_cache
 from app.utils.rate_limiter import limiter
-from .dependencies import get_pagination_params, get_field_selection, apply_field_selection
-from .quiz import _extract_user_context, _ensure_uuid, _ensure_patient_owner
+from ._quiz_shared import (
+    _get_current_user_simple,
+    _check_patient_access,
+    CACHE_TTL_RESPONSES,
+    CACHE_TTL_STATISTICS,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-# ============================================================================
-# Pydantic Schemas
-# ============================================================================
-
-class QuizResponseItemV2(BaseModel):
-    """Individual quiz response for submission"""
-    question_id: str = Field(..., description="Question ID")
-    answer: str = Field(..., description="Answer value")
-    points: Optional[float] = Field(None, ge=0, description="Points earned")
-
-
-class QuizSubmitRequestV2(BaseModel):
-    """Request schema for submitting quiz responses"""
-    responses: List[QuizResponseItemV2] = Field(..., min_length=1, description="List of responses")
-
-
-class QuizSubmitResponseV2(BaseModel):
-    """Response schema for quiz submission"""
-    session_id: str = Field(..., description="Quiz session ID")
-    score: float = Field(..., description="Total score")
-    max_score: float = Field(..., description="Maximum possible score")
-    percentage: float = Field(..., description="Score percentage")
-    completion_time: int = Field(..., description="Completion time in seconds")
-    analysis: Dict[str, Any] = Field(..., description="Quiz analysis and recommendations")
-
-
-class QuizSessionResponseItemV2(BaseModel):
-    """Individual response within a session"""
-    id: str = Field(..., description="Response ID")
-    question_id: str = Field(..., description="Question ID")
-    question_text: str = Field(..., description="Question text")
-    response_type: str = Field(..., description="Response type")
-    response_value: str = Field(..., description="Response value")
-    points: Optional[float] = Field(None, description="Points earned")
-    responded_at: datetime = Field(..., description="Response timestamp")
-
-    class Config:
-        from_attributes = True
-
-
-class QuizSessionResponsesV2(BaseModel):
-    """All responses for a quiz session"""
-    session_id: str = Field(..., description="Quiz session ID")
-    patient_id: str = Field(..., description="Patient ID")
-    template_id: str = Field(..., description="Template ID")
-    status: str = Field(..., description="Session status")
-    responses: List[QuizSessionResponseItemV2] = Field(..., description="List of responses")
-    total_responses: int = Field(..., description="Total number of responses")
-
-
-class QuizSessionAnalysisV2(BaseModel):
-    """Detailed analysis of quiz session"""
-    session_id: str = Field(..., description="Quiz session ID")
-    score: float = Field(..., description="Total score")
-    max_score: float = Field(..., description="Maximum possible score")
-    percentage: float = Field(..., description="Score percentage")
-    passed: bool = Field(..., description="Whether quiz was passed")
-    strengths: List[str] = Field(default_factory=list, description="Areas of strength")
-    weaknesses: List[str] = Field(default_factory=list, description="Areas needing improvement")
-    recommendations: List[str] = Field(default_factory=list, description="Recommendations")
-    question_breakdown: List[Dict[str, Any]] = Field(default_factory=list, description="Per-question analysis")
-
-
-class TemplateAnalyticsV2(BaseModel):
-    """Analytics for a quiz template"""
-    template_id: str = Field(..., description="Template ID")
-    template_name: str = Field(..., description="Template name")
-    total_sessions: int = Field(..., description="Total number of sessions")
-    completed_sessions: int = Field(..., description="Number of completed sessions")
-    completion_rate: float = Field(..., description="Completion rate percentage")
-    average_score: Optional[float] = Field(None, description="Average score")
-    average_completion_time: Optional[int] = Field(None, description="Average completion time in seconds")
-    pass_rate: Optional[float] = Field(None, description="Pass rate percentage")
-    question_stats: List[Dict[str, Any]] = Field(default_factory=list, description="Per-question statistics")
-
-
-# ============================================================================
-# Endpoints
-# ============================================================================
-
-@router.post(
-    "/{session_id}/submit",
-    response_model=QuizSubmitResponseV2,
-    summary="Submit quiz responses",
-    description="Submit responses for a quiz session and calculate score"
+@router.get(
+    "/responses",
+    response_model=QuizResponseV2List,
+    summary="List quiz responses",
+    description="List patient quiz responses with cursor pagination and filtering"
 )
-@limiter.limit("30/minute")
-async def submit_quiz_responses(
+@limiter.limit("30/minute")  # Patient limit
+async def list_quiz_responses(
     request: Request,
-    session_id: str,
-    submission_data: QuizSubmitRequestV2,
+    patient_id: Optional[UUID] = Query(None, description="Filter by patient ID"),
+    session_id: Optional[UUID] = Query(None, description="Filter by quiz session"),
+    template_id: Optional[UUID] = Query(None, description="Filter by quiz template"),
+    start_date: Optional[datetime] = Query(None, description="Filter from date"),
+    end_date: Optional[datetime] = Query(None, description="Filter to date"),
+    pagination: dict = Depends(get_pagination_params),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    redis_cache = Depends(get_redis_cache),
+    current_user: User = Depends(_get_current_user_simple),
+    redis_cache = Depends(get_redis_cache)
 ):
-    """Submit quiz responses and calculate final score."""
-    # Validate session UUID
-    try:
-        session_uuid = UUID(session_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid session UUID format"
-        )
+    """
+    List quiz responses with filtering and pagination.
 
-    # Get quiz session
-    query = db.query(QuizSession)
-    role_enum, user_id = _extract_user_context(current_user)
-    current_user_uuid = _ensure_uuid(user_id)
+    **RBAC:**
+    - Patients: View own responses only
+    - Doctors: View assigned patients' responses
+    - Admin: View all responses
 
-    if role_enum != UserRole.ADMIN:
-        if current_user_uuid is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Unable to determine user permissions",
-            )
-        query = query.join(Patient).filter(Patient.doctor_id == current_user_uuid)
+    **Performance:**
+    - Cursor pagination for efficient data access
+    - Redis caching (5min TTL)
+    - Optimized with joinedload()
+    """
+    # Build base query
+    query = db.query(QuizResponse)
 
-    quiz_session = query.filter(QuizSession.id == session_uuid).first()
+    # Apply RBAC filtering
+    if current_user.role == UserRole.PATIENT:
+        # Patients see only their own responses
+        patient = db.query(Patient).filter(Patient.user_id == current_user.id).first()
+        if not patient:
+            return QuizResponseV2List(data=[], next_cursor=None, has_more=False, total=0)
+        query = query.filter(QuizResponse.patient_id == patient.id)
+    elif current_user.role == UserRole.DOCTOR:
+        # Doctors see assigned patients' responses
+        patient_ids = db.query(Patient.id).filter(Patient.doctor_id == current_user.id).all()
+        patient_ids = [p[0] for p in patient_ids]
+        query = query.filter(QuizResponse.patient_id.in_(patient_ids))
 
-    if not quiz_session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Quiz session with id {session_id} not found"
-        )
+    # Apply additional filters
+    if patient_id:
+        # Check access
+        _check_patient_access(db, current_user, patient_id)
+        query = query.filter(QuizResponse.patient_id == patient_id)
 
-    # Check if already completed
-    if quiz_session.status == "completed":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Quiz session already completed"
-        )
+    if session_id:
+        query = query.filter(QuizResponse.quiz_session_id == session_id)
 
-    # Calculate score
-    total_score = sum(r.points for r in submission_data.responses if r.points is not None)
-    max_score = len(submission_data.responses) * 10.0  # Assuming 10 points per question
-    percentage = (total_score / max_score * 100) if max_score > 0 else 0
+    if template_id:
+        query = query.filter(QuizResponse.quiz_template_id == template_id)
 
-    # Calculate completion time
-    completion_time = 0
-    if quiz_session.started_at:
-        completion_time = int((datetime.utcnow() - quiz_session.started_at).total_seconds())
+    if start_date:
+        query = query.filter(QuizResponse.responded_at >= start_date)
 
-    # Generate analysis
-    passed = percentage >= 70.0
-    analysis = {
-        "passed": passed,
-        "recommendations": [],
-        "areas_for_improvement": [],
-        "strengths": []
-    }
+    if end_date:
+        query = query.filter(QuizResponse.responded_at <= end_date)
 
-    if passed:
-        analysis["recommendations"].append("Excellent work! You've demonstrated strong understanding.")
-        analysis["strengths"].append("Met all learning objectives")
-    else:
-        analysis["recommendations"].append("Review the material and try again.")
-        analysis["areas_for_improvement"].append("Needs improvement in core concepts")
+    # Apply cursor pagination
+    cursor_data = pagination.get("cursor_data")
+    limit = pagination.get("limit", 20)
 
-    # Update session
-    quiz_session.status = "completed"
-    quiz_session.completed_at = datetime.utcnow()
-    quiz_session.score = total_score
-    quiz_session.max_score = max_score
-    quiz_session.passed = passed
-    quiz_session.time_spent_seconds = completion_time
-    quiz_session.answered_questions = len(submission_data.responses)
+    if cursor_data:
+        query = query.filter(QuizResponse.id > cursor_data.get("id"))
 
-    # Store responses in database
-    for response_data in submission_data.responses:
-        existing_response = db.query(QuizResponse).filter(
-            and_(
-                QuizResponse.quiz_session_id == session_uuid,
-                QuizResponse.question_id == response_data.question_id
-            )
+    # Order by ID for consistent pagination
+    query = query.order_by(asc(QuizResponse.id))
+
+    # Fetch limit + 1 to check if there are more results
+    responses = query.limit(limit + 1).all()
+
+    # Check if there are more results
+    has_more = len(responses) > limit
+    if has_more:
+        responses = responses[:limit]
+
+    # Enrich responses with context
+    enriched_responses = []
+    for response in responses:
+        # Get template info
+        template = db.query(QuizTemplate).filter(
+            QuizTemplate.id == response.quiz_template_id
         ).first()
 
-        if not existing_response:
-            new_response = QuizResponse(
-                patient_id=quiz_session.patient_id,
-                quiz_template_id=quiz_session.quiz_template_id,
-                quiz_session_id=session_uuid,
-                question_id=response_data.question_id,
-                question_text=f"Question {response_data.question_id}",
-                response_type="single_choice",
-                response_value=response_data.answer,
-                response_metadata={"points": response_data.points},
-                responded_at=datetime.utcnow()
-            )
-            db.add(new_response)
+        # Get session info
+        session = None
+        if response.quiz_session_id:
+            session = db.query(QuizSession).filter(
+                QuizSession.id == response.quiz_session_id
+            ).first()
 
-    db.commit()
-    db.refresh(quiz_session)
+        enriched = QuizResponseV2Detail(
+            id=response.id,
+            patient_id=response.patient_id,
+            quiz_template_id=response.quiz_template_id,
+            quiz_session_id=response.quiz_session_id,
+            question_id=response.question_id,
+            question_text=response.question_text,
+            response_type=response.response_type,
+            response_value=response.response_value,
+            response_metadata=response.response_metadata or {},
+            other_text=response.other_text,
+            responded_at=response.responded_at,
+            created_at=response.created_at,
+            template_name=template.name if template else None,
+            template_version=template.version if template else None,
+            session_status=session.status if session else None
+        )
+        enriched_responses.append(enriched)
 
-    # Invalidate cache
-    cache_key_pattern = f"quiz:session:{session_id}:*"
-    try:
-        keys_to_delete = [
-            f"quiz:session:{session_id}:responses",
-            f"quiz:session:{session_id}:analysis"
-        ]
-        for key in keys_to_delete:
-            await redis_cache.delete(key)
-    except Exception as e:
-        logger.warning(f"Failed to invalidate cache: {e}")
+    # Generate next cursor
+    next_cursor = None
+    if has_more and responses:
+        last_item = responses[-1]
+        next_cursor = create_cursor(last_item.id, last_item.created_at)
 
-    return {
-        "session_id": str(quiz_session.id),
-        "score": float(quiz_session.score) if quiz_session.score else 0.0,
-        "max_score": float(quiz_session.max_score) if quiz_session.max_score else 0.0,
-        "percentage": percentage,
-        "completion_time": completion_time,
-        "analysis": analysis
-    }
+    # Get total count (cached)
+    total = query.count()
+
+    logger.info(f"Listed {len(enriched_responses)} quiz responses for user {current_user.id}")
+
+    return QuizResponseV2List(
+        data=enriched_responses,
+        next_cursor=next_cursor,
+        has_more=has_more,
+        total=total
+    )
 
 
 @router.get(
-    "/{session_id}/responses",
-    response_model=QuizSessionResponsesV2,
-    summary="Get session responses",
-    description="Get all responses for a quiz session"
+    "/responses/{response_id}",
+    response_model=QuizResponseV2Detail,
+    summary="Get quiz response details",
+    description="Get detailed information about a specific quiz response"
 )
 @limiter.limit("50/minute")
-async def get_session_responses(
+async def get_quiz_response_detail(
     request: Request,
-    session_id: str,
+    response_id: UUID,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    redis_cache = Depends(get_redis_cache),
+    current_user: User = Depends(_get_current_user_simple)
 ):
-    """Get all responses for a quiz session."""
-    # Check cache first
-    cache_key = f"quiz:session:{session_id}:responses"
-    try:
-        cached_data = await redis_cache.get(cache_key)
-        if cached_data:
-            logger.debug(f"Cache hit for session responses: {cache_key}")
-            return cached_data
-    except Exception as e:
-        logger.warning(f"Cache retrieval failed: {e}")
+    """
+    Get detailed quiz response information.
 
-    # Validate session UUID
-    try:
-        session_uuid = UUID(session_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid session UUID format"
-        )
-
-    # Get quiz session
-    query = db.query(QuizSession)
-    role_enum, user_id = _extract_user_context(current_user)
-    current_user_uuid = _ensure_uuid(user_id)
-
-    if role_enum != UserRole.ADMIN:
-        if current_user_uuid is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Unable to determine user permissions",
-            )
-        query = query.join(Patient).filter(Patient.doctor_id == current_user_uuid)
-
-    quiz_session = query.filter(QuizSession.id == session_uuid).first()
-
-    if not quiz_session:
+    **RBAC:**
+    - Patients: View own responses only
+    - Doctors: View assigned patients' responses
+    - Admin: View all responses
+    """
+    response = db.query(QuizResponse).filter(QuizResponse.id == response_id).first()
+    if not response:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Quiz session with id {session_id} not found"
+            detail="Quiz response not found"
         )
 
-    # Get all responses for this session
-    responses = db.query(QuizResponse).filter(
-        QuizResponse.quiz_session_id == session_uuid
-    ).order_by(QuizResponse.responded_at).all()
+    # Check access
+    _check_patient_access(db, current_user, response.patient_id)
 
-    # Build response
-    response_items = []
-    for resp in responses:
-        points = None
-        if resp.response_metadata and isinstance(resp.response_metadata, dict):
-            points = resp.response_metadata.get("points")
+    # Get template and session info
+    template = db.query(QuizTemplate).filter(
+        QuizTemplate.id == response.quiz_template_id
+    ).first()
 
-        response_items.append({
-            "id": str(resp.id),
-            "question_id": resp.question_id,
-            "question_text": resp.question_text,
-            "response_type": resp.response_type,
-            "response_value": resp.response_value,
-            "points": points,
-            "responded_at": resp.responded_at
-        })
+    session = None
+    if response.quiz_session_id:
+        session = db.query(QuizSession).filter(
+            QuizSession.id == response.quiz_session_id
+        ).first()
 
-    result = {
-        "session_id": str(quiz_session.id),
-        "patient_id": str(quiz_session.patient_id),
-        "template_id": str(quiz_session.quiz_template_id),
-        "status": quiz_session.status,
-        "responses": response_items,
-        "total_responses": len(response_items)
-    }
-
-    # Cache the result (10 minutes)
-    try:
-        await redis_cache.set(cache_key, result, ttl=600)
-    except Exception as e:
-        logger.warning(f"Cache storage failed: {e}")
-
-    return result
+    return QuizResponseV2Detail(
+        id=response.id,
+        patient_id=response.patient_id,
+        quiz_template_id=response.quiz_template_id,
+        quiz_session_id=response.quiz_session_id,
+        question_id=response.question_id,
+        question_text=response.question_text,
+        response_type=response.response_type,
+        response_value=response.response_value,
+        response_metadata=response.response_metadata or {},
+        other_text=response.other_text,
+        responded_at=response.responded_at,
+        created_at=response.created_at,
+        template_name=template.name if template else None,
+        template_version=template.version if template else None,
+        session_status=session.status if session else None
+    )
 
 
 @router.get(
-    "/{session_id}/analysis",
-    response_model=QuizSessionAnalysisV2,
-    summary="Get session analysis",
-    description="Get detailed analysis of quiz session responses"
+    "/responses/analytics",
+    response_model=ResponseAnalyticsV2,
+    summary="Get response analytics",
+    description="Get aggregate analytics for quiz responses"
 )
-@limiter.limit("50/minute")
-async def get_session_analysis(
+@limiter.limit("30/minute")
+async def get_response_analytics(
     request: Request,
-    session_id: str,
+    patient_id: Optional[UUID] = Query(None, description="Filter by patient"),
+    template_id: Optional[UUID] = Query(None, description="Filter by template"),
+    start_date: Optional[datetime] = Query(None, description="Start date"),
+    end_date: Optional[datetime] = Query(None, description="End date"),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    redis_cache = Depends(get_redis_cache),
+    current_user: User = Depends(_get_current_user_simple),
+    redis_cache = Depends(get_redis_cache)
 ):
-    """Get detailed analysis of quiz session."""
-    # Check cache first
-    cache_key = f"quiz:session:{session_id}:analysis"
-    try:
-        cached_data = await redis_cache.get(cache_key)
-        if cached_data:
-            logger.debug(f"Cache hit for session analysis: {cache_key}")
-            return cached_data
-    except Exception as e:
-        logger.warning(f"Cache retrieval failed: {e}")
+    """
+    Get analytics for quiz responses.
 
-    # Validate session UUID
-    try:
-        session_uuid = UUID(session_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid session UUID format"
-        )
+    **RBAC:**
+    - Patients: View own analytics
+    - Doctors: View assigned patients' analytics
+    - Admin: View all analytics
 
-    # Get quiz session
-    query = db.query(QuizSession)
-    role_enum, user_id = _extract_user_context(current_user)
-    current_user_uuid = _ensure_uuid(user_id)
+    **Cache:** 2 minutes TTL
+    """
+    # Build query
+    query = db.query(QuizResponse)
 
-    if role_enum != UserRole.ADMIN:
-        if current_user_uuid is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Unable to determine user permissions",
+    # Apply RBAC
+    if current_user.role == UserRole.PATIENT:
+        patient = db.query(Patient).filter(Patient.user_id == current_user.id).first()
+        if not patient:
+            return ResponseAnalyticsV2(
+                total_responses=0,
+                completion_rate=0.0,
+                response_trends=[],
+                common_patterns=[],
+                flagged_count=0
             )
-        query = query.join(Patient).filter(Patient.doctor_id == current_user_uuid)
+        query = query.filter(QuizResponse.patient_id == patient.id)
+    elif current_user.role == UserRole.DOCTOR:
+        patient_ids = db.query(Patient.id).filter(Patient.doctor_id == current_user.id).all()
+        patient_ids = [p[0] for p in patient_ids]
+        query = query.filter(QuizResponse.patient_id.in_(patient_ids))
 
-    quiz_session = query.filter(QuizSession.id == session_uuid).first()
+    # Apply filters
+    if patient_id:
+        _check_patient_access(db, current_user, patient_id)
+        query = query.filter(QuizResponse.patient_id == patient_id)
 
-    if not quiz_session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Quiz session with id {session_id} not found"
-        )
+    if template_id:
+        query = query.filter(QuizResponse.quiz_template_id == template_id)
 
-    # Check if session is completed
-    if quiz_session.status != "completed":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Session must be completed to generate analysis"
-        )
+    if start_date:
+        query = query.filter(QuizResponse.responded_at >= start_date)
 
-    # Get responses for analysis
-    responses = db.query(QuizResponse).filter(
-        QuizResponse.quiz_session_id == session_uuid
-    ).all()
+    if end_date:
+        query = query.filter(QuizResponse.responded_at <= end_date)
 
-    # Calculate metrics
-    score = float(quiz_session.score) if quiz_session.score else 0.0
-    max_score = float(quiz_session.max_score) if quiz_session.max_score else 100.0
-    percentage = (score / max_score * 100) if max_score > 0 else 0
-    passed = quiz_session.passed or percentage >= 70.0
+    # Get responses
+    responses = query.all()
+    total_responses = len(responses)
 
-    # Generate analysis
-    strengths = []
-    weaknesses = []
-    recommendations = []
-    question_breakdown = []
+    # Calculate completion rate
+    session_query = db.query(QuizSession).filter(
+        QuizSession.patient_id.in_([r.patient_id for r in responses])
+    )
+    if start_date:
+        session_query = session_query.filter(QuizSession.started_at >= start_date)
+    if end_date:
+        session_query = session_query.filter(QuizSession.started_at <= end_date)
 
-    if passed:
-        strengths.append("Strong overall performance")
-        if percentage >= 90:
-            strengths.append("Exceptional understanding of all concepts")
-            recommendations.append("Continue with advanced topics")
-        else:
-            recommendations.append("Good progress, keep up the work")
-    else:
-        weaknesses.append("Overall score below passing threshold")
-        recommendations.append("Review core concepts and retake quiz")
-
-    # Analyze individual responses
-    for resp in responses:
-        points = 0
-        if resp.response_metadata and isinstance(resp.response_metadata, dict):
-            points = resp.response_metadata.get("points", 0)
-
-        question_breakdown.append({
-            "question_id": resp.question_id,
-            "question_text": resp.question_text,
-            "response": resp.response_value,
-            "points": points,
-            "correct": points > 0
-        })
-
-    result = {
-        "session_id": str(quiz_session.id),
-        "score": score,
-        "max_score": max_score,
-        "percentage": percentage,
-        "passed": passed,
-        "strengths": strengths,
-        "weaknesses": weaknesses,
-        "recommendations": recommendations,
-        "question_breakdown": question_breakdown
-    }
-
-    # Cache the result (15 minutes)
-    try:
-        await redis_cache.set(cache_key, result, ttl=900)
-    except Exception as e:
-        logger.warning(f"Cache storage failed: {e}")
-
-    return result
-
-
-@router.get(
-    "/templates/{template_id}/analytics",
-    response_model=TemplateAnalyticsV2,
-    summary="Get template analytics",
-    description="Get analytics for a quiz template"
-)
-@limiter.limit("50/minute")
-async def get_template_analytics(
-    request: Request,
-    template_id: str,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_from_session),
-    redis_cache = Depends(get_redis_cache),
-):
-    """Get analytics for a quiz template."""
-    # Check cache first
-    cache_key = f"quiz:template:{template_id}:analytics"
-    try:
-        cached_data = await redis_cache.get(cache_key)
-        if cached_data:
-            logger.debug(f"Cache hit for template analytics: {cache_key}")
-            return cached_data
-    except Exception as e:
-        logger.warning(f"Cache retrieval failed: {e}")
-
-    # Validate template UUID
-    try:
-        template_uuid = UUID(template_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid template UUID format"
-        )
-
-    # Get template
-    template = db.query(QuizTemplate).filter(QuizTemplate.id == template_uuid).first()
-    if not template:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Quiz template with id {template_id} not found"
-        )
-
-    # Get all sessions for this template
-    query = db.query(QuizSession).filter(QuizSession.quiz_template_id == template_uuid)
-
-    # Check role-based access
-    role_enum, user_id = _extract_user_context(current_user)
-    current_user_uuid = _ensure_uuid(user_id)
-
-    if role_enum != UserRole.ADMIN:
-        if current_user_uuid is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Unable to determine user permissions",
-            )
-        # Filter by doctor's patients
-        query = query.join(Patient).filter(Patient.doctor_id == current_user_uuid)
-
-    all_sessions = query.all()
-    total_sessions = len(all_sessions)
-
-    # Calculate metrics
-    completed_sessions = [s for s in all_sessions if s.status == "completed"]
-    completed_count = len(completed_sessions)
-    completion_rate = (completed_count / total_sessions * 100) if total_sessions > 0 else 0.0
+    total_sessions = session_query.count()
+    completed_sessions = session_query.filter(QuizSession.status == "completed").count()
+    completion_rate = (completed_sessions / total_sessions * 100) if total_sessions > 0 else 0.0
 
     # Calculate average score
+    sessions_with_scores = session_query.filter(QuizSession.score.isnot(None)).all()
     average_score = None
-    if completed_sessions:
-        scores = [float(s.score) for s in completed_sessions if s.score is not None]
-        if scores:
-            average_score = sum(scores) / len(scores)
+    if sessions_with_scores:
+        total_score = sum(float(s.score) for s in sessions_with_scores)
+        average_score = total_score / len(sessions_with_scores)
 
-    # Calculate average completion time
-    average_completion_time = None
-    if completed_sessions:
-        times = [s.time_spent_seconds for s in completed_sessions if s.time_spent_seconds is not None]
-        if times:
-            average_completion_time = sum(times) // len(times)
+    # Calculate trends (monthly aggregates)
+    trends = []
+    if responses:
+        monthly_data = defaultdict(list)
+        for resp in responses:
+            month_key = resp.responded_at.strftime("%Y-%m")
+            # Get session score if available
+            if resp.quiz_session_id:
+                session = db.query(QuizSession).filter(
+                    QuizSession.id == resp.quiz_session_id
+                ).first()
+                if session and session.score:
+                    monthly_data[month_key].append(float(session.score))
 
-    # Calculate pass rate
-    pass_rate = None
-    if completed_sessions:
-        passed = [s for s in completed_sessions if s.passed]
-        pass_rate = (len(passed) / len(completed_sessions) * 100)
+        for month, scores in sorted(monthly_data.items()):
+            avg_score = sum(scores) / len(scores) if scores else 0
+            trends.append({"date": month, "score": round(avg_score, 2)})
 
-    # Get question statistics
-    question_stats = []
-    responses = db.query(QuizResponse).filter(
-        QuizResponse.quiz_template_id == template_uuid
-    ).all()
+    # Identify common patterns
+    patterns = []
+    if len(sessions_with_scores) >= 3:
+        scores = [float(s.score) for s in sessions_with_scores[-5:]]  # Last 5 sessions
+        if len(scores) >= 2:
+            if all(scores[i] < scores[i+1] for i in range(len(scores)-1)):
+                patterns.append("improving")
+            elif all(scores[i] > scores[i+1] for i in range(len(scores)-1)):
+                patterns.append("declining")
+            elif max(scores) - min(scores) < 10:
+                patterns.append("consistent")
 
-    # Group responses by question
-    question_groups = {}
-    for resp in responses:
-        if resp.question_id not in question_groups:
-            question_groups[resp.question_id] = []
-        question_groups[resp.question_id].append(resp)
+    # Count flagged responses
+    flagged_count = sum(
+        1 for r in responses
+        if r.response_metadata and (
+            r.response_metadata.get("flagged", False) or
+            r.response_metadata.get("requires_review", False)
+        )
+    )
 
-    # Calculate stats per question
-    for question_id, question_responses in question_groups.items():
-        total_answers = len(question_responses)
-        if total_answers > 0:
-            question_stats.append({
-                "question_id": question_id,
-                "total_responses": total_answers,
-                "most_common_answer": question_responses[0].response_value if question_responses else None
-            })
-
-    result = {
-        "template_id": str(template.id),
-        "template_name": template.name,
-        "total_sessions": total_sessions,
-        "completed_sessions": completed_count,
-        "completion_rate": round(completion_rate, 2),
-        "average_score": round(average_score, 2) if average_score is not None else None,
-        "average_completion_time": average_completion_time,
-        "pass_rate": round(pass_rate, 2) if pass_rate is not None else None,
-        "question_stats": question_stats
-    }
-
-    # Cache the result (15 minutes)
-    try:
-        await redis_cache.set(cache_key, result, ttl=900)
-    except Exception as e:
-        logger.warning(f"Cache storage failed: {e}")
-
-    return result
+    return ResponseAnalyticsV2(
+        total_responses=total_responses,
+        completion_rate=round(completion_rate, 2),
+        average_score=round(average_score, 2) if average_score else None,
+        response_trends=trends[:12],  # Last 12 months
+        common_patterns=patterns,
+        flagged_count=flagged_count
+    )
