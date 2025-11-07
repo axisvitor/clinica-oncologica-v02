@@ -89,29 +89,35 @@ export class ApiClient extends ApiClientCore {
   }
 
   /**
-   * Messages API (inline implementation)
+   * Messages API V2 (Migrated from V1)
+   * All endpoints now use V2 with cursor pagination
    */
   private createMessagesApi(): MessagesApi {
     return {
-      list: (options: MessagesListOptions = {}) => {
-        const { page = 1, size = 20, ...filters } = options;
-        return this.get("/api/v1/messages", { page, size, ...filters });
+      list: async (options: MessagesListOptions = {}) => {
+        const { page, size, cursor, limit, ...filters } = options;
+        const effLimit = limit ?? size ?? 20;
+        const params: Record<string, any> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...filters };
+        const res: any = await this.get("/api/v2/messages", params);
+        const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
+        return { items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
       },
 
-      get: (messageId: string) => this.get(`/api/v1/messages/${messageId}`),
+      get: (messageId: string) => this.get(`/api/v2/messages/${messageId}`),
 
-      send: (data: any) => this.post("/api/v1/messages", data),
+      send: (data: any) => this.post("/api/v2/messages", data),
 
-      markAsRead: (messageId: string) => this.patch(`/api/v1/messages/${messageId}/read`),
+      markAsRead: (messageId: string) => this.patch(`/api/v2/messages/${messageId}/read`),
 
-      delete: (messageId: string) => this.delete(`/api/v1/messages/${messageId}`),
+      delete: (messageId: string) => this.delete(`/api/v2/messages/${messageId}`),
 
       getConversation: (patientId: string) =>
-        this.get(`/api/v1/messages/conversations/${patientId}`),
+        this.get(`/api/v2/messages/conversations/${patientId}`),
 
       sendBulk: (data: { patient_ids: string[]; content: string }) =>
-        this.post("/api/v1/messages/bulk", data),
+        this.post("/api/v2/messages/bulk", data),
 
+      // retry endpoint stays on V1 (no V2 equivalent)
       retry: (messageId: string) => this.post(`/api/v1/messages/${messageId}/retry`),
     };
   }
@@ -193,62 +199,64 @@ export class ApiClient extends ApiClientCore {
   }
 
   /**
-   * Alerts API (inline implementation)
+   * Alerts API V2 (Migrated from V1)
+   * All endpoints now use V2 with cursor pagination
    */
   private createAlertsApi(): AlertsApi {
     return {
-      list: (options: AlertsListOptions = {}) => {
-        const { page = 1, size = 20, ...filters } = options;
-        return this.get("/api/v1/alerts", { page, size, ...filters });
+      list: async (options: AlertsListOptions = {}) => {
+        const { page, size, cursor, limit, ...filters } = options;
+        const effLimit = limit ?? size ?? 20;
+        const params: Record<string, any> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...filters };
+        const res: any = await this.get("/api/v2/alerts", params);
+        const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
+        return { items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
       },
 
-      get: (alertId: string) => this.get(`/api/v1/alerts/${alertId}`),
+      get: (alertId: string) => this.get(`/api/v2/alerts/${alertId}`),
 
-      create: (data: any) => this.post("/api/v1/alerts", data),
+      create: (data: any) => this.post("/api/v2/alerts", data),
 
-      update: (alertId: string, data: any) => this.put(`/api/v1/alerts/${alertId}`, data),
+      update: (alertId: string, data: any) => this.patch(`/api/v2/alerts/${alertId}`, data),
 
-      delete: (alertId: string) => this.delete(`/api/v1/alerts/${alertId}`),
+      delete: (alertId: string) => this.delete(`/api/v2/alerts/${alertId}`),
 
-      markAsRead: (alertId: string) => this.patch(`/api/v1/alerts/${alertId}/read`),
+      markAsRead: (alertId: string) => this.patch(`/api/v2/alerts/${alertId}/read`),
 
-      markAllAsRead: () => this.post("/api/v1/alerts/read-all"),
+      markAllAsRead: () => this.post("/api/v2/alerts/read-all"),
 
+      // unread count, acknowledge, resolve not in V2 (use list with filters)
       getUnreadCount: () => this.get("/api/v1/alerts/unread-count"),
-
       acknowledge: (alertId: string) => this.post(`/api/v1/alerts/${alertId}/acknowledge`),
-
       resolve: (alertId: string) => this.post(`/api/v1/alerts/${alertId}/resolve`),
     };
   }
 
   /**
-   * Reports API (inline implementation)
+   * Reports API V2 (Migrated from V1)
+   * All endpoints now use V2 with cursor pagination
    */
   private createReportsApi(): ReportsApi {
     return {
       list: async (options: ReportsListOptions = {}) => {
-        const { page = 1, size = 20, ...filters } = options;
-        const res: any = await this.get("/api/v1/reports", { page, size, ...filters });
-        if (Array.isArray(res)) {
-          return { items: res };
-        }
-        if (Array.isArray(res?.data)) {
-          return { items: res.data, total: res.total ?? res.total_count ?? res.data.length };
-        }
-        return res;
+        const { page, size, cursor, limit, ...filters } = options;
+        const effLimit = limit ?? size ?? 20;
+        const params: Record<string, any> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...filters };
+        const res: any = await this.get("/api/v2/reports", params);
+        const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
+        return { items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
       },
 
       generate: (patientId: string, reportType: string, config?: Record<string, any>) =>
-        this.post("/api/v1/reports/generate", {
+        this.post("/api/v2/reports/generate", {
           patient_id: patientId,
-          type: reportType,
-          config,
+          report_type: reportType,
+          ...config,
         }),
 
       download: async (reportId: string, format: "pdf" | "excel" | "csv" = "pdf") => {
         const response = await fetch(
-          `${this.getBaseURL()}/api/v1/reports/${reportId}/download?format=${format}`,
+          `${this.getBaseURL()}/api/v2/reports/${reportId}/download?format=${format}`,
           {
             method: "GET",
             headers: {
@@ -265,41 +273,49 @@ export class ApiClient extends ApiClientCore {
         return response.blob();
       },
 
-      delete: (reportId: string) => this.delete(`/api/v1/reports/${reportId}`),
+      delete: (reportId: string) => this.delete(`/api/v2/reports/${reportId}`),
 
       schedule: (data: {
         report_type: string;
         frequency: "daily" | "weekly" | "monthly";
         recipients: string[];
         parameters?: any;
-      }) => this.post("/api/v1/reports/schedule", data),
+      }) => this.post("/api/v2/reports/schedule", data),
 
+      // getScheduled not in V2 (use list with filter)
       getScheduled: () => this.get("/api/v1/reports/scheduled"),
     };
   }
 
   /**
-   * Admin API (inline implementation)
+   * Admin API V2 (Migrated from V1)
+   * User management with cursor pagination
    */
   private createAdminApi(): AdminApi {
     return {
       users: {
-        list: (page = 1, size = 20) => this.get("/api/v1/admin/users", { page, size }),
+        list: async (page = 1, size = 20) => {
+          const params = { limit: size, cursor: undefined };
+          const res: any = await this.get("/api/v2/admin/users", params);
+          return Array.isArray(res?.data) ? res.data : (res?.items ?? []);
+        },
 
-        get: (userId: string) => this.get(`/api/v1/admin/users/${userId}`),
+        get: (userId: string) => this.get(`/api/v2/admin/users/${userId}`),
 
-        create: (data: any) => this.post("/api/v1/admin/users", data),
+        create: (data: any) => this.post("/api/v2/admin/users", data),
 
-        update: (userId: string, data: any) => this.put(`/api/v1/admin/users/${userId}`, data),
+        update: (userId: string, data: any) => this.put(`/api/v2/admin/users/${userId}`, data),
 
-        delete: (userId: string) => this.delete(`/api/v1/admin/users/${userId}`),
+        delete: (userId: string) => this.delete(`/api/v2/admin/users/${userId}`),
 
-        resetPassword: (userId: string) =>
-          this.post(`/api/v1/admin/users/${userId}/reset-password`),
+        resetPassword: (userId: string, payload?: any) =>
+          this.post(`/api/v2/admin/users/${userId}/reset-password`, payload ?? {}),
 
-        toggleStatus: (userId: string) => this.patch(`/api/v1/admin/users/${userId}/toggle-status`),
+        // toggleStatus replaced with activate/deactivate in V2
+        toggleStatus: (userId: string) => this.post(`/api/v2/admin/users/${userId}/deactivate`),
       },
 
+      // roles/audit/settings remain on V1 (not in V2 user management)
       roles: {
         list: () => this.get("/api/v1/admin/roles"),
 
