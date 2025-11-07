@@ -425,23 +425,31 @@ export class ApiClient extends ApiClientCore {
     };
   }
 
+  /**
+   * Quiz API (Partially migrated to V2)
+   * V2: quiz sessions, templates
+   * V1: submitResponse, sessionResponses, analysis (no V2 equivalents)
+   */
   private createQuizApi(): QuizApi {
     return {
+      // Templates migrated to V2
       templates: async () => {
-        const res: any = await this.get("/api/v1/quiz/templates")
+        const res: any = await this.get("/api/v2/templates/quiz")
         return Array.isArray(res) ? { items: res } : res
       },
 
-      // Create a new quiz session (v2)
+      // Create a new quiz session (V2)
       start: (patientId: string, quizTemplateId: string) =>
         this.post("/api/v2/quiz", {
           patient_id: patientId,
           quiz_template_id: quizTemplateId,
         }),
 
-      // Get session by ID (v2)
+      // Get session by ID (V2)
       getSession: (sessionId: string) => this.get(`/api/v2/quiz/${sessionId}`),
 
+      // Submit response - V1 only (no V2 equivalent for individual question submission)
+      // TODO: Migrate when V2 submission endpoint is available
       submitResponse: (
         sessionId: string,
         questionId: string,
@@ -458,9 +466,9 @@ export class ApiClient extends ApiClientCore {
         return this.post(`/api/v1/quiz/sessions/${sessionId}/submit`, undefined, params);
       },
 
-      // List sessions (v2) with cursor pagination; keep backward-compatible shape
+      // List sessions (V2) with cursor pagination; keep backward-compatible shape
       sessions: async (filters: Record<string, any> = {}) => {
-        const { page, size, limit, cursor, ...rest } = filters || {}
+        const { page, size, limit, cursor, ...rest} = filters || {}
         const effLimit = limit ?? size ?? 20
         const params: Record<string, any> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...rest }
         const res: any = await this.get("/api/v2/quiz", params)
@@ -471,30 +479,46 @@ export class ApiClient extends ApiClientCore {
         return { items, total, has_more, next_cursor }
       },
 
+      // Patient responses - V1 only (no V2 endpoint for patient-level quiz responses)
+      // TODO: Migrate when V2 patient quiz responses endpoint is available
       getPatientResponses: (
         patientId: string,
         options: Record<string, any> = {},
       ) => this.get(`/api/v1/patients/${patientId}/quiz-responses`, options),
 
-      // Responses/analysis remain on v1 for now
+      // Session responses - V1 only (no V2 equivalent)
+      // TODO: Migrate when V2 session responses endpoint is available
       getSessionResponses: (sessionId: string) =>
         this.get(`/api/v1/quiz/sessions/${sessionId}/responses`),
 
+      // Session analysis - V1 only (V2 has /enhanced-quiz/analytics but different format)
+      // TODO: Migrate to /api/v2/enhanced-quiz/analytics when format is compatible
       getSessionAnalysis: (sessionId: string) =>
         this.get(`/api/v1/quiz/sessions/${sessionId}/analysis`),
     };
   }
 
+  /**
+   * Quiz Templates API (Migrated to V2)
+   */
   private createQuizTemplatesApi(): QuizTemplatesApi {
     return {
       list: () => this.quiz.templates(),
       listTemplates: () => this.quiz.templates(),
-      createTemplate: (template: any) => this.post("/api/v1/quiz/templates", template),
-      create: (template: any) => this.post("/api/v1/quiz/templates", template),
+
+      // Template CRUD migrated to V2
+      createTemplate: (template: any) => this.post("/api/v2/templates/quiz", template),
+      create: (template: any) => this.post("/api/v2/templates/quiz", template),
+
       updateTemplate: (templateId: string, data: any) =>
-        this.put(`/api/v1/quiz/templates/${templateId}`, data),
+        this.put(`/api/v2/templates/quiz/${templateId}`, data),
+
       deleteTemplate: (templateId: string) =>
-        this.delete(`/api/v1/quiz/templates/${templateId}`),
+        this.delete(`/api/v2/templates/quiz/${templateId}`),
+
+      // Analytics available in V2 enhanced-quiz, but different endpoint
+      // Keeping V1 for backward compatibility
+      // TODO: Migrate to /api/v2/enhanced-quiz/analytics when format is compatible
       getTemplateAnalytics: (templateId: string) =>
         this.get(`/api/v1/quiz/templates/${templateId}/analytics`),
     };
