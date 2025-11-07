@@ -37,6 +37,7 @@ from .system import router as system_router
 from .performance import router as performance_router
 from .health import router as health_router
 from .quiz_extensions import router as quiz_extensions_router
+from .quiz_responses import router as quiz_responses_router
 from .debug import router as debug_router
 
 logger = logging.getLogger(__name__)
@@ -84,6 +85,10 @@ api_v2_router.include_router(system_router, prefix="/system", tags=["system-v2"]
 api_v2_router.include_router(performance_router, prefix="/performance", tags=["performance-v2"])
 api_v2_router.include_router(health_router, tags=["health-v2"])  # Health router has its own /health prefix
 api_v2_router.include_router(quiz_extensions_router, prefix="/quiz-extensions", tags=["quiz-extensions-v2"])
+api_v2_router.include_router(quiz_responses_router, prefix="/quiz", tags=["quiz-responses-v2"])
+
+# Phase 10: Complete V2 Migration - Quiz Responses
+# All remaining V1 endpoints now have V2 equivalents
 
 # Phase 9: Debug & Diagnostics (CONDITIONAL - disabled in production by default)
 # ⚠️ SECURITY WARNING: Only register debug endpoints if explicitly enabled
