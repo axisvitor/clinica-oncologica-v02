@@ -444,3 +444,91 @@ def generate_message_analytics(patient_id: Optional[str] = None, days_back: int 
             "error": str(exc),
             "analytics": {}
         }
+
+@celery_app.task(name="app.tasks.messaging.process_whatsapp_dlq")
+def process_whatsapp_dlq(limit: int = 50) -> dict[str, Any]:
+    """
+    Process Dead Letter Queue (DLQ) for WhatsApp messages.
+    
+    This task retrieves failed messages from the DLQ and attempts to review
+    and potentially requeue them for retry.
+    
+    Args:
+        limit: Maximum number of DLQ messages to process
+        
+    Returns:
+        Dictionary with processing results
+    """
+    try:
+        db = next(get_db())
+        
+        from app.integrations.whatsapp.queue.dlq import DLQHandler
+        
+        dlq_handler = DLQHandler(db)
+        
+        # Get pending DLQ messages
+        import asyncio
+        pending_messages = asyncio.run(dlq_handler.get_pending_review(limit=limit))
+        
+        if not pending_messages:
+            logger.info("No pending DLQ messages to process")
+            return {
+                "success": True,
+                "message": "No pending DLQ messages",
+                "processed": 0
+            }
+        
+        logger.info(f"Processing {len(pending_messages)} DLQ messages")
+        
+        # Process each message (basic automatic retry for certain categories)
+        processed_count = 0
+        requeued_count = 0
+        
+        for failed_msg in pending_messages:
+            try:
+                # Auto-approve retry for transient failures (rate limit, timeout)
+                from app.models.failed_message import FailureReason
+                
+                auto_retry_reasons = [
+                    FailureReason.RATE_LIMIT,
+                    FailureReason.TIMEOUT,
+                    FailureReason.NETWORK_ERROR
+                ]
+                
+                if failed_msg.failure_reason in auto_retry_reasons and failed_msg.retry_count < 3:
+                    # Auto-approve and requeue
+                    result = asyncio.run(dlq_handler.requeue_for_retry(
+                        dlq_id=failed_msg.id,
+                        immediate=False
+                    ))
+                    
+                    requeued_count += 1
+                    logger.info(f"Auto-requeued DLQ message {failed_msg.id}")
+                else:
+                    # Leave for manual review
+                    logger.info(f"DLQ message {failed_msg.id} requires manual review")
+                
+                processed_count += 1
+                
+            except Exception as e:
+                logger.error(f"Failed to process DLQ message {failed_msg.id}: {e}")
+                continue
+        
+        result = {
+            "success": True,
+            "message": f"Processed {processed_count} DLQ messages",
+            "processed": processed_count,
+            "requeued": requeued_count,
+            "manual_review": processed_count - requeued_count
+        }
+        
+        logger.info(f"DLQ processing complete: {result}")
+        return result
+        
+    except Exception as exc:
+        logger.error(f"Error processing WhatsApp DLQ: {exc}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(exc),
+            "processed": 0
+        }

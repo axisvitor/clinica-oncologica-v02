@@ -21,7 +21,9 @@ celery_app = Celery(
         "app.tasks.flows",
         "app.tasks.reports",
         "app.tasks.alerts",
-        "app.tasks.quiz_link_tasks"
+        "app.tasks.quiz_link_tasks",
+        "app.tasks.saga_retry",
+        "app.tasks.saga_monitoring"
     ]
 )
 
@@ -144,6 +146,26 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.flows.process_monthly_quizzes",
         "schedule": 3600.0,  # Every hour
         "kwargs": {"limit": 100}
+    },
+    # Saga retry tasks
+    "scan-and-retry-failed-sagas": {
+        "task": "app.tasks.saga_retry.scan_and_retry_failed_sagas",
+        "schedule": 300.0,  # Every 5 minutes
+    },
+    "cleanup-old-completed-sagas": {
+        "task": "app.tasks.saga_retry.cleanup_old_completed_sagas",
+        "schedule": 86400.0,  # Daily
+    },
+    # Saga monitoring tasks
+    "check-orphaned-sagas": {
+        "task": "app.tasks.saga_monitoring.check_orphaned_sagas",
+        "schedule": 3600.0,  # Every hour
+    },
+    # DLQ processing tasks
+    "process-whatsapp-dlq": {
+        "task": "app.tasks.messaging.process_whatsapp_dlq",
+        "schedule": 600.0,  # Every 10 minutes
+        "kwargs": {"limit": 50}
     },
 }
 
