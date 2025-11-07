@@ -112,7 +112,7 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       // Send to backend error tracking
-      fetch('/api/v1/errors/client', {
+      fetch('/api/v2/errors/client', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

@@ -60,7 +60,7 @@ function createRuntimeConfigFiles() {
 if (typeof process !== 'undefined' && process.env) {
   // Server-side: provide actual environment variables
   const apiBaseUrl = process.env['VITE_API_BASE_URL'] || process.env['API_BASE_URL'] || 'http://localhost:8000';
-  const apiUrl = process.env['VITE_API_URL'] || process.env['API_URL'] || apiBaseUrl + '/api/v1';
+  const apiUrl = process.env['VITE_API_URL'] || process.env['API_URL'] || apiBaseUrl + '/api/v2';
   const wsBaseUrl = process.env['VITE_WS_BASE_URL'] || process.env['WS_BASE_URL'] || process.env['VITE_WS_URL'] || 'ws://localhost:8000/ws';
 
   const config = {
@@ -95,7 +95,7 @@ if (typeof process !== 'undefined' && process.env) {
 } else {
   // Browser environment: provide fallback configuration
   const fallbackConfig = {
-    VITE_API_URL: 'http://localhost:8000/api/v1',
+    VITE_API_URL: 'http://localhost:8000/api/v2',
     VITE_API_BASE_URL: 'http://localhost:8000',
     VITE_WS_URL: 'ws://localhost:8000/ws', // Emit both WS variables
     VITE_WS_BASE_URL: 'ws://localhost:8000/ws',
@@ -121,7 +121,7 @@ if (typeof process !== 'undefined' && process.env) {
     // Create config.json for static serving (build-time values)
     // This file will be replaced by Railway's entrypoint script at runtime
     const staticApiBase = process.env['VITE_API_BASE_URL'] || 'http://localhost:8000';
-    const staticApiUrl = process.env['VITE_API_URL'] || staticApiBase + '/api/v1';
+    const staticApiUrl = process.env['VITE_API_URL'] || staticApiBase + '/api/v2';
     const staticWsBase = process.env['VITE_WS_BASE_URL'] || process.env['VITE_WS_URL'] || 'ws://localhost:8000/ws';
 
     const staticConfig = {
@@ -211,7 +211,7 @@ NODE_ENV = "production"
 PORT = "3000"
 
 # Override the following via the Railway dashboard or CLI
-VITE_API_URL = "https://api.example.com/api/v1"
+VITE_API_URL = "https://api.example.com/api/v2"
 VITE_API_BASE_URL = "https://api.example.com"
 VITE_WS_BASE_URL = "wss://api.example.com/ws"
 VITE_WHATSAPP_INSTANCE_NAME = "hormonia-instance"

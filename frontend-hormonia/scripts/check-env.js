@@ -55,7 +55,7 @@ const REQUIRED_VARS = {
   VITE_API_URL: {
     description: 'Backend API URL with path',
     critical: false,
-    example: 'https://clinica-oncologica-v02-production.up.railway.app/api/v1'
+    example: 'https://clinica-oncologica-v02-production.up.railway.app/api/v2'
   },
   
   // WebSocket Configuration

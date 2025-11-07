@@ -253,7 +253,7 @@ export function createPatientsApi(client: ApiClientCore) {
      * @deprecated Use deactivate() for V2 compatibility
      */
     archive: async (patientId: string): Promise<Patient> => {
-      return client.patch<Patient>(`/api/v1/patients/${patientId}/archive`)
+      return client.patch<Patient>(`/api/v2/patients/${patientId}/archive`)
     },
 
     /**

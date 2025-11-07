@@ -61,7 +61,7 @@ export function ReportsPage() {
       setDownloading(reportId)
 
       // Make direct request to download endpoint to get blob
-      const response = await fetch(`${apiClient.getBaseURL()}/api/v1/reports/${reportId}/download`, {
+      const response = await fetch(`${apiClient.getBaseURL()}/api/v2/reports/${reportId}/download`, {
         method: 'GET',
         headers: {
           ['Authorization']: `Bearer ${token}`

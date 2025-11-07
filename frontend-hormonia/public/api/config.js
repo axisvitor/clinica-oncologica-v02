@@ -1,6 +1,6 @@
 ;(function () {
   const DEFAULT_CONFIG = {
-    apiUrl: 'http://localhost:8000/api/v1',
+    apiUrl: 'http://localhost:8000/api/v2',
     wsUrl: 'ws://localhost:8000/ws',
     backendUrl: 'http://localhost:8000'
   }
@@ -23,8 +23,8 @@
 
     if (typeof backendUrl === 'string' && backendUrl.length > 0) {
       normalized.backendUrl = backendUrl
-    } else if (normalized.apiUrl.endsWith('/api/v1')) {
-      normalized.backendUrl = normalized.apiUrl.replace(/\/api\/v1$/, '')
+    } else if (normalized.apiUrl.endsWith('/api/v2')) {
+      normalized.backendUrl = normalized.apiUrl.replace(/\/api\/v2$/, '')
     }
 
     if (typeof wsUrl === 'string' && wsUrl.length > 0) {

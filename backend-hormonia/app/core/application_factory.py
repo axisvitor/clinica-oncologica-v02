@@ -308,8 +308,8 @@ def create_application(
                 }
             )
 
-        # Add CSRF token endpoint with custom implementation
-        @app.get("/api/v1/csrf-token", tags=["Authentication"])
+        # Add CSRF token endpoint with custom implementation (V2)
+        @app.get("/api/v2/csrf-token", tags=["Authentication"])
         async def get_csrf_token_endpoint(request: Request):
             """
             Get CSRF token for session-based authentication.

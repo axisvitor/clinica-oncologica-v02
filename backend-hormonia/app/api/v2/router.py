@@ -7,6 +7,9 @@ import os
 import logging
 from fastapi import APIRouter
 from .patients import router as patients_router
+from .appointments import router as appointments_router
+from .treatments import router as treatments_router
+from .medications import router as medications_router
 from .quiz import router as quiz_router
 from .analytics import router as analytics_router
 from .enhanced_analytics import router as enhanced_analytics_router
@@ -44,7 +47,13 @@ logger = logging.getLogger(__name__)
 api_v2_router = APIRouter(prefix="/api/v2", tags=["v2"])
 
 # Include sub-routers
+# Phase 1: Core Clinical Modules
 api_v2_router.include_router(patients_router, prefix="/patients", tags=["patients-v2"])
+api_v2_router.include_router(appointments_router, prefix="/appointments", tags=["appointments-v2"])
+api_v2_router.include_router(treatments_router, prefix="/treatments", tags=["treatments-v2"])
+api_v2_router.include_router(medications_router, prefix="/medications", tags=["medications-v2"])
+
+# Phase 2: Quiz and Analytics
 api_v2_router.include_router(quiz_router, prefix="/quiz", tags=["quiz-v2"])
 api_v2_router.include_router(analytics_router, prefix="/analytics", tags=["analytics-v2"])
 api_v2_router.include_router(enhanced_analytics_router, prefix="/enhanced-analytics", tags=["enhanced-analytics-v2"])
@@ -87,8 +96,9 @@ api_v2_router.include_router(health_router, tags=["health-v2"])  # Health router
 api_v2_router.include_router(quiz_extensions_router, prefix="/quiz-extensions", tags=["quiz-extensions-v2"])
 api_v2_router.include_router(quiz_responses_router, prefix="/quiz", tags=["quiz-responses-v2"])
 
-# Phase 10: Complete V2 Migration - Quiz Responses
-# All remaining V1 endpoints now have V2 equivalents
+# Phase 10: Complete V2 Migration - Critical Clinical Modules Added
+# ✅ Appointments, Treatments, and Medications modules now implemented
+# All critical V1 endpoints now have V2 equivalents
 
 # Phase 9: Debug & Diagnostics (CONDITIONAL - disabled in production by default)
 # ⚠️ SECURITY WARNING: Only register debug endpoints if explicitly enabled

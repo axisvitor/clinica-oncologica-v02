@@ -81,8 +81,8 @@ class WhatsAppService {
   private apiKey?: string;
 
   constructor() {
-    // Use VITE_API_BASE_URL (without /api/v1) to avoid path duplication
-    // If only VITE_API_URL is available, sanitize it by removing /api/v1 suffix
+    // Use VITE_API_BASE_URL (without /api/v2) to avoid path duplication
+    // If only VITE_API_URL is available, sanitize it by removing /api/v2 suffix
     this.baseUrl = import.meta.env['VITE_API_BASE_URL'] ||
                    import.meta.env['VITE_API_URL']?.replace(/\/api\/v1$/, '') ||
                    'http://localhost:8000';
@@ -133,33 +133,33 @@ class WhatsAppService {
     }
 
     return this.makeRequest<WhatsAppInstance>(
-      `/api/v1/whatsapp/instances?${params.toString()}`,
+      `/api/v2/whatsapp/instances?${params.toString()}`,
       { method: 'POST' }
     );
   }
 
   async getInstanceStatus(instanceName: string): Promise<WhatsAppInstance> {
     return this.makeRequest<WhatsAppInstance>(
-      `/api/v1/whatsapp/instances/${instanceName}`
+      `/api/v2/whatsapp/instances/${instanceName}`
     );
   }
 
   async getQrCode(instanceName: string): Promise<{ qr_code: string; timestamp: string }> {
     return this.makeRequest<{ qr_code: string; timestamp: string }>(
-      `/api/v1/whatsapp/instances/${instanceName}/qr`
+      `/api/v2/whatsapp/instances/${instanceName}/qr`
     );
   }
 
   async restartInstance(instanceName: string): Promise<{ status: string; timestamp: string }> {
     return this.makeRequest<{ status: string; timestamp: string }>(
-      `/api/v1/whatsapp/instances/${instanceName}/restart`,
+      `/api/v2/whatsapp/instances/${instanceName}/restart`,
       { method: 'POST' }
     );
   }
 
   async deleteInstance(instanceName: string): Promise<{ status: string; timestamp: string }> {
     return this.makeRequest<{ status: string; timestamp: string }>(
-      `/api/v1/whatsapp/instances/${instanceName}`,
+      `/api/v2/whatsapp/instances/${instanceName}`,
       { method: 'DELETE' }
     );
   }
@@ -173,13 +173,13 @@ class WhatsAppService {
       instances: WhatsAppInstance[];
       total: number;
       timestamp: string;
-    }>('/api/v1/whatsapp/instances');
+    }>('/api/v2/whatsapp/instances');
   }
 
   // Message Management
   async sendMessage(request: MessageRequest): Promise<MessageResponse> {
     return this.makeRequest<MessageResponse>(
-      '/api/v1/whatsapp/messages',
+      '/api/v2/whatsapp/messages',
       {
         method: 'POST',
         body: JSON.stringify(request),
@@ -259,7 +259,7 @@ class WhatsAppService {
       total: number;
       limit: number;
       offset: number;
-    }>(`/api/v1/whatsapp/messages/${instanceName}/${chatId}?${params.toString()}`);
+    }>(`/api/v2/whatsapp/messages/${instanceName}/${chatId}?${params.toString()}`);
   }
 
   async getMessageStatistics(
@@ -285,7 +285,7 @@ class WhatsAppService {
       period: { startDate?: string; endDate?: string };
       statistics: Record<string, number>;
       generatedAt: string;
-    }>(`/api/v1/whatsapp/messages/${instanceName}/statistics?${params.toString()}`);
+    }>(`/api/v2/whatsapp/messages/${instanceName}/statistics?${params.toString()}`);
   }
 
   // Contact Management
@@ -298,7 +298,7 @@ class WhatsAppService {
       status: string;
       instanceName: string;
       timestamp: string;
-    }>(`/api/v1/whatsapp/contacts/${instanceName}/sync`, {
+    }>(`/api/v2/whatsapp/contacts/${instanceName}/sync`, {
       method: 'POST',
     });
   }
@@ -328,7 +328,7 @@ class WhatsAppService {
       total: number;
       limit: number;
       offset: number;
-    }>(`/api/v1/whatsapp/contacts/${instanceName}?${params.toString()}`);
+    }>(`/api/v2/whatsapp/contacts/${instanceName}?${params.toString()}`);
   }
 
   async checkWhatsAppNumber(
@@ -349,7 +349,7 @@ class WhatsAppService {
       formattedNumber: string;
       isWhatsappUser: boolean;
       checkedAt: string;
-    }>(`/api/v1/whatsapp/contacts/${instanceName}/check?${params.toString()}`, {
+    }>(`/api/v2/whatsapp/contacts/${instanceName}/check?${params.toString()}`, {
       method: 'POST',
     });
   }
@@ -362,7 +362,7 @@ class WhatsAppService {
     return this.makeRequest<{
       queueStatistics: QueueStats;
       timestamp: string;
-    }>('/api/v1/whatsapp/queue/stats');
+    }>('/api/v2/whatsapp/queue/stats');
   }
 
   async startQueueProcessing(): Promise<{
@@ -372,7 +372,7 @@ class WhatsAppService {
     return this.makeRequest<{
       status: string;
       timestamp: string;
-    }>('/api/v1/whatsapp/queue/process', {
+    }>('/api/v2/whatsapp/queue/process', {
       method: 'POST',
     });
   }
@@ -389,7 +389,7 @@ class WhatsAppService {
       service: string;
       timestamp: string;
       version: string;
-    }>('/api/v1/whatsapp/health');
+    }>('/api/v2/whatsapp/health');
   }
 
   // Utility Methods
@@ -429,7 +429,7 @@ class WhatsAppService {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${this.baseUrl}/api/v1/upload/media`, {
+    const response = await fetch(`${this.baseUrl}/api/v2/upload/media`, {
       method: 'POST',
       body: formData,
       headers: this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {},

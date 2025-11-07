@@ -67,7 +67,7 @@ export interface RuntimeConfig {
 
 // Production fallback configuration
 const PRODUCTION_FALLBACK_CONFIG: RuntimeConfig = {
-  VITE_API_URL: 'https://clinica-oncologica-v02-production.up.railway.app/api/v1',
+  VITE_API_URL: 'https://clinica-oncologica-v02-production.up.railway.app/api/v2',
   VITE_API_BASE_URL: 'https://clinica-oncologica-v02-production.up.railway.app',
   VITE_WS_URL: 'wss://clinica-oncologica-v02-production.up.railway.app/ws',
   VITE_WS_BASE_URL: 'wss://clinica-oncologica-v02-production.up.railway.app/ws',
@@ -142,7 +142,7 @@ async function loadRuntimeConfiguration(): Promise<RuntimeConfig> {
   // In development, use Vite's import.meta.env directly
   if (!isProduction) {
     const apiBaseUrl = import.meta.env['VITE_API_BASE_URL'] || 'http://localhost:8000';
-    const apiUrl = import.meta.env['VITE_API_URL'] || `${apiBaseUrl}/api/v1`;
+    const apiUrl = import.meta.env['VITE_API_URL'] || `${apiBaseUrl}/api/v2`;
     const wsBaseUrl = import.meta.env['VITE_WS_BASE_URL'] || import.meta.env['VITE_WS_URL'] || 'ws://localhost:8000/ws';
 
     const devConfig: RuntimeConfig = {

@@ -163,7 +163,7 @@ jobs:
         run: npm run build:prod
         env:
           NODE_ENV: production
-          VITE_API_URL: https://backend-api.railway.app/api/v1
+          VITE_API_URL: https://backend-api.railway.app/api/v2
           VITE_API_BASE_URL: https://backend-api.railway.app
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}

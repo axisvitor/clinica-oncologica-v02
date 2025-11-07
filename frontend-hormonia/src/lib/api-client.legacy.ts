@@ -221,7 +221,7 @@ class ApiClient {
     this.csrfTokenPromise = (async () => {
       try {
         logger.debug('[ApiClient] Initiating CSRF token fetch...')
-        const response = await fetch(`${this.baseURL}/api/v1/csrf-token`, {
+        const response = await fetch(`${this.baseURL}/api/v2/csrf-token`, {
           credentials: 'include' // Include cookies
         })
 
@@ -660,7 +660,7 @@ class ApiClient {
           created_at: string;
         };
         session_id?: string; // Optional - may be in cookie only
-      }>('/api/v1/session/', {
+      }>('/api/v2/session/', {
         method: 'POST',
         credentials: 'include', // CRITICAL: Send/receive cookies
         headers: {
@@ -702,7 +702,7 @@ class ApiClient {
         especialidade?: string;
         conselho_regional?: string;
         pacientes_atribuidos?: any[];
-      }>('/api/v1/auth/me');
+      }>('/api/v2/auth/me');
 
       // SECURITY: Never log full user profiles in production
       // Removed: console.log with user details
@@ -734,7 +734,7 @@ class ApiClient {
 
     logout: async () => {
       // FastAPI returns: { "message": "Successfully logged out" }
-      const response = await this.request<{ message: string }>('/api/v1/auth/logout', { method: 'POST' });
+      const response = await this.request<{ message: string }>('/api/v2/auth/logout', { method: 'POST' });
 
       // Transform to match frontend expectations
       return {
@@ -746,85 +746,85 @@ class ApiClient {
   // Patients endpoints
   patients = {
     list: async (params: { page?: number; size?: number; search?: string; status?: string; treatment_type?: string }) => {
-      const response = await this.request<PatientListResponse>('/api/v1/patients', { params });
+      const response = await this.request<PatientListResponse>('/api/v2/patients', { params });
       return transformPaginationResponse<Patient>(response, 'patients');
     },
 
     get: (id: string) =>
-      this.request<Patient>(`/api/v1/patients/${id}`),
+      this.request<Patient>(`/api/v2/patients/${id}`),
 
     create: (patient: Partial<Patient>) =>
-      this.request<Patient>('/api/v1/patients', {
+      this.request<Patient>('/api/v2/patients', {
         method: 'POST',
         body: JSON.stringify(patient)
       }),
 
     update: (id: string, patient: Partial<Patient>) =>
-      this.request<Patient>(`/api/v1/patients/${id}`, {
+      this.request<Patient>(`/api/v2/patients/${id}`, {
         method: 'PUT',
         body: JSON.stringify(patient)
       }),
 
     deletePatient: (id: string) =>
-      this.request<void>(`/api/v1/patients/${id}`, { method: 'DELETE' }),
+      this.request<void>(`/api/v2/patients/${id}`, { method: 'DELETE' }),
 
     timeline: (id: string) =>
-      this.request<{ events: TimelineEvent[]; total?: number }>(`/api/v1/patients/${id}/timeline`),
+      this.request<{ events: TimelineEvent[]; total?: number }>(`/api/v2/patients/${id}/timeline`),
 
     activate: (id: string) =>
-      this.request<void>(`/api/v1/patients/${id}/activate`, { method: 'POST' }),
+      this.request<void>(`/api/v2/patients/${id}/activate`, { method: 'POST' }),
 
     deactivate: (id: string) =>
-      this.request<void>(`/api/v1/patients/${id}/deactivate`, { method: 'POST' })
+      this.request<void>(`/api/v2/patients/${id}/deactivate`, { method: 'POST' })
   }
 
   // Messages endpoints
   messages = {
     list: async (params: { patient_id?: string; page?: number; size?: number }) => {
-      const response = await this.request<MessageListResponse>('/api/v1/messages', { params });
+      const response = await this.request<MessageListResponse>('/api/v2/messages', { params });
       return transformPaginationResponse<Message>(response, 'messages');
     },
 
     send: (message: SendMessageRequest) =>
-      this.request<SendMessageResponse>('/api/v1/messages/send', {
+      this.request<SendMessageResponse>('/api/v2/messages/send', {
         method: 'POST',
         body: JSON.stringify(message)
       }),
 
     retry: (id: string) =>
-      this.request<Message>(`/api/v1/messages/${id}/retry`, { method: 'POST' })
+      this.request<Message>(`/api/v2/messages/${id}/retry`, { method: 'POST' })
   }
 
   // Flow endpoints
   flows = {
     list: async (params: { patient_id?: string; status?: string }) => {
-      const response = await this.request<any[]>('/api/v1/flows', { params });
+      const response = await this.request<any[]>('/api/v2/flows', { params });
       return transformFlowListResponse(response);
     },
 
     start: (patientId: string, flowType: string) =>
-      this.request<any>('/api/v1/flows/start', {
+      this.request<any>('/api/v2/flows/start', {
         method: 'POST',
         body: JSON.stringify({ patient_id: patientId, flow_type: flowType })
       }),
 
     getState: (patientId: string) =>
-      this.request<any>(`/api/v1/flows/${patientId}/state`),
+      this.request<any>(`/api/v2/flows/${patientId}/state`),
 
     advance: (patientId: string, forceDay?: number) =>
-      this.request<any>(`/api/v1/flows/${patientId}/advance`, {
+      this.request<any>(`/api/v2/flows/${patientId}/advance`, {
         method: 'POST',
         body: JSON.stringify({ force_day: forceDay })
       }),
 
     pause: (patientId: string) =>
-      this.request<any>(`/api/v1/flows/${patientId}/pause`, { method: 'POST' }),
+      this.request<any>(`/api/v2/flows/${patientId}/pause`, { method: 'POST' }),
 
     resume: (patientId: string) =>
-      this.request<any>(`/api/v1/flows/${patientId}/resume`, { method: 'POST' }),
+      this.request<any>(`/api/v2/flows/${patientId}/resume`, { method: 'POST' }),
 
     processResponse: (patientId: string, responseText: string, responseMetadata?: any) =>
-      this.request<any>(`/api/v1/flows/${patientId}/response`, {
+      this.request<any>(`/api/v2/flows/${patientId}/response`, {
         method: 'POST',
         body: JSON.stringify({
           response_text: responseText,
@@ -834,76 +834,76 @@ class ApiClient {
 
     // Template management
     getTemplates: () =>
-      this.request<any[]>('/api/v1/flows/templates'),
+      this.request<any[]>('/api/v2/flows/templates'),
 
     createTemplate: (template: any) =>
-      this.request<any>('/api/v1/flows/templates', {
+      this.request<any>('/api/v2/flows/templates', {
         method: 'POST',
         body: JSON.stringify(template)
       }),
 
     updateTemplate: (templateId: string, template: any) =>
-      this.request<any>(`/api/v1/flows/templates/${templateId}`, {
+      this.request<any>(`/api/v2/flows/templates/${templateId}`, {
         method: 'PUT',
         body: JSON.stringify(template)
       }),
 
     deleteTemplate: (templateId: string) =>
-      this.request<void>(`/api/v1/flows/templates/${templateId}`, { method: 'DELETE' }),
+      this.request<void>(`/api/v2/flows/templates/${templateId}`, { method: 'DELETE' }),
 
     getAnalytics: () =>
-      this.request<any>('/api/v1/flows/analytics/flow-performance')
+      this.request<any>('/api/v2/flows/analytics/flow-performance')
   }
 
   // Analytics endpoints
   analytics = {
     dashboard: () =>
-      this.request<any>('/api/v1/analytics/dashboard'),
+      this.request<any>('/api/v2/analytics/dashboard'),
 
     patients: (params: { start_date?: string; end_date?: string }) =>
-      this.request<any>('/api/v1/analytics/patients', { params }),
+      this.request<any>('/api/v2/analytics/patients', { params }),
 
     engagement: (params: { start_date?: string; end_date?: string }) =>
-      this.request<any>('/api/v1/analytics/engagement', { params })
+      this.request<any>('/api/v2/analytics/engagement', { params })
   }
 
   // Alerts endpoints
   alerts = {
     list: (params: { page?: number; size?: number; severity?: string; acknowledged?: boolean }) =>
-      this.request<PaginatedResponse<any>>('/api/v1/alerts', { params }),
+      this.request<PaginatedResponse<any>>('/api/v2/alerts', { params }),
 
     create: (alert: { patient_id?: string; type: string; severity: string; title: string; message: string; metadata?: any }) =>
-      this.request<any>('/api/v1/alerts', {
+      this.request<any>('/api/v2/alerts', {
         method: 'POST',
         body: JSON.stringify(alert)
       }),
 
     acknowledge: (id: string) =>
-      this.request<void>(`/api/v1/alerts/${id}/acknowledge`, { method: 'POST' }),
+      this.request<void>(`/api/v2/alerts/${id}/acknowledge`, { method: 'POST' }),
 
     resolve: (id: string) =>
-      this.request<void>(`/api/v1/alerts/${id}/resolve`, { method: 'POST' })
+      this.request<void>(`/api/v2/alerts/${id}/resolve`, { method: 'POST' })
   }
 
   // Reports endpoints
   reports = {
     list: (params: { page?: number; size?: number }) =>
-      this.request<PaginatedResponse<any>>('/api/v1/reports', { params }),
+      this.request<PaginatedResponse<any>>('/api/v2/reports', { params }),
 
     generate: (patientId: string, type: string, config: any) =>
-      this.request<any>('/api/v1/reports/generate', {
+      this.request<any>('/api/v2/reports/generate', {
         method: 'POST',
         body: JSON.stringify({ patient_id: patientId, type, config })
       }),
 
     get: (id: string) =>
-      this.request<any>(`/api/v1/reports/${id}`),
+      this.request<any>(`/api/v2/reports/${id}`),
 
     preview: (id: string) =>
-      this.request<any>(`/api/v1/reports/${id}/preview`),
+      this.request<any>(`/api/v2/reports/${id}/preview`),
 
     download: async (id: string) => {
-      const url = `${this.baseURL}/api/v1/reports/${id}/download`;
+      const url = `${this.baseURL}/api/v2/reports/${id}/download`;
       const response = await fetch(url, {
         headers: {
           ...this.authToken ? { 'Authorization': `Bearer ${this.authToken}` } : {}
@@ -921,25 +921,25 @@ class ApiClient {
   // Quiz endpoints
   quiz = {
     templates: () =>
-      this.request<{ items: any[]; total: number; page: number; size: number }>('/api/v1/quiz/templates'),
+      this.request<{ items: any[]; total: number; page: number; size: number }>('/api/v2/quiz/templates'),
 
     start: (patientId: string, quizTemplateId: string) =>
-      this.request<any>('/api/v1/quiz/sessions', {
+      this.request<any>('/api/v2/quiz/sessions', {
         method: 'POST',
         body: JSON.stringify({ patient_id: patientId, quiz_template_id: quizTemplateId })
       }),
 
     getSession: (sessionId: string) =>
-      this.request<any>(`/api/v1/quiz/sessions/${sessionId}`),
+      this.request<any>(`/api/v2/quiz/sessions/${sessionId}`),
 
     submitResponse: (sessionId: string, question_id: string, answer: string, response_metadata?: any) =>
-      this.request<any>(`/api/v1/quiz/sessions/${sessionId}/submit`, {
+      this.request<any>(`/api/v2/quiz/sessions/${sessionId}/submit`, {
         method: 'POST',
         params: { question_id, answer, ...(response_metadata ? { response_metadata: JSON.stringify(response_metadata) } : {}) }
       }),
 
     sessions: (params: { patient_id?: string; status?: string }) =>
-      this.request<{ items: any[]; total: number; page: number; size: number }>('/api/v1/quiz/sessions', { params }),
+      this.request<{ items: any[]; total: number; page: number; size: number }>('/api/v2/quiz/sessions', { params }),
 
     // Quiz Response Viewer endpoints
     getPatientResponses: (patientId: string, params?: {
@@ -950,13 +950,13 @@ class ApiClient {
       start_date?: string
       end_date?: string
     }) =>
-      this.request<any>(`/api/v1/patients/${patientId}/quiz-responses`, params ? { params } : {}),
+      this.request<any>(`/api/v2/patients/${patientId}/quiz-responses`, params ? { params } : {}),
 
     getSessionResponses: (sessionId: string) =>
-      this.request<any>(`/api/v1/quiz/sessions/${sessionId}/responses`),
+      this.request<any>(`/api/v2/quiz/sessions/${sessionId}/responses`),
 
     getSessionAnalysis: (sessionId: string) =>
-      this.request<any>(`/api/v1/quiz/sessions/${sessionId}/analysis`)
+      this.request<any>(`/api/v2/quiz/sessions/${sessionId}/analysis`)
   }
 
   // Quizzes endpoints (alias for quiz for backward compatibility)
@@ -966,21 +966,21 @@ class ApiClient {
       // Template management - delegates to avoid duplication
       list: () => this.quiz.templates(),
       listTemplates: () => this.quiz.templates(),
-      create: (quiz: any) => this.request<any>('/api/v1/quiz/templates', {
+      create: (quiz: any) => this.request<any>('/api/v2/quiz/templates', {
         method: 'POST',
         body: JSON.stringify(quiz)
       }),
-      createTemplate: (template: any) => this.request<any>('/api/v1/quiz/templates', {
+      createTemplate: (template: any) => this.request<any>('/api/v2/quiz/templates', {
         method: 'POST',
         body: JSON.stringify(template)
       }),
-      update: (id: string, quiz: any) => this.request<any>(`/api/v1/quiz/templates/${id}`, {
+      update: (id: string, quiz: any) => this.request<any>(`/api/v2/quiz/templates/${id}`, {
         method: 'PUT',
         body: JSON.stringify(quiz)
       }),
-      delete: (id: string) => this.request<void>(`/api/v1/quiz/templates/${id}`, { method: 'DELETE' }),
-      deleteTemplate: (id: string) => this.request<void>(`/api/v1/quiz/templates/${id}`, { method: 'DELETE' }),
-      getTemplateAnalytics: (templateId: string) => this.request<any>(`/api/v1/quiz/templates/${templateId}/analytics`),
+      delete: (id: string) => this.request<void>(`/api/v2/quiz/templates/${id}`, { method: 'DELETE' }),
+      deleteTemplate: (id: string) => this.request<void>(`/api/v2/quiz/templates/${id}`, { method: 'DELETE' }),
+      getTemplateAnalytics: (templateId: string) => this.request<any>(`/api/v2/quiz/templates/${templateId}/analytics`),
 
       // Session management - delegates to quiz namespace
       start: this.quiz.start.bind(this.quiz),
@@ -994,7 +994,7 @@ class ApiClient {
   // Notifications endpoints (available under auth route)
   notifications = {
     list: () =>
-      this.request<{ items: any[]; unread_count: number }>('/api/v1/auth/notifications')
+      this.request<{ items: any[]; unread_count: number }>('/api/v2/auth/notifications')
   }
 
   // Admin System Stats endpoint
@@ -1023,102 +1023,102 @@ class ApiClient {
           critical_events: number
           warnings: number
         }
-      }>('/api/v1/admin/system-stats')
+      }>('/api/v2/admin/system-stats')
   }
 
   // Admin User Management endpoints
   adminUsers = {
     list: (params: { page?: number; size?: number; search?: string; role?: string; is_active?: boolean }) =>
-      this.request<{ items: any[]; total: number; page: number; pages: number }>('/api/v1/admin/users', { params }),
+      this.request<{ items: any[]; total: number; page: number; pages: number }>('/api/v2/admin/users', { params }),
 
     get: (id: string) =>
-      this.request<any>(`/api/v1/admin/users/${id}`),
+      this.request<any>(`/api/v2/admin/users/${id}`),
 
     create: (user: any) =>
-      this.request<any>('/api/v1/admin/users', {
+      this.request<any>('/api/v2/admin/users', {
         method: 'POST',
         body: JSON.stringify(user)
       }),
 
     update: (id: string, user: any) =>
-      this.request<any>(`/api/v1/admin/users/${id}`, {
+      this.request<any>(`/api/v2/admin/users/${id}`, {
         method: 'PUT',
         body: JSON.stringify(user)
       }),
 
     delete: (id: string) =>
-      this.request<void>(`/api/v1/admin/users/${id}`, { method: 'DELETE' }),
+      this.request<void>(`/api/v2/admin/users/${id}`, { method: 'DELETE' }),
 
     activate: (id: string) =>
-      this.request<void>(`/api/v1/admin/users/${id}/activate`, { method: 'POST' }),
+      this.request<void>(`/api/v2/admin/users/${id}/activate`, { method: 'POST' }),
 
     deactivate: (id: string) =>
-      this.request<void>(`/api/v1/admin/users/${id}/deactivate`, { method: 'POST' }),
+      this.request<void>(`/api/v2/admin/users/${id}/deactivate`, { method: 'POST' }),
 
     updatePermissions: (id: string, permissions: string[]) =>
-      this.request<void>(`/api/v1/admin/users/${id}/permissions`, {
+      this.request<void>(`/api/v2/admin/users/${id}/permissions`, {
         method: 'PUT',
         body: JSON.stringify({ permissions })
       }),
 
     updateRole: (id: string, role: string) =>
-      this.request<void>(`/api/v1/admin/users/${id}/role`, {
+      this.request<void>(`/api/v2/admin/users/${id}/role`, {
         method: 'PUT',
         body: JSON.stringify({ role })
       }),
 
     getActivity: (id: string, params?: { page?: number; size?: number }) =>
-      this.request<PaginatedResponse<any>>(`/api/v1/admin/users/${id}/activity`, params ? { params } : {}),
+      this.request<PaginatedResponse<any>>(`/api/v2/admin/users/${id}/activity`, params ? { params } : {}),
 
     resetPassword: (id: string, payload: { new_password: string; force_change: boolean }) =>
-      this.request<{ success: boolean; message: string }>(`/api/v1/admin/users/${id}/reset-password`, {
+      this.request<{ success: boolean; message: string }>(`/api/v2/admin/users/${id}/reset-password`, {
         method: 'POST',
         body: JSON.stringify(payload)
       }),
 
     unlock: (id: string) =>
-      this.request<void>(`/api/v1/admin/users/${id}/unlock`, { method: 'POST' }),
+      this.request<void>(`/api/v2/admin/users/${id}/unlock`, { method: 'POST' }),
 
     enable2FA: (id: string) =>
-      this.request<void>(`/api/v1/admin/users/${id}/2fa/enable`, { method: 'POST' }),
+      this.request<void>(`/api/v2/admin/users/${id}/2fa/enable`, { method: 'POST' }),
 
     disable2FA: (id: string) =>
-      this.request<void>(`/api/v1/admin/users/${id}/2fa/disable`, { method: 'POST' })
+      this.request<void>(`/api/v2/admin/users/${id}/2fa/disable`, { method: 'POST' })
   }
 
   // AI endpoints
   ai = {
     chat: (message: string, context?: any) =>
-      this.request<any>('/api/v1/ai/chat', {
+      this.request<any>('/api/v2/ai/chat', {
         method: 'POST',
         body: JSON.stringify({ message, context })
       }),
 
     analyze: (data: any, analysisType: string) =>
-      this.request<any>('/api/v1/ai/analyze', {
+      this.request<any>('/api/v2/ai/analyze', {
         method: 'POST',
         body: JSON.stringify({ data, analysis_type: analysisType })
       }),
 
     generateResponse: (patientId: string, messageHistory: any[], intent?: string) =>
-      this.request<any>('/api/v1/ai/generate-response', {
+      this.request<any>('/api/v2/ai/generate-response', {
         method: 'POST',
         body: JSON.stringify({ patient_id: patientId, message_history: messageHistory, intent })
       }),
 
     sentiment: (text: string) =>
-      this.request<any>('/api/v1/ai/sentiment', {
+      this.request<any>('/api/v2/ai/sentiment', {
         method: 'POST',
         body: JSON.stringify({ text })
       }),
 
     insights: (patientId: string, timeframe?: string) =>
-      this.request<any>(`/api/v1/ai/insights/${patientId}`, timeframe ? {
+      this.request<any>(`/api/v2/ai/insights/${patientId}`, timeframe ? {
         params: { timeframe }
       } : {}),
 
     recommendations: (patientId: string) =>
-      this.request<any>(`/api/v1/ai/recommendations/${patientId}`)
+      this.request<any>(`/api/v2/ai/recommendations/${patientId}`)
   }
 
   // Physician-specific endpoints
@@ -1130,7 +1130,7 @@ class ApiClient {
       if (patientId) params['patient_id'] = patientId
       if (daysLookback) params['days_lookback'] = daysLookback
 
-      return this.request<any>('/api/v1/physician/risk-assessments',
+      return this.request<any>('/api/v2/physician/risk-assessments',
         Object.keys(params).length > 0 ? { params } : {}
       )
     }
@@ -1146,7 +1146,7 @@ class ApiClient {
       expiry_hours?: number
       custom_message?: string
     }) =>
-      this.request<any>('/api/v1/monthly-quiz/links', {
+      this.request<any>('/api/v2/monthly-quiz/links', {
         method: 'POST',
         body: JSON.stringify(data)
       }),
@@ -1159,22 +1159,22 @@ class ApiClient {
       expiry_hours?: number
       custom_message?: string
     }) =>
-      this.request<any>('/api/v1/monthly-quiz/links/bulk', {
+      this.request<any>('/api/v2/monthly-quiz/links/bulk', {
         method: 'POST',
         body: JSON.stringify(data)
       }),
 
     // Get quiz link status for a specific session
     getStatus: (sessionId: string) =>
-      this.request<any>(`/api/v1/monthly-quiz/links/${sessionId}/status`),
+      this.request<any>(`/api/v2/monthly-quiz/links/${sessionId}/status`),
 
     // Get quiz link status for a patient
     getPatientStatus: (patientId: string) =>
-      this.request<any>(`/api/v1/monthly-quiz/patients/${patientId}/status`),
+      this.request<any>(`/api/v2/monthly-quiz/patients/${patientId}/status`),
 
     // Get quiz link history for a patient
     getHistory: (patientId: string) =>
-      this.request<any>(`/api/v1/monthly-quiz/patients/${patientId}/history`),
+      this.request<any>(`/api/v2/monthly-quiz/patients/${patientId}/history`),
 
     // Get quiz statistics (dashboard)
     getStats: (params?: { start_date?: string; end_date?: string }) =>
@@ -1193,22 +1193,22 @@ class ApiClient {
         // Calculated metrics
         completion_rate: number
         expiration_rate: number
-      }>('/api/v1/monthly-quiz/stats/dashboard', params ? { params } : {}),
+      }>('/api/v2/monthly-quiz/stats/dashboard', params ? { params } : {}),
 
     // Get active quiz links
     getActiveLinks: () =>
-      this.request<any[]>('/api/v1/monthly-quiz/links/active'),
+      this.request<any[]>('/api/v2/monthly-quiz/links/active'),
 
     // Resend quiz link
     resend: (sessionId: string, method: 'whatsapp' | 'email' | 'sms' = 'whatsapp') =>
-      this.request<any>(`/api/v1/monthly-quiz/links/${sessionId}/resend`, {
+      this.request<any>(`/api/v2/monthly-quiz/links/${sessionId}/resend`, {
         method: 'POST',
         params: { delivery_method: method }
       }),
 
     // Cancel quiz link
     cancel: (sessionId: string) =>
-      this.request<any>(`/api/v1/monthly-quiz/links/${sessionId}/cancel`, {
+      this.request<any>(`/api/v2/monthly-quiz/links/${sessionId}/cancel`, {
         method: 'POST'
       })
   }

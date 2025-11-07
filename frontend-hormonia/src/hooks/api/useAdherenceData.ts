@@ -6,7 +6,7 @@ import { useQuery, UseQueryResult } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 
 /**
- * Treatment adherence data point structure from /api/v1/analytics/adherence
+ * Treatment adherence data point structure from /api/v2/analytics/adherence
  */
 export interface TreatmentAdherence {
   day: string
@@ -53,7 +53,7 @@ export function useAdherenceData(
     queryKey: ['clinical', 'adherence', days],
     queryFn: async () => {
       const response = await apiClient.get<ApiResponse<TreatmentAdherence[]>>(
-        '/api/v1/analytics/adherence',
+        '/api/v2/analytics/adherence',
         { days }
       )
       return response.data

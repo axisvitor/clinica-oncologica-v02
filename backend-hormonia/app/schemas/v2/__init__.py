@@ -64,6 +64,24 @@ from .physicians import (
     PhysicianFilter,
     PhysicianBrief,
 )
+from .appointment import (
+    AppointmentV2Response,
+    AppointmentV2List,
+    AppointmentV2Create,
+    AppointmentV2Update,
+)
+from .treatment import (
+    TreatmentV2Response,
+    TreatmentV2List,
+    TreatmentV2Create,
+    TreatmentV2Update,
+)
+from .medication import (
+    MedicationV2Response,
+    MedicationV2List,
+    MedicationV2Create,
+    MedicationV2Update,
+)
 
 __all__ = [
     "PaginationParams",
@@ -115,4 +133,16 @@ __all__ = [
     "PhysicianUpdate",
     "PhysicianFilter",
     "PhysicianBrief",
+    "AppointmentV2Response",
+    "AppointmentV2List",
+    "AppointmentV2Create",
+    "AppointmentV2Update",
+    "TreatmentV2Response",
+    "TreatmentV2List",
+    "TreatmentV2Create",
+    "TreatmentV2Update",
+    "MedicationV2Response",
+    "MedicationV2List",
+    "MedicationV2Create",
+    "MedicationV2Update",
 ]

@@ -20,7 +20,7 @@ const trimTrailingSlash = (value?: string) => {
 
 const buildApiUrl = (baseUrl: string) => {
   const normalized = trimTrailingSlash(baseUrl);
-  return normalized.endsWith("/api/v1") ? normalized : `${normalized}/api/v1`;
+  return normalized.endsWith("/api/v2") ? normalized : `${normalized}/api/v2`;
 };
 
 const buildWsUrl = (baseUrl: string) => {
@@ -259,7 +259,7 @@ export default defineConfig(({ mode }) => ({
                 "https://clinica-oncologica-v02-production.up.railway.app",
               changeOrigin: true,
               secure: false,
-              rewrite: (path) => path.replace(/^\/api/, "/api/v1"),
+              rewrite: (path) => path.replace(/^\/api/, "/api/v2"),
             },
             "/ws": {
               target:
