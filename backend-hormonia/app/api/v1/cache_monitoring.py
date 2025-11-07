@@ -12,9 +12,10 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User, UserRole
-from app.services.analytics_cache import get_analytics_cache
-from app.services.cache_invalidation import get_cache_invalidation_service
+
+
 from app.core.monitoring_logging import monitoring_logger
+from app.services.unified_cache import UnifiedCacheService
 
 
 logger = logging.getLogger(__name__)

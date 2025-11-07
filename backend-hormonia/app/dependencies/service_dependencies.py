@@ -15,6 +15,7 @@ import redis.asyncio as redis
 from app.database import get_db
 from app.services import ServiceProvider
 from typing import Generator
+from app.services.unified_cache import UnifiedCacheService
 
 # =============================================================================
 # THREAD-SAFE SERVICE PROVIDER (Lazy Import to Avoid Circular Dependency)
@@ -160,7 +161,7 @@ def get_metrics_redis_storage(services: ServiceProvider = Depends(_get_provider_
 
 async def get_cache_service():
     """Get cache service instance"""
-    from app.services.cache import CacheService
+    
     return CacheService()
 
 async def get_websocket_manager():

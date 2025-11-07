@@ -22,6 +22,7 @@ import os
 import re
 from pathlib import Path
 from typing import List, Tuple
+from app.services.unified_cache import UnifiedCacheService
 
 # Mapeamento de imports antigos → novos
 IMPORT_MAPPINGS = [
@@ -63,20 +64,20 @@ IMPORT_MAPPINGS = [
     # cache_service
     (
         r"from app\.services\.cache_service import get_cache_service",
-        "from app.services.cache import get_cache_manager",
+        "
     ),
     (
         r"from app\.services\.cache_service import CacheService",
-        "from app.services.cache import CacheManager",
+        "
     ),
     # unified_cache
     (
         r"from app\.services\.unified_cache import UnifiedCacheService",
-        "from app.services.cache import CacheManager",
+        "
     ),
     (
         r"from app\.services\.unified_cache import get_cache_manager",
-        "from app.services.cache import get_cache_manager",
+        "
     ),
     # cache_invalidation
     (

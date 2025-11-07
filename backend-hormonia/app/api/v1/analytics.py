@@ -29,8 +29,9 @@ from app.core.redis_unified import get_sync_redis
 from app.core.date_utils import coerce_to_date, validate_date_range, set_default_date_range
 from app.core.error_handler import error_handler
 from app.core.monitoring_logging import monitoring_logger, monitoring_decorator
-from app.services.analytics_cache import get_analytics_cache, cache_analytics_data
+
 import json
+from app.services.unified_cache import UnifiedCacheService
 
 
 logger = logging.getLogger(__name__)

@@ -552,6 +552,7 @@ def get_legacy_auth_service(services: ServiceProvider = Depends(get_thread_safe_
 from app.schemas.common import PaginationParams
 from fastapi import Query
 from uuid import UUID
+from app.services.unified_cache import UnifiedCacheService
 
 
 def get_pagination_params(
@@ -700,7 +701,7 @@ def verify_patient_access(
 # Enhanced service dependencies for caching and performance
 async def get_cache_service() -> 'CacheService':
     """Get cache service instance."""
-    from app.services.cache import CacheService
+    
     return CacheService()
 
 
