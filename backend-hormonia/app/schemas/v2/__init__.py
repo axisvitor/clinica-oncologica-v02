@@ -50,6 +50,20 @@ from .reports import (
     ReportTemplateResponse,
     ReportTemplateListResponse,
 )
+from .physicians import (
+    PhysicianStatus,
+    WorkloadLevel,
+    Specialty,
+    MessageStats,
+    AppointmentStats,
+    AlertStats,
+    PhysicianStatistics,
+    PhysicianResponse,
+    PhysicianList,
+    PhysicianUpdate,
+    PhysicianFilter,
+    PhysicianBrief,
+)
 
 __all__ = [
     "PaginationParams",
@@ -89,4 +103,16 @@ __all__ = [
     "ReportTemplateUpdate",
     "ReportTemplateResponse",
     "ReportTemplateListResponse",
+    "PhysicianStatus",
+    "WorkloadLevel",
+    "Specialty",
+    "MessageStats",
+    "AppointmentStats",
+    "AlertStats",
+    "PhysicianStatistics",
+    "PhysicianResponse",
+    "PhysicianList",
+    "PhysicianUpdate",
+    "PhysicianFilter",
+    "PhysicianBrief",
 ]

@@ -23,6 +23,13 @@ from .alerts import router as alerts_router
 from .templates import router as templates_router
 from .ab_testing import router as ab_testing_router
 from .platform_sync import router as platform_sync_router
+from .tasks import router as tasks_router
+from .upload import router as upload_router
+from .localization import router as localization_router
+from .dashboard import router as dashboard_router
+from .physicians import router as physicians_router
+from .admin_extensions import router as admin_extensions_router
+from .docs import router as docs_router
 
 api_v2_router = APIRouter(prefix="/api/v2", tags=["v2"])
 
@@ -50,6 +57,17 @@ api_v2_router.include_router(alerts_router, prefix="/alerts", tags=["alerts-v2"]
 api_v2_router.include_router(templates_router, prefix="/templates", tags=["templates-v2"])
 api_v2_router.include_router(ab_testing_router, prefix="/ab-testing", tags=["ab-testing-v2"])
 api_v2_router.include_router(platform_sync_router, prefix="/platform-sync", tags=["platform-sync-v2"])
+
+# Phase 7: Tasks, Upload, Localization, Dashboard
+api_v2_router.include_router(tasks_router, prefix="/tasks", tags=["tasks-v2"])
+api_v2_router.include_router(upload_router, prefix="/upload", tags=["upload-v2"])
+api_v2_router.include_router(localization_router, prefix="/localization", tags=["localization-v2"])
+api_v2_router.include_router(dashboard_router, prefix="/dashboard", tags=["dashboard-v2"])
+
+# Phase 8: Docs, Physicians, Admin Extensions
+api_v2_router.include_router(docs_router, prefix="/docs", tags=["docs-v2"])
+api_v2_router.include_router(physicians_router, prefix="/physicians", tags=["physicians-v2"])
+api_v2_router.include_router(admin_extensions_router, prefix="/admin-extensions", tags=["admin-extensions-v2"])
 
 
 @api_v2_router.get("/health", tags=["health"])
