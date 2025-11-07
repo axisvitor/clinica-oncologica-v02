@@ -34,7 +34,7 @@ Legacy Compatibility:
 from .state_machine import FlowIntegrityService
 from .message_handler import MessageHandler, SchedulerError
 from .scheduling import FlowScheduler
-from .template_manager import TemplateManager
+from .message_template_loader import MessageTemplateLoader
 from .analytics_tracker import AnalyticsTracker
 from .flow_service import (
     FlowService,

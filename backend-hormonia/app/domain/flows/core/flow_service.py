@@ -20,7 +20,7 @@ from app.repositories.flow import FlowStateRepository
 from .state_machine import FlowIntegrityService
 from .message_handler import MessageHandler
 from .scheduling import FlowScheduler
-from .template_manager import TemplateManager
+from .message_template_loader import MessageTemplateLoader
 from .analytics_tracker import AnalyticsTracker
 
 logger = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ class FlowService:
             use_unified_service=use_unified_service
         )
         self.scheduler = FlowScheduler(db)
-        self.template_manager = TemplateManager(db, template_loader)
+        self.template_manager = MessageTemplateLoader(db, template_loader)
         self.analytics_tracker = AnalyticsTracker(
             db=db,
             enhanced_flow_engine=self.enhanced_flow_engine,

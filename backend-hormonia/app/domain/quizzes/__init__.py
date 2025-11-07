@@ -50,8 +50,8 @@ from .security import (
     submit_quiz_response_with_rotation
 )
 
-# Session management (already exists)
-from .session_manager import QuizSessionManager
+# Session management (renamed to avoid collision with core.session_manager)
+from .quiz_session_manager import QuizSessionManager
 from .question_renderer import QuizQuestionRenderer
 from .answer_validator import QuizAnswerValidator
 from .score_calculator import QuizScoreCalculator

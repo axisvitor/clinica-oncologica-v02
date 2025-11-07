@@ -6,7 +6,10 @@ Main router for API v2 endpoints.
 import os
 import logging
 from fastapi import APIRouter
-from .patients import router as patients_router
+from .patients_crud import router as patients_crud_router
+from .patients_import import router as patients_import_router
+from .patients_flow import router as patients_flow_router
+from .patients_integrity import router as patients_integrity_router
 from .appointments import router as appointments_router
 from .treatments import router as treatments_router
 from .medications import router as medications_router
@@ -25,7 +28,10 @@ from .enhanced_monitoring import router as enhanced_monitoring_router
 from .enhanced_quiz import router as enhanced_quiz_router
 from .enhanced_reports import router as enhanced_reports_router
 from .alerts import router as alerts_router
-from .templates import router as templates_router
+from .flow_templates import router as flow_templates_router
+from .quiz_templates import router as quiz_templates_router
+from .template_versions import router as template_versions_router
+from .template_admin import router as template_admin_router
 from .ab_testing import router as ab_testing_router
 from .platform_sync import router as platform_sync_router
 from .tasks import router as tasks_router
@@ -39,16 +45,21 @@ from .roles import router as roles_router
 from .system import router as system_router
 from .performance import router as performance_router
 from .health import router as health_router
-from .quiz_extensions import router as quiz_extensions_router
 from .quiz_responses import router as quiz_responses_router
+from .quiz_alerts import router as quiz_alerts_router
+from .monthly_quiz_management import router as monthly_quiz_management_router
+from .monthly_quiz_operations import router as monthly_quiz_operations_router
 from .debug import router as debug_router
 
 logger = logging.getLogger(__name__)
 api_v2_router = APIRouter(prefix="/api/v2", tags=["v2"])
 
 # Include sub-routers
-# Phase 1: Core Clinical Modules
-api_v2_router.include_router(patients_router, prefix="/patients", tags=["patients-v2"])
+# Phase 1: Core Clinical Modules - Patients (Refactored into 4 focused modules - Sprint 1)
+api_v2_router.include_router(patients_crud_router, prefix="/patients", tags=["patients-crud-v2"])
+api_v2_router.include_router(patients_import_router, prefix="/patients", tags=["patients-import-v2"])
+api_v2_router.include_router(patients_flow_router, prefix="/patients", tags=["patients-flow-v2"])
+api_v2_router.include_router(patients_integrity_router, prefix="/patients", tags=["patients-integrity-v2"])
 api_v2_router.include_router(appointments_router, prefix="/appointments", tags=["appointments-v2"])
 api_v2_router.include_router(treatments_router, prefix="/treatments", tags=["treatments-v2"])
 api_v2_router.include_router(medications_router, prefix="/medications", tags=["medications-v2"])
@@ -72,8 +83,11 @@ api_v2_router.include_router(enhanced_quiz_router, prefix="/enhanced-quiz", tags
 api_v2_router.include_router(enhanced_reports_router, prefix="/enhanced-reports", tags=["enhanced-reports-v2"])
 api_v2_router.include_router(alerts_router, prefix="/alerts", tags=["alerts-v2"])
 
-# Phase 6: Templates, A/B Testing, Platform Sync
-api_v2_router.include_router(templates_router, prefix="/templates", tags=["templates-v2"])
+# Phase 6: Templates (Refactored into 4 focused modules - Sprint 1), A/B Testing, Platform Sync
+api_v2_router.include_router(flow_templates_router, prefix="/templates", tags=["flow-templates-v2"])
+api_v2_router.include_router(quiz_templates_router, prefix="/templates", tags=["quiz-templates-v2"])
+api_v2_router.include_router(template_versions_router, prefix="/templates", tags=["template-versions-v2"])
+api_v2_router.include_router(template_admin_router, prefix="/templates", tags=["template-admin-v2"])
 api_v2_router.include_router(ab_testing_router, prefix="/ab-testing", tags=["ab-testing-v2"])
 api_v2_router.include_router(platform_sync_router, prefix="/platform-sync", tags=["platform-sync-v2"])
 
@@ -93,8 +107,12 @@ api_v2_router.include_router(roles_router, prefix="/roles", tags=["roles-v2"])
 api_v2_router.include_router(system_router, prefix="/system", tags=["system-v2"])
 api_v2_router.include_router(performance_router, prefix="/performance", tags=["performance-v2"])
 api_v2_router.include_router(health_router, tags=["health-v2"])  # Health router has its own /health prefix
-api_v2_router.include_router(quiz_extensions_router, prefix="/quiz-extensions", tags=["quiz-extensions-v2"])
-api_v2_router.include_router(quiz_responses_router, prefix="/quiz", tags=["quiz-responses-v2"])
+
+# Quiz Extensions - Refactored into 4 focused modules (Sprint 1)
+api_v2_router.include_router(quiz_responses_router, prefix="/quiz-extensions", tags=["quiz-responses-v2"])
+api_v2_router.include_router(quiz_alerts_router, prefix="/quiz-extensions", tags=["quiz-alerts-v2"])
+api_v2_router.include_router(monthly_quiz_management_router, prefix="/quiz-extensions", tags=["monthly-quiz-v2"])
+api_v2_router.include_router(monthly_quiz_operations_router, prefix="/quiz-extensions", tags=["monthly-quiz-ops-v2"])
 
 # Phase 10: Complete V2 Migration - Critical Clinical Modules Added
 # ✅ Appointments, Treatments, and Medications modules now implemented
