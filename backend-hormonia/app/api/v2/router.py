@@ -30,6 +30,9 @@ from .dashboard import router as dashboard_router
 from .physicians import router as physicians_router
 from .admin_extensions import router as admin_extensions_router
 from .docs import router as docs_router
+from .roles import router as roles_router
+from .system import router as system_router
+from .performance import router as performance_router
 
 api_v2_router = APIRouter(prefix="/api/v2", tags=["v2"])
 
@@ -68,6 +71,11 @@ api_v2_router.include_router(dashboard_router, prefix="/dashboard", tags=["dashb
 api_v2_router.include_router(docs_router, prefix="/docs", tags=["docs-v2"])
 api_v2_router.include_router(physicians_router, prefix="/physicians", tags=["physicians-v2"])
 api_v2_router.include_router(admin_extensions_router, prefix="/admin-extensions", tags=["admin-extensions-v2"])
+
+# Phase 9: Roles & Permissions, System Management, Performance Monitoring
+api_v2_router.include_router(roles_router, prefix="/roles", tags=["roles-v2"])
+api_v2_router.include_router(system_router, prefix="/system", tags=["system-v2"])
+api_v2_router.include_router(performance_router, prefix="/performance", tags=["performance-v2"])
 
 
 @api_v2_router.get("/health", tags=["health"])
