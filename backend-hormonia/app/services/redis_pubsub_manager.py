@@ -39,7 +39,7 @@ import logging
 from typing import Dict, Any, Callable, Optional, Set
 from datetime import datetime
 import redis.asyncio as redis
-from app.services.websocket_manager import ConnectionManager
+from app.services.websocket import UnifiedWebSocketConnectionManager
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class RedisPubSubManager:
     def __init__(
         self,
         redis_client: redis.Redis,
-        connection_manager: ConnectionManager,
+        connection_manager: UnifiedWebSocketConnectionManager,
         instance_id: Optional[str] = None
     ):
         """
@@ -66,7 +66,7 @@ class RedisPubSubManager:
 
         Args:
             redis_client: Async Redis client
-            connection_manager: Local ConnectionManager for this instance
+            connection_manager: Local UnifiedWebSocketConnectionManager for this instance
             instance_id: Unique identifier for this instance (auto-generated if None)
         """
         self.redis_client = redis_client

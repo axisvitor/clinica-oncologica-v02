@@ -76,6 +76,9 @@ async def _startup(app: FastAPI) -> object:
     # Initialize Redis and WebSocket events
     await _initialize_redis_websocket_events(app, logger)
 
+    # Initialize unified WebSocket manager with lifecycle
+    await _initialize_websocket_manager(app, logger)
+
     # Initialize Redis Pub/Sub for horizontal WebSocket scaling
     await _initialize_redis_pubsub(app, logger)
 
@@ -105,6 +108,9 @@ async def _shutdown(app: FastAPI, logger) -> None:
     try:
         # Stop monitoring system
         await _cleanup_monitoring(app, logger)
+
+        # Stop WebSocket manager
+        await _cleanup_websocket_manager(app, logger)
 
         # Stop Redis Pub/Sub
         await _cleanup_redis_pubsub(app, logger)
@@ -138,6 +144,33 @@ async def _initialize_monitoring(app: FastAPI, logger) -> None:
     except Exception as e:
         logger.error(f"Failed to initialize monitoring system: {e}")
         app.state.monitoring_manager = None
+
+
+async def _initialize_websocket_manager(app: FastAPI, logger) -> None:
+    """Initialize unified WebSocket manager with lifecycle."""
+    try:
+        from app.services.websocket import get_websocket_manager
+
+        logger.info("Initializing unified WebSocket connection manager...")
+
+        # Get WebSocket manager instance
+        ws_manager = get_websocket_manager()
+
+        # Start background tasks (heartbeat, cleanup)
+        await ws_manager.start()
+
+        # Store in app state for access during shutdown
+        app.state.websocket_manager = ws_manager
+
+        logger.info("✓ Unified WebSocket manager started successfully")
+        logger.info("  - Heartbeat monitoring: active")
+        logger.info("  - Automatic cleanup: enabled")
+        logger.info("  - Firebase + JWT authentication: ready")
+
+    except Exception as e:
+        logger.error(f"Failed to initialize WebSocket manager: {e}")
+        logger.warning("WebSocket features may be degraded")
+        app.state.websocket_manager = None
 
 
 async def _initialize_redis_websocket_events(app: FastAPI, logger) -> None:
@@ -269,7 +302,7 @@ async def _initialize_redis_pubsub(app: FastAPI, logger) -> None:
     """Initialize Redis Pub/Sub for horizontal WebSocket scaling."""
     try:
         from app.services.redis_pubsub_manager import RedisPubSubManager, set_pubsub_manager
-        from app.services.websocket_manager import connection_manager
+        from app.services.websocket import get_websocket_manager
         import uuid
 
         # Get Redis client from app state
@@ -281,13 +314,16 @@ async def _initialize_redis_pubsub(app: FastAPI, logger) -> None:
             app.state.pubsub_manager = None
             return
 
+        # Get unified WebSocket manager instance
+        ws_manager = get_websocket_manager()
+
         # Generate unique instance ID for this server
         instance_id = f"fastapi_{uuid.uuid4().hex[:8]}"
 
         # Create pub/sub manager
         pubsub_manager = RedisPubSubManager(
             redis_client=redis_client,
-            connection_manager=connection_manager,
+            connection_manager=ws_manager,
             instance_id=instance_id
         )
 
@@ -385,6 +421,30 @@ async def _cleanup_monitoring(app: FastAPI, logger) -> None:
 
     except Exception as e:
         logger.error(f"Error stopping monitoring system: {e}")
+
+
+async def _cleanup_websocket_manager(app: FastAPI, logger) -> None:
+    """Cleanup unified WebSocket manager."""
+    try:
+        if hasattr(app.state, 'websocket_manager') and app.state.websocket_manager:
+            logger.info("Stopping unified WebSocket manager...")
+            ws_manager = app.state.websocket_manager
+
+            # Graceful shutdown - stop background tasks
+            await ws_manager.stop()
+
+            # Disconnect all active connections
+            active_count = len(ws_manager.connections)
+            if active_count > 0:
+                logger.info(f"Disconnecting {active_count} active WebSocket connections...")
+                for connection_id in list(ws_manager.connections.keys()):
+                    await ws_manager.disconnect(connection_id, reason="Server shutdown")
+
+            app.state.websocket_manager = None
+            logger.info("✓ Unified WebSocket manager stopped gracefully")
+
+    except Exception as e:
+        logger.error(f"Error stopping WebSocket manager: {e}")
 
 
 async def _cleanup_redis_pubsub(app: FastAPI, logger) -> None:

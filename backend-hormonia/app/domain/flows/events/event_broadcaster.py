@@ -9,7 +9,10 @@ from typing import Any, Optional, List
 from uuid import UUID
 from datetime import datetime
 
-from app.services.websocket_manager import connection_manager
+from app.services.websocket import get_websocket_manager
+
+# Get unified WebSocket manager instance
+connection_manager = get_websocket_manager()
 from app.schemas.websocket import (
     WebSocketEventType,
     create_websocket_message,

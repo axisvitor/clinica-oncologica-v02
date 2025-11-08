@@ -1,6 +1,20 @@
 """
 Enhanced WebSocket Support for Real-time Features.
 Implements comprehensive real-time communication with advanced features.
+
+**DEPRECATED**: This module has been superseded by the unified WebSocket manager
+in `app.services.websocket`. All features have been consolidated into
+`UnifiedWebSocketConnectionManager` which combines:
+- Firebase + JWT authentication (from original websocket_manager)
+- Lifecycle management, heartbeat, cleanup (from enhanced_websocket_manager)
+- Room management and broadcasting
+
+**Migration Path**:
+- Use `from app.services.websocket import get_websocket_manager` instead
+- This file will be archived in Sprint 5
+
+**See**: docs/architecture/WEBSOCKET_MIGRATION_GUIDE.md
+**Date**: 2025-11-07 (Sprint 4)
 """
 import asyncio
 import json
