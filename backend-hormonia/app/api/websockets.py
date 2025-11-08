@@ -10,7 +10,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.services.websocket_manager import connection_manager
+from app.services.websocket import get_websocket_manager
 from app.schemas.websocket import (
     AuthenticationRequest,
     AuthenticationResponse,
@@ -33,16 +33,16 @@ async def websocket_endpoint(
 ) -> None:
     """
     Main WebSocket endpoint for real-time communication.
-    
+
     Supports:
     - Authentication via JWT token (query param or message)
     - Patient room joining for targeted notifications
     - Real-time event broadcasting
     - Connection health monitoring
-    
+
     Query Parameters:
         token: Optional JWT token for immediate authentication
-    
+
     Message Types:
         - authenticate: Authenticate connection with JWT token
         - join_room: Join a patient room for notifications
@@ -50,22 +50,14 @@ async def websocket_endpoint(
         - ping: Health check ping
         - pong: Response to server ping
     """
+    # Get unified WebSocket manager
+    connection_manager = get_websocket_manager()
     connection_id = str(uuid.uuid4())
-    
-    try:
-        # Accept WebSocket connection first (before any authentication checks)
-        logger.info(f"Accepting WebSocket connection: {connection_id}")
-        await websocket.accept()
 
-        # Store the connection in manager
-        connection_manager.active_connections[connection_id] = websocket
-        connection_manager.connection_metadata[connection_id] = {
-            "connected_at": datetime.utcnow(),
-            "last_ping": datetime.utcnow(),
-            "user_id": None,
-            "patient_id": None,
-            "authenticated": False
-        }
+    try:
+        # Connect using unified manager
+        logger.info(f"Connecting WebSocket via unified manager: {connection_id}")
+        connection_id = await connection_manager.connect(websocket, connection_id)
         logger.info(f"WebSocket connection accepted: {connection_id}")
         
         # Send connection confirmation
@@ -81,8 +73,8 @@ async def websocket_endpoint(
         logger.info(f"Welcome message created: {welcome_message.dict()}")
         
         logger.info(f"Sending welcome message to: {connection_id}")
-        result = await connection_manager.send_personal_message(
-            welcome_message.dict(), connection_id
+        result = await connection_manager.send_message(
+            connection_id, welcome_message.dict()
         )
         logger.info(f"Welcome message sent result: {result} for {connection_id}")
         
@@ -149,8 +141,8 @@ async def websocket_endpoint(
                 WebSocketEventType.AUTHENTICATED,
                 auth_response.dict()
             )
-            await connection_manager.send_personal_message(
-                auth_message.dict(), connection_id
+            await connection_manager.send_message(
+                connection_id, auth_message.dict()
             )
         
         # Message handling loop
@@ -197,8 +189,8 @@ async def websocket_endpoint(
                         WebSocketEventType.ERROR,
                         error_response.dict()
                     )
-                    await connection_manager.send_personal_message(
-                        error_message.dict(), connection_id
+                    await connection_manager.send_message(
+                        connection_id, error_message.dict()
                     )
                     
             except WebSocketDisconnect:
@@ -218,14 +210,14 @@ async def websocket_endpoint(
                     error_response.dict()
                 )
                 try:
-                    await connection_manager.send_personal_message(
-                        error_message.dict(), connection_id
+                    await connection_manager.send_message(
+                        connection_id, error_message.dict()
                     )
                 except (WebSocketDisconnect, ConnectionError, RuntimeError) as e:
                     # Connection closed, break the loop
                     logger.debug(f"WebSocket connection error in JSON error handler: {e}")
                     break
-                
+
             except Exception as e:
                 error_str = str(e).lower()
 
@@ -249,8 +241,8 @@ async def websocket_endpoint(
                     error_response.dict()
                 )
                 try:
-                    await connection_manager.send_personal_message(
-                        error_message.dict(), connection_id
+                    await connection_manager.send_message(
+                        connection_id, error_message.dict()
                     )
                 except (WebSocketDisconnect, ConnectionError, RuntimeError) as e:
                     # Connection closed, break the loop
@@ -310,8 +302,8 @@ async def _handle_authentication(
             WebSocketEventType.AUTHENTICATED,
             auth_response.dict()
         )
-        await connection_manager.send_personal_message(
-            auth_message.dict(), connection_id
+        await connection_manager.send_message(
+            connection_id, auth_message.dict()
         )
         
     except Exception as e:
@@ -325,8 +317,8 @@ async def _handle_authentication(
             WebSocketEventType.ERROR,
             error_response.dict()
         )
-        await connection_manager.send_personal_message(
-            error_message.dict(), connection_id
+        await connection_manager.send_message(
+            connection_id, error_message.dict()
         )
 
 
@@ -352,8 +344,8 @@ async def _handle_join_room(
             WebSocketEventType.PATIENT_UPDATED,  # Using existing event type
             join_response.dict()
         )
-        await connection_manager.send_personal_message(
-            response_message.dict(), connection_id
+        await connection_manager.send_message(
+            connection_id, response_message.dict()
         )
         
     except Exception as e:
@@ -367,8 +359,8 @@ async def _handle_join_room(
             WebSocketEventType.ERROR,
             error_response.dict()
         )
-        await connection_manager.send_personal_message(
-            error_message.dict(), connection_id
+        await connection_manager.send_message(
+            connection_id, error_message.dict()
         )
 
 
@@ -394,8 +386,8 @@ async def _handle_leave_room(
             WebSocketEventType.PATIENT_UPDATED,  # Using existing event type
             response_data
         )
-        await connection_manager.send_personal_message(
-            response_message.dict(), connection_id
+        await connection_manager.send_message(
+            connection_id, response_message.dict()
         )
         
     except Exception as e:
@@ -409,8 +401,8 @@ async def _handle_leave_room(
             WebSocketEventType.ERROR,
             error_response.dict()
         )
-        await connection_manager.send_personal_message(
-            error_message.dict(), connection_id
+        await connection_manager.send_message(
+            connection_id, error_message.dict()
         )
 
 
@@ -420,8 +412,8 @@ async def _handle_ping(connection_id: str) -> None:
         WebSocketEventType.PONG,
         {"message": "pong"}
     )
-    await connection_manager.send_personal_message(
-        pong_message.dict(), connection_id
+    await connection_manager.send_message(
+        connection_id, pong_message.dict()
     )
 
 
@@ -497,8 +489,8 @@ async def patient_websocket(
                 WebSocketEventType.ERROR,
                 auth_error.dict()
             )
-            await connection_manager.send_personal_message(
-                error_message.dict(), connection_id
+            await connection_manager.send_message(
+                connection_id, error_message.dict()
             )
 
             # Give client a moment to see the error message before closing
@@ -521,8 +513,8 @@ async def patient_websocket(
                 WebSocketEventType.ERROR,
                 join_error.dict()
             )
-            await connection_manager.send_personal_message(
-                error_message.dict(), connection_id
+            await connection_manager.send_message(
+                connection_id, error_message.dict()
             )
             return
         
@@ -536,8 +528,8 @@ async def patient_websocket(
                 "authenticated": True
             }
         )
-        await connection_manager.send_personal_message(
-            welcome_message.dict(), connection_id
+        await connection_manager.send_message(
+            connection_id, welcome_message.dict()
         )
         
         # Keep connection alive and handle messages

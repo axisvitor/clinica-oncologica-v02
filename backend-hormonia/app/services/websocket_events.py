@@ -21,7 +21,10 @@ from app.schemas.websocket import (
     QuizEventData,
     ReportEventData
 )
-from app.services.websocket_manager import connection_manager
+from app.services.websocket import get_websocket_manager
+
+# Get unified WebSocket manager instance
+connection_manager = get_websocket_manager()
 
 logger = logging.getLogger(__name__)
 

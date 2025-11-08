@@ -164,10 +164,10 @@ async def get_cache_service():
     
     return CacheService()
 
-async def get_websocket_manager():
-    """Get WebSocket manager instance"""
-    from app.services.websocket_manager import WebSocketManager
-    return WebSocketManager.get_instance()
+async def get_websocket_manager_instance():
+    """Get unified WebSocket manager instance"""
+    from app.services.websocket import get_websocket_manager
+    return get_websocket_manager()
 
 # =============================================================================
 # FLOW MANAGEMENT SERVICES (Specific to flow domain)
