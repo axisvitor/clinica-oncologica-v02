@@ -12,7 +12,7 @@ import {
   FlowNode, 
   FlowValidationResult,
   FlowNodeType 
-} from '../../lib/types/flow-designer'
+} from '@/lib/types/flow-designer'
 
 interface PropertyPanelProps {
   design: FlowDesign

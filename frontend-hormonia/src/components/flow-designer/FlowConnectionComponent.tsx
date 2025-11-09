@@ -1,5 +1,5 @@
 import React from 'react'
-import { FlowConnection, FlowNode, FlowValidationError } from '../../lib/types/flow-designer'
+import { FlowConnection, FlowNode, FlowValidationError } from '@/lib/types/flow-designer'
 
 interface FlowConnectionComponentProps {
   connection: FlowConnection

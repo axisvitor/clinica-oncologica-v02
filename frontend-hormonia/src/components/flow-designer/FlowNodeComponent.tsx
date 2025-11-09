@@ -11,7 +11,7 @@ import {
   Webhook,
   AlertTriangle
 } from 'lucide-react'
-import { FlowNode, FlowNodeType, DesignerMode, FlowValidationError } from '../../lib/types/flow-designer'
+import { FlowNode, FlowNodeType, DesignerMode, FlowValidationError } from '@/lib/types/flow-designer'
 
 interface FlowNodeComponentProps {
   node: FlowNode

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { FlowNodeType } from '../../lib/types/flow-designer'
+import { FlowNodeType } from '@/lib/types/flow-designer'
 
 interface NodePaletteProps {
   onAddNode: (nodeType: string, position: { x: number; y: number }) => void

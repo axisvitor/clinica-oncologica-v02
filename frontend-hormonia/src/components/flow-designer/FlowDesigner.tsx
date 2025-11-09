@@ -28,7 +28,7 @@ import {
   FlowDesignerState, 
   DesignerMode,
   FlowValidationResult
-} from '../../lib/types/flow-designer'
+} from '@/lib/types/flow-designer'
 import { FlowCanvas } from './FlowCanvas'
 import { NodePalette } from './NodePalette'
 import { PropertyPanel } from './PropertyPanel'

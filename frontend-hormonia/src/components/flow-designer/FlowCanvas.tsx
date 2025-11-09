@@ -5,7 +5,7 @@ import {
   FlowConnection, 
   DesignerMode,
   FlowValidationResult 
-} from '../../lib/types/flow-designer'
+} from '@/lib/types/flow-designer'
 import { FlowNodeComponent } from './FlowNodeComponent'
 import { FlowConnectionComponent } from './FlowConnectionComponent'
 

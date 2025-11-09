@@ -6,7 +6,7 @@ import {
   FlowValidationError,
   FlowValidationWarning,
   FlowNodeType 
-} from '../../lib/types/flow-designer'
+} from '@/lib/types/flow-designer'
 
 export class FlowValidator {
   validate(design: FlowDesign): FlowValidationResult {
