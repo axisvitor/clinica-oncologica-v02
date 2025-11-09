@@ -23,7 +23,7 @@ export type {
   ValidationError,
   AuditMetadata
 } from '@/types/shared'
-export * from '@/lib/types/websocket'
+export * from '@/types/websocket'
 
 // Note: Core types are re-exported via the wildcard export above
 
@@ -121,7 +121,7 @@ export type {
   WebSocketEventHandler,
   UseWebSocketReturn,
   EventSubscription as WebSocketSubscription
-} from '@/lib/types/websocket'
+} from '@/types/websocket'
 
 // ============================================================================
 // BACKWARDS COMPATIBILITY TYPES
