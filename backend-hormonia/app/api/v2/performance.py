@@ -196,7 +196,7 @@ def _get_cache_service():
         return get_analytics_cache()
     except Exception:
         try:
-            from app.utils.unified_cache import get_unified_cache_manager
+            from app.infrastructure.cache import get_unified_cache_manager
             return get_unified_cache_manager()
         except Exception as e:
             logger.error(f"Failed to get cache service: {e}")

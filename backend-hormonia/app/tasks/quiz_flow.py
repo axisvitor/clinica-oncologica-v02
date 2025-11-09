@@ -382,7 +382,7 @@ def send_quiz_progress_update_task(
 
     try:
         with next(get_db()) as db:
-            from app.services.message_factory import MessageFactory
+            from app.domain.messaging.core import MessageFactory
             from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 
             message_factory = MessageFactory(db)

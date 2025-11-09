@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.models.quiz import QuizTemplate
 from app.models.message import Message, MessageType, MessageDirection, MessageStatus
 from app.services.quiz import QuizTemplateService
-from app.services.message_sender import MessageSender
+from app.domain.messaging.delivery import MessageSender
 
 
 class QuestionPresenter:

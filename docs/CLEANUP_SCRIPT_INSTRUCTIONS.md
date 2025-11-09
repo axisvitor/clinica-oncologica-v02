@@ -342,9 +342,9 @@ git commit -m "chore(backend): cleanup legacy cache implementations (~800 lines)
 cd /home/user/clinica-oncologica-v02/backend-hormonia
 
 # Verificar que não há imports
-grep -r "from app.services.message_sender import" app/
-grep -r "from app.services.message_factory import" app/
-grep -r "from app.utils.unified_cache import" app/
+grep -r "from app.domain.messaging.delivery import" app/
+grep -r "from app.domain.messaging.core import" app/
+grep -r "from app.infrastructure.cache import" app/
 grep -r "from app.core.redis_unified import" app/
 
 # Se não houver resultados, arquivar

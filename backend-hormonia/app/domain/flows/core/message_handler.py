@@ -12,7 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.services.message_scheduler import MessageScheduler
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
-from app.services.message_sender import MessageSender
+from app.domain.messaging.delivery import MessageSender
 from app.services.template_loader import MessageTemplate
 from app.services.flow_analytics import FlowAnalyticsService
 from app.services.flow_event_broadcaster import flow_event_broadcaster

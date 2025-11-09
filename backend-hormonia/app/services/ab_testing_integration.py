@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.services.ab_testing import ABTestingService, VariantType
 from app.services.ab_testing_audit import ABTestingAuditService, AuditEventType
-from app.services.message_factory import MessageFactory, MessageTemplate
+from app.domain.messaging.core import MessageFactory, MessageTemplate
 from app.services.ai import AIService
 from app.models.message import Message
 from app.models.patient import Patient

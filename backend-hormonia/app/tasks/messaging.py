@@ -10,7 +10,7 @@ from celery.exceptions import Retry
 
 from app.celery_app import celery_app
 from app.database import get_db
-from app.services.message_sender import MessageSender
+from app.domain.messaging.delivery import MessageSender
 from app.services.message import MessageService
 from app.models.message import MessageStatus, MessageType
 from app.exceptions import ExternalServiceError

@@ -33,7 +33,7 @@ from app.config import settings
 from app.models.message import Message, MessageStatus, MessageType
 from app.models.patient import Patient
 from app.services.audit_service import AuditService
-from app.services.message_factory import MessageFactory, MessageTemplate
+from app.domain.messaging.core import MessageFactory, MessageTemplate
 from app.services.ai import AIService
 from app.services.encryption_service import EncryptionService
 from app.services.privacy_service import PrivacyService

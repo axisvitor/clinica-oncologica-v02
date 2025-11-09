@@ -220,7 +220,7 @@ await service.logout(user_id)
 
 **Uso:**
 ```python
-from app.utils.unified_cache import get_cache, set_cache, invalidate_cache
+from app.infrastructure.cache import get_cache, set_cache, invalidate_cache
 
 # Get
 data = await get_cache(f"patient:{patient_id}")

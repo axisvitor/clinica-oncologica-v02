@@ -33,7 +33,7 @@ from app.models.patient import Patient
 from app.repositories.message import MessageRepository
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
-from app.services.message_sender import MessageSender
+from app.domain.messaging.delivery import MessageSender
 from app.services.message_scheduler import MessageScheduler
 from app.exceptions import NotFoundError, ValidationError
 

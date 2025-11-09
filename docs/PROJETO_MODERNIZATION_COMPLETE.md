@@ -353,7 +353,7 @@ from app.services.analytics import AnalyticsService
 # Fase 3
 from app.agents.communication.quiz_conductor import QuizConductor
 from app.services.flow_error_handler import FlowErrorHandler
-from app.utils.unified_cache import UnifiedCache
+from app.infrastructure.cache import UnifiedCache
 from app.services.flow_engine import FlowEngine
 ```
 

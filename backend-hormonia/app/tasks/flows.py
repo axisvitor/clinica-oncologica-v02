@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.celery_app import celery_app
 from app.database import get_db
 from app.services.enhanced_flow_engine import get_enhanced_flow_engine, FlowType, MessageTemplate
-from app.services.message_sender import MessageSender
+from app.domain.messaging.delivery import MessageSender
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
 from app.repositories.message import MessageRepository

@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Union
 from datetime import timedelta
 from uuid import UUID
 
-from app.utils.unified_cache import UnifiedCacheManager, get_unified_cache_manager
+from app.infrastructure.cache import UnifiedCacheManager, get_unified_cache_manager
 from app.config.template_loader import get_template_loader
 
 logger = logging.getLogger(__name__)

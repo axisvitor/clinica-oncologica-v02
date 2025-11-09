@@ -35,7 +35,7 @@ from .dependencies import (
 )
 from app.dependencies.auth_dependencies import get_current_user_from_session, get_redis_cache
 from app.services.message import MessageService
-from app.services.message_sender import MessageSender
+from app.domain.messaging.delivery import MessageSender
 from app.services.unified_whatsapp_service import MessagingMode
 from app.services.patient import PatientService
 from app.utils.rate_limiter import limiter
