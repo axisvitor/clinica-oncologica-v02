@@ -1,13 +1,13 @@
 """
 Celery tasks for alert processing.
 
-This module supports both legacy and consolidated alert systems (QW-020).
-Feature flag USE_CONSOLIDATED_ALERTS controls which system is used.
+Uses consolidated alert system (QW-020).
+Legacy system archived in legacy/alerts_archive_2025-11-09/
 """
 
 import logging
 from uuid import UUID
-from typing import List, Any
+from typing import List
 from datetime import datetime, timedelta
 
 from app.celery_app import celery_app
@@ -15,58 +15,31 @@ from app.database import SessionLocal
 from app.models.patient import Patient
 from app.models.alert import Alert, AlertSeverity, AlertStatus
 from app.tasks.base import BaseTask, get_db_session
-from app.config.settings import Settings
+from app.services.alerts import AlertManagerAdapter
 
 logger = logging.getLogger(__name__)
 
-# Initialize settings
-settings = Settings()
 
-# Conditionally import alert systems
-if settings.USE_CONSOLIDATED_ALERTS:
-    try:
-        from app.services.alerts import AlertManagerAdapter
-
-        logger.info(
-            "Celery tasks using consolidated alert system with adapter (QW-020)"
-        )
-    except ImportError as e:
-        logger.warning(
-            f"USE_CONSOLIDATED_ALERTS=True but consolidated system not available: {e}. "
-            "Falling back to legacy system in tasks."
-        )
-        settings.USE_CONSOLIDATED_ALERTS = False
-
-# Import legacy services only if needed
-if not settings.USE_CONSOLIDATED_ALERTS:
-    from app.services.alert import AlertService
-    from app.services.alert_processor import AlertProcessor
-
-
-def _get_alert_service(db) -> Any:
+def _get_alert_service(db) -> AlertManagerAdapter:
     """
-    Factory function to get the appropriate alert service based on feature flag.
+    Get the consolidated alert service.
 
     Returns:
-        AlertManagerAdapter if USE_CONSOLIDATED_ALERTS=True, otherwise AlertService
+        AlertManagerAdapter instance
     """
-    if settings.USE_CONSOLIDATED_ALERTS:
-        return AlertManagerAdapter(db)
-    return AlertService(db)
+    return AlertManagerAdapter(db)
 
 
-def _get_alert_processor(db) -> Any:
+def _get_alert_processor(db) -> AlertManagerAdapter:
     """
-    Factory function to get the appropriate alert processor based on feature flag.
+    Get the consolidated alert processor.
 
-    For consolidated system, AlertManagerAdapter handles both service and processor functions.
+    AlertManagerAdapter handles both service and processor functions.
 
     Returns:
-        AlertManagerAdapter if USE_CONSOLIDATED_ALERTS=True, otherwise AlertProcessor
+        AlertManagerAdapter instance
     """
-    if settings.USE_CONSOLIDATED_ALERTS:
-        return AlertManagerAdapter(db)
-    return AlertProcessor(db)
+    return AlertManagerAdapter(db)
 
 
 @celery_app.task(bind=True, base=BaseTask, max_retries=3)

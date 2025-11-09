@@ -14,14 +14,8 @@ class FeaturesSettings(BaseAppSettings):
     # ============================================================================
     # Alert System Configuration (QW-020)
     # ============================================================================
-    USE_CONSOLIDATED_ALERTS: bool = Field(
-        default=True,
-        description="Use new consolidated alert system (QW-020). Set to True to enable migration.",
-    )
-    ALERTS_LEGACY_DEPRECATION_WARNING: bool = Field(
-        default=True,
-        description="Show deprecation warnings when legacy alert services are used",
-    )
+    # Note: Legacy alert system archived in legacy/alerts_archive_2025-11-09/
+    # Consolidated alert system is now the only implementation.
 
     # ============================================================================
     # Monthly Quiz Configuration
