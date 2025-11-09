@@ -1,12 +1,12 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { usePhysicianRiskAssessments } from '@/src/hooks/api/usePhysicianRiskAssessments'
-import type { RiskAssessmentsResponse } from '@/src/types/api-wave2'
+import { usePhysicianRiskAssessments } from '@/hooks/api/usePhysicianRiskAssessments'
+import type { RiskAssessmentsResponse } from '@/types/api'
 import React from 'react'
 import { vi, describe, it, beforeEach, expect } from 'vitest'
 
 // Mock the api-client module
-vi.mock('@/src/lib/api-client', () => ({
+vi.mock('@/lib/api-client', () => ({
   apiClient: {
     request: vi.fn()
   }
@@ -77,7 +77,7 @@ describe('usePhysicianRiskAssessments', () => {
 
     expect(result.current.data).toEqual(mockData)
     expect(apiClient.request).toHaveBeenCalledWith(
-      '/api/v1/physician/risk-assessments'
+      '/api/v2/analytics/physicians/risk-assessments'
     )
   })
 
