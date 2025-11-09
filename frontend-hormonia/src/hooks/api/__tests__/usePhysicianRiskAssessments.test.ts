@@ -64,7 +64,7 @@ describe('usePhysicianRiskAssessments', () => {
 
     expect(result.current.data).toEqual(mockData)
     expect(apiClient.request).toHaveBeenCalledWith(
-      '/api/v1/physician/risk-assessments'
+      '/api/v2/analytics/physicians/risk-assessments'
     )
   })
 
