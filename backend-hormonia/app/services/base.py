@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.services.message_factory import MessageFactory
+from app.domain.messaging.core import MessageFactory
 from app.services.ai import get_cache_layer, AICache
 from app.services.circuit_breaker import get_ai_circuit_breaker, AIServiceCircuitBreaker
 

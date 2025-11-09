@@ -11,9 +11,9 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.services.message_factory import MessageFactory, MessageTemplate
+from app.domain.messaging.core import MessageFactory, MessageTemplate
 from app.services.monthly_quiz_service import MonthlyQuizService
-from app.services.message_sender import MessageSender  # For backward compatibility
+from app.domain.messaging.delivery import MessageSender  # For backward compatibility
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
 from app.schemas.monthly_quiz import MonthlyQuizLinkCreate, DeliveryMethod
 from app.models.patient import Patient

@@ -22,7 +22,6 @@ import os
 import re
 from pathlib import Path
 from typing import List, Tuple
-from app.services.unified_cache import UnifiedCacheService
 
 # Mapeamento de imports antigos → novos
 IMPORT_MAPPINGS = [

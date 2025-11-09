@@ -16,7 +16,7 @@ from app.models.message import Message, MessageType, MessageDirection, MessageSt
 from app.models.failed_message import FailureReason
 from app.repositories.patient import PatientRepository
 from app.repositories.message import MessageRepository
-from app.services.message_sender import MessageSender
+from app.domain.messaging.delivery import MessageSender
 from app.exceptions import ValidationError, NotFoundError
 from app.utils.db_retry import with_db_retry
 from app.utils.distributed_lock import async_message_delivery_lock, LockAcquisitionError, LockTimeoutError

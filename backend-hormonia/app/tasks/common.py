@@ -33,7 +33,7 @@ from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion
 from app.models.flow_analytics import FlowAnalytics, FlowMessage
 
 # Services - frequently imported
-from app.services.message_sender import MessageSender
+from app.domain.messaging.delivery import MessageSender
 from app.services.quiz import QuizSessionService
 from app.services.report import ReportService
 from app.services.conversation_memory import get_conversation_memory

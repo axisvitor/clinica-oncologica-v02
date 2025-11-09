@@ -23,7 +23,7 @@ from app.utils.security import (
 )
 from app.schemas.auth import TokenData, UserResponse
 # Redis client will be passed as generic object for compatibility
-from app.utils.unified_cache import (
+from app.infrastructure.cache import (
     cache,
     get_unified_cache_manager as get_cache_manager,
     cache_user_data,

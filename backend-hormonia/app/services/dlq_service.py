@@ -416,7 +416,7 @@ class DLQService:
 
         try:
             # Aqui deveria chamar o serviço de envio de mensagem
-            # from app.services.message_sender import MessageSender
+            # from app.domain.messaging.delivery import MessageSender
             # sender = MessageSender(self.db)
             # sender.send_message(
             #     patient_id=failed_message.patient_id,

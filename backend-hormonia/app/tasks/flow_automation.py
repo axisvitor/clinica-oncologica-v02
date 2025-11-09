@@ -136,7 +136,7 @@ def send_daily_reminders() -> dict:
                 logger.info(f"Found {len(patients_with_pending_quiz)} patients with pending quizzes")
 
                 # Send reminders
-                from app.services.message_sender import MessageSender
+                from app.domain.messaging.delivery import MessageSender
                 message_sender = MessageSender(db)
 
                 for patient_row in patients_with_pending_quiz:

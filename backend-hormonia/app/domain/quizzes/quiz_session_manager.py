@@ -22,7 +22,7 @@ from app.models.quiz import QuizSession, QuizTemplate
 from app.models.patient import Patient
 from app.repositories.quiz import QuizTemplateRepository, QuizSessionRepository
 from app.services.quiz import QuizSessionService
-from app.services.message_factory import MessageFactory
+from app.domain.messaging.core import MessageFactory
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
 from app.core.monthly_quiz_config import get_monthly_quiz_config
 from app.exceptions import NotFoundError, ValidationError, ConflictError

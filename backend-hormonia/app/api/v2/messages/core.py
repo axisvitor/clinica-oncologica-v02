@@ -31,7 +31,7 @@ from app.models.message import Message, MessageStatus, MessageType, MessageDirec
 from app.models.patient import Patient
 from app.models.user import UserRole
 from app.services.message import MessageService
-from app.services.message_sender import MessageSender
+from app.domain.messaging.delivery import MessageSender
 from app.services.unified_whatsapp_service import MessagingMode
 from app.services.patient import PatientService
 from app.schemas.v2.messages import (

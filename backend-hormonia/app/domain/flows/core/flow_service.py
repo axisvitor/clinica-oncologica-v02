@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.services.enhanced_flow_engine import EnhancedFlowEngine, FlowType
 from app.services.message_scheduler import MessageScheduler
-from app.services.message_sender import MessageSender
+from app.domain.messaging.delivery import MessageSender
 from app.services.template_loader import EnhancedTemplateLoader
 from app.services.flow_analytics import FlowAnalyticsService
 from app.repositories.patient import PatientRepository

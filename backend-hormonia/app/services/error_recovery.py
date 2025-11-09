@@ -20,7 +20,7 @@ from app.models.flow import PatientFlowState
 from app.models.flow_analytics import FlowMessage
 from app.models.patient import Patient
 from app.repositories.flow import FlowStateRepository
-from app.services.message_sender import MessageSender
+from app.domain.messaging.delivery import MessageSender
 from app.services.enhanced_flow_engine import FlowType
 
 logger = logging.getLogger(__name__)

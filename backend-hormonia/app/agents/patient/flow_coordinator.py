@@ -21,7 +21,7 @@ from app.models.message import Message, MessageType, MessageDirection, MessageSt
 from app.repositories.patient import PatientRepository
 from app.repositories.flow import FlowStateRepository
 from app.services.enhanced_flow_engine import get_enhanced_flow_engine, FlowType
-from app.services.message_sender import MessageSender
+from app.domain.messaging.delivery import MessageSender
 from app.services.template_loader import EnhancedTemplateLoader, FlowTemplateData, MessageTemplate
 # Lazy import for memory module to prevent startup failures
 # from app.memory.knowledge_graph import KnowledgeGraph

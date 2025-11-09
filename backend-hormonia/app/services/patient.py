@@ -16,7 +16,7 @@ from app.services.websocket_events import websocket_events
 from app.schemas.websocket import WebSocketEventType
 from app.schemas.patient import PatientCreate, PatientUpdate
 from app.exceptions import ValidationError
-from app.utils.unified_cache import (
+from app.infrastructure.cache import (
     cache,
     get_unified_cache_manager as get_cache_manager,
     cache_patient_data,

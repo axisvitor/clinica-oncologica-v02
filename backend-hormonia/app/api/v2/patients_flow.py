@@ -31,7 +31,7 @@ from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.dependencies import get_patient_service
 from app.services.patient import PatientService
 from app.utils.rate_limiter import limiter
-from app.utils.unified_cache import invalidate_patient_cache
+from app.infrastructure.cache import invalidate_patient_cache
 
 # Import utility functions from patients_utils module
 from .patients_utils import (

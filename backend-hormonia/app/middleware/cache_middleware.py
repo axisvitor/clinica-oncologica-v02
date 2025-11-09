@@ -14,7 +14,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.datastructures import Headers
 
 from app.core.redis_unified import get_sync_redis
-from app.utils.unified_cache import get_unified_cache_manager as get_cache_manager
+from app.infrastructure.cache import get_unified_cache_manager as get_cache_manager
 
 logger = logging.getLogger(__name__)
 

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.agents.base import BaseAgent, MessagePriority
 from app.services.quiz import QuizTemplateService, QuizSessionService, QuizResponseService
-from app.services.message_sender import MessageSender
+from app.domain.messaging.delivery import MessageSender
 from app.repositories.patient import PatientRepository
 from app.integrations.gemini_client import get_gemini_client
 

@@ -149,7 +149,7 @@ class FallbackMessageAction(RecoveryAction):
             context.db.commit()
 
             # Send via message sender
-            from app.services.message_sender import MessageSender
+            from app.domain.messaging.delivery import MessageSender
             message_sender = MessageSender(context.db)
             success = await message_sender.send_message(fallback_message)
 
