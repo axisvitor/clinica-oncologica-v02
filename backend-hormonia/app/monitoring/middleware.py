@@ -117,7 +117,7 @@ class MonitoringMiddleware(BaseHTTPMiddleware):
             status_code = response.status_code
 
             # Patient flow metrics
-            if "/api/v1/flows" in path and method == "POST":
+            if "/api/v2/flows" in path and method == "POST":
                 patient_id = getattr(request.state, "patient_id", None)
                 if patient_id:
                     await self.business_metrics.record_patient_flow_start(
@@ -125,7 +125,7 @@ class MonitoringMiddleware(BaseHTTPMiddleware):
                     )
 
             # Message delivery metrics
-            if "/api/v1/messages" in path and method == "POST":
+            if "/api/v2/messages" in path and method == "POST":
                 patient_id = getattr(request.state, "patient_id", None)
                 if patient_id:
                     success = status_code < 400
@@ -139,7 +139,7 @@ class MonitoringMiddleware(BaseHTTPMiddleware):
                         )
 
             # Quiz completion metrics
-            if "/api/v1/quiz" in path and "complete" in path and method == "POST":
+            if "/api/v2/quiz" in path and "complete" in path and method == "POST":
                 patient_id = getattr(request.state, "patient_id", None)
                 if patient_id:
                     completed = status_code < 400

@@ -182,7 +182,6 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
       shouldReconnectRef.current = false
       disconnect()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.token, token])
   // NOTE: connect/disconnect are intentionally NOT in dependencies
   // They are stable via useCallback and adding them causes unnecessary reconnections

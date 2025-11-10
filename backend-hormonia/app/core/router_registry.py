@@ -1,9 +1,8 @@
 """
 Router registration for the FastAPI application.
 
-V2-ONLY SYSTEM: All V1 endpoints have been removed.
-Only V2 API and essential health/monitoring endpoints are active.
-V1 code has been archived to app/api/v1_archived_2025-11-07/
+V2-ONLY SYSTEM: All V1 endpoints foram removidos.
+Somente a API v2 e os endpoints essenciais de health/monitoring seguem ativos.
 """
 from datetime import datetime
 from fastapi import FastAPI

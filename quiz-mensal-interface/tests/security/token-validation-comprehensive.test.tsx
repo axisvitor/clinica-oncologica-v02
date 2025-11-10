@@ -24,7 +24,7 @@ vi.mock('@/lib/api', async () => {
       submitAnswer: vi.fn(),
       completeQuiz: vi.fn(),
       healthCheck: vi.fn(),
-      getBaseURL: vi.fn(() => 'http://localhost:8000/api/v1/monthly-quiz-public')
+      getBaseURL: vi.fn(() => 'http://localhost:8000/api/v2/monthly-quiz-public')
     }
   }
 })

@@ -1,10 +1,10 @@
 # Trailing Slash Redirect Fix (307 Status)
 
 ## Issue Identified
-The `/api/v1/patients` endpoint (and others) were returning status 307 (Temporary Redirect) due to FastAPI's automatic trailing slash redirection behavior.
+The `/api/v2/patients` endpoint (and others) were returning status 307 (Temporary Redirect) due to FastAPI's automatic trailing slash redirection behavior.
 
 ## Root Cause
-**FastAPI Trailing Slash Behavior**: When a route is defined as `@router.get("/")` and included with a prefix like `/api/v1/patients`, FastAPI creates the endpoint at `/api/v1/patients/` (with trailing slash). When clients request `/api/v1/patients` (without trailing slash), FastAPI automatically redirects with status 307.
+**FastAPI Trailing Slash Behavior**: When a route is defined as `@router.get("/")` and included with a prefix like `/api/v2/patients`, FastAPI creates the endpoint at `/api/v2/patients/` (with trailing slash). When clients request `/api/v2/patients` (without trailing slash), FastAPI automatically redirects with status 307.
 
 ## Problem Pattern
 ```python
@@ -12,11 +12,11 @@ The `/api/v1/patients` endpoint (and others) were returning status 307 (Temporar
 @router.get("/", response_model=PatientListResponse)
 
 # Router included as:
-app.include_router(patients.router, prefix="/api/v1/patients")
+app.include_router(patients.router, prefix="/api/v2/patients")
 
-# Results in endpoint: /api/v1/patients/
-# Client requests: /api/v1/patients (no slash)
-# FastAPI response: 307 redirect to /api/v1/patients/
+# Results in endpoint: /api/v2/patients/
+# Client requests: /api/v2/patients (no slash)
+# FastAPI response: 307 redirect to /api/v2/patients/
 ```
 
 ## Solution Applied
@@ -27,34 +27,34 @@ Changed route definitions from `"/"` to `""` (empty string) to avoid trailing sl
 @router.get("", response_model=PatientListResponse)
 
 # Router included as:
-app.include_router(patients.router, prefix="/api/v1/patients")
+app.include_router(patients.router, prefix="/api/v2/patients")
 
-# Results in endpoint: /api/v1/patients
-# Client requests: /api/v1/patients
+# Results in endpoint: /api/v2/patients
+# Client requests: /api/v2/patients
 # FastAPI response: Direct handling (200, 401, etc.)
 ```
 
 ## Files Modified
-1. **backend-hormonia/app/api/v1/patients.py**
+1. **backend-hormonia/app/api/v2/patients.py**
    - `@router.get("/")` → `@router.get("")`
    - `@router.post("/")` → `@router.post("")`
 
-2. **backend-hormonia/app/api/v1/messages.py**
+2. **backend-hormonia/app/api/v2/messages.py**
    - `@router.get("/")` → `@router.get("")`
 
-3. **backend-hormonia/app/api/v1/flows.py**
+3. **backend-hormonia/app/api/v2/flows.py**
    - `@router.get("/")` → `@router.get("")`
 
-4. **backend-hormonia/app/api/v1/admin_users.py**
+4. **backend-hormonia/app/api/v2/admin_users.py**
    - `@router.get("/")` → `@router.get("")`
    - `@router.post("/")` → `@router.post("")`
 
 ## Verification
 After applying the fix:
-- `/api/v1/patients` should return 200, 401, or 403 (not 307)
-- `/api/v1/messages` should work without redirects
-- `/api/v1/flows` should work without redirects
-- `/api/v1/admin/users` should work without redirects
+- `/api/v2/patients` should return 200, 401, or 403 (not 307)
+- `/api/v2/messages` should work without redirects
+- `/api/v2/flows` should work without redirects
+- `/api/v2/admin/users` should work without redirects
 
 ## Testing
 Use the test script to verify the fix:

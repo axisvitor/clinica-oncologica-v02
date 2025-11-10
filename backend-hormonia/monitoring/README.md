@@ -54,7 +54,7 @@ docker-compose -f docker-compose.monitoring.yml ps
 3. **Test alert routing:**
    ```bash
    # Send test alert
-   curl -X POST http://localhost:9093/api/v1/alerts \
+   curl -X POST http://localhost:9093/api/v2/alerts \
      -H "Content-Type: application/json" \
      -d '[{
        "labels": {
@@ -189,7 +189,7 @@ Quick links:
 
 ```bash
 # Check Prometheus targets
-curl http://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | {job: .labels.job, health: .health}'
+curl http://localhost:9090/api/v2/targets | jq '.data.activeTargets[] | {job: .labels.job, health: .health}'
 
 # Check Redis exporter
 curl http://localhost:9121/metrics | grep quiz_metrics
@@ -202,7 +202,7 @@ redis-cli --scan --pattern "quiz_metrics:*"
 
 ```bash
 # Check Prometheus rules
-curl http://localhost:9090/api/v1/rules | jq '.data.groups[].rules[] | {alert: .name, state: .state}'
+curl http://localhost:9090/api/v2/rules | jq '.data.groups[].rules[] | {alert: .name, state: .state}'
 
 # Test alert manually
 promtool test rules prometheus/rules/quiz_alerts.yml

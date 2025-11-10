@@ -3,7 +3,6 @@ import {
   MessageType,
   type FlowTemplate,
   type MessageTemplate,
-  type InteractiveElements,
   type Condition
 } from '../types/flow'
 import { apiClient } from '../api-client'
@@ -165,8 +164,8 @@ export class TemplateManager {
     }
 
     // Validate each message
-    for (const [day, message] of Object.entries(template.messages)) {
-      if (!this.validateMessage(message)) {
+    for (const message of Object.values(template.messages)) {
+      if (!this.validateMessage(message as MessageTemplate)) {
         return false
       }
     }

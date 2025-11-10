@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { useMonthlyQuiz } from '../hooks/useMonthlyQuiz';
 import type { DeliveryMethod } from '../types';
 import { MonthlyQuizLinkCreate } from '../types';
+import { toast } from '@/components/ui/use-toast';
 
 interface QuizLinkGeneratorProps {
   patientId: string;
@@ -45,7 +46,10 @@ export const QuizLinkGenerator: React.FC<QuizLinkGeneratorProps> = ({
   const copyToClipboard = () => {
     if (generatedLink) {
       navigator.clipboard.writeText(generatedLink);
-      alert('Link copiado para área de transferência!');
+      toast({
+        title: 'Link copiado',
+        description: 'O link foi copiado para a área de transferência.',
+      });
     }
   };
 

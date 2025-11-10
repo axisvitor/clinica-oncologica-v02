@@ -409,7 +409,7 @@ export function RoleAssignmentModal({ open, onOpenChange, user }: RoleAssignment
   const updatePermissionsMutation = useMutation({
     mutationFn: async ({ id, permissions }: { id: string; permissions: string[] }) => {
       // WARNING: Backend endpoint is currently a placeholder and doesn't persist permissions
-      // TODO: Implement actual permissions storage in backend (see backend-hormonia/app/api/v1/admin/users.py:830-885)
+      // TODO: Implement actual permissions storage in backend (see backend-hormonia/app/api/v2/admin/users.py:830-885)
       return apiClient.adminUsers.updatePermissions(id, permissions);
     },
     onSuccess: () => {

@@ -6,18 +6,13 @@
 // Import and re-export AI-related types from the centralized API types module
 import type {
   AIChatMessage,
-  ChatRole,
   AIInsight as AIInsightType,
-  SentimentAnalysis,
-  SentimentLabel,
-  EmotionScores,
-  InsightType,
   ChatSession as ChatSessionType
-} from '../../types/api'
+} from '../src/types/api'
 
 // Export types with backward compatibility aliases
 export type ChatMessage = AIChatMessage
-export { ChatRole } from '../../types/api'
+export { ChatRole } from '../src/types/api'
 export type AIInsight = AIInsightType
 export type ChatSession = ChatSessionType
 
@@ -27,7 +22,7 @@ export type {
   SentimentLabel,
   EmotionScores,
   InsightType
-} from '../../types/api'
+} from '../src/types/api'
 
 // Export missing AIRecommendation interface for backward compatibility
 export interface AIRecommendation {

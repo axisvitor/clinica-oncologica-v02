@@ -41,8 +41,8 @@ python scripts/backend_init.py --verbose
 
 ```bash
 curl http://localhost:8000/health
-curl http://localhost:8000/api/v1/redis/health
-curl http://localhost:8000/api/v1/enhanced/monitoring/dashboard
+curl http://localhost:8000/api/v2/redis/health
+curl http://localhost:8000/api/v2/enhanced/monitoring/dashboard
 ```
 
 ---
@@ -325,7 +325,7 @@ print('📊 Arquitetura modular funcionando perfeitamente!')
 
 # Verificar health checks
 curl http://localhost:8000/health
-curl http://localhost:8000/api/v1/redis/health
+curl http://localhost:8000/api/v2/redis/health
 ```
 
 ### População de Dados de Teste
@@ -412,40 +412,40 @@ docker-compose up --build -d
 The API offers 100+ endpoints organized across multiple modules:
 
 ### Authentication
-- `POST /api/v1/auth/login` - User login
-- `POST /api/v1/auth/refresh` - Refresh token
-- `POST /api/v1/auth/logout` - User logout
+- `POST /api/v2/auth/login` - User login
+- `POST /api/v2/auth/refresh` - Refresh token
+- `POST /api/v2/auth/logout` - User logout
 
 ### Patients
-- `GET /api/v1/patients` - List patients
-- `POST /api/v1/patients` - Create patient
-- `GET /api/v1/patients/{id}` - Get patient details
-- `PUT /api/v1/patients/{id}` - Update patient
-- `DELETE /api/v1/patients/{id}` - Delete patient
+- `GET /api/v2/patients` - List patients
+- `POST /api/v2/patients` - Create patient
+- `GET /api/v2/patients/{id}` - Get patient details
+- `PUT /api/v2/patients/{id}` - Update patient
+- `DELETE /api/v2/patients/{id}` - Delete patient
 
 ### Messages
-- `GET /api/v1/messages` - List messages
-- `POST /api/v1/messages/send` - Send message
-- `GET /api/v1/messages/threads` - Conversation threads
+- `GET /api/v2/messages` - List messages
+- `POST /api/v2/messages/send` - Send message
+- `GET /api/v2/messages/threads` - Conversation threads
 
 ### Conversation Flows
-- `GET /api/v1/flows` - List flows
-- `POST /api/v1/flows` - Create flow
-- `PUT /api/v1/flows/{id}` - Update flow
+- `GET /api/v2/flows` - List flows
+- `POST /api/v2/flows` - Create flow
+- `PUT /api/v2/flows/{id}` - Update flow
 
 ### Assessments
-- `GET /api/v1/quiz/templates` - Quiz templates
-- `POST /api/v1/quiz/responses` - Submit response
-- `GET /api/v1/quiz/analytics` - Response analytics
+- `GET /api/v2/quiz/templates` - Quiz templates
+- `POST /api/v2/quiz/responses` - Submit response
+- `GET /api/v2/quiz/analytics` - Response analytics
 
 ### Reports
-- `GET /api/v1/reports` - List reports
-- `POST /api/v1/reports/generate` - Generate report
-- `GET /api/v1/reports/{id}/download` - Download PDF
+- `GET /api/v2/reports` - List reports
+- `POST /api/v2/reports/generate` - Generate report
+- `GET /api/v2/reports/{id}/download` - Download PDF
 
 ### Analytics
-- `GET /api/v1/analytics/dashboard` - Dashboard data
-- `GET /api/v1/analytics/insights` - AI insights
+- `GET /api/v2/analytics/dashboard` - Dashboard data
+- `GET /api/v2/analytics/insights` - AI insights
 
 **For complete API documentation, see:** [docs/api/API.md](docs/api/API.md)
 
@@ -544,7 +544,7 @@ Os logs são configurados com diferentes níveis e estrutura aprimorada:
 curl http://localhost:8000/health
 
 # 🔧 Health check detalhado do Redis
-curl http://localhost:8000/api/v1/redis/health
+curl http://localhost:8000/api/v2/redis/health
 
 # 📊 Status da arquitetura modular
 python -c "
@@ -557,7 +557,7 @@ print('Session Health:', get_session_health_info())
 
 - **🌸 Celery Flower**: `http://localhost:5555` - Monitoramento de tarefas
 - **❤️ Application Health**: `GET /health` - Status da aplicação
-- **⚡ Redis Health**: `GET /api/v1/redis/health` - Status Redis detalhado
+- **⚡ Redis Health**: `GET /api/v2/redis/health` - Status Redis detalhado
 - **📈 Metrics**: `GET /metrics` - Métricas Prometheus (se configurado)
 - **🔄 Session Manager**: Métricas de sessões ativas e performance
 - **🚀 Middleware Performance**: Tempo de execução de cada middleware
@@ -601,7 +601,7 @@ docker run -d \
 
 # 📊 Verificar saúde da aplicação
 docker exec hormonia-backend curl -s http://localhost:8000/health
-docker exec hormonia-backend curl -s http://localhost:8000/api/v1/redis/health
+docker exec hormonia-backend curl -s http://localhost:8000/api/v2/redis/health
 ```
 
 ### Deployment Checklist
@@ -696,8 +696,8 @@ For production deployment, consult our specialized guides:
 ### Quick Links
 - **API Documentation**: `http://localhost:8000/docs`
 - **Health Checks**: `http://localhost:8000/health`
-- **Redis Status**: `http://localhost:8000/api/v1/redis/health`
-- **Enhanced Monitoring**: `http://localhost:8000/api/v1/enhanced/monitoring/dashboard`
+- **Redis Status**: `http://localhost:8000/api/v2/redis/health`
+- **Enhanced Monitoring**: `http://localhost:8000/api/v2/enhanced/monitoring/dashboard`
 
 ## 📞 Support
 

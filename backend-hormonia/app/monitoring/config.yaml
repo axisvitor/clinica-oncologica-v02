@@ -30,13 +30,13 @@ service_health:
 
   # API endpoints to monitor
   api_endpoints:
-    - url: "/api/v1/health"
+    - url: "/api/v2/health"
       method: "GET"
       expected_status: 200
-    - url: "/api/v1/patients"
+    - url: "/api/v2/patients"
       method: "GET"
       expected_status: 200
-    - url: "/api/v1/quiz"
+    - url: "/api/v2/quiz"
       method: "GET"
       expected_status: 200
 

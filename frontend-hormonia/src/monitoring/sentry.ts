@@ -8,6 +8,9 @@
  * for the Clínica Oncológica frontend application.
  */
 
+import { createLogger } from '@/lib/logger';
+const logger = createLogger('Sentry');
+
 /*
  * TEMPORARILY DISABLED - Sentry packages not installed
  * Uncomment after installing: @sentry/react, @sentry/tracing, @sentry/integrations, @sentry/replay
@@ -35,7 +38,7 @@ export class SentryMonitoring {
    * Initialize Sentry SDK with comprehensive monitoring configuration
    */
   static init(): void {
-    console.warn('Sentry monitoring is disabled. Install @sentry/react and related packages to enable.');
+    logger.warn('Sentry monitoring is disabled. Install @sentry/react and related packages to enable.');
     // TODO: Uncomment after installing Sentry packages
     /*
     if (this.isInitialized || !SENTRY_DSN) {
@@ -128,7 +131,7 @@ export class SentryMonitoring {
    * Set user context for error tracking
    */
   static setUserContext(user: UserContext): void {
-    console.debug('User context would be set:', user);
+    logger.debug('User context would be set:', user);
     // TODO: Uncomment after installing Sentry
     // Sentry.setUser({ id: user.id, email: user.email, username: user.name, role: user.role });
   }
@@ -137,7 +140,7 @@ export class SentryMonitoring {
    * Clear user context on logout
    */
   static clearUserContext(): void {
-    console.debug('User context would be cleared');
+    logger.debug('User context would be cleared');
     // TODO: Uncomment after installing Sentry
     // Sentry.setUser(null);
   }
@@ -146,7 +149,7 @@ export class SentryMonitoring {
    * Track page views and navigation
    */
   static trackPageView(pageName: string, additionalData?: Record<string, any>): void {
-    console.debug('Page view would be tracked:', pageName, additionalData);
+    logger.debug('Page view would be tracked:', pageName, additionalData);
     // TODO: Uncomment after installing Sentry
   }
 
@@ -154,7 +157,7 @@ export class SentryMonitoring {
    * Track business events and user interactions
    */
   static trackEvent(eventName: string, data: Record<string, any> = {}): void {
-    console.debug('Event would be tracked:', eventName, data);
+    logger.debug('Event would be tracked:', eventName, data);
     // TODO: Uncomment after installing Sentry
   }
 
@@ -162,7 +165,7 @@ export class SentryMonitoring {
    * Track form interactions and validation errors
    */
   static trackFormError(formName: string, field: string, error: string): void {
-    console.debug('Form error would be tracked:', { formName, field, error });
+    logger.debug('Form error would be tracked:', { formName, field, error });
     // TODO: Uncomment after installing Sentry
   }
 
@@ -170,7 +173,7 @@ export class SentryMonitoring {
    * Track API call failures with context
    */
   static trackApiError(endpoint: string, method: string, status: number, error: string): void {
-    console.debug('API error would be tracked:', { endpoint, method, status, error });
+    logger.debug('API error would be tracked:', { endpoint, method, status, error });
     // TODO: Uncomment after installing Sentry
   }
 
@@ -178,7 +181,7 @@ export class SentryMonitoring {
    * Track clinical dashboard interactions
    */
   static trackClinicalDashboard(action: string, componentName: string, metadata?: Record<string, any>): void {
-    console.debug('Clinical dashboard interaction would be tracked:', { action, componentName, metadata });
+    logger.debug('Clinical dashboard interaction would be tracked:', { action, componentName, metadata });
     // TODO: Uncomment after installing Sentry
   }
 
@@ -186,7 +189,7 @@ export class SentryMonitoring {
    * Track patient data access for audit purposes
    */
   static trackPatientDataAccess(dataType: string, accessLevel: string, patientId?: string): void {
-    console.debug('Patient data access would be tracked:', { dataType, accessLevel, patientId: patientId ? '[REDACTED]' : undefined });
+    logger.debug('Patient data access would be tracked:', { dataType, accessLevel, patientId: patientId ? '[REDACTED]' : undefined });
     // TODO: Uncomment after installing Sentry
   }
 
@@ -194,7 +197,7 @@ export class SentryMonitoring {
    * Track performance metrics manually
    */
   static trackPerformance(metricName: string, value: number, unit: string = 'ms'): void {
-    console.debug('Performance metric would be tracked:', { metricName, value, unit });
+    logger.debug('Performance metric would be tracked:', { metricName, value, unit });
     // TODO: Uncomment after installing Sentry
   }
 
@@ -202,7 +205,7 @@ export class SentryMonitoring {
    * Capture custom exception with context
    */
   static captureException(error: Error, context?: Record<string, any>): string {
-    console.error('Exception would be captured:', error, context);
+    logger.error('Exception would be captured:', error, context);
     return 'disabled-sentry-id';
     // TODO: Uncomment after installing Sentry
     // return Sentry.captureException(error, { extra: context });
@@ -212,7 +215,7 @@ export class SentryMonitoring {
    * Start a custom transaction for performance monitoring
    */
   static startTransaction(name: string, op: string = 'custom'): any {
-    console.debug('Transaction would be started:', { name, op });
+    logger.debug('Transaction would be started:', { name, op });
     return null;
     // TODO: Uncomment after installing Sentry
     // return Sentry.startTransaction({ name, op });
@@ -245,8 +248,8 @@ export class SentryMonitoring {
 // Stub exports until Sentry is installed
 export const ErrorBoundary = null;
 export const withErrorBoundary = null;
-export const captureException = (error: Error) => console.error(error);
-export const captureMessage = (message: string) => console.log(message);
+export const captureException = (error: Error) => logger.error(error);
+export const captureMessage = (message: string) => logger.info(message);
 export const withSentryConfig = null;
 
 // Initialize Sentry when module is imported

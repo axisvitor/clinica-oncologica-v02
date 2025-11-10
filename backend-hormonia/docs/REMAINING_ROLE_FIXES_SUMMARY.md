@@ -21,7 +21,7 @@ if current_user.role == UserRole.ADMIN:
 ```
 
 ### 2. Quiz Alerts Role Refactor ✅
-**File:** `app/api/v1/quiz_alerts.py`
+**File:** `app/api/v2/quiz_alerts.py`
 
 **Changes Made:**
 - Added `UserRole` import: `from app.models.user import User, UserRole`
@@ -50,7 +50,7 @@ if current_user.role not in {UserRole.DOCTOR, UserRole.ADMIN}:
 ## Files Modified
 
 1. `backend-hormonia/app/dependencies/business_dependencies.py`
-2. `backend-hormonia/app/api/v1/quiz_alerts.py`
+2. `backend-hormonia/app/api/v2/quiz_alerts.py`
 
 ## Test Coverage
 

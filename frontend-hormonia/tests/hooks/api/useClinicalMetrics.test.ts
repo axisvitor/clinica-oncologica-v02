@@ -54,7 +54,7 @@ describe('useClinicalMetrics', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
     expect(result.current.data).toEqual(mockData)
-    expect(apiClient.get).toHaveBeenCalledWith('/api/v1/metrics/clinical', {
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v2/metrics/clinical', {
       params: { timeRange: '7d' }
     })
   })
@@ -82,7 +82,7 @@ describe('useClinicalMetrics', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
     expect(result.current.data).toEqual(mockData)
-    expect(apiClient.get).toHaveBeenCalledWith('/api/v1/metrics/clinical', {
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v2/metrics/clinical', {
       params: { timeRange: '30d' }
     })
   })
@@ -109,7 +109,7 @@ describe('useClinicalMetrics', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
-    expect(apiClient.get).toHaveBeenCalledWith('/api/v1/metrics/clinical', {
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v2/metrics/clinical', {
       params: { timeRange: '90d' }
     })
   })
@@ -183,10 +183,10 @@ describe('useClinicalMetrics', () => {
 
     // Should have made 2 separate requests
     expect(apiClient.get).toHaveBeenCalledTimes(2)
-    expect(apiClient.get).toHaveBeenNthCalledWith(1, '/api/v1/metrics/clinical', {
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, '/api/v2/metrics/clinical', {
       params: { timeRange: '7d' }
     })
-    expect(apiClient.get).toHaveBeenNthCalledWith(2, '/api/v1/metrics/clinical', {
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, '/api/v2/metrics/clinical', {
       params: { timeRange: '30d' }
     })
   })

@@ -28,7 +28,7 @@ setup('authenticate', async ({ page }) => {
   await page.waitForSelector('[data-testid="login-form"], form', { timeout: 10000 });
 
   // Mock successful authentication response
-  await page.route('**/api/v1/auth/login', (route) => {
+  await page.route('**/api/v2/auth/login', (route) => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -70,7 +70,7 @@ setup('authenticate', async ({ page }) => {
 setup('database setup', async ({ request }) => {
   // Example: Clear test data
   try {
-    await request.delete('/api/v1/test/cleanup', {
+    await request.delete('/api/v2/test/cleanup', {
       headers: {
         ['Authorization']: 'Bearer test-token'
       }
@@ -82,7 +82,7 @@ setup('database setup', async ({ request }) => {
 
   // Example: Create test data
   try {
-    await request.post('/api/v1/test/setup', {
+    await request.post('/api/v2/test/setup', {
       headers: {
         ['Authorization']: 'Bearer test-token',
         'Content-Type': 'application/json'

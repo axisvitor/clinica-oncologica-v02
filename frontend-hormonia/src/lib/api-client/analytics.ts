@@ -312,9 +312,9 @@ export function createAnalyticsApi(client: ApiClientCore) {
       lookback_days?: number
     }): Promise<RiskAssessmentResponse> {
       const query: Record<string, string | number> = {}
-      if (params?.risk_level) query.risk_level = params.risk_level
-      if (params?.limit) query.limit = params.limit
-      if (params?.lookback_days) query.lookback_days = params.lookback_days
+      if (params?.risk_level) query['risk_level'] = params.risk_level
+      if (params?.limit) query['limit'] = params.limit
+      if (params?.lookback_days) query['lookback_days'] = params.lookback_days
       return client.get<RiskAssessmentResponse>('/api/v2/analytics/risk-assessment', query)
     }
   }

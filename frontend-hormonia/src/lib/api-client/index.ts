@@ -186,8 +186,8 @@ export class ApiClient extends ApiClientCore {
         metadata?: Record<string, any>,
       ) => this.post(`/api/v2/flows/${patientId}/process-response`, {
         response_text: responseText,
-        day: metadata?.day || 1,
-        flow_type: metadata?.flow_type || 'default'
+        day: metadata?.['day'] || 1,
+        flow_type: metadata?.['flow_type'] || 'default'
       }),
 
       getAnalytics: () => this.get("/api/v2/flows/analytics"),
@@ -298,7 +298,7 @@ export class ApiClient extends ApiClientCore {
     return {
       users: {
         list: async (page = 1, size = 20) => {
-          const params = { limit: size, cursor: undefined };
+          const params: Record<string, string | number | boolean> = { limit: size };
           const res: any = await this.get("/api/v2/admin/users", params);
           return Array.isArray(res?.data) ? res.data : (res?.items ?? []);
         },

@@ -21,7 +21,6 @@
  */
 
 import { QueryClient, DefaultOptions } from '@tanstack/react-query'
-import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { createIndexedDBPersister } from './persistentCache'
 
 /**

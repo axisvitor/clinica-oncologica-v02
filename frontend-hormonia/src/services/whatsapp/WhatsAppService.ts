@@ -84,7 +84,7 @@ class WhatsAppService {
     // Use VITE_API_BASE_URL (without /api/v2) to avoid path duplication
     // If only VITE_API_URL is available, sanitize it by removing /api/v2 suffix
     this.baseUrl = import.meta.env['VITE_API_BASE_URL'] ||
-                   import.meta.env['VITE_API_URL']?.replace(/\/api\/v1$/, '') ||
+                   import.meta.env['VITE_API_URL']?.replace(/\/api\/v2$/, '') ||
                    'http://localhost:8000';
     this.apiKey = import.meta.env['VITE_API_KEY'];
   }

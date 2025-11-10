@@ -76,7 +76,7 @@ test.describe('Application Smoke Tests', () => {
     testUtils = new TestUtils(page);
 
     // Set up API mocks for basic functionality
-    await testUtils.mockApiResponse('/api/v1/auth/me', {
+    await testUtils.mockApiResponse('/api/v2/auth/me', {
       user: { id: '1', email: 'test@example.com', name: 'Test User' }
     });
 
@@ -159,7 +159,7 @@ test.describe('Application Smoke Tests', () => {
     await testUtils.waitForConfig();
 
     // Mock successful login response
-    await testUtils.mockApiResponse('/api/v1/auth/login', {
+    await testUtils.mockApiResponse('/api/v2/auth/login', {
       access_token: 'mock-access-token',
       token_type: 'bearer',
       user: {
@@ -251,7 +251,7 @@ test.describe('Application Smoke Tests', () => {
 
   test('Flows page functionality', async ({ page }) => {
     // Mock flows API response
-    await testUtils.mockApiResponse('/api/v1/flows', {
+    await testUtils.mockApiResponse('/api/v2/flows', {
       flows: [
         { id: '1', name: 'Test Flow', status: 'active' }
       ]

@@ -79,7 +79,7 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=your-messaging-id
 VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
 
 # Backend API Configuration (FastAPI + AWS RDS)
-VITE_API_URL=http://127.0.0.1:8000/api/v1
+VITE_API_URL=http://127.0.0.1:8000/api/v2
 VITE_API_BASE_URL=http://127.0.0.1:8000
 VITE_WS_BASE_URL=ws://127.0.0.1:8000/ws
 
@@ -509,7 +509,7 @@ Built-in security features:
 ## Recent Improvements (January 2025)
 
 ### API Infrastructure Modernization
-- **API Prefix Standardization**: Updated all 37 frontend endpoints to use consistent `/api/v1` prefix
+- **API Prefix Standardization**: Updated all 37 frontend endpoints to use consistent `/api/v2` prefix
 - **Centralized API Client**: Implemented unified API client architecture with enhanced error handling
 - **Request Standardization**: Unified request/response patterns across all components
 - **Type Safety Enhancement**: Improved TypeScript definitions for all API responses

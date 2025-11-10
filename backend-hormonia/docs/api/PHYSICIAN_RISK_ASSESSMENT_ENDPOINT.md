@@ -2,20 +2,20 @@
 
 ## Overview
 
-The `/api/v1/physician/risk-assessments` endpoint provides aggregated risk assessments for all patients assigned to a physician. This endpoint **eliminates the N+1 query problem** that previously required 51 API calls (1 patient list + 50 individual insights).
+The `/api/v2/physician/risk-assessments` endpoint provides aggregated risk assessments for all patients assigned to a physician. This endpoint **eliminates the N+1 query problem** that previously required 51 API calls (1 patient list + 50 individual insights).
 
 ## Performance Characteristics
 
 ### Before (N+1 Problem)
 - **51 sequential API calls**
-- Patient list: `GET /api/v1/patients`
+- Patient list: `GET /api/v2/patients`
 - Individual insights: `GET /ai/insights/{id}` × 50
 - **Total time**: ~5-10 seconds
 - **Database queries**: 100+ queries
 
 ### After (Optimized)
 - **1 API call** with JOINs
-- Bulk operations: `GET /api/v1/physician/risk-assessments`
+- Bulk operations: `GET /api/v2/physician/risk-assessments`
 - **Total time**: < 200ms (target)
 - **Database queries**: 3-4 queries total
 
@@ -26,7 +26,7 @@ The `/api/v1/physician/risk-assessments` endpoint provides aggregated risk asses
 ### Request
 
 ```http
-GET /api/v1/physician/risk-assessments
+GET /api/v2/physician/risk-assessments
 Authorization: Bearer {firebase_id_token}
 ```
 
@@ -235,15 +235,15 @@ ORDER BY severity DESC, created_at DESC;
 
 ```bash
 # Get all patients for physician
-curl -X GET "http://localhost:8000/api/v1/physician/risk-assessments" \
+curl -X GET "http://localhost:8000/api/v2/physician/risk-assessments" \
   -H "Authorization: Bearer YOUR_FIREBASE_TOKEN"
 
 # Get specific patient
-curl -X GET "http://localhost:8000/api/v1/physician/risk-assessments?patient_id=123e4567-e89b-12d3-a456-426614174000" \
+curl -X GET "http://localhost:8000/api/v2/physician/risk-assessments?patient_id=123e4567-e89b-12d3-a456-426614174000" \
   -H "Authorization: Bearer YOUR_FIREBASE_TOKEN"
 
 # Custom lookback period
-curl -X GET "http://localhost:8000/api/v1/physician/risk-assessments?days_lookback=7" \
+curl -X GET "http://localhost:8000/api/v2/physician/risk-assessments?days_lookback=7" \
   -H "Authorization: Bearer YOUR_FIREBASE_TOKEN"
 ```
 
@@ -253,7 +253,7 @@ curl -X GET "http://localhost:8000/api/v1/physician/risk-assessments?days_lookba
 // Frontend API client
 const getRiskAssessments = async () => {
   const response = await fetch(
-    `${API_BASE_URL}/api/v1/physician/risk-assessments`,
+    `${API_BASE_URL}/api/v2/physician/risk-assessments`,
     {
       headers: {
         'Authorization': `Bearer ${firebaseToken}`,
@@ -281,7 +281,7 @@ import requests
 
 def get_risk_assessments(firebase_token: str, patient_id: str = None):
     """Get risk assessments from backend."""
-    url = "http://localhost:8000/api/v1/physician/risk-assessments"
+    url = "http://localhost:8000/api/v2/physician/risk-assessments"
 
     params = {}
     if patient_id:
@@ -321,7 +321,7 @@ pytest tests/test_risk_assessment_endpoint.py --cov=app.services.risk_assessment
 ```bash
 # Test with 50 patients (production scenario)
 time curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/physician/risk-assessments"
+  "http://localhost:8000/api/v2/physician/risk-assessments"
 
 # Should complete in < 200ms
 ```
@@ -346,7 +346,7 @@ psql $DATABASE_URL -c "\d patients"
 **Before (N+1 problem):**
 ```typescript
 // ❌ OLD - 51 API calls
-const patients = await fetch('/api/v1/patients');
+const patients = await fetch('/api/v2/patients');
 const insights = await Promise.all(
   patients.map(p => fetch(`/ai/insights/${p.id}`))
 );
@@ -355,7 +355,7 @@ const insights = await Promise.all(
 **After (optimized):**
 ```typescript
 // ✅ NEW - 1 API call
-const { patients } = await fetch('/api/v1/physician/risk-assessments');
+const { patients } = await fetch('/api/v2/physician/risk-assessments');
 // All risk data already included in response
 ```
 
@@ -412,7 +412,7 @@ if elapsed_ms > 200:
 ## Related Files
 
 ### Implementation
-- `app/api/v1/physician.py` - Route handlers
+- `app/api/v2/physician.py` - Route handlers
 - `app/services/risk_assessment_service.py` - Business logic
 - `app/models/physician.py` - Pydantic response models
 - `alembic/versions/20251006_add_risk_assessment_indexes.py` - Database indexes

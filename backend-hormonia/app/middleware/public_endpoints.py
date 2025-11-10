@@ -35,9 +35,8 @@ class PublicEndpointMiddleware(BaseHTTPMiddleware):
     ):
         super().__init__(app)
         self.allowed_endpoints = allowed_endpoints or [
-            "/api/v1/monthly-quiz-public/access",
-            "/api/v1/monthly-quiz-public/submit",
-            "/api/v1/monthly-quiz-public/health"
+            "/api/v2/quiz-extensions/monthly/public",
+            "/api/v2/quiz-extensions/monthly/public/current",
         ]
         self.enable_logging = enable_logging
         
@@ -178,7 +177,7 @@ class PublicEndpointCORSMiddleware(BaseHTTPMiddleware):
     ):
         super().__init__(app)
         self.public_endpoints = public_endpoints or [
-            "/api/v1/monthly-quiz-public"
+            "/api/v2/quiz-extensions/monthly/public"
         ]
         self.allowed_origins = allowed_origins or ["*"]
         

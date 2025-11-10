@@ -25,7 +25,7 @@ vi.mock('../../src/lib/runtime-config', () => ({
 describe('Configuration Initializer - Unit Tests', () => {
 
   const mockConfig = {
-    VITE_API_URL: 'http://localhost:8000/api/v1',
+    VITE_API_URL: 'http://localhost:8000/api/v2',
     VITE_API_BASE_URL: 'http://localhost:8000',
     VITE_WS_URL: 'ws://localhost:8000/ws',
     VITE_WS_BASE_URL: 'ws://localhost:8000/ws',

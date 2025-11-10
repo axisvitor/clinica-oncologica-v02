@@ -5,10 +5,6 @@
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import type { FirebaseApp } from 'firebase/app'
-import { createLogger } from '../logger'
-
-const logger = createLogger('FirebaseClientInitializationTest')
-
 // Mock Firebase modules before imports
 vi.mock('firebase/app', () => {
   const apps: FirebaseApp[] = []
@@ -210,7 +206,7 @@ describe('Firebase Configuration Validation', () => {
     try {
       await import('../firebase-client')
     } catch (error) {
-      // Expected to throw
+      expect(error).toBeDefined()
     }
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -241,7 +237,7 @@ describe('Firebase Configuration Validation', () => {
     try {
       await import('../firebase-client')
     } catch (error) {
-      // Expected to throw
+      expect(error).toBeDefined()
     }
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -256,8 +252,6 @@ describe('Firebase Configuration Validation', () => {
   })
 
   test('should include measurementId for analytics', async () => {
-    const { firebaseApp } = await import('../firebase-client')
-
     const originalEnv = import.meta.env
     Object.defineProperty(import.meta, 'env', {
       value: {

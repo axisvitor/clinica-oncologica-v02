@@ -128,12 +128,12 @@ const normalizePatientResponse = (patient: PatientApiResponse): Patient => {
   if (!patient) {
     return patient
   }
-  const flowState = patient.flow_state ?? patient.status
+  const flowState = patient.flow_state ?? patient.status ?? 'active'
   const normalizedStatus = (flowState || patient.status || 'active') as Patient['status']
   return {
     ...patient,
-    flow_state: flowState,
-    status: normalizedStatus
+    flow_state: flowState as string,
+    status: normalizedStatus as "active" | "inactive" | "completed" | "paused" | "archived"
   }
 }
 

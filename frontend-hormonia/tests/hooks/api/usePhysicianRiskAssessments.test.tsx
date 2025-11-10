@@ -107,7 +107,7 @@ describe('usePhysicianRiskAssessments', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
     expect(apiClient.request).toHaveBeenCalledWith(
-      '/api/v1/physician/risk-assessments?patient_id=p123'
+      '/api/v2/physician/risk-assessments?patient_id=p123'
     )
   })
 
@@ -187,10 +187,10 @@ describe('usePhysicianRiskAssessments', () => {
     // Should have made 2 separate requests (different query keys)
     expect(apiClient.request).toHaveBeenCalledTimes(2)
     expect(apiClient.request).toHaveBeenCalledWith(
-      '/api/v1/physician/risk-assessments?patient_id=p1'
+      '/api/v2/physician/risk-assessments?patient_id=p1'
     )
     expect(apiClient.request).toHaveBeenCalledWith(
-      '/api/v1/physician/risk-assessments?patient_id=p2'
+      '/api/v2/physician/risk-assessments?patient_id=p2'
     )
   })
 

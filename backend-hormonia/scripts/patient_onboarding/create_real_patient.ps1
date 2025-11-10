@@ -24,7 +24,7 @@ Write-Host "  Email: $($patientData.email)" -ForegroundColor White
 
 # URLs
 $baseUrl = "http://localhost:8000"
-$patientsUrl = "$baseUrl/api/v1/patients"
+$patientsUrl = "$baseUrl/api/v2/patients"
 
 # Admin user ID (doctor)
 $adminDoctorId = "d7c3e4f5-6a7b-8c9d-0e1f-2a3b4c5d6e7f"  # ID do usuário admin@neoplasiaslitoral.com

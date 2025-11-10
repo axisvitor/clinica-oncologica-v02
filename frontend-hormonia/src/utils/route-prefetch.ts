@@ -25,7 +25,11 @@
  */
 
 // Route import map - maps route paths to their lazy import functions
+import { createLogger } from '@/lib/logger';
+
 type RouteImportMap = Record<string, () => Promise<any>>;
+
+const logger = createLogger('RoutePrefetch');
 
 const routeImports: RouteImportMap = {
   "/dashboard": () => import("@/pages/DashboardPage"),
@@ -73,13 +77,13 @@ function shouldPrefetch(): boolean {
 
     // Respect save-data preference
     if (connection?.saveData) {
-      console.log("[Prefetch] Skipping prefetch - save-data enabled");
+      logger.warn("[Prefetch] Skipping prefetch - save-data enabled");
       return false;
     }
 
     // Don't prefetch on slow connections (2G)
     if (connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g") {
-      console.log("[Prefetch] Skipping prefetch - slow connection");
+      logger.warn("[Prefetch] Skipping prefetch - slow connection");
       return false;
     }
   }
@@ -97,13 +101,13 @@ function shouldPrefetch(): boolean {
 export async function prefetchRoute(route: string, force: boolean = false): Promise<void> {
   // Skip if already prefetched
   if (prefetchedRoutes.has(route) && !force) {
-    console.log(`[Prefetch] Route ${route} already prefetched`);
+    logger.info(`[Prefetch] Route ${route} already prefetched`);
     return;
   }
 
   // Return existing prefetch promise if in progress
   if (prefetchingRoutes.has(route)) {
-    console.log(`[Prefetch] Route ${route} prefetch in progress`);
+    logger.info(`[Prefetch] Route ${route} prefetch in progress`);
     return prefetchingRoutes.get(route);
   }
 
@@ -115,22 +119,22 @@ export async function prefetchRoute(route: string, force: boolean = false): Prom
   const importFn = routeImports[route];
 
   if (!importFn) {
-    console.warn(`[Prefetch] No import function found for route: ${route}`);
+    logger.warn(`[Prefetch] No import function found for route: ${route}`);
     return;
   }
 
-  console.log(`[Prefetch] Starting prefetch for route: ${route}`);
+  logger.info(`[Prefetch] Starting prefetch for route: ${route}`);
 
   const prefetchPromise = importFn()
     .then((module) => {
       prefetchedRoutes.add(route);
       prefetchingRoutes.delete(route);
-      console.log(`[Prefetch] Successfully prefetched route: ${route}`);
+      logger.info(`[Prefetch] Successfully prefetched route: ${route}`);
       return module;
     })
     .catch((error) => {
       prefetchingRoutes.delete(route);
-      console.error(`[Prefetch] Failed to prefetch route ${route}:`, error);
+      logger.error(`[Prefetch] Failed to prefetch route ${route}:`, error);
       throw error;
     });
 
@@ -169,7 +173,7 @@ export function prefetchHighPriorityRoutes(): void {
   }
 
   const prefetchFn = () => {
-    console.log("[Prefetch] Starting high priority route prefetch");
+    logger.info("[Prefetch] Starting high priority route prefetch");
     prefetchRoutesSequentially(HIGH_PRIORITY_ROUTES, 200);
   };
 
@@ -189,7 +193,7 @@ export function prefetchMediumPriorityRoutes(): void {
   }
 
   const prefetchFn = () => {
-    console.log("[Prefetch] Starting medium priority route prefetch");
+    logger.info("[Prefetch] Starting medium priority route prefetch");
     prefetchRoutesSequentially(MEDIUM_PRIORITY_ROUTES, 500);
   };
 
@@ -209,7 +213,7 @@ export function prefetchLowPriorityRoutes(): void {
   }
 
   const prefetchFn = () => {
-    console.log("[Prefetch] Starting low priority route prefetch");
+    logger.info("[Prefetch] Starting low priority route prefetch");
     prefetchRoutesSequentially(LOW_PRIORITY_ROUTES, 1000);
   };
 
@@ -234,7 +238,7 @@ export function prefetchLowPriorityRoutes(): void {
  * ```
  */
 export function prefetchCriticalRoutes(): void {
-  console.log("[Prefetch] Initializing critical route prefetch");
+  logger.info("[Prefetch] Initializing critical route prefetch");
 
   // Prefetch high priority immediately (with delay)
   setTimeout(() => {
@@ -283,7 +287,7 @@ export function prefetchOnHover(route: string, delayMs: number = 200): () => voi
 export function clearPrefetchCache(): void {
   prefetchedRoutes.clear();
   prefetchingRoutes.clear();
-  console.log("[Prefetch] Cache cleared");
+  logger.warn("[Prefetch] Cache cleared");
 }
 
 /**

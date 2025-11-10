@@ -50,15 +50,15 @@ class PublicEndpointRateLimiter:
         self.burst_limit = burst_limit
         # Different limits for different endpoints
         self.limits = {
-            "/api/v1/monthly-quiz-public": (requests_per_minute, 60),  # Per minute limit
-            "/api/v1/webhook": (100, 60),  # 100 requests per minute
+            "/api/v2/quiz-extensions/monthly/public": (requests_per_minute, 60),  # Per minute limit
+            "/api/v2/webhooks": (100, 60),  # 100 requests per minute
             "default": (30, 60)  # 30 requests per minute for other public endpoints
         }
         # Also track hourly limits
         self.hourly_limiter = RateLimiter()
         self.hourly_limits = {
-            "/api/v1/monthly-quiz-public": (requests_per_hour, 3600),  # Per hour limit
-            "/api/v1/webhook": (500, 3600),  # 500 requests per hour
+            "/api/v2/quiz-extensions/monthly/public": (requests_per_hour, 3600),  # Per hour limit
+            "/api/v2/webhooks": (500, 3600),  # 500 requests per hour
             "default": (200, 3600)  # 200 requests per hour
         }
 
@@ -191,7 +191,7 @@ class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
         path = request.url.path
 
         # Public endpoints use their own limiter
-        if path.startswith("/api/v1/monthly-quiz-public") or path.startswith("/api/v1/webhook"):
+        if path.startswith("/api/v2/quiz-extensions/monthly/public") or path.startswith("/api/v2/webhooks"):
             return await self.public_limiter(request, call_next)
 
         # Private endpoints use general limiter

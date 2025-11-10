@@ -84,9 +84,11 @@ class EnhancedAuthMiddleware(BaseHTTPMiddleware):
             "/redoc",
             "/openapi.json",
             "/favicon.ico",
-            "/api/v1/health",
-            "/api/v1/railway_health",
-            "/api/v1/production_health"
+            "/health",
+            "/api/v2/health",
+            "/api/v2/health/railway",
+            "/api/v2/health/production",
+            "/api/v2/system/health"
         ]
 
         logger.info(f"EnhancedAuthMiddleware initialized with {len(self.excluded_paths)} excluded paths")

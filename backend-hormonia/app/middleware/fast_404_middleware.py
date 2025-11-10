@@ -18,11 +18,7 @@ class Fast404Middleware:
         self.redis_client = self.redis_manager.get_compatible_client('sync')
         
         # Padrões de URL que devem ter verificação rápida
-        self.fast_404_patterns = [
-            r'/api/v1/patients/([a-f0-9-]+)/quiz-status',
-            r'/api/v1/monthly-quiz/([a-f0-9-]+)/status',
-            r'/api/v1/patients/([a-f0-9-]+)/monthly-quiz',
-        ]
+        self.fast_404_patterns = []
     
     async def __call__(self, request: Request, call_next: Callable):
         start_time = time.time()

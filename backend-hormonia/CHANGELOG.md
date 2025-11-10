@@ -20,9 +20,9 @@ This release addresses all critical production issues and implements comprehensi
 - **Impact**: Consistent role-based access control throughout the system
 - **Files**: 
   - `app/dependencies/business_dependencies.py`
-  - `app/api/v1/quiz_alerts.py`
-  - `app/api/v1/analytics.py`
-  - `app/api/v1/monthly_quiz.py`
+  - `app/api/v2/quiz_alerts.py`
+  - `app/api/v2/analytics.py`
+  - `app/api/v2/monthly_quiz.py`
 
 #### Alerts Schema Compatibility
 - **Fixed**: Implemented backward-compatible ORM mapping for alerts table
@@ -36,7 +36,7 @@ This release addresses all critical production issues and implements comprehensi
 - **Fixed**: Analytics endpoints now accept ISO datetime strings for date parameters
 - **Supports**: Multiple date formats, timezone handling, proper error messages
 - **Impact**: Resolves 422 validation errors for datetime string inputs
-- **Files**: `app/core/date_utils.py`, `app/api/v1/analytics.py`
+- **Files**: `app/core/date_utils.py`, `app/api/v2/analytics.py`
 
 #### Logging Optimization
 - **Added**: `RateLimitedLogger` class with configurable rate limiting

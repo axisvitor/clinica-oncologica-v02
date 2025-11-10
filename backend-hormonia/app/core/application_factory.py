@@ -567,20 +567,21 @@ def _register_routers_with_resilience(app: FastAPI, deployment_mode: str) -> Non
 def _register_core_routers_individually(app: FastAPI) -> None:
     """Register core routers individually with error handling."""
     core_routers = [
-        ("app.api.v1.auth", "auth", "/api/v1", ["Authentication"]),
-        ("app.api.v1.health", "health", "/api/v1", ["Health"]),
-        ("app.api.v1.patients", "patients", "/api/v1", ["Patients"]),
+        ("app.routers.health", "router", {"tags": ["Health"]}),
+        ("app.monitoring.prometheus_exporters", "router", {"tags": ["Monitoring"]}),
+        ("app.routers.auth_session", "router", {"tags": ["Session Authentication"]}),
+        ("app.api.v2", "api_v2_router", {"tags": ["API v2"]}),
     ]
 
-    for module_path, router_name, prefix, tags in core_routers:
+    for module_path, router_name, include_kwargs in core_routers:
         try:
             module = __import__(module_path, fromlist=[router_name])
-            router = getattr(module, 'router')
-            app.include_router(router, prefix=prefix, tags=tags)
-            logger.info(f"✅ {router_name} router registered successfully")
+            router = getattr(module, router_name)
+            include_kwargs = include_kwargs or {}
+            app.include_router(router, **include_kwargs)
+            logger.info(f"? {router_name} router registered successfully")
         except Exception as e:
-            logger.error(f"⚠️ Failed to register {router_name} router: {e}")
-
+            logger.error(f"?? Failed to register {router_name} router: {e}")
 
 def _add_debug_endpoints(app: FastAPI) -> None:
     """Add debug endpoints for troubleshooting (from minimal_main.py)."""
@@ -687,7 +688,7 @@ def _setup_enhanced_openapi(app: FastAPI) -> None:
                 "type": "http",
                 "scheme": "bearer",
                 "bearerFormat": "JWT",
-                "description": "JWT token obtained from /api/v1/auth/login endpoint"
+                "description": "JWT token obtained from /api/v2/auth/login endpoint"
             },
             "ApiKeyAuth": {
                 "type": "apiKey",

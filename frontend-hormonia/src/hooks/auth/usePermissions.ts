@@ -7,38 +7,19 @@ interface UsePermissionsOptions {
 }
 
 export function usePermissions({ user, strictMode = false }: UsePermissionsOptions) {
-  // Early return if no user
-  if (!user) {
-    return {
-      hasPermission: () => false,
-      hasRole: () => false,
-      hasAnyRole: () => false,
-      hasAllPermissions: () => false,
-      hasAnyPermission: () => false,
-      isAdmin: () => false,
-      isSuperAdmin: () => false,
-      canAccessResource: () => false,
-      getPermissionLevel: () => 'none' as const,
-      permissionConfig: { permissions: [], role: 'guest' },
-      permissionSummary: {
-        isAdmin: false,
-        isSuperAdmin: false,
-        totalPermissions: 0,
-        role: 'guest',
-        isActive: false
-      },
-      user: null
-    }
-  }
+  const permissions = useMemo(() => user?.permissions ?? [], [user])
+  const role = user?.role ?? 'guest'
+  const isActive = Boolean(user?.is_active)
+
   const hasPermission = useCallback((permission: string): boolean => {
-    if (!user?.permissions) return false
+    if (permissions.length === 0) return false
 
     if (strictMode) {
-      return user.permissions.includes(permission)
+      return permissions.includes(permission)
     }
 
     // Support wildcard permissions (e.g., "admin.*" grants "admin.users", "admin.settings")
-    return user.permissions.some(userPerm => {
+    return permissions.some(userPerm => {
       if (userPerm === permission) return true
       if (userPerm.endsWith('.*')) {
         const basePermission = userPerm.slice(0, -2)
@@ -46,11 +27,11 @@ export function usePermissions({ user, strictMode = false }: UsePermissionsOptio
       }
       return false
     })
-  }, [user, strictMode])
+  }, [permissions, strictMode])
 
-  const hasRole = useCallback((role: string): boolean => {
-    return user?.role === role
-  }, [user])
+  const hasRole = useCallback((roleToCheck: string): boolean => {
+    return role === roleToCheck
+  }, [role])
 
   const hasAnyRole = useCallback((roles: string[]): boolean => {
     return roles.some(role => hasRole(role))
@@ -85,17 +66,19 @@ export function usePermissions({ user, strictMode = false }: UsePermissionsOptio
   }, [hasPermission, isAdmin])
 
   const permissionConfig: PermissionConfig = useMemo(() => ({
-    permissions: user?.permissions || [],
-    role: user?.role || 'guest'
-  }), [user])
+    permissions,
+    role
+  }), [permissions, role])
+
+  const totalPermissions = permissions.length
 
   const permissionSummary = useMemo(() => ({
     isAdmin: isAdmin(),
     isSuperAdmin: isSuperAdmin(),
-    totalPermissions: user?.permissions?.length || 0,
-    role: user?.role || 'guest',
-    isActive: user?.is_active || false
-  }), [user, isAdmin, isSuperAdmin])
+    totalPermissions,
+    role,
+    isActive
+  }), [totalPermissions, role, isActive, isAdmin, isSuperAdmin])
 
   return {
     // Basic permission checks

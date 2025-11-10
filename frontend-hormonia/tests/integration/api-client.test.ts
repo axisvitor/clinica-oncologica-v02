@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { apiClient, ApiError } from '@/lib/api-client'
 
 vi.mock('@/config', () => ({
-  getApiUrl: () => 'http://localhost:8000/api/v1'
+  getApiUrl: () => 'http://localhost:8000/api/v2'
 }))
 
 // Mock fetch globally
@@ -13,7 +13,7 @@ describe('ApiClient Integration Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     apiClient.setAuthToken(null)
-    apiClient.setBaseURL('http://localhost:8000/api/v1')
+    apiClient.setBaseURL('http://localhost:8000/api/v2')
   })
 
   afterEach(() => {
@@ -33,7 +33,7 @@ describe('ApiClient Integration Tests', () => {
       const result = await apiClient.request('/test')
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v1/test',
+        'http://localhost:8000/api/v2/test',
         expect.objectContaining({
           headers: expect.objectContaining({
             'Content-Type': 'application/json'
@@ -60,7 +60,7 @@ describe('ApiClient Integration Tests', () => {
       })
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v1/test',
+        'http://localhost:8000/api/v2/test',
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify(postData),
@@ -113,7 +113,7 @@ describe('ApiClient Integration Tests', () => {
       })
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v1/test?page=1&size=10&active=true&search=test+query',
+        'http://localhost:8000/api/v2/test?page=1&size=10&active=true&search=test+query',
         expect.any(Object)
       )
     })
@@ -136,7 +136,7 @@ describe('ApiClient Integration Tests', () => {
       })
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v1/test?page=1&search=test',
+        'http://localhost:8000/api/v2/test?page=1&search=test',
         expect.any(Object)
       )
     })
@@ -317,7 +317,7 @@ describe('ApiClient Endpoints Integration', () => {
       await apiClient.auth.me()
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v1/auth/me',
+        'http://localhost:8000/api/v2/auth/me',
         expect.any(Object)
       )
     })
@@ -326,7 +326,7 @@ describe('ApiClient Endpoints Integration', () => {
       await apiClient.auth.logout()
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v1/auth/logout',
+        'http://localhost:8000/api/v2/auth/logout',
         expect.objectContaining({
           method: 'POST'
         })
@@ -431,7 +431,7 @@ describe('ApiClient Endpoints Integration', () => {
       await apiClient.messages.list(params)
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v1/messages?patient_id=patient-123&page=1&size=20',
+        'http://localhost:8000/api/v2/messages?patient_id=patient-123&page=1&size=20',
         expect.any(Object)
       )
     })
@@ -446,7 +446,7 @@ describe('ApiClient Endpoints Integration', () => {
       await apiClient.messages.send(messageData)
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v1/messages/send',
+        'http://localhost:8000/api/v2/messages/send',
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify(messageData)
@@ -460,7 +460,7 @@ describe('ApiClient Endpoints Integration', () => {
       await apiClient.messages.retry(messageId)
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `http://localhost:8000/api/v1/messages/${messageId}/retry`,
+        `http://localhost:8000/api/v2/messages/${messageId}/retry`,
         expect.objectContaining({
           method: 'POST'
         })
@@ -475,7 +475,7 @@ describe('ApiClient Endpoints Integration', () => {
       await apiClient.flows.list(params)
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v1/flows?patient_id=patient-123&status=active',
+        'http://localhost:8000/api/v2/flows?patient_id=patient-123&status=active',
         expect.any(Object)
       )
     })
@@ -487,7 +487,7 @@ describe('ApiClient Endpoints Integration', () => {
       await apiClient.flows.start(patientId, flowType)
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v1/flows/start',
+        'http://localhost:8000/api/v2/flows/start',
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify({ patient_id: patientId, flow_type: flowType })
@@ -501,7 +501,7 @@ describe('ApiClient Endpoints Integration', () => {
       await apiClient.flows.getState(patientId)
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `http://localhost:8000/api/v1/flows/${patientId}/state`,
+        `http://localhost:8000/api/v2/flows/${patientId}/state`,
         expect.any(Object)
       )
     })
@@ -513,7 +513,7 @@ describe('ApiClient Endpoints Integration', () => {
       await apiClient.flows.advance(patientId, forceDay)
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `http://localhost:8000/api/v1/flows/${patientId}/advance`,
+        `http://localhost:8000/api/v2/flows/${patientId}/advance`,
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify({ force_day: forceDay })

@@ -50,8 +50,8 @@ class CacheMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.default_ttl = default_ttl
         self.exclude_patterns = exclude_patterns or [
-            "/api/v1/auth",  # Never cache auth endpoints
-            "/api/v1/admin",  # Never cache admin endpoints
+            "/api/v2/auth",  # Never cache auth endpoints
+            "/api/v2/admin",  # Never cache admin endpoints
             "/ws",  # Never cache WebSocket
             "/health",  # Never cache health checks
         ]
@@ -60,10 +60,10 @@ class CacheMiddleware(BaseHTTPMiddleware):
 
         # Custom TTL per endpoint pattern
         self.endpoint_ttl = {
-            "/api/v1/patients": 300,  # 5 minutes for patient lists
-            "/api/v1/dashboard": 60,  # 1 minute for dashboard
-            "/api/v1/templates": 3600,  # 1 hour for templates
-            "/api/v1/reports": 600,  # 10 minutes for reports
+            "/api/v2/patients": 300,  # 5 minutes for patient lists
+            "/api/v2/dashboard": 60,  # 1 minute for dashboard
+            "/api/v2/templates": 3600,  # 1 hour for templates
+            "/api/v2/reports": 600,  # 10 minutes for reports
         }
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:

@@ -21,7 +21,7 @@ function resolveWsBaseUrl(): string | null {
   return null
 }
 
-let WS_BASE_URL: string | null = resolveWsBaseUrl()
+const WS_BASE_URL: string | null = resolveWsBaseUrl()
 
 if (!WS_BASE_URL && import.meta.env.MODE === 'production') {
   // Do not throw — disable WS gracefully and allow UI to render

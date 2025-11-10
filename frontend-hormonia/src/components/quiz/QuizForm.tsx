@@ -137,7 +137,7 @@ export function QuizForm({ session, onComplete }: QuizFormProps) {
           </RadioGroup>
         )
 
-      case 'scale':
+      case 'scale': {
         const scaleValue = value || question.min || 1
         return (
           <div className="space-y-4">
@@ -161,6 +161,7 @@ export function QuizForm({ session, onComplete }: QuizFormProps) {
             </div>
           </div>
         )
+      }
 
       case 'text':
         return (
@@ -172,7 +173,7 @@ export function QuizForm({ session, onComplete }: QuizFormProps) {
           />
         )
 
-      case 'checkbox':
+      case 'checkbox': {
         const checkboxValues = value || []
         return (
           <div className="space-y-2">
@@ -194,6 +195,7 @@ export function QuizForm({ session, onComplete }: QuizFormProps) {
             ))}
           </div>
         )
+      }
 
       default:
         return <div>Tipo de pergunta não suportado</div>

@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button'
 import { Alert, AlertDescription } from '../ui/alert'
 import { AlertTriangle, RefreshCw, Bug, Home } from 'lucide-react'
+import { toast } from '@/components/ui/use-toast'
 import { createLogger } from '../../lib/logger'
 
 const logger = createLogger('ErrorBoundary')
@@ -105,11 +106,17 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     // Copy to clipboard for now (in production, send to error reporting service)
     navigator.clipboard.writeText(JSON.stringify(errorReport, null, 2))
       .then(() => {
-        alert('Relatório de erro copiado para a área de transferência')
+        toast({
+          title: 'Relatorio copiado',
+          description: 'Os detalhes do erro estao na area de transferencia.',
+        })
       })
       .catch(() => {
-        console.log('Error report:', errorReport)
-        alert('Relatório de erro logado no console')
+        logger.warn('Error report copy fallback', errorReport)
+        toast({
+          title: 'Relatorio registrado',
+          description: 'Nao foi possivel copiar, mas o log foi registrado localmente.',
+        })
       })
   }
 

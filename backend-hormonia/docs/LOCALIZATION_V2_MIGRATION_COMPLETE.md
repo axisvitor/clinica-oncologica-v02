@@ -5,7 +5,7 @@
 **Status:** ✅ COMPLETE
 **Date:** 2025-01-17
 **Phase:** Phase 6 V2 - Localization Module
-**Source:** `/app/api/v1/localization.py` (173 lines, 6 endpoints)
+**Source:** `/app/api/v2/localization.py` (173 lines, 6 endpoints)
 **Target:** `/app/api/v2/localization.py` (875 lines, 6 endpoints)
 
 ---

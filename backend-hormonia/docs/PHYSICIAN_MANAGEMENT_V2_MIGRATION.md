@@ -15,9 +15,9 @@ This document describes the migration of Physician Management from V1 to V2 API,
 ### What Changed
 
 **V1 Endpoints (Deprecated)**:
-- `GET /api/v1/medico/dashboard-stats` - Physician dashboard statistics
-- `GET /api/v1/medico/health` - Health check
-- `GET /api/v1/physician/risk-assessments` - Patient risk assessments
+- `GET /api/v2/medico/dashboard-stats` - Physician dashboard statistics
+- `GET /api/v2/medico/health` - Health check
+- `GET /api/v2/physician/risk-assessments` - Patient risk assessments
 
 **V2 Endpoints (New)**:
 - `GET /api/v2/physicians` - List physicians with filtering and statistics
@@ -502,10 +502,10 @@ pytest tests/api/v2/test_physicians.py --cov=app/api/v2/physicians --cov-report=
 #### Before (V1)
 ```javascript
 // Dashboard stats
-const stats = await fetch('/api/v1/medico/dashboard-stats');
+const stats = await fetch('/api/v2/medico/dashboard-stats');
 
 // Risk assessments
-const risks = await fetch('/api/v1/physician/risk-assessments');
+const risks = await fetch('/api/v2/physician/risk-assessments');
 ```
 
 #### After (V2)

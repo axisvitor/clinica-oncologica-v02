@@ -48,12 +48,12 @@ Files with V1 References:
 
 1. TEST FILE - usePhysicianRiskAssessments.test.ts
    Location: src/hooks/api/__tests__/usePhysicianRiskAssessments.test.ts
-   Issue: Test file expects /api/v1/physician/risk-assessments
+   Issue: Test file expects /api/v2/physician/risk-assessments
    Lines: 67, 97, 177, 180
    
    Current:
      expect(apiClient.request).toHaveBeenCalledWith(
-       '/api/v1/physician/risk-assessments'
+       '/api/v2/physician/risk-assessments'
      )
    
    Should be:
@@ -69,18 +69,18 @@ Files with V1 References:
    
    Current:
      // TODO: Implement actual permissions storage in backend 
-     // (see backend-hormonia/app/api/v1/admin/users.py:830-885)
+     // (see backend-hormonia/app/api/v2/admin/users.py:830-885)
    
    Impact: Low (documentation comment only, not runtime)
 
 3. COMMENT REFERENCE - WhatsAppService.ts
    Location: src/services/whatsapp/WhatsAppService.ts:87
-   Issue: Comment sanitizes /api/v1 suffix (legacy fallback)
+   Issue: Comentário explica remoção do sufixo /api/v2 (fallback atual)
    
    Current:
-     .replace(/\/api\/v1$/, '')  // Removes legacy v1 suffix
+     .replace(/\/api\/v2$/, '')  // Remove sufixo legado e evita duplicação
    
-   Impact: Low (legacy fallback, v2 works)
+   Impact: Low (apenas documentação)
 
 4. COMMENT REFERENCE - config-initializer.tsx
    Location: src/lib/config-initializer.tsx:66-67
@@ -476,7 +476,7 @@ PRIORITY 1: CRITICAL (Must Fix Before Release)
 
 1. Fix Test File v1 References
    File: src/hooks/api/__tests__/usePhysicianRiskAssessments.test.ts
-   Action: Replace all 4 assertions using /api/v1/ with /api/v2/
+   Action: Replace all 4 assertions using /api/v2/ with /api/v2/
    Estimated Time: 5 minutes
    Impact: Test suite will fail without this
 

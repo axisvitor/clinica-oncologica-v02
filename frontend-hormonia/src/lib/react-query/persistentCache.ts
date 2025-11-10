@@ -16,6 +16,9 @@
 
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { PersistedClient, Persister } from '@tanstack/react-query-persist-client';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('QueryCache');
 
 /**
  * IndexedDB schema for React Query cache
@@ -72,16 +75,16 @@ class CacheLogger {
 
   info(message: string, ...args: any[]) {
     if (this.debug) {
-      console.log(`[QueryCache] ${message}`, ...args);
+      logger.info(`[QueryCache] ${message}`, ...args);
     }
   }
 
   warn(message: string, ...args: any[]) {
-    console.warn(`[QueryCache] ${message}`, ...args);
+    logger.warn(`[QueryCache] ${message}`, ...args);
   }
 
   error(message: string, ...args: any[]) {
-    console.error(`[QueryCache] ${message}`, ...args);
+    logger.error(`[QueryCache] ${message}`, ...args);
   }
 }
 
@@ -127,7 +130,7 @@ export function createIndexedDBPersister(config: CacheConfig = {}): Persister {
         logger.info('Initializing IndexedDB', { dbName, version });
 
         const database = await openDB<QueryCacheDB>(dbName, version, {
-          upgrade(db, oldVersion, newVersion, transaction) {
+          upgrade(db, oldVersion, newVersion, _transaction) {
             logger.info('Upgrading database', { oldVersion, newVersion });
 
             // Create object stores if they don't exist
@@ -354,9 +357,9 @@ export async function clearQueryCache(dbName: string = DEFAULT_DB_NAME): Promise
     const db = await openDB<QueryCacheDB>(dbName, DEFAULT_CACHE_VERSION);
     await db.clear('queryCache');
     await db.clear('metadata');
-    console.log('[QueryCache] Cache cleared successfully');
+    logger.info('[QueryCache] Cache cleared successfully');
   } catch (error) {
-    console.error('[QueryCache] Failed to clear cache', error);
+    logger.error('[QueryCache] Failed to clear cache', error);
     throw error;
   }
 }
@@ -379,7 +382,7 @@ export async function getCacheStats(dbName: string = DEFAULT_DB_NAME): Promise<C
     const metadata = await db.get('metadata', 'info');
     return metadata || null;
   } catch (error) {
-    console.error('[QueryCache] Failed to get cache stats', error);
+    logger.error('[QueryCache] Failed to get cache stats', error);
     return null;
   }
 }
@@ -398,7 +401,7 @@ export async function exportCacheData(dbName: string = DEFAULT_DB_NAME): Promise
 
     return JSON.stringify({ cache, metadata }, null, 2);
   } catch (error) {
-    console.error('[QueryCache] Failed to export cache data', error);
+    logger.error('[QueryCache] Failed to export cache data', error);
     return null;
   }
 }

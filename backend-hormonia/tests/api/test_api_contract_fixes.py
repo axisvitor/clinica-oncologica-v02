@@ -25,7 +25,7 @@ class TestAdminUsersListFix:
     def test_admin_users_list_structure(self, client: TestClient, admin_token: str):
         """Verify admin users list returns {items, total} structure"""
         response = client.get(
-            "/api/v1/admin/users",
+            "/api/v2/admin/users",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -41,7 +41,7 @@ class TestAdminUsersListFix:
     def test_admin_users_pagination(self, client: TestClient, admin_token: str):
         """Test pagination parameters work correctly"""
         response = client.get(
-            "/api/v1/admin/users?skip=0&limit=10",
+            "/api/v2/admin/users?skip=0&limit=10",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -54,7 +54,7 @@ class TestAdminUsersListFix:
     def test_admin_users_item_structure(self, client: TestClient, admin_token: str):
         """Verify each user item has correct structure"""
         response = client.get(
-            "/api/v1/admin/users",
+            "/api/v2/admin/users",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -69,7 +69,7 @@ class TestAdminUsersListFix:
 
     def test_admin_users_unauthorized(self, client: TestClient):
         """Test unauthorized access is rejected"""
-        response = client.get("/api/v1/admin/users")
+        response = client.get("/api/v2/admin/users")
         assert response.status_code == 401
 
 
@@ -79,7 +79,7 @@ class TestUserActivityEndpointFix:
     def test_user_activity_endpoint_exists(self, client: TestClient, admin_token: str):
         """Verify activity endpoint exists and is accessible"""
         response = client.get(
-            "/api/v1/admin/users/activity",
+            "/api/v2/admin/users/activity",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -88,7 +88,7 @@ class TestUserActivityEndpointFix:
     def test_user_activity_structure(self, client: TestClient, admin_token: str):
         """Validate activity data structure"""
         response = client.get(
-            "/api/v1/admin/users/activity",
+            "/api/v2/admin/users/activity",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -108,7 +108,7 @@ class TestUserActivityEndpointFix:
         end_date = datetime.now().isoformat()
 
         response = client.get(
-            f"/api/v1/admin/users/activity?start_date={start_date}&end_date={end_date}",
+            f"/api/v2/admin/users/activity?start_date={start_date}&end_date={end_date}",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -123,7 +123,7 @@ class TestNotificationsStructureFix:
     def test_notifications_structure(self, client: TestClient, regular_token: str):
         """Verify notifications endpoint returns correct structure"""
         response = client.get(
-            "/api/v1/notifications",
+            "/api/v2/notifications",
             headers={"Authorization": f"Bearer {regular_token}"}
         )
 
@@ -139,7 +139,7 @@ class TestNotificationsStructureFix:
     def test_notification_item_structure(self, client: TestClient, regular_token: str):
         """Verify notification item structure"""
         response = client.get(
-            "/api/v1/notifications",
+            "/api/v2/notifications",
             headers={"Authorization": f"Bearer {regular_token}"}
         )
 
@@ -155,7 +155,7 @@ class TestNotificationsStructureFix:
     def test_unread_count_accuracy(self, client: TestClient, regular_token: str):
         """Verify unread_count matches actual unread notifications"""
         response = client.get(
-            "/api/v1/notifications",
+            "/api/v2/notifications",
             headers={"Authorization": f"Bearer {regular_token}"}
         )
 
@@ -171,7 +171,7 @@ class TestNotificationsStructureFix:
         """Test marking notification as read updates unread_count"""
         # Get initial state
         response = client.get(
-            "/api/v1/notifications",
+            "/api/v2/notifications",
             headers={"Authorization": f"Bearer {regular_token}"}
         )
         initial_data = response.json()
@@ -183,14 +183,14 @@ class TestNotificationsStructureFix:
             notification_id = unread_notifications[0]["id"]
 
             mark_response = client.patch(
-                f"/api/v1/notifications/{notification_id}/read",
+                f"/api/v2/notifications/{notification_id}/read",
                 headers={"Authorization": f"Bearer {regular_token}"}
             )
 
             if mark_response.status_code == 200:
                 # Get updated state
                 updated_response = client.get(
-                    "/api/v1/notifications",
+                    "/api/v2/notifications",
                     headers={"Authorization": f"Bearer {regular_token}"}
                 )
                 updated_data = updated_response.json()
@@ -205,7 +205,7 @@ class TestDashboardTrendsFix:
     def test_dashboard_stats_structure(self, client: TestClient, admin_token: str):
         """Verify dashboard stats include trend data"""
         response = client.get(
-            "/api/v1/admin/dashboard/stats",
+            "/api/v2/admin/dashboard/stats",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -225,7 +225,7 @@ class TestDashboardTrendsFix:
     def test_trend_delta_structure(self, client: TestClient, admin_token: str):
         """Verify trend objects have percentage and direction"""
         response = client.get(
-            "/api/v1/admin/dashboard/stats",
+            "/api/v2/admin/dashboard/stats",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -246,7 +246,7 @@ class TestDashboardTrendsFix:
     def test_trend_calculation_accuracy(self, client: TestClient, admin_token: str):
         """Verify trend percentages are reasonable"""
         response = client.get(
-            "/api/v1/admin/dashboard/stats",
+            "/api/v2/admin/dashboard/stats",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -267,7 +267,7 @@ class TestTypeScriptInterfaceCompliance:
     def test_admin_users_response_interface(self, client: TestClient, admin_token: str):
         """Validate AdminUsersResponse interface compliance"""
         response = client.get(
-            "/api/v1/admin/users",
+            "/api/v2/admin/users",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -282,7 +282,7 @@ class TestTypeScriptInterfaceCompliance:
     def test_notifications_response_interface(self, client: TestClient, regular_token: str):
         """Validate NotificationsResponse interface compliance"""
         response = client.get(
-            "/api/v1/notifications",
+            "/api/v2/notifications",
             headers={"Authorization": f"Bearer {regular_token}"}
         )
 
@@ -297,7 +297,7 @@ class TestTypeScriptInterfaceCompliance:
     def test_system_stats_interface(self, client: TestClient, admin_token: str):
         """Validate SystemStats interface compliance"""
         response = client.get(
-            "/api/v1/admin/dashboard/stats",
+            "/api/v2/admin/dashboard/stats",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -329,7 +329,7 @@ class TestErrorHandling:
     def test_invalid_pagination_parameters(self, client: TestClient, admin_token: str):
         """Test invalid pagination parameters are handled"""
         response = client.get(
-            "/api/v1/admin/users?skip=-1&limit=0",
+            "/api/v2/admin/users?skip=-1&limit=0",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -339,9 +339,9 @@ class TestErrorHandling:
     def test_missing_authentication(self, client: TestClient):
         """Test all protected endpoints require authentication"""
         endpoints = [
-            "/api/v1/admin/users",
-            "/api/v1/admin/dashboard/stats",
-            "/api/v1/notifications"
+            "/api/v2/admin/users",
+            "/api/v2/admin/dashboard/stats",
+            "/api/v2/notifications"
         ]
 
         for endpoint in endpoints:
@@ -352,8 +352,8 @@ class TestErrorHandling:
     def test_insufficient_permissions(self, client: TestClient, regular_token: str):
         """Test regular users cannot access admin endpoints"""
         admin_endpoints = [
-            "/api/v1/admin/users",
-            "/api/v1/admin/dashboard/stats"
+            "/api/v2/admin/users",
+            "/api/v2/admin/dashboard/stats"
         ]
 
         for endpoint in admin_endpoints:

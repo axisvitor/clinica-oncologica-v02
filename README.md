@@ -256,7 +256,7 @@ curl http://localhost:8000/health
 curl http://localhost:8000/health/monitoring
 
 # Redis health
-curl http://localhost:8000/api/v1/debug/redis
+curl http://localhost:8000/api/v2/redis/health
 ```
 
 ---

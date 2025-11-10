@@ -6,7 +6,7 @@ import { rest } from 'msw'
 import type { QuizSession, QuizSubmitResponse } from '@/types/quiz'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_QUIZ_PUBLIC_API_URL ||
-                     'http://localhost:8000/api/v1/monthly-quiz-public'
+                     'http://localhost:8000/api/v2/monthly-quiz-public'
 
 /**
  * Mock Quiz Session Data

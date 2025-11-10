@@ -6,8 +6,8 @@ Successfully migrated the Templates System from V1 to V2 API, combining two sepa
 
 **Migration Date**: 2025-11-07
 **Source Files**:
-- `/app/api/v1/templates_crud.py` (629 lines, 11 endpoints)
-- `/app/api/v1/template_versioning.py` (488 lines, 8 endpoints)
+- `/app/api/v2/templates_crud.py` (629 lines, 11 endpoints)
+- `/app/api/v2/template_versioning.py` (488 lines, 8 endpoints)
 
 **Target Files**:
 - `/app/api/v2/templates.py` (1,902 lines, 19 endpoints)
@@ -548,7 +548,7 @@ def mock_redis_cache()
 - [ ] Gather user feedback
 
 ### Rollback Plan
-- V1 endpoints remain available at `/api/v1/templates/*`
+- V1 endpoints remain available at `/api/v2/templates/*`
 - V2 endpoints isolated at `/api/v2/templates/*`
 - No breaking changes to existing V1 clients
 - Database schema unchanged (compatible with both)
@@ -622,7 +622,7 @@ The system is production-ready and follows all Phase 4 & 5 V2 migration patterns
 ## Quick Reference
 
 ### Base URLs
-- **V1**: `/api/v1/templates/*`
+- **V1**: `/api/v2/templates/*`
 - **V2**: `/api/v2/templates/*`
 
 ### Authentication

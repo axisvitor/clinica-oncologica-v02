@@ -395,7 +395,7 @@ class PublicConfigResponse(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "VITE_API_BASE_URL": "https://api.example.com/api/v1",
+                "VITE_API_BASE_URL": "https://api.example.com/api/v2",
                 "VITE_WS_BASE_URL": "wss://api.example.com/ws",
                 "VITE_API_URL": "https://api.example.com",
                 "VITE_ENVIRONMENT": "production",

@@ -21,8 +21,8 @@ app.add_middleware(
     IdempotencyMiddleware,
     ttl_hours=24,
     enabled_paths=[
-        "/api/v1/webhooks/whatsapp",
-        "/api/v1/webhooks/twilio",
+        "/api/v2/webhooks/whatsapp",
+        "/api/v2/webhooks/twilio",
         "/webhooks/"
     ]
 )
@@ -59,13 +59,13 @@ scheduler.add_job(
 
 ```bash
 # Send a webhook
-curl -X POST http://localhost:8000/api/v1/webhooks/whatsapp/evolution/test \
+curl -X POST http://localhost:8000/api/v2/webhooks/whatsapp/evolution/test \
   -H "Content-Type: application/json" \
   -H "X-Event-ID: test-123" \
   -d '{"event": "test", "data": {}}'
 
 # Send it again (should return duplicate)
-curl -X POST http://localhost:8000/api/v1/webhooks/whatsapp/evolution/test \
+curl -X POST http://localhost:8000/api/v2/webhooks/whatsapp/evolution/test \
   -H "Content-Type: application/json" \
   -H "X-Event-ID: test-123" \
   -d '{"event": "test", "data": {}}'
@@ -87,13 +87,13 @@ curl -X POST http://localhost:8000/api/v1/webhooks/whatsapp/evolution/test \
 ### Check Statistics
 
 ```bash
-curl http://localhost:8000/api/v1/webhooks/whatsapp/idempotency/stats
+curl http://localhost:8000/api/v2/webhooks/whatsapp/idempotency/stats
 ```
 
 ### Manual Cleanup
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/webhooks/whatsapp/idempotency/cleanup
+curl -X POST http://localhost:8000/api/v2/webhooks/whatsapp/idempotency/cleanup
 ```
 
 ## Common Issues

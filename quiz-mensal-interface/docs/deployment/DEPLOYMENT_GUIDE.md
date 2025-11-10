@@ -19,18 +19,18 @@ Copy `.env.production` and update the following critical variables:
 
 ```bash
 # ⚠️ CRITICAL API URL CONFIGURATION ⚠️
-# The lib/api.ts file AUTO-INJECTS /api/v1/monthly-quiz-public to the base URL!
+# The lib/api.ts file AUTO-INJECTS /api/v2/monthly-quiz-public to the base URL!
 #
 # METHOD 1 (RECOMMENDED): Base URL only
 NEXT_PUBLIC_API_URL=https://your-backend-railway-app.up.railway.app
-# Result: https://your-backend-railway-app.up.railway.app/api/v1/monthly-quiz-public ✅
+# Result: https://your-backend-railway-app.up.railway.app/api/v2/monthly-quiz-public ✅
 #
 # METHOD 2: Explicit full path (bypasses auto-injection)
-# NEXT_PUBLIC_QUIZ_PUBLIC_API_URL=https://your-backend-railway-app.up.railway.app/api/v1/monthly-quiz-public
+# NEXT_PUBLIC_QUIZ_PUBLIC_API_URL=https://your-backend-railway-app.up.railway.app/api/v2/monthly-quiz-public
 #
 # ❌ WRONG - DO NOT DO THIS (causes path duplication):
-# NEXT_PUBLIC_API_URL=https://your-backend-railway-app.up.railway.app/api/v1
-# Result: https://...up.railway.app/api/v1/api/v1/monthly-quiz-public ❌ (404 ERROR)
+# NEXT_PUBLIC_API_URL=https://your-backend-railway-app.up.railway.app/api/v2
+# Result: https://...up.railway.app/api/v2/api/v2/monthly-quiz-public ❌ (404 ERROR)
 
 NEXT_PUBLIC_BASE_URL=https://quiz-mensal-interface.up.railway.app
 
@@ -169,24 +169,24 @@ Response example:
 
 ### Development
 ```bash
-# Base URL only - /api/v1/monthly-quiz-public is auto-injected
+# Base URL only - /api/v2/monthly-quiz-public is auto-injected
 NEXT_PUBLIC_API_URL=http://localhost:8000
 NEXT_PUBLIC_BASE_URL=http://localhost:3000
 NODE_ENV=development
 
 # OR use explicit full path:
-# NEXT_PUBLIC_QUIZ_PUBLIC_API_URL=http://localhost:8000/api/v1/monthly-quiz-public
+# NEXT_PUBLIC_QUIZ_PUBLIC_API_URL=http://localhost:8000/api/v2/monthly-quiz-public
 ```
 
 ### Production
 ```bash
-# Base URL only - /api/v1/monthly-quiz-public is auto-injected
+# Base URL only - /api/v2/monthly-quiz-public is auto-injected
 NEXT_PUBLIC_API_URL=https://backend-production.up.railway.app
 NEXT_PUBLIC_BASE_URL=https://quiz-mensal.up.railway.app
 NODE_ENV=production
 
 # OR use explicit full path:
-# NEXT_PUBLIC_QUIZ_PUBLIC_API_URL=https://backend-production.up.railway.app/api/v1/monthly-quiz-public
+# NEXT_PUBLIC_QUIZ_PUBLIC_API_URL=https://backend-production.up.railway.app/api/v2/monthly-quiz-public
 ```
 
 ### Understanding API URL Resolution (lib/api.ts behavior)
@@ -194,7 +194,7 @@ NODE_ENV=production
 The `lib/api.ts` file has smart URL resolution logic:
 
 1. **Priority 1**: `NEXT_PUBLIC_QUIZ_PUBLIC_API_URL` (if set) - uses exact URL
-2. **Priority 2**: `NEXT_PUBLIC_API_URL` - auto-appends `/api/v1/monthly-quiz-public`
+2. **Priority 2**: `NEXT_PUBLIC_API_URL` - auto-appends `/api/v2/monthly-quiz-public`
 
 **Code Reference (lib/api.ts:16-35):**
 ```typescript
@@ -208,9 +208,9 @@ function resolveApiBaseUrl(): string {
   if (legacy) {
     let trimmed = legacy.replace(/\/$/, '')
 
-    // Auto-injects /api/v1 if missing
-    if (!trimmed.includes('/api/v1')) {
-      trimmed = `${trimmed}/api/v1`
+    // Auto-injects /api/v2 if missing
+    if (!trimmed.includes('/api/v2')) {
+      trimmed = `${trimmed}/api/v2`
     }
 
     // Auto-appends /monthly-quiz-public
@@ -222,8 +222,8 @@ function resolveApiBaseUrl(): string {
 ```
 
 **Therefore:**
-- `NEXT_PUBLIC_API_URL=http://localhost:8000` → `http://localhost:8000/api/v1/monthly-quiz-public` ✅
-- `NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1` → `http://localhost:8000/api/v1/api/v1/monthly-quiz-public` ❌
+- `NEXT_PUBLIC_API_URL=http://localhost:8000` → `http://localhost:8000/api/v2/monthly-quiz-public` ✅
+- `NEXT_PUBLIC_API_URL=http://localhost:8000/api/v2` → `http://localhost:8000/api/v2/api/v2/monthly-quiz-public` ❌
 
 ## 7. Security Checklist
 
@@ -279,13 +279,13 @@ function resolveApiBaseUrl(): string {
 **API Connection Issues (404 Errors)**:
 ```bash
 # ⚠️ MOST COMMON ISSUE: Incorrect API URL causing path duplication
-# Verify NEXT_PUBLIC_API_URL does NOT include /api/v1
-# WRONG: NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1 ❌
+# Verify NEXT_PUBLIC_API_URL does NOT include /api/v2
+# WRONG: NEXT_PUBLIC_API_URL=http://localhost:8000/api/v2 ❌
 # RIGHT: NEXT_PUBLIC_API_URL=http://localhost:8000 ✅
 
 # Check browser DevTools Network tab to see actual URL being called
-# Should be: http://localhost:8000/api/v1/monthly-quiz-public
-# NOT: http://localhost:8000/api/v1/api/v1/monthly-quiz-public (duplicated)
+# Should be: http://localhost:8000/api/v2/monthly-quiz-public
+# NOT: http://localhost:8000/api/v2/api/v2/monthly-quiz-public (duplicated)
 
 # Check backend CORS configuration
 # Ensure backend is deployed and healthy

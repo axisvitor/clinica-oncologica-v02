@@ -2,8 +2,8 @@
 
 ## 📋 Base URLs
 
-- **Development**: `http://localhost:8000/api/v1`
-- **Production**: `https://api.hormonia.app/api/v1`
+- **Development**: `http://localhost:8000/api/v2`
+- **Production**: `https://api.hormonia.app/api/v2`
 
 ## 🔐 Authentication
 
@@ -347,7 +347,7 @@ Application health check.
 }
 ```
 
-### GET /api/v1/redis/health
+### GET /api/v2/redis/health
 Detailed Redis health.
 
 **Response:**

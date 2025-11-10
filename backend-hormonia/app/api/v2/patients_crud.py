@@ -51,6 +51,7 @@ from .patients_utils import (
     _ensure_patient_access,
     _normalize_cpf,
     _normalize_phone,
+    _validate_and_format_phone,
     _serialize_patient,
 )
 
@@ -325,8 +326,6 @@ async def get_patient(
 
     _ensure_patient_access(current_user, patient.doctor_id)
 
-    _ensure_patient_access(current_user, patient.doctor_id)
-
     # Build response
     patient_dict = _serialize_patient(patient)
 
@@ -407,16 +406,16 @@ async def create_patient(
                 detail="Doctors can only create patients for themselves"
             )
 
-    # Normalize CPF and Phone before validation
+    # Normalize and validate CPF
     normalized_cpf = _normalize_cpf(patient_data.cpf)
-    normalized_phone = _normalize_phone(patient_data.phone)
-
-    # Validate CPF length after normalization
     if normalized_cpf and len(normalized_cpf) != 11:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"CPF must have exactly 11 digits, got {len(normalized_cpf)}"
         )
+    
+    # Validate and format phone to E.164
+    e164_phone = _validate_and_format_phone(patient_data.phone, strict=True)
 
     # Check email uniqueness (if provided)
     if patient_data.email:
@@ -443,9 +442,9 @@ async def create_patient(
             )
 
     # Check phone uniqueness (required field)
-    if normalized_phone:
+    if e164_phone:
         existing_phone = db.query(Patient).filter(
-            Patient.phone == normalized_phone,
+            Patient.phone == e164_phone,
             Patient.deleted_at.is_(None)
         ).first()
         if existing_phone:
@@ -453,15 +452,6 @@ async def create_patient(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Patient with phone already exists"
             )
-
-    # Use service layer (Saga + welcome WhatsApp + auto flow) for creation
-    # Ensure phone matches PatientCreate validator (E.164 starting with '+')
-    e164_phone = normalized_phone if (normalized_phone and normalized_phone.startswith('+')) else (f"+{normalized_phone}" if normalized_phone else None)
-    if not e164_phone:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Phone number is required"
-        )
 
     # Instantiate services directly (thread-safe per-request pattern)
     patient_repo = PatientRepository(db)
@@ -582,13 +572,14 @@ async def update_patient(
                 )
 
     if "phone" in update_data and update_data["phone"]:
-        normalized_phone = _normalize_phone(update_data["phone"])
-        update_data["phone"] = normalized_phone
+        # Validate and format phone to E.164
+        e164_phone = _validate_and_format_phone(update_data["phone"], strict=True)
+        update_data["phone"] = e164_phone
 
         # Check phone uniqueness (exclude current patient)
-        if normalized_phone:
+        if e164_phone:
             existing_phone = db.query(Patient).filter(
-                Patient.phone == normalized_phone,
+                Patient.phone == e164_phone,
                 Patient.id != patient.id,
                 Patient.deleted_at.is_(None)
             ).first()

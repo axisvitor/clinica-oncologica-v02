@@ -134,7 +134,7 @@ async def complete_session(self, session_id: UUID) -> QuizSessionResponse:
         # Don't fail session completion on alert evaluation error
 ```
 
-#### 5. **Quiz Alerts API Endpoints** (`app/api/v1/quiz_alerts.py`)
+#### 5. **Quiz Alerts API Endpoints** (`app/api/v2/quiz_alerts.py`)
 
 RESTful API for managing quiz alerts:
 
@@ -311,7 +311,7 @@ ALTER TABLE alerts DROP COLUMN quiz_session_id;
 ### Get Patient Quiz Alerts
 
 ```bash
-GET /api/v1/quiz-alerts/patient/123e4567-e89b-12d3-a456-426614174000
+GET /api/v2/quiz-alerts/patient/123e4567-e89b-12d3-a456-426614174000
   ?severity=CRITICAL
   &status=PENDING
   &skip=0
@@ -353,7 +353,7 @@ Authorization: Bearer <token>
 ### Get Alert Summary
 
 ```bash
-GET /api/v1/quiz-alerts/summary/123e4567-e89b-12d3-a456-426614174000?days=30
+GET /api/v2/quiz-alerts/summary/123e4567-e89b-12d3-a456-426614174000?days=30
 Authorization: Bearer <token>
 ```
 
@@ -488,7 +488,7 @@ INFO: Quiz evaluation complete: 2 alerts generated, risk score: 80.00
 ### Created Files
 1. `app/config/quiz_alert_rules.py` - Alert rules configuration
 2. `app/services/quiz_response_evaluator.py` - Evaluator service
-3. `app/api/v1/quiz_alerts.py` - API endpoints
+3. `app/api/v2/quiz_alerts.py` - API endpoints
 4. `alembic/versions/20251009_225600_add_quiz_session_to_alerts.py` - Migration
 5. `tests/integration/test_quiz_alert_evaluation.py` - Integration tests
 6. `docs/QUIZ_ALERT_EVALUATION_IMPLEMENTATION.md` - This document
@@ -517,7 +517,7 @@ pytest backend-hormonia/tests/integration/test_quiz_alert_evaluation.py --cov=ap
 
 1. **Create Quiz Session**:
    ```bash
-   POST /api/v1/quiz/sessions
+   POST /api/v2/quiz/sessions
    {
      "patient_id": "<patient_id>",
      "quiz_template_id": "<template_id>"
@@ -526,7 +526,7 @@ pytest backend-hormonia/tests/integration/test_quiz_alert_evaluation.py --cov=ap
 
 2. **Submit High-Risk Responses**:
    ```bash
-   POST /api/v1/quiz/responses
+   POST /api/v2/quiz/responses
    {
      "quiz_session_id": "<session_id>",
      "patient_id": "<patient_id>",
@@ -540,12 +540,12 @@ pytest backend-hormonia/tests/integration/test_quiz_alert_evaluation.py --cov=ap
 
 3. **Complete Session** (triggers evaluation):
    ```bash
-   POST /api/v1/quiz/sessions/<session_id>/complete
+   POST /api/v2/quiz/sessions/<session_id>/complete
    ```
 
 4. **Check Generated Alerts**:
    ```bash
-   GET /api/v1/quiz-alerts/patient/<patient_id>
+   GET /api/v2/quiz-alerts/patient/<patient_id>
    ```
 
 ## Conclusion

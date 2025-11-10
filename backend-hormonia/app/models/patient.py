@@ -81,7 +81,6 @@ class Patient(BaseModel):
     # Now only stores additional/dynamic fields not covered by dedicated columns
     patient_data = Column('metadata', JSONB, nullable=True, default=dict)
     # Legacy alias present in DB
-    patient_metadata = Column('patient_metadata', JSONB, nullable=True)
 
     # Soft delete support
     deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)

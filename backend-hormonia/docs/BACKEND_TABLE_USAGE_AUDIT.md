@@ -157,7 +157,7 @@ class FailedMessage(BaseModel):
 
 **Files referencing FailedMessage:**
 1. ✅ `app/integrations/whatsapp/queue/dlq.py` - DLQ handler (extensive usage)
-2. ✅ `app/api/v1/admin/dlq.py` - Admin DLQ endpoints
+2. ✅ `app/api/v2/admin/dlq.py` - Admin DLQ endpoints
 3. ✅ `app/services/message_scheduler.py` - References FailureReason enum
 4. ✅ `tests/integration/whatsapp/test_dlq.py` - DLQ integration tests
 
@@ -246,7 +246,7 @@ class EvolutionWebhookEvent(BaseModel):
 **1. Idempotency Middleware**
 - **File:** `app/middleware/idempotency.py`
 - **Issue:** Queries `WebhookEvent` expecting idempotency schema
-- **Impact:** All webhook requests to `/api/v1/webhooks/*` will fail
+- **Impact:** All webhook requests to `/api/v2/webhooks/*` will fail
 - **Error:** `sqlalchemy.exc.OperationalError: column "event_id" does not exist`
 
 **2. Idempotency Cleanup Service**
@@ -262,7 +262,7 @@ class EvolutionWebhookEvent(BaseModel):
 - **Error:** `sqlalchemy.exc.ProgrammingError: relation "whatsapp_delivery_failures" does not exist`
 
 **4. Admin DLQ Endpoints**
-- **File:** `app/api/v1/admin/dlq.py`
+- **File:** `app/api/v2/admin/dlq.py`
 - **Issue:** Queries `whatsapp_delivery_failures` table
 - **Impact:** Admin DLQ page will return 500 errors
 - **Error:** `sqlalchemy.exc.ProgrammingError: relation "whatsapp_delivery_failures" does not exist`

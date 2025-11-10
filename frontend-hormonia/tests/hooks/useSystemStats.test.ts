@@ -112,7 +112,7 @@ describe('useSystemStats Hook', () => {
       })
 
       // Verify API was called correctly
-      expect(mockApiClient.get).toHaveBeenCalledWith('/api/v1/admin/system-stats')
+      expect(mockApiClient.get).toHaveBeenCalledWith('/api/v2/admin/system-stats')
 
       // Verify response validation
       expect(mockIsSystemStatsResponse).toHaveBeenCalledWith(mockBackendResponse)
@@ -336,7 +336,7 @@ describe('useSystemStats Hook', () => {
       await result.current.refetch()
 
       // Verify API was called again
-      expect(mockApiClient.get).toHaveBeenCalledWith('/api/v1/admin/system-stats')
+      expect(mockApiClient.get).toHaveBeenCalledWith('/api/v2/admin/system-stats')
     })
 
     it('should handle refetch errors', async () => {
@@ -378,7 +378,7 @@ describe('useSystemStats Hook', () => {
       })
 
       // Verify correct endpoint is called
-      expect(mockApiClient.get).toHaveBeenCalledWith('/api/v1/admin/system-stats')
+      expect(mockApiClient.get).toHaveBeenCalledWith('/api/v2/admin/system-stats')
 
       // Verify response structure validation
       expect(mockIsSystemStatsResponse).toHaveBeenCalledWith(mockBackendResponse)

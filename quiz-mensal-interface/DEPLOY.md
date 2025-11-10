@@ -224,8 +224,8 @@ Next.js usa cache automático para:
 ### API Integration
 - Chamadas para backend via `NEXT_PUBLIC_API_URL`
 - Endpoints:
-  - `POST /api/v1/quiz/submit`
-  - `GET /api/v1/quiz/{token}`
+  - `POST /api/v2/quiz/submit`
+  - `GET /api/v2/quiz/{token}`
 
 ---
 

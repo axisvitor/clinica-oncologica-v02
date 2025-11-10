@@ -4,9 +4,13 @@
  * Provides utilities for React 19 features and Railway deployment optimization
  */
 
-import React, { useCallback, useMemo, useRef, useEffect } from 'react'
+import React, { useCallback, useRef, useEffect } from 'react'
 import ReactDOM from 'react-dom'
+import { QueryClient } from '@tanstack/react-query'
 import { environment, REACT_19_FLAGS } from './environment'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('React19')
 
 // React 19 transition utilities
 export function useOptimizedTransition() {
@@ -40,7 +44,6 @@ export function createOptimizedMemo<T extends React.ComponentType<any>>(
 // Performance monitoring hook
 export function usePerformanceMonitoring(componentName: string) {
   const renderCount = useRef(0)
-  const startTime = useRef<number>(0)
 
   useEffect(() => {
     renderCount.current += 1
@@ -87,9 +90,14 @@ export function useOptimizedState<T>(
       setState(value)
     } else {
       // Manual batching for older React versions
-      (React as any).unstable_batchedUpdates?.(() => {
+      const batchedUpdates = (React as any).unstable_batchedUpdates
+      if (typeof batchedUpdates === 'function') {
+        batchedUpdates(() => {
+          setState(value)
+        })
+      } else {
         setState(value)
-      }) || setState(value)
+      }
     }
   }, [])
 
@@ -139,7 +147,6 @@ export function withConcurrentFeatures<P extends object>(
   }
 
   const ConcurrentComponent = React.memo((props: P) => {
-    const { startTransition } = useOptimizedTransition()
     usePerformanceMonitoring(Component.displayName || Component.name)
 
     return <Component {...props} />
@@ -189,7 +196,7 @@ export const RailwayOptimizations = {
             const nav = entry as PerformanceNavigationTiming
 
             // Log Railway-specific performance metrics
-            console.log('Railway Performance Metrics:', {
+            logger.info('Railway Performance Metrics:', {
               dns: nav.domainLookupEnd - nav.domainLookupStart,
               connect: nav.connectEnd - nav.connectStart,
               ssl: nav.connectEnd - nav.secureConnectionStart,
@@ -225,7 +232,7 @@ export function createReact19ErrorBoundary() {
     componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
       // React 19 enhanced error logging
       if (environment.enableErrorReporting) {
-        console.error('React 19 Error Boundary:', {
+        logger.error('React 19 Error Boundary:', {
           error,
           errorInfo,
           reactVersion: React.version,
@@ -259,7 +266,7 @@ export const React19Features = {
   // Log detected features
   logFeatures: () => {
     if (environment.enableDebugLogs) {
-      console.log('React 19 Feature Detection:', {
+      logger.info('React 19 Feature Detection:', {
         reactVersion: React.version,
         features: {
           startTransition: React19Features.hasStartTransition,
@@ -288,15 +295,13 @@ export function initializeReact19Optimizations() {
   // Enable React 19 profiler in development
   if (environment.isDevelopment && (REACT_19_FLAGS as any).ENABLE_PROFILING) {
     if ('Profiler' in React) {
-      console.log('React 19 Profiler enabled for development')
+      logger.info('React 19 Profiler enabled for development')
     }
   }
 }
 
 // Optimized Query Client for React Query
 export function createOptimizedQueryClient() {
-  const { QueryClient } = require('@tanstack/react-query')
-
   return new QueryClient({
     defaultOptions: {
       queries: {

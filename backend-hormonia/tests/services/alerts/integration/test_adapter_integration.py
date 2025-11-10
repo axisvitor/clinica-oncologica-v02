@@ -2,7 +2,7 @@
 Integration tests for AlertManagerAdapter with router endpoints and Celery tasks.
 
 This module tests the AlertManagerAdapter in integration with:
-- FastAPI router endpoints (app/api/v1/alerts.py)
+- FastAPI router endpoints (app/api/v2/alerts.py)
 - Celery background tasks (app/tasks/alerts.py)
 - Feature flag switching (USE_CONSOLIDATED_ALERTS)
 - Real AlertManager dependencies
@@ -117,7 +117,7 @@ class TestRouterEndpointIntegration:
             MockAdapter.return_value = adapter_instance
 
             # Call endpoint
-            response = test_client.get("/api/v1/alerts")
+            response = test_client.get("/api/v2/alerts")
 
             # Validate
             assert response.status_code == 200
@@ -155,7 +155,7 @@ class TestRouterEndpointIntegration:
 
             # Call endpoint
             response = test_client.post(
-                f"/api/v1/alerts/{alert.id}/acknowledge",
+                f"/api/v2/alerts/{alert.id}/acknowledge",
                 json={"user_id": str(user_id)},
             )
 
@@ -192,7 +192,7 @@ class TestRouterEndpointIntegration:
 
             # Call endpoint
             response = test_client.post(
-                f"/api/v1/alerts/{alert.id}/resolve",
+                f"/api/v2/alerts/{alert.id}/resolve",
                 params={"resolution_notes": "Issue resolved"},
             )
 
@@ -225,7 +225,7 @@ class TestRouterEndpointIntegration:
             MockAdapter.return_value = adapter_instance
 
             # Call endpoint
-            response = test_client.get("/api/v1/alerts/statistics")
+            response = test_client.get("/api/v2/alerts/statistics")
 
             # Validate
             assert response.status_code == 200

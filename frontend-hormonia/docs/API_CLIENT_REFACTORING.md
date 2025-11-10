@@ -419,7 +419,7 @@ describe('Auth API', () => {
     })
 
     // Assert
-    expect(mockClient.post).toHaveBeenCalledWith('/api/v1/auth/login', {
+    expect(mockClient.post).toHaveBeenCalledWith('/api/v2/auth/login', {
       email: 'test@example.com',
       password: 'password123'
     })
@@ -475,7 +475,7 @@ export function createPatientsApi(client: ApiClientCore) {
     
     // ✅ Adicionar novo método
     getPatientTimeline: async (patientId: string): Promise<Timeline> => {
-      return client.get<Timeline>(`/api/v1/patients/${patientId}/timeline`)
+      return client.get<Timeline>(`/api/v2/patients/${patientId}/timeline`)
     }
   }
 }
@@ -511,13 +511,13 @@ export interface Appointment {
 export function createAppointmentsApi(client: ApiClientCore) {
   return {
     list: (page = 1, size = 20) =>
-      client.get<PaginatedResponse<Appointment>>('/api/v1/appointments', { page, size }),
+      client.get<PaginatedResponse<Appointment>>('/api/v2/appointments', { page, size }),
     
     get: (appointmentId: string) =>
-      client.get<Appointment>(`/api/v1/appointments/${appointmentId}`),
+      client.get<Appointment>(`/api/v2/appointments/${appointmentId}`),
     
     create: (data: Partial<Appointment>) =>
-      client.post<Appointment>('/api/v1/appointments', data),
+      client.post<Appointment>('/api/v2/appointments', data),
     
     // ... outros métodos
   }

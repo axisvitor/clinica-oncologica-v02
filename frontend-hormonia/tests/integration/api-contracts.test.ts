@@ -46,7 +46,7 @@ describe('Fix #1: useUserAdmin Hook - Paginated Response', () => {
   it('should process {items, total} structure correctly', async () => {
     // Mock API response with new structure
     server.use(
-      rest.get('/api/v1/admin/users', (req, res, ctx) => {
+      rest.get('/api/v2/admin/users', (req, res, ctx) => {
         return res(
           ctx.json({
             items: [
@@ -87,7 +87,7 @@ describe('Fix #1: useUserAdmin Hook - Paginated Response', () => {
 
   it('should handle pagination parameters', async () => {
     server.use(
-      rest.get('/api/v1/admin/users', (req, res, ctx) => {
+      rest.get('/api/v2/admin/users', (req, res, ctx) => {
         const skip = req.url.searchParams.get('skip') || '0';
         const limit = req.url.searchParams.get('limit') || '10';
 
@@ -118,7 +118,7 @@ describe('Fix #1: useUserAdmin Hook - Paginated Response', () => {
 
   it('should handle empty results', async () => {
     server.use(
-      rest.get('/api/v1/admin/users', (req, res, ctx) => {
+      rest.get('/api/v2/admin/users', (req, res, ctx) => {
         return res(ctx.json({ items: [], total: 0 }));
       })
     );
@@ -136,7 +136,7 @@ describe('Fix #1: useUserAdmin Hook - Paginated Response', () => {
 describe('Fix #2: User Activity Endpoint', () => {
   it('should fetch user activity data', async () => {
     server.use(
-      rest.get('/api/v1/admin/users/activity', (req, res, ctx) => {
+      rest.get('/api/v2/admin/users/activity', (req, res, ctx) => {
         return res(
           ctx.json([
             {
@@ -173,7 +173,7 @@ describe('Fix #2: User Activity Endpoint', () => {
 describe('Fix #3: NotificationCenter - {items, unread_count}', () => {
   it('should render notifications from items array', async () => {
     server.use(
-      rest.get('/api/v1/notifications', (req, res, ctx) => {
+      rest.get('/api/v2/notifications', (req, res, ctx) => {
         return res(
           ctx.json({
             items: [
@@ -210,7 +210,7 @@ describe('Fix #3: NotificationCenter - {items, unread_count}', () => {
 
   it('should display unread count badge', async () => {
     server.use(
-      rest.get('/api/v1/notifications', (req, res, ctx) => {
+      rest.get('/api/v2/notifications', (req, res, ctx) => {
         return res(
           ctx.json({
             items: [
@@ -247,7 +247,7 @@ describe('Fix #3: NotificationCenter - {items, unread_count}', () => {
 
   it('should update unread count when notification is marked as read', async () => {
     server.use(
-      rest.get('/api/v1/notifications', (req, res, ctx) => {
+      rest.get('/api/v2/notifications', (req, res, ctx) => {
         return res(
           ctx.json({
             items: [
@@ -264,7 +264,7 @@ describe('Fix #3: NotificationCenter - {items, unread_count}', () => {
           })
         );
       }),
-      rest.patch('/api/v1/notifications/:id/read', (req, res, ctx) => {
+      rest.patch('/api/v2/notifications/:id/read', (req, res, ctx) => {
         return res(ctx.json({ success: true }));
       })
     );
@@ -286,7 +286,7 @@ describe('Fix #3: NotificationCenter - {items, unread_count}', () => {
 describe('Fix #4: Dashboard Trends with Deltas', () => {
   it('should display metrics with trend indicators', async () => {
     server.use(
-      rest.get('/api/v1/admin/dashboard/stats', (req, res, ctx) => {
+      rest.get('/api/v2/admin/dashboard/stats', (req, res, ctx) => {
         return res(
           ctx.json({
             users: {
@@ -326,7 +326,7 @@ describe('Fix #4: Dashboard Trends with Deltas', () => {
 
   it('should show correct trend direction indicators', async () => {
     server.use(
-      rest.get('/api/v1/admin/dashboard/stats', (req, res, ctx) => {
+      rest.get('/api/v2/admin/dashboard/stats', (req, res, ctx) => {
         return res(
           ctx.json({
             users: {
@@ -356,7 +356,7 @@ describe('Fix #4: Dashboard Trends with Deltas', () => {
 
   it('should use useSystemStats hook correctly', async () => {
     server.use(
-      rest.get('/api/v1/admin/dashboard/stats', (req, res, ctx) => {
+      rest.get('/api/v2/admin/dashboard/stats', (req, res, ctx) => {
         return res(
           ctx.json({
             users: {
@@ -385,7 +385,7 @@ describe('Fix #4: Dashboard Trends with Deltas', () => {
 describe('TypeScript Interface Compliance', () => {
   it('should have correct AdminUsersResponse type', async () => {
     server.use(
-      rest.get('/api/v1/admin/users', (req, res, ctx) => {
+      rest.get('/api/v2/admin/users', (req, res, ctx) => {
         return res(
           ctx.json({
             items: [],
@@ -409,7 +409,7 @@ describe('TypeScript Interface Compliance', () => {
 
   it('should have correct NotificationsResponse type', async () => {
     server.use(
-      rest.get('/api/v1/notifications', (req, res, ctx) => {
+      rest.get('/api/v2/notifications', (req, res, ctx) => {
         return res(
           ctx.json({
             items: [],
@@ -434,7 +434,7 @@ describe('TypeScript Interface Compliance', () => {
 describe('Error Handling', () => {
   it('should handle API errors gracefully', async () => {
     server.use(
-      rest.get('/api/v1/admin/users', (req, res, ctx) => {
+      rest.get('/api/v2/admin/users', (req, res, ctx) => {
         return res(ctx.status(500), ctx.json({ error: 'Internal server error' }));
       })
     );
@@ -450,7 +450,7 @@ describe('Error Handling', () => {
 
   it('should handle network errors', async () => {
     server.use(
-      rest.get('/api/v1/notifications', (req, res, ctx) => {
+      rest.get('/api/v2/notifications', (req, res, ctx) => {
         return res.networkError('Network error');
       })
     );
@@ -464,7 +464,7 @@ describe('Error Handling', () => {
 
   it('should handle malformed response data', async () => {
     server.use(
-      rest.get('/api/v1/admin/users', (req, res, ctx) => {
+      rest.get('/api/v2/admin/users', (req, res, ctx) => {
         // Return old format (should cause issues if not handled)
         return res(ctx.json([]));
       })

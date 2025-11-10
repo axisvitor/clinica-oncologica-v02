@@ -116,7 +116,7 @@ mkdir -p /usr/share/nginx/html/api
 
 cat > "$CONFIG_FILE" << EOF
 {
-  "VITE_API_URL": "${VITE_API_URL:-http://localhost:8000/api/v1}",
+  "VITE_API_URL": "${VITE_API_URL:-http://localhost:8000/api/v2}",
   "VITE_API_BASE_URL": "${VITE_API_BASE_URL:-http://localhost:8000}",
   "VITE_WS_BASE_URL": "${VITE_WS_BASE_URL:-ws://localhost:8000/ws}",
   "VITE_WHATSAPP_INSTANCE_NAME": "${VITE_WHATSAPP_INSTANCE_NAME:-hormonia-instance}",
@@ -131,7 +131,7 @@ EOF
 
 cat > "$CONFIG_JS_FILE" << EOF
 window.__ENV_CONFIG__ = {
-  "VITE_API_URL": "${VITE_API_URL:-http://localhost:8000/api/v1}",
+  "VITE_API_URL": "${VITE_API_URL:-http://localhost:8000/api/v2}",
   "VITE_API_BASE_URL": "${VITE_API_BASE_URL:-http://localhost:8000}",
   "VITE_WS_BASE_URL": "${VITE_WS_BASE_URL:-ws://localhost:8000/ws}",
   "VITE_WHATSAPP_INSTANCE_NAME": "${VITE_WHATSAPP_INSTANCE_NAME:-hormonia-instance}",

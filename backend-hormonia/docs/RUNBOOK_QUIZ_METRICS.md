@@ -262,13 +262,13 @@ NEGATIVE_RESPONSES = ["não", "nao", "n", "no", "0", "nunca"]
 3. **Check Webhook Endpoint Health**
    ```bash
    # Test webhook endpoint
-   curl -X POST "https://api.hormonia.com/api/v1/webhooks/evolution/message" \
+   curl -X POST "https://api.hormonia.com/api/v2/webhooks/evolution/message" \
      -H "Content-Type: application/json" \
      -H "X-Webhook-Signature: test" \
      -d '{"event": "test"}'
 
    # Check response time
-   time curl -X POST "https://api.hormonia.com/api/v1/webhooks/evolution/message" \
+   time curl -X POST "https://api.hormonia.com/api/v2/webhooks/evolution/message" \
      -H "Content-Type: application/json" \
      -d @sample_webhook.json
    ```
@@ -337,7 +337,7 @@ kubectl scale deployment/hormonia-backend --replicas=10 -n hormonia
    curl -X GET "https://api.hormonia.com/health/flow-engine"
 
    # Check active flows
-   curl -X GET "https://api.hormonia.com/api/v1/flows/active" \
+   curl -X GET "https://api.hormonia.com/api/v2/flows/active" \
      -H "Authorization: Bearer $API_TOKEN"
    ```
 
@@ -365,7 +365,7 @@ kubectl scale deployment/hormonia-backend --replicas=10 -n hormonia
 5. **Test Manual Quiz Trigger**
    ```bash
    # Trigger test quiz for a patient
-   curl -X POST "https://api.hormonia.com/api/v1/quiz/sessions" \
+   curl -X POST "https://api.hormonia.com/api/v2/quiz/sessions" \
      -H "Authorization: Bearer $API_TOKEN" \
      -H "Content-Type: application/json" \
      -d '{
@@ -533,7 +533,7 @@ LIMIT 10;
 ./scripts/test_webhook_signature.sh
 
 # Replay webhook from logs
-curl -X POST "https://api.hormonia.com/api/v1/webhooks/evolution/message" \
+curl -X POST "https://api.hormonia.com/api/v2/webhooks/evolution/message" \
   -H "Content-Type: application/json" \
   -H "X-Webhook-Signature: $(./scripts/generate_webhook_sig.sh payload.json)" \
   -d @payload.json

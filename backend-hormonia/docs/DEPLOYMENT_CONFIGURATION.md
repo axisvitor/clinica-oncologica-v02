@@ -208,9 +208,9 @@ CREATE TABLE error_logs (
 
 New monitoring endpoints are available:
 
-- `GET /api/v1/monitoring/errors` - Error tracking metrics
-- `GET /api/v1/monitoring/health` - System health status
-- `GET /api/v1/monitoring/logs` - Log statistics
+- `GET /api/v2/monitoring/errors` - Error tracking metrics
+- `GET /api/v2/monitoring/health` - System health status
+- `GET /api/v2/monitoring/logs` - Log statistics
 
 ### Alerting Integration
 

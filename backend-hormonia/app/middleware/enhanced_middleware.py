@@ -81,37 +81,37 @@ class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
 
         # Rate limit rules per endpoint
         self.rules = {
-            ("POST", "/api/v1/auth/login"): RateLimitRule(
-                endpoint="/api/v1/auth/login",
+            ("POST", "/api/v2/auth/login"): RateLimitRule(
+                endpoint="/api/v2/auth/login",
                 method="POST",
                 limit=5,  # Industry standard (increased from 3)
                 window=900,  # 15 minutes
                 burst_limit=3,
                 cooldown_after_limit=3600  # 1 hour lockout after exhaustion
             ),
-            ("POST", "/api/v1/auth/refresh"): RateLimitRule(
-                endpoint="/api/v1/auth/refresh",
+            ("POST", "/api/v2/auth/refresh"): RateLimitRule(
+                endpoint="/api/v2/auth/refresh",
                 method="POST",
                 limit=10,
                 window=60,
                 burst_limit=5
             ),
-            ("POST", "/api/v1/patients"): RateLimitRule(
-                endpoint="/api/v1/patients",
+            ("POST", "/api/v2/patients"): RateLimitRule(
+                endpoint="/api/v2/patients",
                 method="POST",
                 limit=20,
                 window=60,
                 burst_limit=10
             ),
-            ("GET", "/api/v1/patients"): RateLimitRule(
-                endpoint="/api/v1/patients",
+            ("GET", "/api/v2/patients"): RateLimitRule(
+                endpoint="/api/v2/patients",
                 method="GET",
                 limit=100,
                 window=60,
                 burst_limit=50
             ),
-            ("POST", "/api/v1/messages"): RateLimitRule(
-                endpoint="/api/v1/messages",
+            ("POST", "/api/v2/messages"): RateLimitRule(
+                endpoint="/api/v2/messages",
                 method="POST",
                 limit=50,
                 window=60,
@@ -299,7 +299,7 @@ class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
         level = logging.DEBUG if response.status_code < 400 else logging.INFO
         
         # Simple rate limiting check - log every 10th successful request for high-frequency endpoints
-        if response.status_code < 400 and request.url.path in ['/health', '/metrics', '/api/v1/health']:
+        if response.status_code < 400 and request.url.path in ['/health', '/metrics', '/api/v2/health']:
             # Skip logging for health checks and metrics to reduce noise
             return
         
@@ -403,7 +403,7 @@ class EnhancedSecurityMiddleware(BaseHTTPMiddleware):
         url_path = str(request.url.path)
         if (
             url_path == "/health" or url_path.startswith("/health") or
-            url_path.startswith("/api/v1/health") or
+            url_path.startswith("/api/v2/health") or
             url_path == "/metrics" or url_path == "/openapi.json" or
             url_path.startswith("/docs") or url_path.startswith("/redoc")
         ):

@@ -84,7 +84,7 @@ Qualquer dúvida, estamos aqui! 💙
 
 ### Admin Creates Link
 ```python
-# POST /api/v1/monthly-quiz/links
+# POST /api/v2/monthly-quiz/links
 {
     "patient_id": "uuid",
     "quiz_template_id": "uuid",

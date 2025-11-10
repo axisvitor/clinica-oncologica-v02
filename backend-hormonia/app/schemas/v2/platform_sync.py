@@ -302,7 +302,7 @@ class SyncConfigCreate(BaseModel):
                 "platform": "ehr",
                 "name": "Main EHR System",
                 "description": "Primary electronic health records integration",
-                "endpoint_url": "https://ehr.example.com/api/v1",
+                "endpoint_url": "https://ehr.example.com/api/v2",
                 "auth_type": "bearer",
                 "enabled": True,
                 "sync_interval_minutes": 60,
@@ -375,7 +375,7 @@ class SyncConfigResponse(BaseModel):
                 "platform": "ehr",
                 "name": "Main EHR System",
                 "description": "Primary EHR integration",
-                "endpoint_url": "https://ehr.example.com/api/v1",
+                "endpoint_url": "https://ehr.example.com/api/v2",
                 "auth_type": "bearer",
                 "enabled": True,
                 "sync_interval_minutes": 60,
@@ -431,7 +431,7 @@ class PlatformTestRequest(BaseModel):
         json_schema_extra = {
             "example": {
                 "platform": "ehr",
-                "endpoint_url": "https://ehr.example.com/api/v1/health",
+                "endpoint_url": "https://ehr.example.com/api/v2/health",
                 "auth_type": "bearer",
                 "auth_token": "test_token_123",
                 "timeout_seconds": 10
@@ -615,3 +615,4 @@ class SyncRollbackResponse(BaseModel):
                 "started_at": "2025-01-01T11:00:00Z"
             }
         }
+

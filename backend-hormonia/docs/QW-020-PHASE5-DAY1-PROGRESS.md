@@ -85,7 +85,7 @@ See QW-020 migration guide for details.
 
 ### ✅ 3. API Router Updates
 
-**File**: `app/api/v1/alerts.py`
+**File**: `app/api/v2/alerts.py`
 
 **Changes**:
 
@@ -223,7 +223,7 @@ See QW-020 migration guide for details.
 | `app/config/settings/features.py` | +12 | Config | ✅ Complete |
 | `app/services/alert.py` | +73 | Service | ✅ Complete |
 | `app/services/alert_processor.py` | +71 | Service | ✅ Complete |
-| `app/api/v1/alerts.py` | +52 | API | ✅ Complete |
+| `app/api/v2/alerts.py` | +52 | API | ✅ Complete |
 | `app/tasks/alerts.py` | +48 | Tasks | ✅ Complete |
 
 **Total**: 5 files, ~256 lines of code

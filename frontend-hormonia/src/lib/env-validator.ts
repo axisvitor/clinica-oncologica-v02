@@ -78,7 +78,7 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
     required: false,
     type: 'url',
     format: /^https?:\/\/.+/,
-    description: 'Backend API base URL (without /api/v1 suffix)'
+    description: 'Backend API base URL (sem o sufixo /api)'
   },
 
   VITE_WS_URL: {
@@ -391,7 +391,7 @@ function validateField(key: string, value: any, rule: ValidationRule): {
         }
         break
 
-      case 'email':
+      case 'email': {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
         if (!emailRegex.test(value)) {
           errors.push({
@@ -401,6 +401,7 @@ function validateField(key: string, value: any, rule: ValidationRule): {
           })
         }
         break
+      }
     }
   }
 

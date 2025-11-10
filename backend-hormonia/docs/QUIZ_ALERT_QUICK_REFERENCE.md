@@ -111,15 +111,15 @@ print(f"Critical: {summary['by_severity']['critical']}")
 ```bash
 # Get patient critical alerts
 curl -H "Authorization: Bearer $TOKEN" \
-  "https://api.hormonia.com/api/v1/quiz-alerts/patient/{patient_id}?severity=CRITICAL"
+  "https://api.hormonia.com/api/v2/quiz-alerts/patient/{patient_id}?severity=CRITICAL"
 
 # Get alert summary
 curl -H "Authorization: Bearer $TOKEN" \
-  "https://api.hormonia.com/api/v1/quiz-alerts/summary/{patient_id}?days=30"
+  "https://api.hormonia.com/api/v2/quiz-alerts/summary/{patient_id}?days=30"
 
 # Acknowledge alert
 curl -X POST -H "Authorization: Bearer $TOKEN" \
-  "https://api.hormonia.com/api/v1/quiz-alerts/acknowledge/{alert_id}"
+  "https://api.hormonia.com/api/v2/quiz-alerts/acknowledge/{alert_id}"
 ```
 
 ## 🗂️ File Locations
@@ -128,7 +128,7 @@ curl -X POST -H "Authorization: Bearer $TOKEN" \
 |------|------|---------|
 | Alert Rules | `app/config/quiz_alert_rules.py` | Rule configuration |
 | Evaluator | `app/services/quiz_response_evaluator.py` | Core service |
-| API | `app/api/v1/quiz_alerts.py` | Endpoints |
+| API | `app/api/v2/quiz_alerts.py` | Endpoints |
 | Migration | `alembic/versions/20251009_225600_add_quiz_session_to_alerts.py` | Database schema |
 | Tests | `tests/integration/test_quiz_alert_evaluation.py` | Integration tests |
 | Docs | `docs/QUIZ_ALERT_EVALUATION_IMPLEMENTATION.md` | Full documentation |
@@ -236,7 +236,7 @@ alembic upgrade head
 - [Full Implementation Docs](./QUIZ_ALERT_EVALUATION_IMPLEMENTATION.md)
 - [Alert Rules Configuration](../app/config/quiz_alert_rules.py)
 - [Integration Tests](../tests/integration/test_quiz_alert_evaluation.py)
-- [API Documentation](../app/api/v1/quiz_alerts.py)
+- [API Documentation](../app/api/v2/quiz_alerts.py)
 
 ## 🎓 Training Resources
 

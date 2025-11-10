@@ -300,13 +300,13 @@ export class MockApiHandler {
     }
 
     // POST /api/v2/alerts/:id/acknowledge - Acknowledge alert
-    const acknowledgeMatch = pathname.match(/^\/api\/v1\/alerts\/([^/]+)\/acknowledge$/)
+    const acknowledgeMatch = pathname.match(/^\/api\/v2\/alerts\/([^/]+)\/acknowledge$/)
     if (acknowledgeMatch && method === 'POST') {
       return { message: 'Alert acknowledged' }
     }
 
     // POST /api/v2/alerts/:id/resolve - Resolve alert
-    const resolveMatch = pathname.match(/^\/api\/v1\/alerts\/([^/]+)\/resolve$/)
+    const resolveMatch = pathname.match(/^\/api\/v2\/alerts\/([^/]+)\/resolve$/)
     if (resolveMatch && method === 'POST') {
       return { message: 'Alert resolved' }
     }
@@ -335,13 +335,13 @@ export class MockApiHandler {
     }
 
     // DELETE /api/v2/quiz/templates/:id - Delete quiz template
-    const deleteTemplateMatch = pathname.match(/^\/api\/v1\/quiz\/templates\/([^/]+)$/)
+    const deleteTemplateMatch = pathname.match(/^\/api\/v2\/quiz\/templates\/([^/]+)$/)
     if (deleteTemplateMatch && method === 'DELETE') {
       return { message: 'Template deleted successfully' }
     }
 
     // GET /api/v2/quiz/templates/:id/analytics - Get template analytics
-    const analyticsMatch = pathname.match(/^\/api\/v1\/quiz\/templates\/([^/]+)\/analytics$/)
+    const analyticsMatch = pathname.match(/^\/api\/v2\/quiz\/templates\/([^/]+)\/analytics$/)
     if (analyticsMatch && method === 'GET') {
       return {
         total_responses: Math.floor(Math.random() * 100),

@@ -8,31 +8,31 @@ Task 7 "Integrate error handlers into existing endpoints" has been successfully 
 
 ### 1. Monitoring and Alerting Configuration (Subtask 7.1)
 
-#### Monitoring Endpoints (`app/api/v1/monitoring.py`)
-- **Health Check Endpoint**: `/api/v1/monitoring/health/critical-fixes`
+#### Monitoring Endpoints (`app/api/v2/monitoring.py`)
+- **Health Check Endpoint**: `/api/v2/monitoring/health/critical-fixes`
   - Validates all critical fixes are working (DI, role enums, schema, date handling, error tracking)
   - Returns detailed status for each component
   - Provides actionable recommendations
 
-- **Error Metrics Endpoint**: `/api/v1/monitoring/errors/metrics`
+- **Error Metrics Endpoint**: `/api/v2/monitoring/errors/metrics`
   - Aggregates error statistics by type and severity
   - Provides error rate calculations and trending data
   - Shows most frequent and recent critical errors
 
-- **Error Details Endpoint**: `/api/v1/monitoring/errors/{error_id}`
+- **Error Details Endpoint**: `/api/v2/monitoring/errors/{error_id}`
   - Detailed information about specific errors
   - Full context and stack traces for debugging
 
-- **Error Resolution Endpoint**: `/api/v1/monitoring/errors/{error_id}/resolve`
+- **Error Resolution Endpoint**: `/api/v2/monitoring/errors/{error_id}/resolve`
   - Mark errors as resolved for tracking purposes
   - Audit trail of error resolution actions
 
-- **System Status Endpoint**: `/api/v1/monitoring/system/status`
+- **System Status Endpoint**: `/api/v2/monitoring/system/status`
   - Comprehensive system health overview
   - Combines critical fixes health with error metrics
   - Provides system-wide recommendations
 
-- **Alert Configuration Endpoint**: `/api/v1/monitoring/alerts/configuration`
+- **Alert Configuration Endpoint**: `/api/v2/monitoring/alerts/configuration`
   - Current alerting thresholds and configuration
   - Monitoring intervals and alert channels
 
@@ -75,7 +75,7 @@ Task 7 "Integrate error handlers into existing endpoints" has been successfully 
 
 ### 3. Endpoint Integration (Main Task)
 
-#### Analytics Endpoints (`app/api/v1/analytics.py`)
+#### Analytics Endpoints (`app/api/v2/analytics.py`)
 - **Enhanced Error Decorator**: `handle_analytics_errors()`
   - Role enum error detection and handling
   - Dependency injection error recovery
@@ -88,14 +88,14 @@ Task 7 "Integrate error handlers into existing endpoints" has been successfully 
   - Graceful handling of ISO datetime strings
   - Clear error messages for invalid formats
 
-#### Monthly Quiz Endpoints (`app/api/v1/monthly_quiz.py`)
+#### Monthly Quiz Endpoints (`app/api/v2/monthly_quiz.py`)
 - **Role Comparison Protection**:
   - `get_active_quiz_links_with_details()` - Protected against role enum errors
   - `get_dashboard_quiz_stats()` - Enhanced error handling for role comparisons
   - Dependency injection error recovery
   - Structured logging with operation context
 
-#### Alerts Endpoints (`app/api/v1/alerts.py`)
+#### Alerts Endpoints (`app/api/v2/alerts.py`)
 - **Schema Compatibility Handling**:
   - `list_alerts()` - Database schema mismatch detection
   - `get_patient_alerts()` - Column mapping error handling

@@ -86,17 +86,17 @@ if (isTokenExpired(session.expires_at)) {
 
 **Base URL Configuration Priority:**
 1. `NEXT_PUBLIC_QUIZ_PUBLIC_API_URL` (explicit full path) - **Recommended for production**
-2. `NEXT_PUBLIC_API_URL` (auto-appends `/api/v1/monthly-quiz-public`)
-3. `http://localhost:8000/api/v1/monthly-quiz-public` (development fallback)
+2. `NEXT_PUBLIC_API_URL` (auto-appends `/api/v2/monthly-quiz-public`)
+3. `http://localhost:8000/api/v2/monthly-quiz-public` (development fallback)
 
 #### Endpoint Mapping
 
 | Frontend Method | Backend Endpoint | HTTP Method | Purpose |
 |----------------|------------------|-------------|---------|
-| `quizAPI.accessQuiz()` | `POST /api/v1/monthly-quiz-public/access` | POST | Initial quiz access with token |
-| `quizAPI.submitAnswer()` | `POST /api/v1/monthly-quiz-public/submit` | POST | Submit answer to question |
+| `quizAPI.accessQuiz()` | `POST /api/v2/monthly-quiz-public/access` | POST | Initial quiz access with token |
+| `quizAPI.submitAnswer()` | `POST /api/v2/monthly-quiz-public/submit` | POST | Submit answer to question |
 | `quizAPI.completeQuiz()` | N/A (auto-complete) | - | Backend auto-completes on last answer |
-| `quizAPI.healthCheck()` | `GET /api/v1/monthly-quiz-public/health` | GET | API health monitoring |
+| `quizAPI.healthCheck()` | `GET /api/v2/monthly-quiz-public/health` | GET | API health monitoring |
 
 ### 2.2 API Client (`lib/api.ts`)
 
@@ -345,14 +345,14 @@ function resolveApiBaseUrl(): string {
   // Priority 2: Base URL + auto-path
   if (process.env.NEXT_PUBLIC_API_URL) {
     let url = process.env.NEXT_PUBLIC_API_URL
-    if (!url.includes('/api/v1')) url += '/api/v1'
+    if (!url.includes('/api/v2')) url += '/api/v2'
     return url.endsWith('/monthly-quiz-public')
       ? url
       : `${url}/monthly-quiz-public`
   }
 
   // Priority 3: Fallback
-  return 'http://localhost:8000/api/v1/monthly-quiz-public'
+  return 'http://localhost:8000/api/v2/monthly-quiz-public'
 }
 ```
 
@@ -360,14 +360,14 @@ function resolveApiBaseUrl(): string {
 
 | ❌ WRONG | ✅ CORRECT |
 |---------|-----------|
-| `NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1` | `NEXT_PUBLIC_API_URL=http://localhost:8000` |
-| `NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1/monthly-quiz-public` | `NEXT_PUBLIC_QUIZ_PUBLIC_API_URL=http://localhost:8000/api/v1/monthly-quiz-public` |
+| `NEXT_PUBLIC_API_URL=http://localhost:8000/api/v2` | `NEXT_PUBLIC_API_URL=http://localhost:8000` |
+| `NEXT_PUBLIC_API_URL=http://localhost:8000/api/v2/monthly-quiz-public` | `NEXT_PUBLIC_QUIZ_PUBLIC_API_URL=http://localhost:8000/api/v2/monthly-quiz-public` |
 
 ### 4.4 Production Configuration Example
 
 ```bash
 # Railway/Vercel Production Setup
-NEXT_PUBLIC_QUIZ_PUBLIC_API_URL=https://backend.railway.app/api/v1/monthly-quiz-public
+NEXT_PUBLIC_QUIZ_PUBLIC_API_URL=https://backend.railway.app/api/v2/monthly-quiz-public
 NEXT_PUBLIC_DEBUG_MODE=false
 NEXT_PUBLIC_ENVIRONMENT=production
 NEXT_PUBLIC_FORCE_HTTPS=true
@@ -711,7 +711,7 @@ const sanitizedText = DOMPurify.sanitize(userInput)
 
 **Environment Variables to Set:**
 ```bash
-railway variables set NEXT_PUBLIC_QUIZ_PUBLIC_API_URL=https://backend.railway.app/api/v1/monthly-quiz-public
+railway variables set NEXT_PUBLIC_QUIZ_PUBLIC_API_URL=https://backend.railway.app/api/v2/monthly-quiz-public
 railway variables set NEXT_PUBLIC_FORCE_HTTPS=true
 railway variables set NEXT_PUBLIC_DEBUG_MODE=false
 railway variables set NEXT_PUBLIC_ENVIRONMENT=production
@@ -913,7 +913,7 @@ quiz-mensal-interface/
 
 ### Access Quiz Request
 ```http
-POST /api/v1/monthly-quiz-public/access
+POST /api/v2/monthly-quiz-public/access
 Content-Type: application/json
 
 {
@@ -938,7 +938,7 @@ Content-Type: application/json
 
 ### Submit Answer Request
 ```http
-POST /api/v1/monthly-quiz-public/submit
+POST /api/v2/monthly-quiz-public/submit
 Content-Type: application/json
 
 {

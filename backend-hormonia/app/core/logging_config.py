@@ -203,7 +203,10 @@ class OptimizedRequestLogger:
         
         # Define which paths should have reduced logging
         self.quiet_paths = {
-            '/api/v1/health', '/api/v1/metrics', '/api/v1/system/health'
+            '/api/v2/health',
+            '/api/v2/health/railway',
+            '/api/v2/health/production',
+            '/api/v2/system/health',
         }
         
         # Error types that should not include stack traces

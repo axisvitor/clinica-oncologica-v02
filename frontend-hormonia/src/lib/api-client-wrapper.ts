@@ -1,6 +1,3 @@
-// @ts-nocheck
-// TODO: Fix TypeScript errors in this file
-
 /**
  * API Client Wrapper with RLS Error Handling
  *
@@ -61,8 +58,8 @@ export interface ApiResponse<T = any> {
  */
 export class SupabaseClientWrapper {
   private client: SupabaseClient
-  private onAuthRequired?: () => void
-  private onError?: (error: UserFriendlyError) => void
+  private onAuthRequired: (() => void) | undefined
+  private onError: ((error: UserFriendlyError) => void) | undefined
 
   constructor(
     client: SupabaseClient,
@@ -72,8 +69,8 @@ export class SupabaseClientWrapper {
     }
   ) {
     this.client = client
-    this.onAuthRequired = options?.onAuthRequired
-    this.onError = options?.onError
+    this.onAuthRequired = options?.onAuthRequired ?? undefined
+    this.onError = options?.onError ?? undefined
   }
 
   /**

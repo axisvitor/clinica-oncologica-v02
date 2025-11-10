@@ -8,7 +8,7 @@ expect.extend(matchers)
 
 // Mock environment variables
 vi.mock('../config', () => ({
-  API_BASE_URL: 'http://localhost:8000/api/v1',
+  API_BASE_URL: 'http://localhost:8000/api/v2',
   WS_URL: 'ws://localhost:8000/ws',
   SUPABASE_URL: 'https://test.supabase.co',
   SUPABASE_ANON_KEY: 'test-key',

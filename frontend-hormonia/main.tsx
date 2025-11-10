@@ -2,8 +2,6 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App"; // App completo com autenticação
 import { ConfigProvider } from "@/lib/config-initializer";
-// import App from "./AppDebug";
-// import App from "./AppSimple";
 import "./index.css";
 
 // Debug: Log environment variables

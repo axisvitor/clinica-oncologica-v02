@@ -26,9 +26,9 @@
 - **Status**: ✅ FIXED & VALIDATED
 - **Files Updated**:
   - `app/dependencies/business_dependencies.py`
-  - `app/api/v1/quiz_alerts.py`
-  - `app/api/v1/analytics.py`
-  - `app/api/v1/monthly_quiz.py`
+  - `app/api/v2/quiz_alerts.py`
+  - `app/api/v2/analytics.py`
+  - `app/api/v2/monthly_quiz.py`
 
 ### ✅ 3. Alerts Schema Compatibility
 - **Issue**: Model/repository mismatch with actual database columns
@@ -116,11 +116,11 @@ python scripts/simple_regression_check.py
 
 ### Key Endpoints to Monitor
 ```
-GET /api/v1/monitoring/health              # Overall system health
-GET /api/v1/monitoring/database-health     # Database performance
-GET /api/v1/monitoring/error-summary       # Error tracking summary
-GET /api/v1/analytics/engagement-range     # Date parameter handling
-GET /api/v1/monthly-quiz/dashboard-stats   # Role-based access
+GET /api/v2/monitoring/health              # Overall system health
+GET /api/v2/monitoring/database-health     # Database performance
+GET /api/v2/monitoring/error-summary       # Error tracking summary
+GET /api/v2/analytics/engagement-range     # Date parameter handling
+GET /api/v2/monthly-quiz/dashboard-stats   # Role-based access
 ```
 
 ### Critical Metrics

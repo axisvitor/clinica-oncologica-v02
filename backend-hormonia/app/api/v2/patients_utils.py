@@ -154,6 +154,9 @@ def _normalize_cpf(cpf: Optional[str]) -> Optional[str]:
 def _normalize_phone(phone: Optional[str]) -> Optional[str]:
     """
     Normalize phone by removing non-digit characters.
+    
+    DEPRECATED: Use app.utils.phone_validator.normalize_phone() instead.
+    This function is kept for backward compatibility.
 
     Args:
         phone: Phone string with optional formatting
@@ -166,6 +169,48 @@ def _normalize_phone(phone: Optional[str]) -> Optional[str]:
     # Remove all non-digit characters (spaces, parentheses, dashes)
     normalized = re.sub(r'[^0-9+]', '', phone)
     return normalized if normalized else None
+
+
+def _validate_and_format_phone(phone: str, strict: bool = True) -> str:
+    """
+    Validate and format phone to E.164 format using robust validation.
+    
+    Args:
+        phone: Phone number to validate
+        strict: If True, raise HTTPException on invalid phone
+        
+    Returns:
+        Phone in E.164 format (+5511987654321)
+        
+    Raises:
+        HTTPException: If phone is invalid and strict=True
+    """
+    from app.utils.phone_validator import validate_and_format_phone, PhoneValidationError
+    
+    try:
+        is_valid, formatted, error = validate_and_format_phone(
+            phone, 
+            default_region="BR",
+            strict=False
+        )
+        
+        if not is_valid:
+            if strict:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid phone number: {error}"
+                )
+            return None
+            
+        return formatted
+        
+    except PhoneValidationError as e:
+        if strict:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+        return None
 
 
 def _serialize_patient(patient) -> Optional[dict]:

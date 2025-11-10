@@ -137,7 +137,7 @@ export const WhatsAppMessageSender: React.FC<WhatsAppMessageSenderProps> = ({
       setError(null);
       setSuccess(null);
 
-      let request: MessageRequest = {
+      const request: MessageRequest = {
         instanceName,
         to: recipient,
         messageType,

@@ -19,7 +19,7 @@ from app.utils.db_retry import reset_circuit_breaker, db_circuit_breaker
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/monitoring", tags=["monitoring"])
+router = APIRouter(prefix="/api/v2/monitoring", tags=["monitoring"])
 
 
 @router.get("/health")

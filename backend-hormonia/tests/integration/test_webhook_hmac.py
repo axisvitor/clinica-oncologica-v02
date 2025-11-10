@@ -97,7 +97,7 @@ class TestWebhookHMACValidation:
         signature = generate_signature(valid_webhook_payload, webhook_secret, timestamp)
         
         response = client.post(
-            "/api/v1/webhooks/evolution/message",
+            "/api/v2/webhooks/evolution/message",
             json=valid_webhook_payload,
             headers={
                 "X-Webhook-Signature": signature,
@@ -114,7 +114,7 @@ class TestWebhookHMACValidation:
         invalid_signature = "invalid_signature_12345"
         
         response = client.post(
-            "/api/v1/webhooks/evolution/message",
+            "/api/v2/webhooks/evolution/message",
             json=valid_webhook_payload,
             headers={
                 "X-Webhook-Signature": invalid_signature,
@@ -130,7 +130,7 @@ class TestWebhookHMACValidation:
         timestamp = int(time.time())
         
         response = client.post(
-            "/api/v1/webhooks/evolution/message",
+            "/api/v2/webhooks/evolution/message",
             json=valid_webhook_payload,
             headers={
                 "X-Webhook-Timestamp": str(timestamp)
@@ -146,7 +146,7 @@ class TestWebhookHMACValidation:
         signature = generate_signature(valid_webhook_payload, webhook_secret, timestamp)
         
         response = client.post(
-            "/api/v1/webhooks/evolution/message",
+            "/api/v2/webhooks/evolution/message",
             json=valid_webhook_payload,
             headers={
                 "X-Webhook-Signature": signature
@@ -163,7 +163,7 @@ class TestWebhookHMACValidation:
         signature = generate_signature(valid_webhook_payload, webhook_secret, expired_timestamp)
         
         response = client.post(
-            "/api/v1/webhooks/evolution/message",
+            "/api/v2/webhooks/evolution/message",
             json=valid_webhook_payload,
             headers={
                 "X-Webhook-Signature": signature,
@@ -181,7 +181,7 @@ class TestWebhookHMACValidation:
         signature = generate_signature(valid_webhook_payload, webhook_secret, future_timestamp)
         
         response = client.post(
-            "/api/v1/webhooks/evolution/message",
+            "/api/v2/webhooks/evolution/message",
             json=valid_webhook_payload,
             headers={
                 "X-Webhook-Signature": signature,
@@ -204,7 +204,7 @@ class TestWebhookHMACValidation:
         
         # First request should succeed
         response1 = client.post(
-            "/api/v1/webhooks/evolution/message",
+            "/api/v2/webhooks/evolution/message",
             json=valid_webhook_payload,
             headers=headers
         )
@@ -220,7 +220,7 @@ class TestWebhookHMACValidation:
         }
         
         response2 = client.post(
-            "/api/v1/webhooks/evolution/message",
+            "/api/v2/webhooks/evolution/message",
             json=valid_webhook_payload,
             headers=headers2
         )
@@ -240,7 +240,7 @@ class TestWebhookHMACValidation:
         modified_payload["data"]["message"]["conversation"] = "Modified message"
         
         response = client.post(
-            "/api/v1/webhooks/evolution/message",
+            "/api/v2/webhooks/evolution/message",
             json=modified_payload,
             headers={
                 "X-Webhook-Signature": signature,
@@ -259,7 +259,7 @@ class TestWebhookHMACValidation:
         
         # First request succeeds
         response1 = client.post(
-            "/api/v1/webhooks/evolution/message",
+            "/api/v2/webhooks/evolution/message",
             json=valid_webhook_payload,
             headers={
                 "X-Webhook-Signature": signature,
@@ -274,7 +274,7 @@ class TestWebhookHMACValidation:
         expired_signature = generate_signature(valid_webhook_payload, webhook_secret, expired_timestamp)
         
         response2 = client.post(
-            "/api/v1/webhooks/evolution/message",
+            "/api/v2/webhooks/evolution/message",
             json=valid_webhook_payload,
             headers={
                 "X-Webhook-Signature": expired_signature,
@@ -296,7 +296,7 @@ class TestWebhookHMACValidation:
         # Both should be rejected in similar time (constant-time comparison)
         # This is a basic test - proper timing attack testing requires statistical analysis
         response = client.post(
-            "/api/v1/webhooks/evolution/message",
+            "/api/v2/webhooks/evolution/message",
             json=valid_webhook_payload,
             headers={
                 "X-Webhook-Signature": almost_valid_signature,

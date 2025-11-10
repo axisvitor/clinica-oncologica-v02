@@ -22,7 +22,7 @@ const logger = createLogger('RuntimeConfig');
 // Environment configuration interface
 export interface RuntimeConfig {
   VITE_API_URL: string;
-  VITE_API_BASE_URL?: string; // Base URL without /api/v1 suffix
+  VITE_API_BASE_URL?: string; // Base URL without o sufixo /api
   VITE_WS_URL: string;
   VITE_WS_BASE_URL?: string; // WebSocket base URL (standardized variable)
   VITE_WHATSAPP_INSTANCE_NAME?: string;
@@ -386,7 +386,7 @@ function normalizeConfig(config: any): RuntimeConfig {
   // Ensure WS_BASE_URL and WS_URL are both set (use whichever is available)
   const wsUrl = config.VITE_WS_BASE_URL || config.VITE_WS_URL || '';
   // Ensure API_BASE_URL is set (prefer explicit base, else derive from API_URL)
-  const apiBaseUrl = config.VITE_API_BASE_URL || config.VITE_API_URL?.replace(/\/api\/v1$/, '') || '';
+  const apiBaseUrl = config.VITE_API_BASE_URL || config.VITE_API_URL?.replace(/\/api\/v2$/, '') || '';
 
   return {
     ...config,

@@ -30,7 +30,7 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
         start_time = time.time()
         
         # Check if this is a request to patients endpoint
-        if "/api/v1/patients" in str(request.url.path):
+        if "/api/v2/patients" in str(request.url.path):
             request = await self._validate_patients_request(request)
         
         # Process the request

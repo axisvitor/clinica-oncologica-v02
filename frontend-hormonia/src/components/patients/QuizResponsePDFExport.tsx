@@ -1,6 +1,7 @@
 import React, { useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { FileDown } from 'lucide-react'
+import { toast } from '@/components/ui/use-toast'
 import type { QuizResponseWithContext, QuizAnalysisResponse } from '@/types/quiz'
 
 interface QuizResponsePDFExportProps {
@@ -22,7 +23,10 @@ export function QuizResponsePDFExport({
     // Create a new window for printing
     const printWindow = window.open('', '_blank')
     if (!printWindow) {
-      alert('Por favor, permita pop-ups para exportar o PDF')
+      toast({
+        title: 'Permita pop-ups para exportar',
+        description: 'Ative pop-ups temporariamente para baixar o PDF.',
+      })
       return
     }
 

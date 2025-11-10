@@ -132,8 +132,8 @@ app.add_middleware(
     IdempotencyMiddleware,
     ttl_hours=24,  # Event expiration time
     enabled_paths=[
-        "/api/v1/webhooks/whatsapp",
-        "/api/v1/webhooks/twilio",
+        "/api/v2/webhooks/whatsapp",
+        "/api/v2/webhooks/twilio",
         "/webhooks/"
     ]
 )
@@ -172,7 +172,7 @@ scheduler.add_job(cleanup_job, 'interval', hours=1)
 ### 1. WhatsApp Webhook with Event ID Header
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/webhooks/whatsapp/evolution/instance1 \
+curl -X POST http://localhost:8000/api/v2/webhooks/whatsapp/evolution/instance1 \
   -H "Content-Type: application/json" \
   -H "X-Event-ID: whatsapp-msg-123456" \
   -d '{
@@ -217,7 +217,7 @@ X-Retry-Count: 1
 ### 2. Monitoring Idempotency Statistics
 
 ```bash
-curl http://localhost:8000/api/v1/webhooks/whatsapp/idempotency/stats
+curl http://localhost:8000/api/v2/webhooks/whatsapp/idempotency/stats
 ```
 
 **Response:**
@@ -245,7 +245,7 @@ curl http://localhost:8000/api/v1/webhooks/whatsapp/idempotency/stats
 ### 3. Manual Cleanup Trigger
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/webhooks/whatsapp/idempotency/cleanup
+curl -X POST http://localhost:8000/api/v2/webhooks/whatsapp/idempotency/cleanup
 ```
 
 **Response:**
@@ -415,10 +415,10 @@ logger.info("Idempotency middleware loaded", extra={
 **Solution:**
 ```bash
 # Check cleanup stats
-curl http://localhost:8000/api/v1/webhooks/whatsapp/idempotency/stats
+curl http://localhost:8000/api/v2/webhooks/whatsapp/idempotency/stats
 
 # Trigger manual cleanup
-curl -X POST http://localhost:8000/api/v1/webhooks/whatsapp/idempotency/cleanup
+curl -X POST http://localhost:8000/api/v2/webhooks/whatsapp/idempotency/cleanup
 ```
 
 ### Issue: High Duplicate Rate

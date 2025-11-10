@@ -153,7 +153,7 @@ stats = middleware.get_endpoint_statistics()
 
 # Example output:
 # {
-#   "GET /api/v1/patients": {
+#   "GET /api/v2/patients": {
 #     "hits": 150,
 #     "misses": 50,
 #     "hit_rate_percent": 75.0,

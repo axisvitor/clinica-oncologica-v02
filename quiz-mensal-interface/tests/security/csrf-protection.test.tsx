@@ -472,7 +472,7 @@ describe('CSRF Protection Implementation', () => {
       })
 
       // Attempt to submit form data to JSON endpoint
-      const response = await fetch('/api/v1/monthly-quiz-public/submit', {
+      const response = await fetch('/api/v2/monthly-quiz-public/submit', {
         method: 'POST',
         body: maliciousFormData
       })
@@ -559,7 +559,7 @@ describe('CSRF Protection Implementation', () => {
       })
 
       // GET requests to sensitive endpoints should be rejected
-      const response = await fetch('/api/v1/monthly-quiz-public/submit?token=' + validToken + '&question_id=q1&response_value=5', {
+      const response = await fetch('/api/v2/monthly-quiz-public/submit?token=' + validToken + '&question_id=q1&response_value=5', {
         method: 'GET'
       })
 

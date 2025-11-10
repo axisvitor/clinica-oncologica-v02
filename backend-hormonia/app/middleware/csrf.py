@@ -11,9 +11,9 @@ Security Implementation:
 - Configurable secret key from environment
 
 Protected Endpoints:
-- POST /api/v1/session (create session)
-- DELETE /api/v1/session/logout (logout single session)
-- DELETE /api/v1/session/logout-all (logout all sessions)
+    - POST /session (create session)
+    - DELETE /session/logout (logout single session)
+    - DELETE /session/logout-all (logout all sessions)
 
 Usage:
     # In route dependencies
@@ -290,10 +290,10 @@ def is_csrf_exempt(path: str) -> bool:
     Check if path is exempt from CSRF protection.
 
     Exempt paths (GET/HEAD/OPTIONS are always exempt):
-    - /api/v1/session/validate (read-only)
-    - /api/v1/session/active (read-only)
-    - /api/v1/session/stats (read-only)
-    - /api/v1/csrf-token (token generation endpoint)
+    - /session/validate (read-only)
+    - /session/active (read-only)
+    - /session/stats (read-only)
+    - /api/v2/csrf-token (token generation endpoint)
 
     Args:
         path: Request path to check
@@ -302,10 +302,10 @@ def is_csrf_exempt(path: str) -> bool:
         bool: True if path is exempt, False otherwise
     """
     exempt_paths = [
-        "/api/v1/session/validate",
-        "/api/v1/session/active",
-        "/api/v1/session/stats",
-        "/api/v1/csrf-token",
+        "/session/validate",
+        "/session/active",
+        "/session/stats",
+        "/api/v2/csrf-token",
         "/docs",
         "/redoc",
         "/openapi.json"

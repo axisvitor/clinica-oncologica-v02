@@ -183,7 +183,11 @@ class SagaOrchestrator:
         redis: Redis,
         evolution_client: EvolutionClient,
         enable_persistence: bool = True,
-        persistence_ttl: int = 604800,  # 7 days
+        persistence_ttl: Optional[int] = None,
+        max_retries: Optional[int] = None,
+        retry_initial_delay: Optional[int] = None,
+        retry_max_delay: Optional[int] = None,
+        global_timeout: Optional[int] = None,
     ):
         """
         Initialize saga orchestrator.
@@ -193,13 +197,36 @@ class SagaOrchestrator:
             redis: Redis client for state persistence
             evolution_client: Evolution API client
             enable_persistence: Enable Redis persistence of saga state
-            persistence_ttl: TTL for persisted saga state (default: 7 days)
+            persistence_ttl: TTL for persisted saga state (default: from settings)
+            max_retries: Max retries per step (default: from settings)
+            retry_initial_delay: Initial retry delay in seconds (default: from settings)
+            retry_max_delay: Max retry delay in seconds (default: from settings)
+            global_timeout: Global saga timeout in seconds (default: from settings)
         """
+        from app.config import settings
+        
         self.db = db
         self.redis = redis
         self.evolution_client = evolution_client
         self.enable_persistence = enable_persistence
-        self.persistence_ttl = persistence_ttl
+        
+        # Load from settings if not provided
+        self.persistence_ttl = persistence_ttl or getattr(
+            settings, "SAGA_PERSISTENCE_TTL_SECONDS", 604800
+        )
+        self.max_retries = max_retries or getattr(
+            settings, "SAGA_STEP_MAX_RETRIES", 3
+        )
+        self.retry_initial_delay = retry_initial_delay or getattr(
+            settings, "SAGA_RETRY_INITIAL_DELAY_SECONDS", 1
+        )
+        self.retry_max_delay = retry_max_delay or getattr(
+            settings, "SAGA_RETRY_MAX_DELAY_SECONDS", 30
+        )
+        self.global_timeout = global_timeout or getattr(
+            settings, "SAGA_GLOBAL_TIMEOUT_SECONDS", 300
+        )
+        
         self.message_sender = IdempotentMessageSender(
             db=db, redis=redis, evolution_client=evolution_client
         )
@@ -298,9 +325,21 @@ class SagaOrchestrator:
 
         await self._persist_saga_state(saga_state)
 
-        logger.info(f"Executing saga step: {step.name} (saga_id: {saga_state.saga_id})")
+        # Structured logging with full context
+        log_context = {
+            "saga_id": saga_state.saga_id,
+            "saga_type": saga_state.saga_type,
+            "step_name": step.name,
+            "step_retry_count": step.retry_count,
+            "patient_id": saga_state.context.get("patient_id"),
+            "doctor_id": saga_state.context.get("doctor_id"),
+        }
+        logger.info(
+            f"Executing saga step: {step.name}",
+            extra={"context": log_context}
+        )
 
-        retry_delay = 1  # Start with 1 second
+        retry_delay = self.retry_initial_delay
 
         while step.retry_count <= step.max_retries:
             try:
@@ -315,8 +354,12 @@ class SagaOrchestrator:
 
                 await self._persist_saga_state(saga_state)
 
+                # Structured logging for success
+                log_context["status"] = "completed"
+                log_context["duration_ms"] = int((step.completed_at - step.started_at).total_seconds() * 1000)
                 logger.info(
-                    f"✅ Saga step completed: {step.name} (saga_id: {saga_state.saga_id})"
+                    f"✅ Saga step completed: {step.name}",
+                    extra={"context": log_context}
                 )
 
                 return True, result
@@ -326,9 +369,14 @@ class SagaOrchestrator:
                 step.error = str(e)
                 saga_state.updated_at = datetime.utcnow()
 
+                # Structured logging for failure
+                log_context["status"] = "failed"
+                log_context["error"] = str(e)
+                log_context["attempt"] = step.retry_count
+                log_context["max_retries"] = step.max_retries + 1
                 logger.error(
-                    f"❌ Saga step failed: {step.name} "
-                    f"(attempt {step.retry_count}/{step.max_retries + 1}) - {e}",
+                    f"❌ Saga step failed: {step.name} (attempt {step.retry_count}/{step.max_retries + 1})",
+                    extra={"context": log_context},
                     exc_info=True,
                 )
 
@@ -346,7 +394,7 @@ class SagaOrchestrator:
 
                 # Exponential backoff
                 await self._sleep(retry_delay)
-                retry_delay = min(retry_delay * 2, 30)  # Max 30 seconds
+                retry_delay = min(retry_delay * 2, self.retry_max_delay)
 
         return False, None
 
@@ -405,13 +453,13 @@ class SagaOrchestrator:
 
         await asyncio.sleep(seconds)
 
-    async def execute_saga(self, saga_state: SagaState, timeout: int = 300) -> SagaState:
+    async def execute_saga(self, saga_state: SagaState, timeout: Optional[int] = None) -> SagaState:
         """
         Execute a saga with automatic compensation on failure.
 
         Args:
             saga_state: Initial saga state with steps defined
-            timeout: Global timeout in seconds (default: 300 = 5 minutes)
+            timeout: Global timeout in seconds (default: from settings)
 
         Returns:
             Final saga state
@@ -420,6 +468,9 @@ class SagaOrchestrator:
             asyncio.TimeoutError: If saga execution exceeds timeout
         """
         import asyncio
+
+        # Use timeout from settings if not provided
+        timeout = timeout or self.global_timeout
 
         try:
             # Execute saga with timeout
@@ -897,11 +948,13 @@ class SagaOrchestrator:
                 name="create_patient",
                 action=self._create_patient_action,
                 compensation=self._delete_patient_compensation,
+                max_retries=self.max_retries,
             ),
             SagaStep(
                 name="create_flow_state",
                 action=self._create_flow_state_action,
                 compensation=self._delete_flow_state_compensation,
+                max_retries=self.max_retries,
             ),
         ]
 
@@ -912,6 +965,7 @@ class SagaOrchestrator:
                     name="send_initial_message",
                     action=self._send_initial_message_action,
                     compensation=self._send_cancellation_message_compensation,
+                    max_retries=self.max_retries,
                 )
             )
 

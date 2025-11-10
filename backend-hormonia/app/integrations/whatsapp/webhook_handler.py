@@ -20,7 +20,7 @@ from app.integrations.whatsapp.api.webhooks import (
 logger = logging.getLogger(__name__)
 
 # Create router with idempotency middleware
-router = APIRouter(prefix="/api/v1/webhooks/whatsapp", tags=["WhatsApp Webhooks"])
+router = APIRouter(prefix="/api/v2/webhooks/whatsapp", tags=["WhatsApp Webhooks"])
 
 
 @router.post("/evolution/{instance_name}")

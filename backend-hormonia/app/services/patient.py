@@ -1,5 +1,5 @@
 from datetime import date, datetime, timedelta
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
 from uuid import UUID
 import hashlib
 import logging
@@ -26,12 +26,16 @@ from app.infrastructure.cache import (
 from app.services.flow_engine import FlowEngine
 from app.utils.db_retry import with_db_retry
 from app.config import settings
-from app.coordination.saga_orchestrator import SagaOrchestrator
 from app.core.redis_client import get_redis_client
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
 from app.services.message import MessageService
 from app.models.message import MessageType
 from app.templates.whatsapp import get_welcome_message
+
+# Use TYPE_CHECKING to avoid circular import at runtime
+if TYPE_CHECKING:
+    from app.coordination.saga_orchestrator import SagaOrchestrator
+
 logger = logging.getLogger(__name__)
 
 
@@ -44,7 +48,7 @@ class PatientService:
         patient_repository: PatientRepository,
         integrity_service: "PatientIntegrityService",
         flow_engine: FlowEngine,
-        saga_orchestrator: Optional[SagaOrchestrator] = None,
+        saga_orchestrator: Optional["SagaOrchestrator"] = None,
     ):
         self.db = db
         self.repository = patient_repository

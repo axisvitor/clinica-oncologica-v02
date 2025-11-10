@@ -63,9 +63,9 @@ python sql/test_auth_fix.py
 ```
 
 Expected results:
-- `/api/v1/patients` → 401 (authentication required)
-- `/api/v1/auth/me` → 401 (authentication required)  
-- `/api/v1/csrf-token` → 200 (public endpoint)
+- `/api/v2/patients` → 401 (authentication required)
+- `/api/v2/auth/me` → 401 (authentication required)  
+- `/api/v2/csrf-token` → 200 (public endpoint)
 
 ## Impact
 - ✅ Eliminates server errors during authentication

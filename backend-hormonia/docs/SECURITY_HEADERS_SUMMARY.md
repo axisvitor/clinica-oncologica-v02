@@ -178,7 +178,7 @@ These security headers support HIPAA compliance by:
 
 ### Check Security Headers
 ```bash
-curl -I https://your-api-domain.com/api/v1/health
+curl -I https://your-api-domain.com/api/v2/health
 ```
 
 ### Expected Output

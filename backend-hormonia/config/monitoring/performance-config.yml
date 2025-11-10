@@ -30,16 +30,16 @@ apm:
   endpoint_tracking:
     enabled: true
     track_patterns:
-      - pattern: "/api/v1/auth/*"
+      - pattern: "/api/v2/auth/*"
         p95_threshold: 200
         critical_threshold: 500
-      - pattern: "/api/v1/patients/*"
+      - pattern: "/api/v2/patients/*"
         p95_threshold: 300
         critical_threshold: 800
-      - pattern: "/api/v1/quiz/*"
+      - pattern: "/api/v2/quiz/*"
         p95_threshold: 400
         critical_threshold: 1000
-      - pattern: "/api/v1/messages/*"
+      - pattern: "/api/v2/messages/*"
         p95_threshold: 500
         critical_threshold: 1500
   

@@ -58,7 +58,7 @@ npm run build
 
 - **Backend API**: Consumo de endpoints públicos de quiz
 - **Autenticação**: Via token temporário único por paciente
-- **Envio de Respostas**: POST para `/api/v1/quiz/public/{token}`
+- **Envio de Respostas**: POST para `/api/v2/quiz/public/{token}`
 
 ## 📊 Features
 

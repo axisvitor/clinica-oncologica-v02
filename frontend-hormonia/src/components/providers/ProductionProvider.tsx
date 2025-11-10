@@ -14,6 +14,7 @@ import { HealthStatusMonitor } from '@/components/system/HealthStatusMonitor'
 import { PageSkeleton } from '@/components/ui/skeletons'
 import { environment, PRODUCTION_FLAGS, RAILWAY_CONFIG } from '@/lib/environment'
 import { initializeReact19Optimizations } from '@/lib/react-optimizations'
+import { createLogger } from '@/lib/logger'
 
 // Query client configuration optimized for production
 const createQueryClient = () => new QueryClient({
@@ -40,6 +41,8 @@ const createQueryClient = () => new QueryClient({
     },
   },
 })
+
+const providerLogger = createLogger('ProductionProvider')
 
 interface ProductionProviderProps {
   children: React.ReactNode
@@ -151,7 +154,7 @@ export const ProductionProvider = memo<ProductionProviderProps>(({ children }) =
   useEffect(() => {
     // Log environment info
     if (environment.enableDebugLogs) {
-      console.log('🚀 Production Provider initialized:', {
+      providerLogger.info('Production Provider initialized', {
         environment: environment.isProduction ? 'production' : 'development',
         railway: environment.isRailway,
         features: PRODUCTION_FLAGS,

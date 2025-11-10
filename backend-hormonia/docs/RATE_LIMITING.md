@@ -26,24 +26,24 @@ RATE_LIMIT_REDIS_URL: Optional[str] = None  # Custom Redis URL (uses REDIS_URL i
 | Endpoint | Limit | Description |
 |----------|-------|-------------|
 | **Authentication (Deprecated)** |
-| `/api/v1/auth/login` | 5/minute | Login attempts per IP (deprecated) |
-| `/api/v1/auth/login-json` | 5/minute | JSON login attempts per IP (deprecated) |
-| `/api/v1/auth/refresh` | 20/minute | Token refresh per IP (deprecated) |
+| `/api/v2/auth/login` | 5/minute | Login attempts per IP (deprecated) |
+| `/api/v2/auth/login-json` | 5/minute | JSON login attempts per IP (deprecated) |
+| `/api/v2/auth/refresh` | 20/minute | Token refresh per IP (deprecated) |
 | **User Profile** |
-| `/api/v1/auth/me` | 100/minute | Get current user profile per IP |
-| `/api/v1/auth/profile` | 20/hour | Update user profile per IP |
-| `/api/v1/auth/password` | 3/hour | Password changes per IP |
-| `/api/v1/auth/avatar` | 10/hour | Avatar uploads per IP |
+| `/api/v2/auth/me` | 100/minute | Get current user profile per IP |
+| `/api/v2/auth/profile` | 20/hour | Update user profile per IP |
+| `/api/v2/auth/password` | 3/hour | Password changes per IP |
+| `/api/v2/auth/avatar` | 10/hour | Avatar uploads per IP |
 | **User Preferences** |
-| `/api/v1/auth/users/preferences` (GET) | 100/minute | Get user preferences per IP |
-| `/api/v1/auth/users/preferences` (PUT) | 20/hour | Update all preferences per IP |
-| `/api/v1/auth/users/preferences` (PATCH) | 20/hour | Partially update preferences per IP |
-| `/api/v1/auth/users/preferences/reset` | 10/hour | Reset preferences to defaults per IP |
+| `/api/v2/auth/users/preferences` (GET) | 100/minute | Get user preferences per IP |
+| `/api/v2/auth/users/preferences` (PUT) | 20/hour | Update all preferences per IP |
+| `/api/v2/auth/users/preferences` (PATCH) | 20/hour | Partially update preferences per IP |
+| `/api/v2/auth/users/preferences/reset` | 10/hour | Reset preferences to defaults per IP |
 | **Notifications** |
-| `/api/v1/auth/notifications` | 100/minute | Get user notifications per IP |
-| `/api/v1/auth/notifications/{id}/read` | 100/minute | Mark notification as read per IP |
-| `/api/v1/auth/notifications/mark-all-read` | 20/hour | Mark all notifications read per IP |
-| `/api/v1/auth/notifications/{id}` (DELETE) | 100/minute | Delete notification per IP |
+| `/api/v2/auth/notifications` | 100/minute | Get user notifications per IP |
+| `/api/v2/auth/notifications/{id}/read` | 100/minute | Mark notification as read per IP |
+| `/api/v2/auth/notifications/mark-all-read` | 20/hour | Mark all notifications read per IP |
+| `/api/v2/auth/notifications/{id}` (DELETE) | 100/minute | Delete notification per IP |
 
 ### IP Detection
 

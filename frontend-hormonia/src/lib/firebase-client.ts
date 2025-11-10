@@ -34,7 +34,7 @@ const logger = createLogger('FirebaseClient')
 function buildFirebaseConfig(): FirebaseOptions {
   const runtimeConfig = getRuntimeConfigSync()
 
-  console.log('[Firebase Config] Environment check:', {
+  logger.info('[Firebase Config] Environment check:', {
     hasRuntime: !!runtimeConfig,
     importMetaEnv: {
       VITE_FIREBASE_API_KEY: !!import.meta.env['VITE_FIREBASE_API_KEY'],
@@ -53,7 +53,7 @@ function buildFirebaseConfig(): FirebaseOptions {
     measurementId: (runtimeConfig?.VITE_FIREBASE_MEASUREMENT_ID || import.meta.env['VITE_FIREBASE_MEASUREMENT_ID'])
   }
 
-  console.log('[Firebase Config] Building configuration:', {
+  logger.info('[Firebase Config] Building configuration:', {
     hasApiKey: !!config.apiKey,
     apiKeyPreview: config.apiKey ? config.apiKey.substring(0, 10) + '...' : 'MISSING',
     authDomain: config.authDomain || 'MISSING',
@@ -107,7 +107,6 @@ export function initializeFirebase(): FirebaseApp {
   const existingApps = getApps()
 
   if (existingApps.length > 0) {
-    console.log('[Firebase] Using existing Firebase app instance')
     logger.info('Using existing Firebase app instance')
     const existingApp = existingApps[0]!  // Non-null assertion since length > 0
     app = existingApp
@@ -118,31 +117,28 @@ export function initializeFirebase(): FirebaseApp {
   // Validate configuration before initialization
   if (!isFirebaseConfigured()) {
     const errorMsg = 'Firebase is not configured. Please set the required environment variables: VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID'
-    console.error('[Firebase] Configuration missing:', errorMsg)
-    logger.error(errorMsg)
+    logger.error('[Firebase] Configuration missing:', errorMsg)
     throw new Error(errorMsg)
   }
 
   validateFirebaseConfig(firebaseConfig)
 
-  console.log('[Firebase] Initializing with project:', firebaseConfig.projectId)
-  logger.info('Initializing Firebase app with project:', firebaseConfig.projectId)
+  logger.info('[Firebase] Initializing with project:', firebaseConfig.projectId)
 
   try {
     app = initializeApp(firebaseConfig)
     auth = getAuth(app)
-    console.log('[Firebase] Initialized successfully!', {
+    logger.info('[Firebase] Initialized successfully!', {
       projectId: firebaseConfig.projectId,
       authDomain: firebaseConfig.authDomain
     })
-    logger.info('Firebase initialized successfully')
     return app
   } catch (error) {
-    console.error('[Firebase] Initialization failed:', error)
-    logger.error('Failed to initialize Firebase:', error)
+    logger.error('[Firebase] Initialization failed:', error)
     throw new Error(`Firebase initialization failed: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
+
 /**
  * Extract Firebase error code from error object
  */
@@ -176,13 +172,11 @@ function mapFirebaseErrorToMessage(errorCode: string): string {
 
 // Initialize Firebase on module load
 try {
-  console.log('[Firebase] Starting module initialization...')
+  logger.info('[Firebase] Starting module initialization...')
   initializeFirebase()
-  console.log('[Firebase] Module initialization complete')
+  logger.info('[Firebase] Module initialization complete')
 } catch (error) {
-  console.error('[Firebase] CRITICAL: Module initialization failed:', error)
-  logger.error('Failed to initialize Firebase on module load:', error)
-  // Re-throw to make the error visible
+  logger.error('[Firebase] CRITICAL: Module initialization failed:', error)
   throw error
 }
 
@@ -212,7 +206,6 @@ const firebaseAuth = {
     }
 
     try {
-      console.log('[Firebase Auth] Attempting sign in:', credentials.email)
       logger.info('Attempting sign in with email:', credentials.email)
 
       const userCredential: UserCredential = await signInWithEmailAndPassword(
@@ -222,12 +215,11 @@ const firebaseAuth = {
       )
 
       const token = await userCredential.user.getIdToken()
-      console.log('[Firebase Auth] Sign in successful!', {
+      logger.info('[Firebase Auth] Sign in successful!', {
         uid: userCredential.user.uid,
         email: userCredential.user.email,
         tokenLength: token.length
       })
-      logger.info('Sign in successful for user:', userCredential.user.uid)
 
       return {
         user: userCredential.user,
@@ -238,12 +230,11 @@ const firebaseAuth = {
       const errorCode = getFirebaseErrorCode(error)
       const userMessage = mapFirebaseErrorToMessage(errorCode)
 
-      console.error('[Firebase Auth] Sign in failed:', {
+      logger.error('[Firebase Auth] Sign in failed:', {
         errorCode,
         message: userMessage,
         email: credentials.email
       })
-      logger.error('Sign in error:', errorCode, error)
 
       return {
         user: null,

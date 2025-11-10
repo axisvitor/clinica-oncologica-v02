@@ -71,7 +71,7 @@ def sample_sync_config_data():
         "platform": "ehr",
         "name": "Main EHR System",
         "description": "Primary EHR integration",
-        "endpoint_url": "https://ehr.example.com/api/v1",
+        "endpoint_url": "https://ehr.example.com/api/v2",
         "auth_type": "bearer",
         "enabled": True,
         "sync_interval_minutes": 60,
@@ -410,7 +410,7 @@ class TestPlatformTesting:
 
             test_request = {
                 "platform": "ehr",
-                "endpoint_url": "https://ehr.example.com/api/v1/health",
+                "endpoint_url": "https://ehr.example.com/api/v2/health",
                 "auth_type": "bearer",
                 "auth_token": "test_token",
                 "timeout_seconds": 10
@@ -436,7 +436,7 @@ class TestPlatformTesting:
 
             test_request = {
                 "platform": "ehr",
-                "endpoint_url": "https://ehr.example.com/api/v1/health",
+                "endpoint_url": "https://ehr.example.com/api/v2/health",
                 "auth_type": "bearer",
                 "timeout_seconds": 10
             }
@@ -461,7 +461,7 @@ class TestPlatformTesting:
 
             test_request = {
                 "platform": "ehr",
-                "endpoint_url": "https://ehr.example.com/api/v1/health",
+                "endpoint_url": "https://ehr.example.com/api/v2/health",
                 "auth_type": "bearer",
                 "auth_token": "invalid_token",
                 "timeout_seconds": 10

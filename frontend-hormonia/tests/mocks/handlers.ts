@@ -159,7 +159,7 @@ const mockTreatmentDistribution = {
 // API handlers
 export const handlers = [
   // Auth endpoints
-  http.get('/api/v1/auth/me', () => {
+  http.get('/api/v2/auth/me', () => {
     return HttpResponse.json({
       id: 'user-1',
       email: 'admin@clinica.com',
@@ -169,7 +169,7 @@ export const handlers = [
     })
   }),
 
-  http.post('/api/v1/auth/logout', () => {
+  http.post('/api/v2/auth/logout', () => {
     return HttpResponse.json({ message: 'Logged out successfully' })
   }),
 
@@ -311,7 +311,7 @@ export const handlers = [
   }),
 
   // Messages endpoints
-  http.get('/api/v1/messages', ({ request }) => {
+  http.get('/api/v2/messages', ({ request }) => {
     const url = new URL(request.url)
     const patientId = url.searchParams.get('patient_id')
     const page = parseInt(url.searchParams.get('page') || '1')
@@ -338,7 +338,7 @@ export const handlers = [
     })
   }),
 
-  http.post('/api/v1/messages/send', async ({ request }) => {
+  http.post('/api/v2/messages/send', async ({ request }) => {
     const body = await request.json() as any
 
     const newMessage = {
@@ -361,11 +361,11 @@ export const handlers = [
   }),
 
   // Quiz endpoints
-  http.get('/api/v1/quiz/templates', () => {
+  http.get('/api/v2/quiz/templates', () => {
     return HttpResponse.json({ templates: mockQuizzes })
   }),
 
-  http.post('/api/v1/quiz/sessions', async ({ request }) => {
+  http.post('/api/v2/quiz/sessions', async ({ request }) => {
     const body = await request.json() as any
 
     const session = {
@@ -380,7 +380,7 @@ export const handlers = [
     return HttpResponse.json(session)
   }),
 
-  http.post('/api/v1/quiz/sessions/:id/submit', async ({ params, request }) => {
+  http.post('/api/v2/quiz/sessions/:id/submit', async ({ params, request }) => {
     const body = await request.json() as any
 
     return HttpResponse.json({
@@ -391,7 +391,7 @@ export const handlers = [
   }),
 
   // Reports endpoints
-  http.get('/api/v1/reports', () => {
+  http.get('/api/v2/reports', () => {
     return HttpResponse.json({
       items: mockReports,
       total: mockReports.length,
@@ -401,7 +401,7 @@ export const handlers = [
     })
   }),
 
-  http.post('/api/v1/reports/generate', async ({ request }) => {
+  http.post('/api/v2/reports/generate', async ({ request }) => {
     const body = await request.json() as any
 
     const report = {
@@ -478,7 +478,7 @@ export const handlers = [
   }),
 
   // Flow endpoints
-  http.get('/api/v1/flows', () => {
+  http.get('/api/v2/flows', () => {
     return HttpResponse.json({
       items: [
         {
@@ -497,7 +497,7 @@ export const handlers = [
     })
   }),
 
-  http.post('/api/v1/flows/start', async ({ request }) => {
+  http.post('/api/v2/flows/start', async ({ request }) => {
     const body = await request.json() as any
 
     return HttpResponse.json({
@@ -512,14 +512,14 @@ export const handlers = [
   }),
 
   // Error simulation endpoints
-  http.get('/api/v1/error/500', () => {
+  http.get('/api/v2/error/500', () => {
     return HttpResponse.json(
       { message: 'Internal server error' },
       { status: 500 }
     )
   }),
 
-  http.get('/api/v1/error/timeout', () => {
+  http.get('/api/v2/error/timeout', () => {
     return new Promise((resolve) => {
       setTimeout(() => {
         resolve(HttpResponse.json({ message: 'Timeout' }))

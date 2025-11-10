@@ -185,9 +185,9 @@ class PatientTasks(TaskSet):
     def list_patients(self):
         """Lista pacientes (operação comum)."""
         self.client.get(
-            "/api/v1/patients",
+            "/api/v2/patients",
             params={"page": 1, "size": 20},
-            name="/api/v1/patients [LIST]",
+            name="/api/v2/patients [LIST]",
         )
 
     @task(2)
@@ -196,8 +196,8 @@ class PatientTasks(TaskSet):
         # Assumindo que temos alguns pacientes no sistema
         patient_id = random.randint(1, 100)
         self.client.get(
-            f"/api/v1/patients/{patient_id}",
-            name="/api/v1/patients/:id [GET]",
+            f"/api/v2/patients/{patient_id}",
+            name="/api/v2/patients/:id [GET]",
         )
 
     @task(1)
@@ -206,9 +206,9 @@ class PatientTasks(TaskSet):
         patient_data = generate_patient_data()
 
         response = self.client.post(
-            "/api/v1/patients",
+            "/api/v2/patients",
             json=patient_data,
-            name="/api/v1/patients [CREATE]",
+            name="/api/v2/patients [CREATE]",
         )
 
         if response.status_code == 201:
@@ -246,9 +246,9 @@ class MessageTasks(TaskSet):
     def list_messages(self):
         """Lista mensagens agendadas."""
         self.client.get(
-            "/api/v1/messages",
+            "/api/v2/messages",
             params={"page": 1, "size": 20},
-            name="/api/v1/messages [LIST]",
+            name="/api/v2/messages [LIST]",
         )
 
     @task(2)
@@ -262,9 +262,9 @@ class MessageTasks(TaskSet):
         }
 
         self.client.post(
-            "/api/v1/messages/schedule",
+            "/api/v2/messages/schedule",
             json=message_data,
-            name="/api/v1/messages/schedule [POST]",
+            name="/api/v2/messages/schedule [POST]",
         )
 
 
@@ -314,8 +314,8 @@ class DashboardTasks(TaskSet):
     def get_metrics(self):
         """Obtém métricas do dashboard."""
         self.client.get(
-            "/api/v1/dashboard/metrics",
-            name="/api/v1/dashboard/metrics [GET]",
+            "/api/v2/dashboard/metrics",
+            name="/api/v2/dashboard/metrics [GET]",
         )
 
     @task(5)

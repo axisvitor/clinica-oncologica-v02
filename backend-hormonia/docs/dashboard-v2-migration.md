@@ -620,12 +620,12 @@ CACHE_TTL_TRENDS = 1800    # Trend charts (30 min)
 
 | V1 Endpoint | V2 Replacement | Notes |
 |-------------|----------------|-------|
-| `GET /api/v1/dashboard/metrics` | `GET /api/v2/dashboard/main` | Enhanced with role filtering |
-| `GET /api/v1/dashboard/activity` | Included in `/main` as `recent_activity` | Unified in main dashboard |
-| `GET /api/v1/dashboard/charts/engagement` | Included in `/patient/{id}` as `engagement_chart` | Patient-specific view |
-| `GET /api/v1/dashboard/charts/message-volume` | Part of `message_metrics` | Aggregated data |
-| `GET /api/v1/dashboard/charts/flow-completion` | Part of `flow_metrics` | Aggregated data |
-| `GET /api/v1/dashboard/charts/response-trends` | Part of `engagement_chart` | Time-series data |
+| `GET /api/v2/dashboard/metrics` | `GET /api/v2/dashboard/main` | Enhanced with role filtering |
+| `GET /api/v2/dashboard/activity` | Included in `/main` as `recent_activity` | Unified in main dashboard |
+| `GET /api/v2/dashboard/charts/engagement` | Included in `/patient/{id}` as `engagement_chart` | Patient-specific view |
+| `GET /api/v2/dashboard/charts/message-volume` | Part of `message_metrics` | Aggregated data |
+| `GET /api/v2/dashboard/charts/flow-completion` | Part of `flow_metrics` | Aggregated data |
+| `GET /api/v2/dashboard/charts/response-trends` | Part of `engagement_chart` | Time-series data |
 
 ### Breaking Changes
 
@@ -638,7 +638,7 @@ CACHE_TTL_TRENDS = 1800    # Trend charts (30 min)
 
 ```javascript
 // V1 (deprecated)
-const response = await fetch('/api/v1/dashboard/metrics');
+const response = await fetch('/api/v2/dashboard/metrics');
 const data = await response.json();
 console.log(data.totalPatients);
 

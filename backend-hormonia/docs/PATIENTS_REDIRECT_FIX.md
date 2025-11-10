@@ -1,10 +1,10 @@
 # Patients Endpoint 307 Redirect Fix
 
 ## Issue
-The `/api/v1/patients` endpoint is returning status 307 (Temporary Redirect) repeatedly, causing a redirect loop and preventing the patients page from loading.
+The `/api/v2/patients` endpoint is returning status 307 (Temporary Redirect) repeatedly, causing a redirect loop and preventing the patients page from loading.
 
 ## Symptoms
-- Multiple requests to `/api/v1/patients` all return status 307
+- Multiple requests to `/api/v2/patients` all return status 307
 - No database queries are executed (0 queries, 0.000s DB time)
 - Very fast response times (0.001-0.003s) indicating no actual processing
 - Frontend cannot load patient data
@@ -36,8 +36,8 @@ Status 307 (Temporary Redirect) typically indicates:
 After applying the fix:
 1. Restart the backend application
 2. Test the endpoint with different URL formats:
-   - `GET /api/v1/patients`
-   - `GET /api/v1/patients/`
+   - `GET /api/v2/patients`
+   - `GET /api/v2/patients/`
    - Both HTTP and HTTPS (if applicable)
 3. Check browser network tab for redirect chains
 4. Verify authentication headers are being sent correctly

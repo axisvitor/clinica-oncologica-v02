@@ -34,12 +34,12 @@ Ajuste as variáveis de ambiente:
 
 ```env
 # API Configuration
-# ⚠️ IMPORTANT: DO NOT include /api/v1 in the URL - it's auto-injected!
-# WRONG: NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1 ❌
+# ⚠️ IMPORTANT: DO NOT include /api/v2 in the URL - it's auto-injected!
+# WRONG: NEXT_PUBLIC_API_URL=http://localhost:8000/api/v2 ❌
 # CORRECT OPTIONS:
 NEXT_PUBLIC_API_URL=http://localhost:8000  # Base URL only (recommended)
 # OR use explicit endpoint:
-# NEXT_PUBLIC_QUIZ_PUBLIC_API_URL=http://localhost:8000/api/v1/monthly-quiz-public
+# NEXT_PUBLIC_QUIZ_PUBLIC_API_URL=http://localhost:8000/api/v2/monthly-quiz-public
 
 # App Configuration
 NEXT_PUBLIC_APP_NAME=Hormonia - Quiz Mensal de Bem-Estar
@@ -50,7 +50,7 @@ NEXT_PUBLIC_FRONTEND_URL=http://localhost:3000
 
 ### ⚠️ Critical: API URL Configuration
 
-**The lib/api.ts file automatically appends `/api/v1/monthly-quiz-public` to the base URL!**
+**The lib/api.ts file automatically appends `/api/v2/monthly-quiz-public` to the base URL!**
 
 **Two ways to configure:**
 
@@ -58,17 +58,17 @@ NEXT_PUBLIC_FRONTEND_URL=http://localhost:3000
    ```env
    NEXT_PUBLIC_API_URL=http://localhost:8000
    ```
-   Result: `http://localhost:8000/api/v1/monthly-quiz-public` ✅
+   Result: `http://localhost:8000/api/v2/monthly-quiz-public` ✅
 
 2. **Method 2: Explicit Full Path**
    ```env
-   NEXT_PUBLIC_QUIZ_PUBLIC_API_URL=http://localhost:8000/api/v1/monthly-quiz-public
+   NEXT_PUBLIC_QUIZ_PUBLIC_API_URL=http://localhost:8000/api/v2/monthly-quiz-public
    ```
    Result: Uses explicit URL directly ✅
 
 **❌ WRONG - Causes 404 Errors:**
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1  # Will duplicate to /api/v1/api/v1/monthly-quiz-public
+NEXT_PUBLIC_API_URL=http://localhost:8000/api/v2  # Will duplicate to /api/v2/api/v2/monthly-quiz-public
 ```
 
 ### 2. Instalação
@@ -100,7 +100,7 @@ npm start
 
 ### Endpoints Utilizados
 
-#### 1. POST `/api/v1/monthly-quiz/access`
+#### 1. POST `/api/v2/monthly-quiz/access`
 Acessa o quiz usando o token:
 
 ```typescript
@@ -123,7 +123,7 @@ Retorna:
 }
 ```
 
-#### 2. POST `/api/v1/monthly-quiz/submit`
+#### 2. POST `/api/v2/monthly-quiz/submit`
 Submete uma resposta:
 
 ```typescript
@@ -284,7 +284,7 @@ A aplicação está configurada para deploy no Railway com suporte completo a Ni
 
 2. **Configure variáveis de ambiente essenciais:**
    ```bash
-   railway variables set NEXT_PUBLIC_QUIZ_PUBLIC_API_URL=https://your-backend.railway.app/api/v1/monthly-quiz-public
+   railway variables set NEXT_PUBLIC_QUIZ_PUBLIC_API_URL=https://your-backend.railway.app/api/v2/monthly-quiz-public
    railway variables set NEXTAUTH_URL=https://your-quiz-app.railway.app
    railway variables set NEXTAUTH_SECRET=$(openssl rand -base64 32)
    railway variables set JWT_SECRET=$(openssl rand -base64 32)
@@ -369,7 +369,7 @@ CMD ["node", "server.js"]
 
 ### "Erro ao conectar" ou 404 Errors
 - Verifique se backend está rodando
-- **⚠️ CRITICAL**: Verifique `NEXT_PUBLIC_API_URL` - NÃO inclua `/api/v1` (use apenas `http://localhost:8000`)
+- **⚠️ CRITICAL**: Verifique `NEXT_PUBLIC_API_URL` - NÃO inclua `/api/v2` (use apenas `http://localhost:8000`)
 - Ou use `NEXT_PUBLIC_QUIZ_PUBLIC_API_URL` com caminho completo
 - Verifique CORS no backend
 - Inspecione Network tab no DevTools para ver URL final sendo chamada

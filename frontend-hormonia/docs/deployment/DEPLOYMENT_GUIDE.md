@@ -78,7 +78,7 @@ VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 VITE_SUPABASE_REALTIME_ENABLED=true
 
 # API Configuration
-VITE_API_URL=https://your-backend-domain.com/api/v1
+VITE_API_URL=https://your-backend-domain.com/api/v2
 VITE_API_BASE_URL=https://your-backend-domain.com
 VITE_WS_BASE_URL=wss://your-backend-domain.com/ws
 
@@ -296,7 +296,7 @@ railway variables set VITE_ENVIRONMENT=production
 railway variables set VITE_DEBUG_MODE=false
 railway variables set VITE_SUPABASE_URL="your-supabase-url"
 railway variables set VITE_SUPABASE_ANON_KEY="your-supabase-anon-key"
-railway variables set VITE_API_URL="https://your-backend-railway-url.up.railway.app/api/v1"
+railway variables set VITE_API_URL="https://your-backend-railway-url.up.railway.app/api/v2"
 railway variables set VITE_API_BASE_URL="https://your-backend-railway-url.up.railway.app"
 railway variables set VITE_WS_BASE_URL="wss://your-backend-railway-url.up.railway.app/ws"
 

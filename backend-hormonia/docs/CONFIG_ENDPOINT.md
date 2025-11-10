@@ -6,7 +6,7 @@ The `/config` endpoint provides PUBLIC runtime configuration to frontend applica
 
 ## Endpoints
 
-- **Primary**: `/api/v1/config`
+- **Primary**: `/api/v2/config`
 - **Alias**: `/config` (for frontend convenience)
 
 ## Authentication
@@ -23,7 +23,7 @@ All frontend-facing variables use the `VITE_*` prefix for compatibility with Vit
 
 ```json
 {
-  "VITE_API_BASE_URL": "https://backend.railway.app/api/v1",
+  "VITE_API_BASE_URL": "https://backend.railway.app/api/v2",
   "VITE_WS_BASE_URL": "wss://backend.railway.app/ws",
   "VITE_API_URL": "https://backend.railway.app",
   "VITE_ENVIRONMENT": "production",
@@ -162,7 +162,7 @@ Create `.env.development` and `.env.production`:
 ```bash
 # Fetch config at build time or runtime
 # Option 1: Build-time (recommended for static values)
-VITE_API_BASE_URL=http://localhost:8000/api/v1
+VITE_API_BASE_URL=http://localhost:8000/api/v2
 
 # Option 2: Runtime (fetch from /config endpoint)
 # Use fetch() in main.tsx/main.js before app initialization
@@ -185,7 +185,7 @@ export async function loadRuntimeConfig() {
     console.error('Failed to load runtime config:', error);
     // Use fallback values
     return {
-      VITE_API_BASE_URL: 'http://localhost:8000/api/v1',
+      VITE_API_BASE_URL: 'http://localhost:8000/api/v2',
       VITE_WS_BASE_URL: 'ws://localhost:8000/ws'
     };
   }
@@ -319,7 +319,7 @@ If the endpoint encounters an error, it returns a fallback config:
 
 ```json
 {
-  "VITE_API_BASE_URL": "http://localhost:8000/api/v1",
+  "VITE_API_BASE_URL": "http://localhost:8000/api/v2",
   "VITE_WS_BASE_URL": "ws://localhost:8000/ws",
   "VITE_API_URL": "http://localhost:8000",
   "VITE_ENVIRONMENT": "development",
@@ -349,7 +349,7 @@ async function getConfig() {
     console.error('Failed to fetch config:', error);
     // Return hardcoded fallback
     return {
-      VITE_API_BASE_URL: 'http://localhost:8000/api/v1'
+      VITE_API_BASE_URL: 'http://localhost:8000/api/v2'
     };
   }
 }
@@ -362,7 +362,7 @@ async function getConfig() {
 **Before (Old Config)**:
 ```typescript
 const API_URL = 'http://localhost:8000';
-const API_BASE_URL = `${API_URL}/api/v1`;
+const API_BASE_URL = `${API_URL}/api/v2`;
 ```
 
 **After (New Config)**:
@@ -390,7 +390,7 @@ Check that `config` router is registered in `router_registry.py`:
 
 ```python
 # Should have both routes:
-app.include_router(config.router, prefix="/api/v1", tags=["Configuration"])
+app.include_router(config.router, prefix="/api/v2", tags=["Configuration"])
 app.include_router(config.router, prefix="", tags=["Configuration"])
 ```
 

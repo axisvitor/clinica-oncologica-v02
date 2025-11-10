@@ -166,7 +166,7 @@ class Scenario1MassivePatientRegistration(HttpUser):
 
         start_time = time.time()
         response = self.client.post(
-            "/api/v1/patients",
+            "/api/v2/patients",
             json=patient_data,
             name="[S1] Create Patient (Saga)",
         )
@@ -177,7 +177,7 @@ class Scenario1MassivePatientRegistration(HttpUser):
 
             # Verificar se o paciente foi criado corretamente
             verification = self.client.get(
-                f"/api/v1/patients/{patient_id}",
+                f"/api/v2/patients/{patient_id}",
                 name="[S1] Verify Patient Created",
             )
 
@@ -257,7 +257,7 @@ class Scenario2MessageProcessing(HttpUser):
         }
 
         response = self.client.post(
-            "/api/v1/messages/schedule",
+            "/api/v2/messages/schedule",
             json=message_data,
             headers={"X-Idempotency-Key": idempotency_key},
             name="[S2] Schedule Message (Idempotent)",
@@ -271,7 +271,7 @@ class Scenario2MessageProcessing(HttpUser):
     def list_scheduled_messages(self):
         """Lista mensagens agendadas."""
         self.client.get(
-            "/api/v1/messages",
+            "/api/v2/messages",
             params={"page": 1, "size": 50, "status": "scheduled"},
             name="[S2] List Scheduled Messages",
         )
@@ -385,7 +385,7 @@ class Scenario4DashboardLoad(HttpUser):
     def get_dashboard_metrics(self):
         """Obtém métricas principais do dashboard."""
         self.client.get(
-            "/api/v1/dashboard/metrics",
+            "/api/v2/dashboard/metrics",
             name="[S4] Dashboard Metrics",
         )
 
@@ -420,7 +420,7 @@ class Scenario4DashboardLoad(HttpUser):
     def list_patients_with_messages(self):
         """Lista pacientes com mensagens (eager loading test)."""
         self.client.get(
-            "/api/v1/patients",
+            "/api/v2/patients",
             params={"page": 1, "size": 20, "include": "messages,flows"},
             name="[S4] Patients with Relations",
         )
@@ -475,7 +475,7 @@ class Scenario5StressTest(HttpUser):
         """Cria paciente."""
         patient_data = generate_patient_data()
         self.client.post(
-            "/api/v1/patients",
+            "/api/v2/patients",
             json=patient_data,
             name="[S5] Create Patient",
         )
@@ -484,7 +484,7 @@ class Scenario5StressTest(HttpUser):
     def list_patients(self):
         """Lista pacientes."""
         self.client.get(
-            "/api/v1/patients",
+            "/api/v2/patients",
             params={"page": random.randint(1, 10), "size": 20},
             name="[S5] List Patients",
         )
@@ -498,7 +498,7 @@ class Scenario5StressTest(HttpUser):
             "scheduled_for": (datetime.now() + timedelta(hours=1)).isoformat(),
         }
         self.client.post(
-            "/api/v1/messages/schedule",
+            "/api/v2/messages/schedule",
             json=message_data,
             name="[S5] Schedule Message",
         )
@@ -507,7 +507,7 @@ class Scenario5StressTest(HttpUser):
     def get_dashboard(self):
         """Obtém métricas do dashboard."""
         self.client.get(
-            "/api/v1/dashboard/metrics",
+            "/api/v2/dashboard/metrics",
             name="[S5] Dashboard",
         )
 

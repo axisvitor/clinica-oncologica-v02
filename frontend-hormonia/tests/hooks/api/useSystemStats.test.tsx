@@ -67,7 +67,7 @@ describe('useSystemStats', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
     expect(result.current.data).toEqual(mockData)
-    expect(apiClient.request).toHaveBeenCalledWith('/api/v1/admin/system-stats')
+    expect(apiClient.request).toHaveBeenCalledWith('/api/v2/admin/system-stats')
   })
 
   it('should handle errors gracefully', async () => {

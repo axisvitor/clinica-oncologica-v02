@@ -31,7 +31,7 @@ class TestAnalyticsErrorHandling:
             mock_role.ADMIN.__eq__ = MagicMock(side_effect=AttributeError("'UserRole' object has no attribute 'SUPER_ADMIN'"))
             
             response = client.get(
-                "/api/v1/analytics/engagement-range",
+                "/api/v2/analytics/engagement-range",
                 headers={"Authorization": f"Bearer {admin_user.id}"}
             )
             
@@ -48,7 +48,7 @@ class TestAnalyticsErrorHandling:
             mock_provider.side_effect = AttributeError("'generator' object has no attribute 'monthly_quiz_service'")
             
             response = client.get(
-                "/api/v1/analytics/engagement-range",
+                "/api/v2/analytics/engagement-range",
                 headers={"Authorization": f"Bearer {admin_user.id}"}
             )
             
@@ -59,7 +59,7 @@ class TestAnalyticsErrorHandling:
     def test_analytics_endpoint_with_date_parameter_error(self, client: TestClient, admin_user: User, db: Session):
         """Test analytics endpoint handles invalid date parameters gracefully."""
         response = client.get(
-            "/api/v1/analytics/engagement-range",
+            "/api/v2/analytics/engagement-range",
             params={
                 "start_date": "invalid-date-format",
                 "end_date": "2025-10-12T15:01:57.695Z"
@@ -74,7 +74,7 @@ class TestAnalyticsErrorHandling:
     def test_analytics_endpoint_with_valid_datetime_strings(self, client: TestClient, admin_user: User, db: Session):
         """Test analytics endpoint accepts valid datetime strings."""
         response = client.get(
-            "/api/v1/analytics/engagement-range",
+            "/api/v2/analytics/engagement-range",
             params={
                 "start_date": "2025-10-05T15:01:57.695Z",
                 "end_date": "2025-10-12T15:01:57.695Z"
@@ -101,7 +101,7 @@ class TestMonthlyQuizErrorHandling:
             mock_role.ADMIN.__eq__ = MagicMock(side_effect=AttributeError("Invalid role comparison"))
             
             response = client.get(
-                "/api/v1/monthly-quiz/dashboard-stats",
+                "/api/v2/monthly-quiz/dashboard-stats",
                 headers={"Authorization": f"Bearer {user.id}"}
             )
             
@@ -116,7 +116,7 @@ class TestMonthlyQuizErrorHandling:
             mock_provider.side_effect = AttributeError("'generator' object has no attribute 'quiz_service'")
             
             response = client.get(
-                "/api/v1/monthly-quiz/dashboard-stats",
+                "/api/v2/monthly-quiz/dashboard-stats",
                 headers={"Authorization": f"Bearer {admin_user.id}"}
             )
             
@@ -131,7 +131,7 @@ class TestMonthlyQuizErrorHandling:
         db.commit()
         
         response = client.get(
-            "/api/v1/monthly-quiz/dashboard-stats",
+            "/api/v2/monthly-quiz/dashboard-stats",
             headers={"Authorization": f"Bearer {admin_user.id}"}
         )
         
@@ -149,7 +149,7 @@ class TestAlertsErrorHandling:
             mock_get_all.side_effect = SQLAlchemyError("column 'alert_type' does not exist")
             
             response = client.get(
-                "/api/v1/alerts/",
+                "/api/v2/alerts/",
                 headers={"Authorization": f"Bearer {admin_user.id}"}
             )
             
@@ -167,7 +167,7 @@ class TestAlertsErrorHandling:
         }
         
         response = client.post(
-            "/api/v1/alerts/",
+            "/api/v2/alerts/",
             json=alert_data,
             headers={"Authorization": f"Bearer {admin_user.id}"}
         )
@@ -181,7 +181,7 @@ class TestAlertsErrorHandling:
         quiz_session_id = str(uuid.uuid4())
         
         response = client.get(
-            f"/api/v1/alerts/quiz-session/{quiz_session_id}",
+            f"/api/v2/alerts/quiz-session/{quiz_session_id}",
             headers={"Authorization": f"Bearer {admin_user.id}"}
         )
         
@@ -195,7 +195,7 @@ class TestMonitoringEndpoints:
     def test_health_check_critical_fixes(self, client: TestClient, admin_user: User, db: Session):
         """Test health check endpoint validates critical fixes."""
         response = client.get(
-            "/api/v1/monitoring/health/critical-fixes",
+            "/api/v2/monitoring/health/critical-fixes",
             headers={"Authorization": f"Bearer {admin_user.id}"}
         )
         
@@ -233,7 +233,7 @@ class TestMonitoringEndpoints:
         db.commit()
         
         response = client.get(
-            "/api/v1/monitoring/errors/metrics",
+            "/api/v2/monitoring/errors/metrics",
             params={"hours": 24},
             headers={"Authorization": f"Bearer {admin_user.id}"}
         )
@@ -265,7 +265,7 @@ class TestMonitoringEndpoints:
         db.commit()
         
         response = client.get(
-            f"/api/v1/monitoring/errors/{error_log.id}",
+            f"/api/v2/monitoring/errors/{error_log.id}",
             headers={"Authorization": f"Bearer {admin_user.id}"}
         )
         
@@ -283,7 +283,7 @@ class TestMonitoringEndpoints:
     def test_system_status_endpoint(self, client: TestClient, admin_user: User, db: Session):
         """Test system status endpoint provides comprehensive status."""
         response = client.get(
-            "/api/v1/monitoring/system/status",
+            "/api/v2/monitoring/system/status",
             headers={"Authorization": f"Bearer {admin_user.id}"}
         )
         
@@ -412,7 +412,7 @@ class TestEndToEndErrorHandling:
             mock_provider.side_effect = AttributeError("Test DI error for monitoring")
             
             response = client.get(
-                "/api/v1/analytics/engagement-range",
+                "/api/v2/analytics/engagement-range",
                 headers={"Authorization": f"Bearer {admin_user.id}"}
             )
             
@@ -429,7 +429,7 @@ class TestEndToEndErrorHandling:
         
         # 3. Check monitoring endpoints can retrieve the error
         metrics_response = client.get(
-            "/api/v1/monitoring/errors/metrics",
+            "/api/v2/monitoring/errors/metrics",
             params={"hours": 1},
             headers={"Authorization": f"Bearer {admin_user.id}"}
         )
@@ -438,7 +438,7 @@ class TestEndToEndErrorHandling:
         
         # 4. Check health status reflects the error
         health_response = client.get(
-            "/api/v1/monitoring/health/critical-fixes",
+            "/api/v2/monitoring/health/critical-fixes",
             headers={"Authorization": f"Bearer {admin_user.id}"}
         )
         
@@ -458,9 +458,9 @@ class TestEndToEndErrorHandling:
         
         # Try to access monitoring endpoints
         endpoints = [
-            "/api/v1/monitoring/health/critical-fixes",
-            "/api/v1/monitoring/errors/metrics",
-            "/api/v1/monitoring/system/status"
+            "/api/v2/monitoring/health/critical-fixes",
+            "/api/v2/monitoring/errors/metrics",
+            "/api/v2/monitoring/system/status"
         ]
         
         for endpoint in endpoints:
@@ -487,7 +487,7 @@ class TestEndToEndErrorHandling:
         
         # 2. Get error details
         details_response = client.get(
-            f"/api/v1/monitoring/errors/{error_log.id}",
+            f"/api/v2/monitoring/errors/{error_log.id}",
             headers={"Authorization": f"Bearer {admin_user.id}"}
         )
         
@@ -496,7 +496,7 @@ class TestEndToEndErrorHandling:
         
         # 3. Resolve the error
         resolve_response = client.post(
-            f"/api/v1/monitoring/errors/{error_log.id}/resolve",
+            f"/api/v2/monitoring/errors/{error_log.id}/resolve",
             headers={"Authorization": f"Bearer {admin_user.id}"}
         )
         

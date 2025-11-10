@@ -1,6 +1,3 @@
-// @ts-nocheck
-// TODO: Fix type assertions and undefined checks
-
 /**
  * Authentication Context Helpers
  *
@@ -20,7 +17,6 @@ import { createContext, useContext } from 'react'
 // Removed Supabase imports - using generic types
 type User = any
 type Session = any
-type UserMetadata = Record<string, any>
 
 // Extended user interface with application-specific fields
 export interface AppUser {

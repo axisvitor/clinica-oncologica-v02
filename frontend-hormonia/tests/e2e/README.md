@@ -34,7 +34,7 @@ Comprehensive end-to-end testing for the Hormonia frontend application using Pla
    ```env
    VITE_SUPABASE_URL=https://rszpypytdciggybbpnrp.supabase.co
    VITE_SUPABASE_ANON_KEY=your_anon_key
-   VITE_API_URL=http://localhost:8000/api/v1
+   VITE_API_URL=http://localhost:8000/api/v2
    VITE_WS_URL=ws://localhost:8000/ws
    ```
 

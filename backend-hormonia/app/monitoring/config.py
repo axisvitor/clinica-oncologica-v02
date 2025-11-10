@@ -23,10 +23,10 @@ class APMConfig(BaseModel):
     # Endpoint-specific thresholds
     endpoint_thresholds: Dict[str, Dict[str, float]] = Field(
         default_factory=lambda: {
-            "POST /api/v1/messages": {"response_time": 2.0, "error_rate": 3.0},
-            "POST /api/v1/quiz": {"response_time": 1.5, "error_rate": 2.0},
-            "GET /api/v1/patients": {"response_time": 0.5, "error_rate": 1.0},
-            "POST /api/v1/auth/login": {"response_time": 1.0, "error_rate": 5.0}
+            "POST /api/v2/messages": {"response_time": 2.0, "error_rate": 3.0},
+            "POST /api/v2/quiz": {"response_time": 1.5, "error_rate": 2.0},
+            "GET /api/v2/patients": {"response_time": 0.5, "error_rate": 1.0},
+            "POST /api/v2/auth/login": {"response_time": 1.0, "error_rate": 5.0}
         }
     )
 
@@ -137,7 +137,7 @@ class ExportConfig(BaseModel):
 
     # Export endpoints
     prometheus_endpoint: str = Field(default="/metrics", description="Prometheus metrics endpoint")
-    grafana_endpoint: str = Field(default="/api/v1/monitoring/grafana", description="Grafana API endpoint")
+    grafana_endpoint: str = Field(default="/api/v2/monitoring/grafana", description="Grafana API endpoint")
 
     # Retention settings
     retention_days: int = Field(default=7, description="Metrics retention in days")

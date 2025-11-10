@@ -1,7 +1,7 @@
 # Validation Rule Schema Fix
 
 ## Issue
-The `/api/v1/quiz/templates` endpoint was failing with Pydantic validation errors:
+The `/api/v2/quiz/templates` endpoint was failing with Pydantic validation errors:
 ```
 10 validation errors for QuizTemplateResponse
 questions.0.validation_rules.0.value.str Input should be a valid string
@@ -70,5 +70,5 @@ The schema now supports both simple and complex validation rules:
 
 ## Next Steps
 1. Restart the application to load the schema changes
-2. Test the `/api/v1/quiz/templates` endpoint
+2. Test the `/api/v2/quiz/templates` endpoint
 3. Verify quiz functionality works end-to-end

@@ -181,7 +181,7 @@ Test security headers in production:
 
 ```bash
 # Check all security headers
-curl -I https://your-api-domain.com/api/v1/health
+curl -I https://your-api-domain.com/api/v2/health
 
 # Expected headers:
 # X-Frame-Options: DENY

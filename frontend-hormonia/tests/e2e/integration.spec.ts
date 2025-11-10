@@ -13,7 +13,7 @@
 import { test, expect, Page } from '@playwright/test';
 
 const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5175';
-const API_URL = process.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+const API_URL = process.env.VITE_API_URL || 'http://localhost:8000/api/v2';
 
 test.describe('Integration: Firebase Authentication', () => {
 

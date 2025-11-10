@@ -25,7 +25,7 @@ from app.core.config import settings
 from app.utils.rate_limiter import limiter
 
 
-router = APIRouter(prefix="/api/v1/auth", tags=["authentication"])
+router = APIRouter(prefix="/api/v2/auth", tags=["authentication"])
 
 
 # ============================================================================

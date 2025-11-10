@@ -146,7 +146,7 @@ def _build_api_urls() -> Dict[str, str]:
                 api_url = f"http://localhost:{port}"
 
     # Build derivative URLs
-    api_base_url = f"{api_url}/api/v1"
+    api_base_url = f"{api_url}/api/v2"
     ws_base_url = api_url.replace("https://", "wss://").replace("http://", "ws://") + "/ws"
 
     return {
@@ -412,7 +412,7 @@ async def get_public_config(request: Request) -> JSONResponse:
 
         # Return minimal fallback config
         fallback_config = {
-            "VITE_API_BASE_URL": "http://localhost:8000/api/v1",
+            "VITE_API_BASE_URL": "http://localhost:8000/api/v2",
             "VITE_WS_BASE_URL": "ws://localhost:8000/ws",
             "VITE_API_URL": "http://localhost:8000",
             "VITE_ENVIRONMENT": "development",

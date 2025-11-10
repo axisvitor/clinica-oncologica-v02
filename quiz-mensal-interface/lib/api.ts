@@ -4,7 +4,7 @@
  *
  * Environment Variables:
  * - NEXT_PUBLIC_QUIZ_PUBLIC_API_URL: Full API endpoint URL (preferred for production)
- * - NEXT_PUBLIC_API_URL: Base URL (will auto-append /api/v1/monthly-quiz-public)
+ * - NEXT_PUBLIC_API_URL: Base URL (will auto-append /api/v2/monthly-quiz-public)
  *
  * Configuration Priority:
  * 1. NEXT_PUBLIC_QUIZ_PUBLIC_API_URL (explicit full path)
@@ -20,7 +20,7 @@ import type {
   QuizError
 } from "@/types/quiz"
 
-const DEFAULT_API_BASE_URL = 'http://localhost:8000/api/v1/monthly-quiz-public'
+const DEFAULT_API_BASE_URL = 'http://localhost:8000/api/v2/monthly-quiz-public'
 
 // Default timeout values (can be overridden by env vars)
 const DEFAULT_TIMEOUT = 30000 // 30 seconds
@@ -47,9 +47,9 @@ function resolveApiBaseUrl(): string {
   if (legacy) {
     let trimmed = legacy.replace(/\/$/, '')
 
-    // Ensure /api/v1 prefix is present
-    if (!trimmed.includes('/api/v1')) {
-      trimmed = `${trimmed}/api/v1`
+    // Ensure /api/v2 prefix is present
+    if (!trimmed.includes('/api/v2')) {
+      trimmed = `${trimmed}/api/v2`
     }
 
     // Append quiz endpoint if not already present

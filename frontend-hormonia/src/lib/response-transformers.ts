@@ -22,7 +22,7 @@ export function transformPaginationResponse<T>(
         pages: (response['pages'] as number) || 1
       };
 
-    case 'messages':
+    case 'messages': {
       // Backend returns: { messages, total, skip, limit }
       // Frontend expects: { items, total, page, size, pages }
       const messagesPage = Math.floor(((response['skip'] as number) || 0) / ((response['limit'] as number) || 20)) + 1;
@@ -34,6 +34,7 @@ export function transformPaginationResponse<T>(
         size: (response['limit'] as number) || 20,
         pages: messagesPages
       };
+    }
 
     default:
       // Generic transformation - try to detect the structure

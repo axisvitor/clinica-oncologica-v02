@@ -217,7 +217,7 @@ export function WhatsAppIntegrationHub() {
       return
     }
 
-    let messageData: any = {
+    const messageData: Record<string, unknown> = {
       instance_name: selectedInstance,
       to: messageForm.to,
       message_type: 'text'

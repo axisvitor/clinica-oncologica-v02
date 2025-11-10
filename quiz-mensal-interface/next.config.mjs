@@ -6,8 +6,8 @@ const getBackendUrl = () => {
   // Priority 1: Explicit full API URL
   const explicitUrl = process.env.NEXT_PUBLIC_QUIZ_PUBLIC_API_URL
   if (explicitUrl) {
-    // Extract base URL (remove /api/v1/monthly-quiz-public)
-    return explicitUrl.replace(/\/api\/v1\/monthly-quiz-public\/?$/, '')
+    // Extract base URL (remove /api/v2/monthly-quiz-public)
+    return explicitUrl.replace(/\/api\/v2\/monthly-quiz-public\/?$/, '')
   }
 
   // Priority 2: Base API URL

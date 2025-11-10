@@ -158,7 +158,7 @@ async function completeQuizAsPatient(page: Page, quizLink: string) {
   console.log('📤 Submitting quiz...');
   await Promise.all([
     page.waitForResponse(resp =>
-      resp.url().includes('/api/v1/monthly-quiz/public/submit') &&
+      resp.url().includes('/api/v2/monthly-quiz/public/submit') &&
       resp.status() === 200
     ),
     page.click('[data-testid="submit-quiz"]'),
@@ -386,7 +386,7 @@ test.describe('Monthly Quiz - Complete Flow', () => {
     // Monitor API calls
     const whatsappCalls: any[] = [];
     page.on('request', req => {
-      if (req.url().includes('/api/v1/whatsapp/send') || req.url().includes('/webhooks/whatsapp')) {
+      if (req.url().includes('/api/v2/whatsapp/send') || req.url().includes('/webhooks/whatsapp')) {
         whatsappCalls.push({
           url: req.url(),
           method: req.method(),

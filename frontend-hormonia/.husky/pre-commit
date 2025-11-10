@@ -6,3 +6,4 @@ npx lint-staged
 
 # Optional: Run type check (commented out for speed - enable if needed)
 # npm run typecheck
+1

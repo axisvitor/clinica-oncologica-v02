@@ -24,12 +24,12 @@
 
 ### 3. Key Endpoint Performance
 - [ ] **Analytics Date-Range Endpoints**: 
-  - `/api/v1/analytics/engagement-range`
-  - `/api/v1/analytics/patients-analytics`
+  - `/api/v2/analytics/engagement-range`
+  - `/api/v2/analytics/patients-analytics`
   - Monitor latency and 5xx spikes
 - [ ] **Monthly Quiz Dashboards**:
-  - `/api/v1/monthly-quiz/dashboard-stats`
-  - `/api/v1/monthly-quiz/active-quiz-links`
+  - `/api/v2/monthly-quiz/dashboard-stats`
+  - `/api/v2/monthly-quiz/active-quiz-links`
   - Watch for role-based access issues
 - [ ] **Alerts Endpoints**:
   - Monitor JSONB query performance for quiz_session_id
@@ -51,16 +51,16 @@
 ### Built-in Health Checks
 ```bash
 # Overall system health
-GET /api/v1/monitoring/health
+GET /api/v2/monitoring/health
 
 # Database health with performance metrics
-GET /api/v1/monitoring/database-health
+GET /api/v2/monitoring/database-health
 
 # Error tracking summary
-GET /api/v1/monitoring/error-summary
+GET /api/v2/monitoring/error-summary
 
 # Performance metrics
-GET /api/v1/monitoring/performance-metrics
+GET /api/v2/monitoring/performance-metrics
 ```
 
 ### Custom Monitoring Queries

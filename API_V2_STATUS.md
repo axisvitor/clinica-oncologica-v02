@@ -113,29 +113,29 @@ backend-hormonia/app/api/v2/
 ```typescript
 // frontend-hormonia/src/lib/api-client.legacy.ts
 patients = {
-  list: '/api/v1/patients',           // ❌ Deve migrar para v2
-  get: '/api/v1/patients/{id}',       // ❌ Deve migrar para v2
-  create: '/api/v1/patients',         // ❌ Deve migrar para v2
-  update: '/api/v1/patients/{id}',    // ❌ Deve migrar para v2
-  delete: '/api/v1/patients/{id}',    // ❌ Deve migrar para v2
-  timeline: '/api/v1/patients/{id}/timeline', // ⚠️ Não existe em v2
+  list: '/api/v2/patients',           // ❌ Deve migrar para v2
+  get: '/api/v2/patients/{id}',       // ❌ Deve migrar para v2
+  create: '/api/v2/patients',         // ❌ Deve migrar para v2
+  update: '/api/v2/patients/{id}',    // ❌ Deve migrar para v2
+  delete: '/api/v2/patients/{id}',    // ❌ Deve migrar para v2
+  timeline: '/api/v2/patients/{id}/timeline', // ⚠️ Não existe em v2
 }
 ```
 
 #### Mensagens
 ```typescript
 messages = {
-  list: '/api/v1/messages',           // ❌ Não existe em v2
-  send: '/api/v1/messages/send',      // ❌ Não existe em v2
-  retry: '/api/v1/messages/{id}/retry' // ❌ Não existe em v2
+  list: '/api/v2/messages',           // ❌ Não existe em v2
+  send: '/api/v2/messages/send',      // ❌ Não existe em v2
+  retry: '/api/v2/messages/{id}/retry' // ❌ Não existe em v2
 }
 ```
 
 #### Quiz
 ```typescript
 quiz = {
-  templates: '/api/v1/quiz/templates',     // ❌ Não existe em v2
-  sessions: '/api/v1/quiz/sessions',       // ❌ Deve migrar para v2
+  templates: '/api/v2/quiz/templates',     // ❌ Não existe em v2
+  sessions: '/api/v2/quiz/sessions',       // ❌ Deve migrar para v2
   // ... outros endpoints v1
 }
 ```
@@ -143,17 +143,17 @@ quiz = {
 #### Reports
 ```typescript
 reports = {
-  list: '/api/v1/reports',            // ❌ Não existe em v2
-  generate: '/api/v1/reports/generate', // ❌ Não existe em v2
-  download: '/api/v1/reports/{id}/download' // ❌ Não existe em v2
+  list: '/api/v2/reports',            // ❌ Não existe em v2
+  generate: '/api/v2/reports/generate', // ❌ Não existe em v2
+  download: '/api/v2/reports/{id}/download' // ❌ Não existe em v2
 }
 ```
 
 #### Auth
 ```typescript
 auth = {
-  me: '/api/v1/auth/me',              // ❌ Não existe em v2
-  logout: '/api/v1/auth/logout',      // ❌ Não existe em v2
+  me: '/api/v2/auth/me',              // ❌ Não existe em v2
+  logout: '/api/v2/auth/logout',      // ❌ Não existe em v2
 }
 ```
 
@@ -161,9 +161,9 @@ auth = {
 ```typescript
 // frontend-hormonia/src/services/whatsapp/WhatsAppService.ts
 whatsapp = {
-  instances: '/api/v1/whatsapp/instances',  // ❌ Não existe em v2
-  messages: '/api/v1/whatsapp/messages',    // ❌ Não existe em v2
-  contacts: '/api/v1/whatsapp/contacts',    // ❌ Não existe em v2
+  instances: '/api/v2/whatsapp/instances',  // ❌ Não existe em v2
+  messages: '/api/v2/whatsapp/messages',    // ❌ Não existe em v2
+  contacts: '/api/v2/whatsapp/contacts',    // ❌ Não existe em v2
   // ... outros endpoints v1
 }
 ```
@@ -173,7 +173,7 @@ whatsapp = {
 ```typescript
 // frontend-hormonia/src/lib/react-optimizations.tsx
 const criticalEndpoints = [
-  '/api/v1/auth/me',                  // ❌ Ainda v1
+  '/api/v2/auth/me',                  // ❌ Ainda v1
   '/api/v2/analytics/overview'        // ✅ Já v2
 ]
 
@@ -316,7 +316,7 @@ QUIZ_URL=https://quiz-interface-production.up.railway.app
 
 # ✅ Frontend
 VITE_API_BASE_URL=https://clinica-oncologica-v02-production.up.railway.app
-VITE_API_URL=https://clinica-oncologica-v02-production.up.railway.app/api/v1
+VITE_API_URL=https://clinica-oncologica-v02-production.up.railway.app/api/v2
 
 # ✅ Quiz
 NEXT_PUBLIC_API_URL=https://clinica-oncologica-v02-production.up.railway.app

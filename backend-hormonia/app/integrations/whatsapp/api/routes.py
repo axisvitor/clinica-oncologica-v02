@@ -19,7 +19,7 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/whatsapp", tags=["WhatsApp"])
+router = APIRouter(prefix="/api/v2/whatsapp", tags=["WhatsApp"])
 
 
 async def get_evolution_client() -> EvolutionAPIClient:

@@ -44,6 +44,26 @@ class FeaturesSettings(BaseAppSettings):
         default=True,
         description="Enable Saga Pattern for patient onboarding (recommended for production)",
     )
+    SAGA_STEP_MAX_RETRIES: int = Field(
+        default=3,
+        description="Maximum number of retries for each saga step before marking as failed",
+    )
+    SAGA_RETRY_INITIAL_DELAY_SECONDS: int = Field(
+        default=1,
+        description="Initial delay in seconds before first retry (exponential backoff)",
+    )
+    SAGA_RETRY_MAX_DELAY_SECONDS: int = Field(
+        default=30,
+        description="Maximum delay in seconds between retries (exponential backoff cap)",
+    )
+    SAGA_GLOBAL_TIMEOUT_SECONDS: int = Field(
+        default=300,
+        description="Global timeout for saga execution in seconds (default: 5 minutes)",
+    )
+    SAGA_PERSISTENCE_TTL_SECONDS: int = Field(
+        default=604800,
+        description="TTL for saga state persistence in Redis (default: 7 days)",
+    )
 
     # ============================================================================
     # Flow Auto-Enrollment Configuration

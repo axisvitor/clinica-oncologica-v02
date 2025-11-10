@@ -26,7 +26,7 @@ export function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-export function isFunction(value: unknown): value is Function {
+export function isFunction(value: unknown): value is (...args: unknown[]) => unknown {
   return typeof value === 'function'
 }
 
@@ -180,8 +180,8 @@ export function isValidUrl(value: unknown): value is string {
 
 export function isValidPhoneNumber(value: unknown): value is string {
   if (!isString(value)) return false
-  const phoneRegex = /^[\+]?[1-9]?[0-9]{7,15}$/
-  return phoneRegex.test(value.replace(/[\s\-\(\)]/g, ''))
+  const phoneRegex = /^\+?[1-9]?[0-9]{7,15}$/
+  return phoneRegex.test(value.replace(/[\s-()]/g, ''))
 }
 
 // Date utilities

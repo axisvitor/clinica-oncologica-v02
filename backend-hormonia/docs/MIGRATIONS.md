@@ -437,7 +437,7 @@ alembic upgrade head
 ### Health Check de Migrations
 
 ```python
-# app/api/v1/health.py
+# app/api/v2/health.py
 from alembic import command
 from alembic.config import Config
 

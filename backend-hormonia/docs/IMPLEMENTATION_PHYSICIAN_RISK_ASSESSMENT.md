@@ -33,11 +33,11 @@ Key Methods:
 - `get_patient_risk_assessments()` - Main optimized query
 
 ### 3. API Route Handler
-**File**: `app/api/v1/physician.py` ✅ CREATED
+**File**: `app/api/v2/physician.py` ✅ CREATED
 
 Endpoint:
 ```
-GET /api/v1/physician/risk-assessments
+GET /api/v2/physician/risk-assessments
 ```
 
 Features:
@@ -108,7 +108,7 @@ Added:
 from app.api.v1 import physician
 
 # Register physician endpoints
-app.include_router(physician.router, prefix="/api/v1", tags=["Physician"])
+app.include_router(physician.router, prefix="/api/v2", tags=["Physician"])
 logger.info("✓ Physician endpoints registered (risk assessments, bulk ops)")
 ```
 
@@ -155,7 +155,7 @@ TOKEN="your_firebase_id_token"
 
 # Test endpoint
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/physician/risk-assessments"
+  "http://localhost:8000/api/v2/physician/risk-assessments"
 
 # Should return:
 # {
@@ -243,7 +243,7 @@ risk_score = min(
 ## 🧪 Testing Checklist
 
 ### Manual Testing
-- [ ] Endpoint accessible at `/api/v1/physician/risk-assessments`
+- [ ] Endpoint accessible at `/api/v2/physician/risk-assessments`
 - [ ] Requires authentication (401 without token)
 - [ ] Requires physician/admin role (403 for other roles)
 - [ ] Returns correct structure
@@ -272,7 +272,7 @@ pytest tests/test_risk_assessment_endpoint.py -v
 ```bash
 # Measure actual response time
 time curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/physician/risk-assessments"
+  "http://localhost:8000/api/v2/physician/risk-assessments"
 
 # Should complete in < 200ms
 ```
@@ -286,7 +286,7 @@ time curl -H "Authorization: Bearer $TOKEN" \
 // ❌ OLD CODE - 51 API calls
 const getPatientRisks = async () => {
   // Call 1: Get patient list
-  const patients = await fetch('/api/v1/patients').then(r => r.json());
+  const patients = await fetch('/api/v2/patients').then(r => r.json());
 
   // Calls 2-51: Get individual insights
   const risks = await Promise.all(
@@ -303,7 +303,7 @@ const getPatientRisks = async () => {
 ```typescript
 // ✅ NEW CODE - 1 API call
 const getPatientRisks = async () => {
-  const response = await fetch('/api/v1/physician/risk-assessments', {
+  const response = await fetch('/api/v2/physician/risk-assessments', {
     headers: {
       'Authorization': `Bearer ${firebaseToken}`,
       'Content-Type': 'application/json'
@@ -362,7 +362,7 @@ patients.forEach(patient => {
 
 ```python
 # Check if this line exists:
-app.include_router(physician.router, prefix="/api/v1", tags=["Physician"])
+app.include_router(physician.router, prefix="/api/v2", tags=["Physician"])
 ```
 
 ### Issue: Import Error
@@ -370,7 +370,7 @@ app.include_router(physician.router, prefix="/api/v1", tags=["Physician"])
 ```bash
 ls -la app/models/physician.py
 ls -la app/services/risk_assessment_service.py
-ls -la app/api/v1/physician.py
+ls -la app/api/v2/physician.py
 ```
 
 ### Issue: Performance > 200ms
@@ -394,7 +394,7 @@ SELECT COUNT(*) FROM patients WHERE doctor_id = 'physician_uuid';
 
 - [x] Create Pydantic models (`app/models/physician.py`)
 - [x] Create risk assessment service (`app/services/risk_assessment_service.py`)
-- [x] Create API route handler (`app/api/v1/physician.py`)
+- [x] Create API route handler (`app/api/v2/physician.py`)
 - [x] Create database migration (`alembic/versions/20251006_add_risk_assessment_indexes.py`)
 - [x] Update models exports (`app/models/__init__.py`)
 - [x] Register router (`app/core/router_registry.py`)
@@ -417,7 +417,7 @@ SELECT COUNT(*) FROM patients WHERE doctor_id = 'physician_uuid';
 3. **Test Endpoint**
    ```bash
    curl -H "Authorization: Bearer $TOKEN" \
-     "http://localhost:8000/api/v1/physician/risk-assessments"
+     "http://localhost:8000/api/v2/physician/risk-assessments"
    ```
 
 4. **Run Integration Tests**

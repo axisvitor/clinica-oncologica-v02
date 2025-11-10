@@ -308,7 +308,7 @@ Traces são capturados automaticamente para:
 
 **Exemplo de Trace**:
 ```
-POST /api/v1/patients (250ms)
+POST /api/v2/patients (250ms)
   ├─ Query: INSERT INTO patients (100ms)
   ├─ Redis: SET cache:patient:123 (5ms)
   ├─ HTTP: POST firebase.com/auth (120ms)

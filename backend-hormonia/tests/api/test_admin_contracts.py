@@ -19,12 +19,12 @@ from app.schemas.user_admin import SystemStatsResponse, UserPermissionsUpdate
 
 
 class TestSystemStatsContract:
-    """Test /api/v1/admin/system-stats endpoint contract"""
+    """Test /api/v2/admin/system-stats endpoint contract"""
 
     def test_system_stats_returns_correct_schema(self, client: TestClient, admin_token: str):
         """Verify system-stats endpoint returns complete, correct schema"""
         response = client.get(
-            "/api/v1/admin/system-stats",
+            "/api/v2/admin/system-stats",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -65,7 +65,7 @@ class TestSystemStatsContract:
     def test_system_stats_data_types(self, client: TestClient, admin_token: str):
         """Verify all fields have correct data types"""
         response = client.get(
-            "/api/v1/admin/system-stats",
+            "/api/v2/admin/system-stats",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -98,13 +98,13 @@ class TestSystemStatsContract:
 
     def test_system_stats_unauthorized(self, client: TestClient):
         """Verify endpoint requires authentication"""
-        response = client.get("/api/v1/admin/system-stats")
+        response = client.get("/api/v2/admin/system-stats")
         assert response.status_code == 401
 
     def test_system_stats_non_admin(self, client: TestClient, user_token: str):
         """Verify endpoint requires admin role"""
         response = client.get(
-            "/api/v1/admin/system-stats",
+            "/api/v2/admin/system-stats",
             headers={"Authorization": f"Bearer {user_token}"}
         )
         assert response.status_code == 403
@@ -119,7 +119,7 @@ class TestSystemStatsContract:
     ):
         """Verify stats accurately reflect database state"""
         response = client.get(
-            "/api/v1/admin/system-stats",
+            "/api/v2/admin/system-stats",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -141,7 +141,7 @@ class TestSystemStatsContract:
         start_time = time.time()
 
         response = client.get(
-            "/api/v1/admin/system-stats",
+            "/api/v2/admin/system-stats",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -153,7 +153,7 @@ class TestSystemStatsContract:
 
 
 class TestResetPasswordContract:
-    """Test /api/v1/auth/reset-password endpoint contract"""
+    """Test /api/v2/auth/reset-password endpoint contract"""
 
     def test_reset_password_success(
         self,
@@ -167,7 +167,7 @@ class TestResetPasswordContract:
         token = create_password_reset_token(sample_user.email)
 
         response = client.post(
-            "/api/v1/auth/reset-password",
+            "/api/v2/auth/reset-password",
             json={
                 "token": token,
                 "new_password": "NewSecurePassword123!"
@@ -182,7 +182,7 @@ class TestResetPasswordContract:
     def test_reset_password_invalid_token(self, client: TestClient):
         """Verify error on invalid token"""
         response = client.post(
-            "/api/v1/auth/reset-password",
+            "/api/v2/auth/reset-password",
             json={
                 "token": "invalid-token-12345",
                 "new_password": "NewPassword123!"
@@ -215,7 +215,7 @@ class TestResetPasswordContract:
         )
 
         response = client.post(
-            "/api/v1/auth/reset-password",
+            "/api/v2/auth/reset-password",
             json={
                 "token": token,
                 "new_password": "NewPassword123!"
@@ -235,7 +235,7 @@ class TestResetPasswordContract:
         token = create_password_reset_token(sample_user.email)
 
         response = client.post(
-            "/api/v1/auth/reset-password",
+            "/api/v2/auth/reset-password",
             json={
                 "token": token,
                 "new_password": "weak"
@@ -249,14 +249,14 @@ class TestResetPasswordContract:
         """Verify error on missing required fields"""
         # Missing new_password
         response = client.post(
-            "/api/v1/auth/reset-password",
+            "/api/v2/auth/reset-password",
             json={"token": "some-token"}
         )
         assert response.status_code == 422
 
         # Missing token
         response = client.post(
-            "/api/v1/auth/reset-password",
+            "/api/v2/auth/reset-password",
             json={"new_password": "Password123!"}
         )
         assert response.status_code == 422
@@ -274,7 +274,7 @@ class TestResetPasswordContract:
         new_password = "NewVerifiedPassword123!"
 
         response = client.post(
-            "/api/v1/auth/reset-password",
+            "/api/v2/auth/reset-password",
             json={
                 "token": token,
                 "new_password": new_password
@@ -302,7 +302,7 @@ class TestResetPasswordContract:
         special_password = 'P@$$w0rd!#%^&*(){}[]|\\/<>?'
 
         response = client.post(
-            "/api/v1/auth/reset-password",
+            "/api/v2/auth/reset-password",
             json={
                 "token": token,
                 "new_password": special_password
@@ -335,7 +335,7 @@ class TestWebSocketContract:
         """Verify REST API fallback exists for admin users"""
         # Verify there's a REST endpoint as fallback
         response = client.get(
-            "/api/v1/admin/users",
+            "/api/v2/admin/users",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -353,7 +353,7 @@ class TestDashboardTrendsContract:
     ):
         """Verify revenue growth percentage is calculated correctly"""
         response = client.get(
-            "/api/v1/admin/system-stats",
+            "/api/v2/admin/system-stats",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -377,7 +377,7 @@ class TestDashboardTrendsContract:
     ):
         """Verify trend calculation handles zero previous values"""
         response = client.get(
-            "/api/v1/admin/system-stats",
+            "/api/v2/admin/system-stats",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -395,7 +395,7 @@ class TestDashboardTrendsContract:
     ):
         """Verify negative growth is handled correctly"""
         response = client.get(
-            "/api/v1/admin/system-stats",
+            "/api/v2/admin/system-stats",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -412,12 +412,12 @@ class TestDashboardTrendsContract:
     ):
         """Verify trend data is consistent across requests"""
         response1 = client.get(
-            "/api/v1/admin/system-stats",
+            "/api/v2/admin/system-stats",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
         response2 = client.get(
-            "/api/v1/admin/system-stats",
+            "/api/v2/admin/system-stats",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -438,7 +438,7 @@ class TestPermissionsUpdateContract:
         new_permissions = ["read", "write", "delete"]
 
         response = client.put(
-            f"/api/v1/admin/users/{sample_user.id}/permissions",
+            f"/api/v2/admin/users/{sample_user.id}/permissions",
             headers={"Authorization": f"Bearer {admin_token}"},
             json={"permissions": new_permissions}
         )
@@ -447,7 +447,7 @@ class TestPermissionsUpdateContract:
 
         # Verify permissions persisted
         verify_response = client.get(
-            f"/api/v1/admin/users/{sample_user.id}/permissions",
+            f"/api/v2/admin/users/{sample_user.id}/permissions",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -461,7 +461,7 @@ class TestPermissionsUpdateContract:
     ):
         """Verify error on updating non-existent user"""
         response = client.put(
-            "/api/v1/admin/users/99999/permissions",
+            "/api/v2/admin/users/99999/permissions",
             headers={"Authorization": f"Bearer {admin_token}"},
             json={"permissions": ["read"]}
         )
@@ -475,7 +475,7 @@ class TestPermissionsUpdateContract:
     ):
         """Verify permissions update requires authentication"""
         response = client.put(
-            f"/api/v1/admin/users/{sample_user.id}/permissions",
+            f"/api/v2/admin/users/{sample_user.id}/permissions",
             json={"permissions": ["read"]}
         )
 
@@ -489,7 +489,7 @@ class TestPermissionsUpdateContract:
     ):
         """Verify permissions update requires admin role"""
         response = client.put(
-            f"/api/v1/admin/users/{sample_user.id}/permissions",
+            f"/api/v2/admin/users/{sample_user.id}/permissions",
             headers={"Authorization": f"Bearer {user_token}"},
             json={"permissions": ["read"]}
         )
@@ -504,7 +504,7 @@ class TestPermissionsUpdateContract:
     ):
         """Verify empty permissions list is accepted"""
         response = client.put(
-            f"/api/v1/admin/users/{sample_user.id}/permissions",
+            f"/api/v2/admin/users/{sample_user.id}/permissions",
             headers={"Authorization": f"Bearer {admin_token}"},
             json={"permissions": []}
         )
@@ -519,7 +519,7 @@ class TestPermissionsUpdateContract:
     ):
         """Verify duplicate permissions are handled"""
         response = client.put(
-            f"/api/v1/admin/users/{sample_user.id}/permissions",
+            f"/api/v2/admin/users/{sample_user.id}/permissions",
             headers={"Authorization": f"Bearer {admin_token}"},
             json={"permissions": ["read", "read", "write", "write"]}
         )
@@ -528,7 +528,7 @@ class TestPermissionsUpdateContract:
 
         # Verify duplicates are removed
         verify_response = client.get(
-            f"/api/v1/admin/users/{sample_user.id}/permissions",
+            f"/api/v2/admin/users/{sample_user.id}/permissions",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -547,7 +547,7 @@ class TestPermissionsUpdateContract:
 
         # Update permissions
         response = client.put(
-            f"/api/v1/admin/users/{sample_user.id}/permissions",
+            f"/api/v2/admin/users/{sample_user.id}/permissions",
             headers={"Authorization": f"Bearer {admin_token}"},
             json={"permissions": new_permissions}
         )
@@ -573,7 +573,7 @@ class TestPermissionsUpdateContract:
 
         def update_permissions(perms):
             return client.put(
-                f"/api/v1/admin/users/{sample_user.id}/permissions",
+                f"/api/v2/admin/users/{sample_user.id}/permissions",
                 headers={"Authorization": f"Bearer {admin_token}"},
                 json={"permissions": perms}
             )
@@ -595,7 +595,7 @@ class TestPermissionsUpdateContract:
 
         # Final state should be consistent
         verify_response = client.get(
-            f"/api/v1/admin/users/{sample_user.id}/permissions",
+            f"/api/v2/admin/users/{sample_user.id}/permissions",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -617,7 +617,7 @@ class TestAPIContractEdgeCases:
         # This is a placeholder - actual implementation depends on test fixtures
 
         response = client.get(
-            "/api/v1/admin/system-stats",
+            "/api/v2/admin/system-stats",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -626,7 +626,7 @@ class TestAPIContractEdgeCases:
     def test_malformed_json_requests(self, client: TestClient, admin_token: str):
         """Verify endpoints handle malformed JSON gracefully"""
         response = client.post(
-            "/api/v1/auth/reset-password",
+            "/api/v2/auth/reset-password",
             headers={
                 "Authorization": f"Bearer {admin_token}",
                 "Content-Type": "application/json"
@@ -645,7 +645,7 @@ class TestAPIContractEdgeCases:
         malicious_input = "'; DROP TABLE users; --"
 
         response = client.get(
-            f"/api/v1/admin/users/{malicious_input}/permissions",
+            f"/api/v2/admin/users/{malicious_input}/permissions",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
 
@@ -662,7 +662,7 @@ class TestAPIContractEdgeCases:
         xss_payload = '<script>alert("XSS")</script>'
 
         response = client.put(
-            f"/api/v1/admin/users/{sample_user.id}/permissions",
+            f"/api/v2/admin/users/{sample_user.id}/permissions",
             headers={"Authorization": f"Bearer {admin_token}"},
             json={"permissions": [xss_payload]}
         )
@@ -676,7 +676,7 @@ class TestAPIContractEdgeCases:
         responses = []
         for _ in range(100):
             response = client.get(
-                "/api/v1/admin/system-stats",
+                "/api/v2/admin/system-stats",
                 headers={"Authorization": f"Bearer {admin_token}"}
             )
             responses.append(response)

@@ -5,16 +5,16 @@ This module validates that API endpoints return the correct schema structure
 as expected by frontend consumers.
 
 Test Coverage:
-1. GET /api/v1/admin/users - Paginated response {items, total, page, size}
-2. GET /api/v1/admin/users/{id}/activity - Activity data with logs
-3. GET /api/v1/auth/notifications - {notifications: [...], unread_count}
-4. GET /api/v1/admin/stats - System stats with trend deltas
-5. GET /api/v1/admin/system-stats - System stats response
+1. GET /api/v2/admin/users - Paginated response {items, total, page, size}
+2. GET /api/v2/admin/users/{id}/activity - Activity data with logs
+3. GET /api/v2/auth/notifications - {notifications: [...], unread_count}
+4. GET /api/v2/admin/stats - System stats with trend deltas
+5. GET /api/v2/admin/system-stats - System stats response
 
 Related Files:
-- backend-hormonia/app/api/v1/admin/users.py
-- backend-hormonia/app/api/v1/auth.py
-- backend-hormonia/app/api/v1/admin/system_stats.py
+- backend-hormonia/app/api/v2/admin/users.py
+- backend-hormonia/app/api/v2/auth.py
+- backend-hormonia/app/api/v2/admin/system_stats.py
 """
 import pytest
 from fastapi.testclient import TestClient
@@ -110,7 +110,7 @@ def auth_headers(client, admin_user):
 
 
 class TestUserListAPIContract:
-    """Test GET /api/v1/admin/users endpoint contract."""
+    """Test GET /api/v2/admin/users endpoint contract."""
 
     def test_user_list_returns_paginated_response(
         self, client, auth_headers, regular_users
@@ -130,7 +130,7 @@ class TestUserListAPIContract:
         }
         """
         response = client.get(
-            "/api/v1/admin/users",
+            "/api/v2/admin/users",
             headers=auth_headers,
             params={"page": 1, "size": 10}
         )
@@ -170,7 +170,7 @@ class TestUserListAPIContract:
     ):
         """Verify second page pagination works correctly."""
         response = client.get(
-            "/api/v1/admin/users",
+            "/api/v2/admin/users",
             headers=auth_headers,
             params={"page": 2, "size": 10}
         )
@@ -188,7 +188,7 @@ class TestUserListAPIContract:
     ):
         """Verify filtering works with pagination."""
         response = client.get(
-            "/api/v1/admin/users",
+            "/api/v2/admin/users",
             headers=auth_headers,
             params={"role": "doctor", "is_active": True, "page": 1, "size": 20}
         )
@@ -203,7 +203,7 @@ class TestUserListAPIContract:
 
 
 class TestUserActivityAPIContract:
-    """Test GET /api/v1/admin/users/{id}/activity endpoint contract."""
+    """Test GET /api/v2/admin/users/{id}/activity endpoint contract."""
 
     def test_user_activity_returns_activity_logs(
         self, client, auth_headers, regular_users, user_activity
@@ -224,7 +224,7 @@ class TestUserActivityAPIContract:
         """
         user = regular_users[0]
         response = client.get(
-            f"/api/v1/admin/users/{user.id}/activity",
+            f"/api/v2/admin/users/{user.id}/activity",
             headers=auth_headers
         )
 
@@ -259,7 +259,7 @@ class TestUserActivityAPIContract:
         end_date = datetime.utcnow().isoformat()
 
         response = client.get(
-            f"/api/v1/admin/users/{user.id}/activity",
+            f"/api/v2/admin/users/{user.id}/activity",
             headers=auth_headers,
             params={"start_date": start_date, "end_date": end_date}
         )
@@ -273,7 +273,7 @@ class TestUserActivityAPIContract:
 
 
 class TestNotificationsAPIContract:
-    """Test GET /api/v1/auth/notifications endpoint contract."""
+    """Test GET /api/v2/auth/notifications endpoint contract."""
 
     def test_notifications_returns_correct_schema(
         self, client, auth_headers
@@ -289,7 +289,7 @@ class TestNotificationsAPIContract:
         }
         """
         response = client.get(
-            "/api/v1/auth/notifications",
+            "/api/v2/auth/notifications",
             headers=auth_headers
         )
 
@@ -321,7 +321,7 @@ class TestNotificationsAPIContract:
     ):
         """Verify unread_count is accurate."""
         response = client.get(
-            "/api/v1/auth/notifications",
+            "/api/v2/auth/notifications",
             headers=auth_headers
         )
 
@@ -334,7 +334,7 @@ class TestNotificationsAPIContract:
 
 
 class TestSystemStatsAPIContract:
-    """Test GET /api/v1/admin/stats and system-stats endpoint contracts."""
+    """Test GET /api/v2/admin/stats and system-stats endpoint contracts."""
 
     def test_system_stats_returns_trend_deltas(
         self, client, auth_headers
@@ -360,7 +360,7 @@ class TestSystemStatsAPIContract:
         }
         """
         response = client.get(
-            "/api/v1/admin/stats",
+            "/api/v2/admin/stats",
             headers=auth_headers
         )
 
@@ -400,14 +400,14 @@ class TestSystemStatsAPIContract:
         """Verify system stats are cached for performance."""
         # First request
         response1 = client.get(
-            "/api/v1/admin/system-stats",
+            "/api/v2/admin/system-stats",
             headers=auth_headers
         )
         assert response1.status_code == 200
 
         # Second request (should be cached)
         response2 = client.get(
-            "/api/v1/admin/system-stats",
+            "/api/v2/admin/system-stats",
             headers=auth_headers
         )
         assert response2.status_code == 200
@@ -427,7 +427,7 @@ class TestAPIPerformance:
 
         start = time.time()
         response = client.get(
-            "/api/v1/admin/users",
+            "/api/v2/admin/users",
             headers=auth_headers,
             params={"page": 1, "size": 20}
         )
@@ -444,7 +444,7 @@ class TestAPIPerformance:
 
         start = time.time()
         response = client.get(
-            "/api/v1/admin/system-stats",
+            "/api/v2/admin/system-stats",
             headers=auth_headers
         )
         end = time.time()
@@ -459,9 +459,9 @@ class TestErrorHandling:
     def test_unauthorized_access_returns_401(self, client):
         """Verify endpoints require authentication."""
         endpoints = [
-            "/api/v1/admin/users",
-            "/api/v1/admin/system-stats",
-            "/api/v1/auth/notifications"
+            "/api/v2/admin/users",
+            "/api/v2/admin/system-stats",
+            "/api/v2/auth/notifications"
         ]
 
         for endpoint in endpoints:
@@ -475,7 +475,7 @@ class TestErrorHandling:
         """Verify invalid user ID returns 404."""
         fake_id = uuid4()
         response = client.get(
-            f"/api/v1/admin/users/{fake_id}/activity",
+            f"/api/v2/admin/users/{fake_id}/activity",
             headers=auth_headers
         )
 
@@ -486,7 +486,7 @@ class TestErrorHandling:
     ):
         """Verify invalid pagination parameters are handled."""
         response = client.get(
-            "/api/v1/admin/users",
+            "/api/v2/admin/users",
             headers=auth_headers,
             params={"page": 0, "size": -1}  # Invalid values
         )

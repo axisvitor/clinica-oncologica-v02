@@ -47,8 +47,8 @@ class IdempotencyMiddleware:
         self.app = app
         self.ttl_hours = ttl_hours
         self.enabled_paths = enabled_paths or [
-            "/api/v1/webhooks/whatsapp",
-            "/api/v1/webhooks/twilio",
+            "/api/v2/webhooks/whatsapp",
+            "/api/v2/webhooks/twilio",
             "/webhooks/"
         ]
 

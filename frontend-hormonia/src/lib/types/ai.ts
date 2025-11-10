@@ -9,11 +9,6 @@ export type {
   ChatRole
 } from '@/types/api'
 
-// Type aliases for internal use
-type AIChatMessage = AIChatMessageImport
-type ChatMessage = AIChatMessageImport
-type AIInsight = AIInsightImport
-
 export interface ChatSession {
   id: string
   patient_id?: string

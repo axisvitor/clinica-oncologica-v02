@@ -5,6 +5,8 @@
  * and Railway deployment compatibility
  */
 
+import { createLogger } from '@/lib/logger'
+
 interface EnvironmentConfig {
   isDevelopment: boolean
   isProduction: boolean
@@ -18,6 +20,8 @@ interface EnvironmentConfig {
   enableErrorReporting: boolean
   enablePerformanceMonitoring: boolean
 }
+
+const envLogger = createLogger('EnvironmentConfig')
 
 /**
  * Detect current environment from multiple sources
@@ -172,7 +176,7 @@ export type { EnvironmentConfig }
 
 // Development helpers
 if (environment.enableDebugLogs) {
-  console.log('🌍 Environment Configuration:', {
+  envLogger.info('Environment Configuration', {
     environment: detectEnvironment(),
     isRailway: environment.isRailway,
     apiUrl: environment.apiUrl,
@@ -241,3 +245,4 @@ export const REACT_19_FLAGS = {
   // Enable React 19 strict effects
   ENABLE_STRICT_EFFECTS: environment.isDevelopment
 } as const
+
