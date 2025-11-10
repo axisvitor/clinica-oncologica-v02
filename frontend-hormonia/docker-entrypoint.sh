@@ -101,8 +101,8 @@ echo "   VITE_API_URL=${VITE_API_URL}"
 echo "   VITE_API_BASE_PATH=${VITE_API_BASE_PATH}"
 echo "   VITE_WS_BASE_URL=${VITE_WS_BASE_URL}"
 
-export BACKEND_HOST="${BACKEND_HOST:-clinica-oncologica-v02.railway.internal}"
-export BACKEND_PORT="${BACKEND_PORT:-80}"
+export BACKEND_HOST="${BACKEND_HOST:-backend-clinica-production-161d.railway.internal}"
+export BACKEND_PORT="${BACKEND_PORT:-8000}"
 export PORT="${PORT:-8080}"
 
 echo "[Debug] Backend configuration:"
