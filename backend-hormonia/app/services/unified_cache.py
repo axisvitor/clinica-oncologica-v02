@@ -19,15 +19,15 @@ class UnifiedCacheService:
     Provides consistent TTL values, key patterns, and invalidation strategies.
     """
 
-    def __init__(self, cache_manager: Optional[CacheManager] = None):
+    def __init__(self, cache_manager: Optional[UnifiedCacheManager] = None):
         """
         Initialize unified cache service.
 
         Args:
             cache_manager: Optional cache manager instance
         """
-        self.cache_manager = cache_manager or get_cache_manager()
-        self.async_cache_manager = get_async_cache_manager()
+        self.cache_manager = cache_manager or get_unified_cache_manager()
+        self.async_cache_manager = self.cache_manager
         self.template_loader = get_template_loader()
 
     # Patient Cache Operations
