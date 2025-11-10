@@ -88,7 +88,11 @@ class WebSocketHeartbeatManager:
         max_missed_pings: int = 3,
         warning_threshold: int = 2,
         cleanup_interval: int = 60,        # seconds
-        latency_history_size: int = 10
+        latency_history_size: int = 10,
+        send_ping_callback: Optional[Callable[[str, Dict[str, Any]], Awaitable[bool]]] = None,
+        on_connection_dead: Optional[Callable[[str], None]] = None,
+        on_connection_warning: Optional[Callable[[str, 'HeartbeatMetrics'], None]] = None,
+        on_ping_timeout: Optional[Callable[[str, str], None]] = None
     ):
         """
         Initialize heartbeat manager.
@@ -114,9 +118,10 @@ class WebSocketHeartbeatManager:
         self.ping_counter = 0
         
         # Callbacks
-        self.on_connection_dead: Optional[Callable[[str], None]] = None
-        self.on_connection_warning: Optional[Callable[[str, HeartbeatMetrics], None]] = None
-        self.on_ping_timeout: Optional[Callable[[str, str], None]] = None
+        self.send_ping_callback: Optional[Callable[[str, Dict[str, Any]], Awaitable[bool]]] = send_ping_callback
+        self.on_connection_dead: Optional[Callable[[str], None]] = on_connection_dead
+        self.on_connection_warning: Optional[Callable[[str, HeartbeatMetrics], None]] = on_connection_warning
+        self.on_ping_timeout: Optional[Callable[[str, str], None]] = on_ping_timeout
         
         # Background tasks
         self._heartbeat_task: Optional[asyncio.Task] = None
@@ -201,7 +206,7 @@ class WebSocketHeartbeatManager:
     async def send_ping(
         self,
         connection_id: str,
-        send_callback: Callable[[str, dict], Awaitable[bool]]
+        send_callback: Optional[Callable[[str, dict], Awaitable[bool]]] = None
     ) -> bool:
         """
         Send a ping to a connection.
@@ -214,6 +219,11 @@ class WebSocketHeartbeatManager:
             True if ping sent successfully, False otherwise
         """
         if connection_id not in self.connection_metrics:
+            return False
+
+        callback = send_callback or self.send_ping_callback
+        if not callback:
+            logger.error("No send_ping_callback provided for WebSocketHeartbeatManager")
             return False
         
         metrics = self.connection_metrics[connection_id]
@@ -231,7 +241,7 @@ class WebSocketHeartbeatManager:
         }
         
         # Send ping
-        success = await send_callback(connection_id, ping_message)
+        success = await callback(connection_id, ping_message)
         
         if success:
             # Track ping
@@ -362,6 +372,7 @@ class WebSocketHeartbeatManager:
     
     def set_callbacks(
         self,
+        send_ping_callback: Optional[Callable[[str, Dict[str, Any]], Awaitable[bool]]] = None,
         on_connection_dead: Optional[Callable[[str], None]] = None,
         on_connection_warning: Optional[Callable[[str, HeartbeatMetrics], None]] = None,
         on_ping_timeout: Optional[Callable[[str, str], None]] = None
@@ -374,9 +385,14 @@ class WebSocketHeartbeatManager:
             on_connection_warning: Called when a connection enters warning state
             on_ping_timeout: Called when a ping times out
         """
-        self.on_connection_dead = on_connection_dead
-        self.on_connection_warning = on_connection_warning
-        self.on_ping_timeout = on_ping_timeout
+        if send_ping_callback is not None:
+            self.send_ping_callback = send_ping_callback
+        if on_connection_dead is not None:
+            self.on_connection_dead = on_connection_dead
+        if on_connection_warning is not None:
+            self.on_connection_warning = on_connection_warning
+        if on_ping_timeout is not None:
+            self.on_ping_timeout = on_ping_timeout
     
     async def _heartbeat_loop(self) -> None:
         """Background task for sending heartbeat pings."""

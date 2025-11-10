@@ -76,11 +76,13 @@ class UnifiedWebSocketConnectionManager:
         self.heartbeat_manager = WebSocketHeartbeatManager(
             heartbeat_interval=heartbeat_interval,
             heartbeat_timeout=heartbeat_timeout,
-            max_missed_pings=max_missed_pings,
+            max_missed_pings=max_missed_pings
+        )
+        self.heartbeat_manager.set_callbacks(
             send_ping_callback=self._send_ping_callback,
-            dead_connection_callback=self._handle_dead_connection,
-            connection_warning_callback=self._handle_connection_warning,
-            ping_timeout_callback=self._handle_ping_timeout
+            on_connection_dead=self._handle_dead_connection,
+            on_connection_warning=self._handle_connection_warning,
+            on_ping_timeout=self._handle_ping_timeout
         )
 
         # Background tasks
