@@ -619,3 +619,238 @@ async def update_patient(
 
     # Return formatted response
     return _serialize_patient(patient)
+
+
+@router.delete(
+    "/{patient_id}",
+    response_model=dict,
+    summary="Delete patient (soft delete)",
+    description="Soft delete a patient by setting deleted_at timestamp"
+)
+@limiter.limit("10/hour")
+async def delete_patient(
+    request: Request,
+    patient_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user_from_session),
+):
+    """
+    Soft delete a patient.
+    
+    Sets deleted_at timestamp without removing from database.
+    """
+    try:
+        patient_uuid = UUID(patient_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid patient ID format"
+        )
+    
+    patient = db.query(Patient).filter(
+        Patient.id == patient_uuid,
+        Patient.deleted_at.is_(None)
+    ).first()
+    
+    if not patient:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Patient with id {patient_id} not found"
+        )
+    
+    _ensure_patient_access(current_user, patient.doctor_id)
+    
+    # Soft delete
+    from datetime import datetime
+    patient.deleted_at = datetime.utcnow()
+    db.commit()
+    
+    # Invalidate caches
+    from app.infrastructure.cache import get_unified_cache_manager
+    cache_manager = get_unified_cache_manager()
+    cache_manager.invalidate_pattern(f"patient_by_id:*:{patient_id}*", namespace="cache")
+    cache_manager.invalidate_pattern(f"patient_list:*:{patient.doctor_id}*", namespace="cache")
+    
+    logger.info(f"Patient {patient_id} soft deleted by user")
+    
+    return {"message": f"Patient {patient.name} deleted successfully"}
+
+
+@router.post(
+    "/{patient_id}/activate",
+    response_model=PatientV2Response,
+    summary="Activate patient",
+    description="Activate patient flow state"
+)
+@limiter.limit("30/hour")
+async def activate_patient(
+    request: Request,
+    patient_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user_from_session),
+):
+    """
+    Activate patient flow.
+    
+    Sets flow_state to ACTIVE and resumes flow progression.
+    """
+    try:
+        patient_uuid = UUID(patient_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid patient ID format"
+        )
+    
+    patient = db.query(Patient).filter(
+        Patient.id == patient_uuid,
+        Patient.deleted_at.is_(None)
+    ).first()
+    
+    if not patient:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Patient with id {patient_id} not found"
+        )
+    
+    _ensure_patient_access(current_user, patient.doctor_id)
+    
+    # Activate flow
+    from app.models.patient import FlowState
+    patient.flow_state = FlowState.ACTIVE
+    db.commit()
+    db.refresh(patient)
+    
+    # Publish WebSocket event
+    from app.services.websocket_events import websocket_events
+    from app.schemas.websocket import WebSocketEventType
+    await websocket_events.publish_patient_event(
+        event_type=WebSocketEventType.PATIENT_FLOW_CHANGED,
+        patient_id=patient_uuid,
+        patient_name=patient.name,
+        doctor_id=patient.doctor_id,
+        changes={"flow_state": "ACTIVE"},
+        metadata={"action": "activated"}
+    )
+    
+    logger.info(f"Patient {patient_id} activated by user")
+    
+    return _serialize_patient(patient)
+
+
+@router.post(
+    "/{patient_id}/deactivate",
+    response_model=PatientV2Response,
+    summary="Deactivate patient",
+    description="Pause patient flow state"
+)
+@limiter.limit("30/hour")
+async def deactivate_patient(
+    request: Request,
+    patient_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user_from_session),
+):
+    """
+    Pause patient flow.
+    
+    Sets flow_state to PAUSED and stops flow progression.
+    """
+    try:
+        patient_uuid = UUID(patient_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid patient ID format"
+        )
+    
+    patient = db.query(Patient).filter(
+        Patient.id == patient_uuid,
+        Patient.deleted_at.is_(None)
+    ).first()
+    
+    if not patient:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Patient with id {patient_id} not found"
+        )
+    
+    _ensure_patient_access(current_user, patient.doctor_id)
+    
+    # Pause flow
+    from app.models.patient import FlowState
+    patient.flow_state = FlowState.PAUSED
+    db.commit()
+    db.refresh(patient)
+    
+    # Publish WebSocket event
+    from app.services.websocket_events import websocket_events
+    from app.schemas.websocket import WebSocketEventType
+    await websocket_events.publish_patient_event(
+        event_type=WebSocketEventType.PATIENT_FLOW_CHANGED,
+        patient_id=patient_uuid,
+        patient_name=patient.name,
+        doctor_id=patient.doctor_id,
+        changes={"flow_state": "PAUSED"},
+        metadata={"action": "deactivated"}
+    )
+    
+    logger.info(f"Patient {patient_id} deactivated by user")
+    
+    return _serialize_patient(patient)
+
+
+@router.post(
+    "/{patient_id}/restore",
+    response_model=PatientV2Response,
+    summary="Restore patient",
+    description="Restore a soft-deleted patient"
+)
+@limiter.limit("10/hour")
+async def restore_patient(
+    request: Request,
+    patient_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user_from_session),
+):
+    """
+    Restore soft-deleted patient.
+    
+    Clears deleted_at timestamp to restore patient.
+    """
+    try:
+        patient_uuid = UUID(patient_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid patient ID format"
+        )
+    
+    # Query including soft-deleted patients
+    patient = db.query(Patient).filter(
+        Patient.id == patient_uuid,
+        Patient.deleted_at.isnot(None)  # Only soft-deleted patients
+    ).first()
+    
+    if not patient:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No deleted patient found with id {patient_id}"
+        )
+    
+    _ensure_patient_access(current_user, patient.doctor_id)
+    
+    # Restore patient
+    patient.deleted_at = None
+    db.commit()
+    db.refresh(patient)
+    
+    # Invalidate caches
+    from app.infrastructure.cache import get_unified_cache_manager
+    cache_manager = get_unified_cache_manager()
+    cache_manager.invalidate_pattern(f"patient_by_id:*:{patient_id}*", namespace="cache")
+    cache_manager.invalidate_pattern(f"patient_list:*:{patient.doctor_id}*", namespace="cache")
+    
+    logger.info(f"Patient {patient_id} restored by user")
+    
+    return _serialize_patient(patient)
