@@ -70,6 +70,8 @@ from .cache_layer import (
     reset_cache_layer,
 )
 
+AICache = CacheLayer  # Backward compatibility alias
+
 from .batch_processor import (
     BatchProcessor,
     AIOperation,
@@ -92,6 +94,7 @@ __all__ = [
     "CacheMetrics",
     "CacheEntry",
     "get_cache_layer",
+    "AICache",
     "reset_cache_layer",
     # Batch Processing
     "BatchProcessor",
