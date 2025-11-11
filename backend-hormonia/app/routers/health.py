@@ -26,6 +26,26 @@ router = APIRouter(prefix="/health", tags=["health"])
 START_TIME = time.time()
 
 
+@router.get("", status_code=status.HTTP_200_OK)
+@router.get("/", status_code=status.HTTP_200_OK)
+async def health_check() -> Dict[str, Any]:
+    """
+    Simple health check endpoint for Railway and load balancers.
+    
+    Returns basic health status without checking dependencies.
+    Use /health/ready for comprehensive dependency checks.
+    
+    Returns:
+        dict: Basic health status
+    """
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat() + 'Z',
+        "version": "2.0.0",
+        "uptime_seconds": round(time.time() - START_TIME, 2)
+    }
+
+
 @router.get("/live", status_code=status.HTTP_200_OK)
 async def liveness_check() -> Dict[str, Any]:
     """
