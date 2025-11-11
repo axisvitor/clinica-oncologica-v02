@@ -630,23 +630,16 @@ class SagaOrchestrator:
         patient_dict["doctor_id"] = doctor_id
 
         try:
-            # Optionally generate initial welcome message
-            initial_message_text = None
-            try:
-                from app.config import settings
-                if getattr(settings, "ENABLE_WHATSAPP_ON_REGISTRATION", True) and getattr(settings, "WHATSAPP_WELCOME_MESSAGE_ENABLED", True):
-                    try:
-                        from app.templates.whatsapp.welcome_message import get_welcome_message
-                        initial_message_text = get_welcome_message(
-                            patient_name=patient_dict.get("name"),
-                            clinic_name=getattr(settings, "CLINIC_NAME", "Clínica"),
-                            support_phone=getattr(settings, "CLINIC_SUPPORT_PHONE", None),
-                        )
-                    except Exception:
-                        # Fallback: no initial message if template import fails
-                        initial_message_text = None
-            except Exception:
-                initial_message_text = None
+            # Generate initial welcome message
+            from app.config import settings
+            from app.templates.whatsapp.welcome_message import get_welcome_message
+            
+            initial_message_text = get_welcome_message(
+                patient_name=patient_dict.get("name", "paciente"),
+                clinic_name=getattr(settings, "CLINIC_NAME", "Neoplasias Litoral"),
+                support_phone=getattr(settings, "CLINIC_SUPPORT_PHONE", None),
+            )
+            logger.info(f"✓ Generated welcome message for patient: {patient_dict.get('name')}")
 
             # Execute saga
             saga_state = await self.execute_patient_onboarding(
@@ -1265,10 +1258,17 @@ class SagaOrchestrator:
             Sent message
 
         Raises:
-            Exception: If message sending fails
+            Exception: If message sending fails or message is empty
         """
         patient_id = context["patient_id"]
-        initial_message = context["initial_message"]
+        initial_message = context.get("initial_message")
+        
+        # Validate message content
+        if not initial_message or not initial_message.strip():
+            raise ValueError(
+                f"Cannot send empty message to patient {patient_id}. "
+                "initial_message must be generated before calling this action."
+            )
 
         logger.info(f"Sending initial message to patient: {patient_id}")
 
