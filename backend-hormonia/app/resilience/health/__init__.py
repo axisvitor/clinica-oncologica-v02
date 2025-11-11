@@ -11,7 +11,6 @@ Implements proactive health monitoring with:
 from .checker import HealthChecker, HealthStatus, HealthResult
 from .checks import (
     DatabaseHealthCheck,
-    OpenAIHealthCheck,
     DiskSpaceHealthCheck,
     MemoryHealthCheck,
     CPUHealthCheck
@@ -23,7 +22,6 @@ __all__ = [
     'HealthStatus',
     'HealthResult',
     'DatabaseHealthCheck',
-    'OpenAIHealthCheck',
     'DiskSpaceHealthCheck',
     'MemoryHealthCheck',
     'CPUHealthCheck',

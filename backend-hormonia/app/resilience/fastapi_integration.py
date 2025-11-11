@@ -12,12 +12,10 @@ from fastapi.responses import JSONResponse
 import logging
 
 # Import resilience components
-from .circuit_breaker import OpenAICircuitBreaker
-from .retry import RetryManager, database_retry, api_retry, openai_retry
+from .retry import RetryManager, database_retry, api_retry
 from .health import (
     health_checker,
     DatabaseHealthCheck,
-    OpenAIHealthCheck,
     DiskSpaceHealthCheck,
     MemoryHealthCheck,
     CPUHealthCheck
@@ -45,7 +43,6 @@ class FastAPIResilienceManager:
         self.config: Optional[ResilienceConfig] = None
 
         # Component instances
-        self.circuit_breaker: Optional[OpenAICircuitBreaker] = None
         self.rate_limiter: Optional[RateLimiter] = None
 
         # Initialization status
@@ -65,7 +62,6 @@ class FastAPIResilienceManager:
         logger.info(f"Initializing FastAPI resilience patterns for {environment}")
 
         # Initialize components
-        self._init_circuit_breakers()
         self._init_health_checks()
         self._init_rate_limiting()
         self._init_metrics()
@@ -78,19 +74,6 @@ class FastAPIResilienceManager:
 
         self._initialized = True
         logger.info("FastAPI resilience patterns initialized successfully")
-
-    def _init_circuit_breakers(self):
-        """Initialize circuit breakers"""
-        if not self.config:
-            return
-
-        # OpenAI circuit breaker
-        self.circuit_breaker = OpenAICircuitBreaker(cache_ttl=1800.0)
-
-        # Register with metrics collector
-        metrics_collector.register_circuit_breaker('openai', self.circuit_breaker)
-
-        logger.info("Circuit breakers initialized")
 
     def _init_health_checks(self):
         """Initialize health checks"""
@@ -398,10 +381,6 @@ class FastAPIResilienceManager:
 
         return False
 
-    def get_circuit_breaker(self) -> Optional[OpenAICircuitBreaker]:
-        """Get OpenAI circuit breaker instance"""
-        return self.circuit_breaker
-
     def get_health_checker(self):
         """Get health checker instance"""
         return health_checker
@@ -439,7 +418,6 @@ class FastAPIResilienceManager:
 
         if self._initialized:
             status['components'] = {
-                'circuit_breaker': self.circuit_breaker is not None,
                 'health_checks': self.config and self.config.health_check_enabled,
                 'rate_limiting': self.rate_limiter is not None,
                 'metrics': self.config and self.config.metrics_enabled
@@ -481,14 +459,6 @@ def init_resilience(app: FastAPI) -> FastAPIResilienceManager:
     return fastapi_resilience_manager
 
 
-# FastAPI dependency injection support
-async def get_circuit_breaker() -> OpenAICircuitBreaker:
-    """FastAPI dependency for circuit breaker"""
-    if not fastapi_resilience_manager.circuit_breaker:
-        raise HTTPException(status_code=503, detail="Circuit breaker not initialized")
-    return fastapi_resilience_manager.circuit_breaker
-
-
 async def get_health_checker():
     """FastAPI dependency for health checker"""
     return health_checker
@@ -511,14 +481,6 @@ def with_rate_limit(requests_per_second: float = 10.0, burst_size: int = 50):
     return decorator
 
 
-def with_circuit_breaker(func):
-    """FastAPI route decorator for circuit breaker"""
-    async def wrapper(*args, **kwargs):
-        circuit_breaker = await get_circuit_breaker()
-        return await circuit_breaker.acall_with_cache(func, *args, **kwargs)
-    return wrapper
-
-
 # Example usage patterns for FastAPI
 """
 # In your FastAPI app initialization:
@@ -528,30 +490,12 @@ app = FastAPI()
 resilience = init_resilience(app)
 
 # In your route handlers:
-from app.resilience.fastapi_integration import get_circuit_breaker
-from app.resilience.retry import openai_retry
+from app.resilience.retry import api_retry
 
-@app.post("/api/generate")
+@app.post("/api/external")
 @with_rate_limit(requests_per_second=5.0, burst_size=20)
-async def generate_text(
-    request: GenerateRequest,
-    circuit_breaker: OpenAICircuitBreaker = Depends(get_circuit_breaker)
-):
-    # Use circuit breaker for OpenAI API calls
-    response = await circuit_breaker.acreate_chat_completion(
-        messages=[{"role": "user", "content": request.prompt}]
-    )
-    return response
-
-# In your service classes:
-from app.resilience.fastapi_integration import fastapi_resilience_manager
-
-class AIService:
-    def __init__(self):
-        self.circuit_breaker = fastapi_resilience_manager.get_circuit_breaker()
-
-    async def generate_response(self, prompt: str):
-        return await self.circuit_breaker.acreate_chat_completion(
-            messages=[{"role": "user", "content": prompt}]
-        )
+@api_retry(max_attempts=3)
+async def call_external_api(request: ExternalRequest):
+    # Call your upstream API here
+    ...
 """
