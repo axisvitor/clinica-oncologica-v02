@@ -19,15 +19,15 @@ This wrapper will be removed in a future version.
 """
 import warnings
 
-# Import refactored service from new location
-from app.domain.quizzes import (
+# Import refactored service and components directly
+from app.services.quiz.quiz_service import (
     MonthlyQuizService as RefactoredMonthlyQuizService,
-    SessionManager,
-    QuestionRenderer,
-    AnswerValidator,
-    ScoreCalculator,
-    ReportGenerator
 )
+from app.domain.quizzes.quiz_session_manager import QuizSessionManager as SessionManager
+from app.domain.quizzes.question_renderer import QuestionRenderer
+from app.domain.quizzes.answer_validator import AnswerValidator
+from app.domain.quizzes.score_calculator import ScoreCalculator
+from app.domain.quizzes.report_generator import ReportGenerator
 
 # Issue deprecation warning
 warnings.warn(

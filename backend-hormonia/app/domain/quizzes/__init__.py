@@ -18,8 +18,8 @@ Consolidated Services (from /app/services migration):
 - Token rotation (security/)
 """
 
-# Main quiz service (already migrated)
-from .monthly_quiz_service import MonthlyQuizService
+# Main quiz service (temporarily re-exported from services module)
+from app.services.quiz.quiz_service import MonthlyQuizService
 
 # Template management
 from .templates import QuizTemplateService, QuizTemplateLoadError, get_quiz_template_service
@@ -52,10 +52,10 @@ from .security import (
 
 # Session management (renamed to avoid collision with core.session_manager)
 from .quiz_session_manager import QuizSessionManager
-from .question_renderer import QuizQuestionRenderer
-from .answer_validator import QuizAnswerValidator
-from .score_calculator import QuizScoreCalculator
-from .report_generator import QuizReportGenerator
+from .question_renderer import QuestionRenderer as QuizQuestionRenderer
+from .answer_validator import AnswerValidator as QuizAnswerValidator
+from .score_calculator import ScoreCalculator as QuizScoreCalculator
+from .report_generator import ReportGenerator as QuizReportGenerator
 
 __all__ = [
     # Main service

@@ -18,7 +18,7 @@ from sqlalchemy import and_, or_
 from app.models.quiz import QuizSession
 from app.models.patient import Patient
 from app.repositories.quiz import QuizSessionRepository
-from app.services.monthly_quiz_service import MonthlyQuizService
+from app.services.quiz.quiz_service import MonthlyQuizService
 from app.core.monthly_quiz_config import get_monthly_quiz_config
 from app.exceptions import ValidationError, NotFoundError
 from app.schemas.monthly_quiz import DeliveryMethod, QuizLinkStatus
