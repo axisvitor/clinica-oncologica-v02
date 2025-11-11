@@ -1,8 +1,8 @@
 # Backend Dockerfile - FastAPI com Python 3.13
 FROM python:3.13-slim
 
-# Permite build a partir da raiz do repositório (padrão) ou diretamente do diretório backend
-ARG APP_SRC=backend-hormonia
+# Permite build a partir do diretório atual (padrão) ou do repositório raiz via --build-arg APP_SRC=backend-hormonia
+ARG APP_SRC=.
 
 # Definir diretório de trabalho
 WORKDIR /app
