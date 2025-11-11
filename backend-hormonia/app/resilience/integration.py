@@ -10,12 +10,10 @@ from typing import Optional
 from flask import Flask
 
 # Import all resilience components
-from .circuit_breaker import OpenAICircuitBreaker
-from .retry import RetryManager, database_retry, api_retry, openai_retry
+from .retry import RetryManager, database_retry, api_retry
 from .health import (
     health_checker,
     DatabaseHealthCheck,
-    OpenAIHealthCheck,
     DiskSpaceHealthCheck,
     MemoryHealthCheck,
     CPUHealthCheck,
@@ -45,7 +43,6 @@ class ResilienceManager:
         self.config: Optional[ResilienceConfig] = None
 
         # Component instances
-        self.circuit_breaker: Optional[OpenAICircuitBreaker] = None
         self.rate_limit_middleware = None
 
         # Initialization status
@@ -65,7 +62,6 @@ class ResilienceManager:
         logger.info(f"Initializing resilience patterns for {environment} environment")
 
         # Initialize components
-        self._init_circuit_breakers()
         self._init_health_checks()
         self._init_rate_limiting()
         self._init_metrics()
@@ -77,21 +73,6 @@ class ResilienceManager:
 
         self._initialized = True
         logger.info("Resilience patterns initialized successfully")
-
-    def _init_circuit_breakers(self):
-        """Initialize circuit breakers"""
-        if not self.config:
-            return
-
-        # OpenAI circuit breaker
-        self.circuit_breaker = OpenAICircuitBreaker(
-            cache_ttl=1800.0  # 30 minutes cache
-        )
-
-        # Register with metrics collector
-        metrics_collector.register_circuit_breaker('openai', self.circuit_breaker)
-
-        logger.info("Circuit breakers initialized")
 
     def _init_health_checks(self):
         """Initialize health checks"""
@@ -107,15 +88,6 @@ class ResilienceManager:
                 slow_query_threshold=1.0
             )
             health_checker.add_check(db_check)
-
-        # OpenAI health check
-        openai_api_key = os.getenv('OPENAI_API_KEY')
-        if openai_api_key:
-            openai_check = OpenAIHealthCheck(
-                api_key=openai_api_key,
-                timeout=15.0
-            )
-            health_checker.add_check(openai_check)
 
         # System health checks
         disk_check = DiskSpaceHealthCheck(
@@ -192,10 +164,6 @@ class ResilienceManager:
 
         logger.info("Flask blueprints registered")
 
-    def get_circuit_breaker(self) -> Optional[OpenAICircuitBreaker]:
-        """Get OpenAI circuit breaker instance"""
-        return self.circuit_breaker
-
     def get_health_checker(self):
         """Get health checker instance"""
         return health_checker
@@ -241,7 +209,6 @@ class ResilienceManager:
 
         if self._initialized:
             status['components'] = {
-                'circuit_breaker': self.circuit_breaker is not None,
                 'health_checks': self.config and self.config.health_check_enabled,
                 'rate_limiting': self.rate_limit_middleware is not None,
                 'metrics': self.config and self.config.metrics_enabled
@@ -285,17 +252,15 @@ def init_resilience(app: Flask) -> ResilienceManager:
 
 def setup_resilience_decorators():
     """
-    Setup common resilience decorators for the application
+    Setup common resilience decorators for the application.
 
     Returns decorators that can be used throughout the app:
     - @database_retry: For database operations
     - @api_retry: For external API calls
-    - @openai_retry: For OpenAI API calls
     """
     return {
         'database_retry': database_retry,
         'api_retry': api_retry,
-        'openai_retry': openai_retry
     }
 
 
@@ -309,24 +274,12 @@ resilience = init_resilience(app)
 
 # In your route handlers:
 from app.resilience.rate_limit import rate_limit, user_rate_limit
-from app.resilience.retry import openai_retry
+from app.resilience.retry import api_retry
 
-@app.route('/api/generate')
+@app.route('/api/external')
 @user_rate_limit(requests_per_second=5.0, burst_size=20)
-@openai_retry(max_attempts=3)
-def generate_text():
-    # Your OpenAI API call here
+@api_retry(max_attempts=3)
+def call_external_service():
+    # Your API call here
     pass
-
-# In your service classes:
-from app.resilience import resilience_manager
-
-class AIService:
-    def __init__(self):
-        self.circuit_breaker = resilience_manager.get_circuit_breaker()
-
-    async def generate_response(self, prompt):
-        return await self.circuit_breaker.acreate_chat_completion(
-            messages=[{"role": "user", "content": prompt}]
-        )
 """

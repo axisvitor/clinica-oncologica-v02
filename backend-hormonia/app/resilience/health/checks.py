@@ -7,8 +7,6 @@ Production-ready health checks for various system components.
 import time
 import asyncio
 import psutil
-import psycopg2
-import openai
 from pathlib import Path
 from typing import Dict, Any, Optional
 from sqlalchemy import create_engine, text
@@ -113,98 +111,6 @@ class DatabaseHealthCheck(HealthCheck):
 
         except Exception as e:
             return {'info_error': str(e)}
-
-
-class OpenAIHealthCheck(HealthCheck):
-    """OpenAI API health check"""
-
-    def __init__(self,
-                 api_key: str,
-                 name: str = "openai_api",
-                 timeout: float = 15.0,
-                 test_model: str = "gpt-3.5-turbo"):
-        super().__init__(name, timeout)
-        self.api_key = api_key
-        self.test_model = test_model
-        openai.api_key = api_key
-
-    async def check(self) -> HealthResult:
-        """Perform OpenAI API health check"""
-        start_time = time.time()
-
-        try:
-            # Test with a simple completion
-            response = await asyncio.get_event_loop().run_in_executor(
-                None,
-                self._test_completion
-            )
-
-            duration = time.time() - start_time
-
-            # Check response quality
-            if response and hasattr(response, 'choices'):
-                status = HealthStatus.HEALTHY
-                message = "OpenAI API responding normally"
-
-                details = {
-                    'model': self.test_model,
-                    'response_time': duration,
-                    'usage': getattr(response, 'usage', {})._asdict() if hasattr(response, 'usage') else {}
-                }
-            else:
-                status = HealthStatus.DEGRADED
-                message = "OpenAI API responding but with unexpected format"
-                details = {'response': str(response)}
-
-            return HealthResult(
-                name=self.name,
-                status=status,
-                message=message,
-                duration=duration,
-                details=details
-            )
-
-        except openai.RateLimitError as e:
-            duration = time.time() - start_time
-            return HealthResult(
-                name=self.name,
-                status=HealthStatus.DEGRADED,
-                message=f"OpenAI API rate limited: {str(e)}",
-                duration=duration,
-                error=str(e),
-                details={'error_type': 'rate_limit'}
-            )
-
-        except openai.APIError as e:
-            duration = time.time() - start_time
-            return HealthResult(
-                name=self.name,
-                status=HealthStatus.UNHEALTHY,
-                message=f"OpenAI API error: {str(e)}",
-                duration=duration,
-                error=str(e),
-                details={'error_type': 'api_error'}
-            )
-
-        except Exception as e:
-            duration = time.time() - start_time
-            return HealthResult(
-                name=self.name,
-                status=HealthStatus.UNHEALTHY,
-                message=f"OpenAI API check failed: {str(e)}",
-                duration=duration,
-                error=str(e)
-            )
-
-    def _test_completion(self):
-        """Test OpenAI completion (sync for executor)"""
-        return openai.ChatCompletion.create(
-            model=self.test_model,
-            messages=[{"role": "user", "content": "Say 'OK'"}],
-            max_tokens=5,
-            temperature=0
-        )
-
 
 class DiskSpaceHealthCheck(HealthCheck):
     """Disk space health check"""

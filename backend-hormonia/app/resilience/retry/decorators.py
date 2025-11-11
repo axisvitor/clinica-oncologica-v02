@@ -149,7 +149,8 @@ def database_retry(max_attempts: int = 5,
     """
     Specialized retry decorator for database operations
     """
-    import psycopg2
+    from psycopg import OperationalError as PsycopgOperationalError
+    from psycopg.errors import IntegrityError as PsycopgIntegrityError, ProgrammingError as PsycopgProgrammingError
     from sqlalchemy.exc import OperationalError, DisconnectionError
 
     return retry(
@@ -160,12 +161,12 @@ def database_retry(max_attempts: int = 5,
         exceptions=(
             OperationalError,
             DisconnectionError,
-            psycopg2.OperationalError,
+            PsycopgOperationalError,
             ConnectionError
         ),
         stop_exceptions=(
-            psycopg2.IntegrityError,
-            psycopg2.ProgrammingError
+            PsycopgIntegrityError,
+            PsycopgProgrammingError
         ),
         name="database_retry"
     )
@@ -197,45 +198,6 @@ def api_retry(max_attempts: int = 3,
             requests.HTTPError,  # 4xx client errors shouldn't retry
         ),
         name="api_retry"
-    )
-
-
-def openai_retry(max_attempts: int = 3,
-                base_delay: float = 2.0,
-                max_delay: float = 120.0,
-                enable_dead_letter: bool = True):
-    """
-    Specialized retry decorator for OpenAI API calls
-    """
-    import openai
-
-    def rate_limit_condition(exception: Exception, attempt: int) -> bool:
-        """Custom condition for OpenAI rate limits"""
-        if isinstance(exception, openai.RateLimitError):
-            # For rate limits, increase backoff
-            return True
-        return True
-
-    return retry(
-        max_attempts=max_attempts,
-        backoff_strategy=BackoffStrategy.EXPONENTIAL,
-        base_delay=base_delay,
-        max_delay=max_delay,
-        exceptions=(
-            openai.APIError,
-            openai.RateLimitError,
-            openai.APITimeoutError,
-            openai.APIConnectionError,
-            ConnectionError,
-            TimeoutError
-        ),
-        stop_exceptions=(
-            openai.AuthenticationError,
-            openai.PermissionError
-        ),
-        enable_dead_letter=enable_dead_letter,
-        retry_condition=rate_limit_condition,
-        name="openai_retry"
     )
 
 

@@ -10,12 +10,10 @@ Implements circuit breaker for external APIs with:
 
 from .breaker import CircuitBreaker, CircuitBreakerStates, CircuitBreakerConfig
 from .cache_fallback import CacheFallback
-from .openai_breaker import OpenAICircuitBreaker
 
 __all__ = [
     'CircuitBreaker',
     'CircuitBreakerStates',
     'CircuitBreakerConfig',
-    'CacheFallback',
-    'OpenAICircuitBreaker'
+    'CacheFallback'
 ]
