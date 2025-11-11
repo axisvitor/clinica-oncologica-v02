@@ -39,7 +39,8 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
 # Health check (usa $PORT injetado pelo Railway)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+# Aumentado start-period para 120s para dar tempo de inicialização completa
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
 # Comando de inicialização: Apenas Uvicorn (SEM MIGRAÇÕES)
