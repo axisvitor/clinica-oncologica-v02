@@ -1154,6 +1154,53 @@
 #### Triggers
 - (sem triggers)
 
+### Tabela `public.notifications`
+
+- Tamanho: tabela 8.0 KB | índices 72.0 KB | total 80.0 KB
+- Linhas (aprox): 0
+
+#### Colunas
+| Coluna | Tipo | Nulo | Default |
+|--------|------|------|---------|
+| id | uuid | NO | gen_random_uuid() |
+| user_id | uuid | NO |  |
+| related_patient_id | uuid | YES |  |
+| notification_type | character varying | NO |  |
+| priority | character varying | NO | 'medium'::character varying |
+| title | character varying | NO |  |
+| message | text | NO |  |
+| action_url | character varying | YES |  |
+| action_label | character varying | YES |  |
+| notification_metadata | jsonb | YES |  |
+| is_read | boolean | NO | false |
+| read_at | timestamp with time zone | YES |  |
+| is_archived | boolean | NO | false |
+| archived_at | timestamp with time zone | YES |  |
+| expires_at | timestamp with time zone | YES |  |
+| created_at | timestamp with time zone | NO | CURRENT_TIMESTAMP |
+| updated_at | timestamp with time zone | NO | CURRENT_TIMESTAMP |
+
+#### Chave Primária
+- id
+
+#### Chaves Estrangeiras
+- user_id → public.users.id
+- related_patient_id → public.patients.id
+
+#### Índices
+- notifications_pkey: `CREATE UNIQUE INDEX notifications_pkey ON public.notifications USING btree (id)`
+- idx_notifications_user_id: `CREATE INDEX idx_notifications_user_id ON public.notifications USING btree (user_id)`
+- idx_notifications_related_patient_id: `CREATE INDEX idx_notifications_related_patient_id ON public.notifications USING btree (related_patient_id)`
+- idx_notifications_type: `CREATE INDEX idx_notifications_type ON public.notifications USING btree (notification_type)`
+- idx_notifications_priority: `CREATE INDEX idx_notifications_priority ON public.notifications USING btree (priority)`
+- idx_notifications_is_read: `CREATE INDEX idx_notifications_is_read ON public.notifications USING btree (is_read)`
+- idx_notifications_is_archived: `CREATE INDEX idx_notifications_is_archived ON public.notifications USING btree (is_archived)`
+- idx_notifications_expires_at: `CREATE INDEX idx_notifications_expires_at ON public.notifications USING btree (expires_at)`
+- idx_notifications_user_unread: `CREATE INDEX idx_notifications_user_unread ON public.notifications USING btree (user_id, is_read, is_archived) WHERE ((is_read = false) AND (is_archived = false))`
+
+#### Triggers
+- (sem triggers)
+
 ### Tabela `public.patients`
 
 - Tamanho: tabela 48.0 KB | índices 240.0 KB | total 288.0 KB

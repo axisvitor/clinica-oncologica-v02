@@ -1,0 +1,63 @@
+-- ============================================================================
+-- Migration: 004_create_notifications_table.sql
+-- Description: Create notifications table for system notifications
+-- Date: 2025-11-11
+-- ============================================================================
+
+-- Create notifications table
+CREATE TABLE IF NOT EXISTS notifications (
+    -- Primary Key
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    
+    -- Foreign Keys
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    related_patient_id UUID REFERENCES patients(id) ON DELETE CASCADE,
+    
+    -- Notification Details
+    notification_type VARCHAR(50) NOT NULL,
+    priority VARCHAR(50) NOT NULL DEFAULT 'medium',
+    
+    -- Content
+    title VARCHAR(200) NOT NULL,
+    message TEXT NOT NULL,
+    action_url VARCHAR(500),
+    action_label VARCHAR(100),
+    
+    -- Metadata
+    notification_metadata JSONB,
+    
+    -- Status
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    read_at TIMESTAMP WITH TIME ZONE,
+    is_archived BOOLEAN NOT NULL DEFAULT FALSE,
+    archived_at TIMESTAMP WITH TIME ZONE,
+    
+    -- Expiration
+    expires_at TIMESTAMP WITH TIME ZONE,
+    
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes for performance
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_related_patient_id ON notifications(related_patient_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(notification_type);
+CREATE INDEX IF NOT EXISTS idx_notifications_priority ON notifications(priority);
+CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
+CREATE INDEX IF NOT EXISTS idx_notifications_is_archived ON notifications(is_archived);
+CREATE INDEX IF NOT EXISTS idx_notifications_expires_at ON notifications(expires_at);
+
+-- Create composite index for common queries
+CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, is_read, is_archived) 
+WHERE is_read = FALSE AND is_archived = FALSE;
+
+-- Add comment to table
+COMMENT ON TABLE notifications IS 'System notifications for users with support for patient-related alerts';
+
+-- Add comments to columns
+COMMENT ON COLUMN notifications.notification_type IS 'Type: info, warning, error, success, alert, reminder';
+COMMENT ON COLUMN notifications.priority IS 'Priority: low, medium, high, urgent';
+COMMENT ON COLUMN notifications.notification_metadata IS 'Additional metadata in JSON format';
+COMMENT ON COLUMN notifications.expires_at IS 'Optional expiration timestamp for temporary notifications';
