@@ -62,20 +62,58 @@ CACHE_TTL_VERSIONS = 3600  # 1 hour
 # NOTE: These should be moved to templates_shared.py and imported from there
 
 async def _get_current_user_simple(
-    session_id: str = Cookie(None, alias="session_id"),
+    session_cookie_id: str = Cookie(None, alias="session_id"),
     x_session_id: str = Header(None, alias="X-Session-ID"),
     db: Session = Depends(get_db),
     redis_cache = Depends(get_redis_cache)
 ) -> Dict[str, Any]:
     """Simplified session validation for template operations."""
-    from app.dependencies.auth_dependencies import get_current_user_from_session
-    final_session_id = session_id or x_session_id
+    final_session_id = session_cookie_id or x_session_id
     if not final_session_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Session ID required"
         )
-    return await get_current_user_from_session(final_session_id, db, redis_cache)
+
+    session_data = await redis_cache.get_session(final_session_id)
+    if not session_data:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired session"
+        )
+
+    firebase_uid = session_data.get("firebase_uid")
+    if not firebase_uid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid session data"
+        )
+
+    user_data = await redis_cache.get_user_by_uid(firebase_uid)
+    if not user_data:
+        user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found"
+            )
+        user_data = {
+            "id": str(user.id),
+            "firebase_uid": user.firebase_uid,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
+            "is_active": user.is_active
+        }
+        await redis_cache.cache_user_data(firebase_uid, user_data, ttl=900)
+
+    if not user_data.get("is_active", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is inactive"
+        )
+
+    return user_data
 
 
 def _extract_user_context(current_user: Dict[str, Any]) -> tuple[UserRole, UUID | None]:

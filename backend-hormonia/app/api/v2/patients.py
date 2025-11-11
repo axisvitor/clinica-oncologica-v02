@@ -33,7 +33,7 @@ router = patients_router
 
 
 async def _get_current_user_simple(
-    session_id: Optional[str] = Cookie(None, alias="session_id"),
+    session_cookie_id: Optional[str] = Cookie(None, alias="session_id"),
     x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
     db: Session = Depends(get_db),
     redis_cache=Depends(get_redis_cache),
@@ -43,7 +43,7 @@ async def _get_current_user_simple(
 
     Returns a dict with user information or raises HTTP 401/403 accordingly.
     """
-    final_session_id = session_id or x_session_id
+    final_session_id = session_cookie_id or x_session_id
     if not final_session_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
