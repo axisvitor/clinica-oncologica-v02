@@ -217,7 +217,7 @@ class DeliverySchedule(BaseModel):
     frequency: Literal["once", "daily", "weekly", "monthly", "quarterly", "custom"]
     start_date: date
     end_date: Optional[date] = None
-    time_of_day: str = Field(..., regex=r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$")
+    time_of_day: str = Field(..., pattern=r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$")
     timezone: str = "UTC"
 
     # For weekly: day of week (0=Monday, 6=Sunday)
@@ -250,7 +250,7 @@ class EmailDeliveryConfig(BaseModel):
 
 class WebhookDeliveryConfig(BaseModel):
     """Webhook delivery configuration."""
-    url: str = Field(..., regex=r"^https?://")
+    url: str = Field(..., pattern=r"^https?://")
     method: Literal["POST", "PUT"] = "POST"
     headers: Dict[str, str] = Field(default_factory=dict)
     auth_type: Optional[Literal["none", "basic", "bearer", "api_key"]] = "none"

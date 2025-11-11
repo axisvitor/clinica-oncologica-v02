@@ -234,7 +234,7 @@ class ScheduledReportCreate(BaseModel):
     frequency: ScheduleFrequency
     start_date: date
     end_date: Optional[date] = None
-    time_of_day: str = Field(..., regex=r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$")  # HH:MM
+    time_of_day: str = Field(..., pattern=r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$")  # HH:MM
     timezone: str = "UTC"
 
     # Filters (same as ReportGenerateRequest)
@@ -266,7 +266,7 @@ class ScheduledReportUpdate(BaseModel):
 
     # Schedule
     frequency: Optional[ScheduleFrequency] = None
-    time_of_day: Optional[str] = Field(None, regex=r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$")
+    time_of_day: Optional[str] = Field(None, pattern=r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$")
     timezone: Optional[str] = None
     end_date: Optional[date] = None
 

@@ -479,7 +479,7 @@ async def get_patient_engagement(
     description="Get patient distribution by treatment type (ADMIN/DOCTOR only)"
 )
 async def get_treatment_distribution(
-    period: str = Query("30d", regex="^(7d|30d|90d|all)$", description="Analytics period"),
+    period: str = Query("30d", pattern="^(7d|30d|90d|all)$", description="Analytics period"),
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user_from_session),
 ):

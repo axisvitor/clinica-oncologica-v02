@@ -269,7 +269,7 @@ async def get_patient_journey_analytics(
 @limiter.limit("10/minute")
 async def generate_flow_insights(
     flow_type: Optional[str] = Query(None),
-    analysis_depth: str = Query("standard", regex="^(basic|standard|detailed)$"),
+    analysis_depth: str = Query("standard", pattern="^(basic|standard|detailed)$"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):

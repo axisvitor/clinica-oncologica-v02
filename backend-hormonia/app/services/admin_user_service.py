@@ -221,7 +221,7 @@ class PasswordResetResult(BaseModel):
 class BulkUserOperationRequest(BaseModel):
     """Request model for bulk user operations."""
     user_ids: List[UUID] = Field(..., min_items=1, max_items=100)
-    operation: str = Field(..., regex="^(activate|deactivate|delete)$")
+    operation: str = Field(..., pattern="^(activate|deactivate|delete)$")
     reason: Optional[str] = Field(None, max_length=500)
 
 
