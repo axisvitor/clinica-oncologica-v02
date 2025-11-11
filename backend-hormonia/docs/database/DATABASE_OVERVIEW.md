@@ -23,8 +23,8 @@
 - **Chaves primárias**: ver referência por tabela em SCHEMA_REFERENCE.md
 - **Relacionamentos**: 57 chaves estrangeiras ativas
 - **Triggers**: 14 gatilhos
-- **Enums personalizados**: 13 tipos
-- **Índices**: 264 índices no total
+- **Enums personalizados**: 14 tipos (incluindo message_priority)
+- **Índices**: 265 índices no total
 
 ---
 
