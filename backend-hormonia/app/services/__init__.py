@@ -36,9 +36,15 @@ from .state_machine import StateMachine
 # AI Services
 from .ai import AIHumanizer, SentimentAnalyzer, PatientContext
 
-# Alert Services
-from .alert import AlertService
-from .alert_processor import AlertProcessor
+# Alert & Notification Services (unified architecture)
+from .alerts import (
+    AlertManager,
+    AlertManagerAdapter,
+    AlertProcessor,
+)
+
+# Backward compatibility: legacy imports still expect AlertService
+AlertService = AlertManagerAdapter
 
 # Analytics Services
 from .analytics import AnalyticsService
@@ -51,9 +57,12 @@ from .webhook_processor import WebhookProcessor
 
 # Messaging Services
 from .message_scheduler import MessageScheduler
-from .message_sender import MessageSender
+from .messaging import MessageSender
 from .websocket_events import websocket_events
-from .websocket_manager import ConnectionManager
+from .websocket import UnifiedWebSocketConnectionManager
+
+# Compatibility alias for legacy ConnectionManager name
+ConnectionManager = UnifiedWebSocketConnectionManager
 
 # Utility Services
 from .template_loader import EnhancedTemplateLoader
@@ -102,6 +111,8 @@ __all__ = [
     
     # Alert Services
     "AlertService",
+    "AlertManager",
+    "AlertManagerAdapter",
     "AlertProcessor",
     
     # Analytics Services

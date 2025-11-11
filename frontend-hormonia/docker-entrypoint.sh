@@ -147,6 +147,6 @@ window.__ENV_CONFIG__ = {
 console.log('[Runtime Config] Configuration loaded from Railway environment');
 EOF
 
-envsubst '${BACKEND_HOST} ${BACKEND_PORT} ${PORT}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+envsubst '${BACKEND_HOST} ${BACKEND_PORT} ${BACKEND_SCHEME} ${PORT}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
 
 exec nginx -g 'daemon off;'
