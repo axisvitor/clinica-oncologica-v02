@@ -33,7 +33,7 @@ def clean_patient_data():
     print("PATIENT DATA CLEANUP SCRIPT")
     print("=" * 70)
     print("\nThis script will DELETE the following data:")
-    print("  ✗ All patients")
+    print("  ✗ All patients (including phone numbers)")
     print("  ✗ Patient flow states")
     print("  ✗ Patient onboarding sagas")
     print("  ✗ Messages (WhatsApp)")
@@ -45,6 +45,7 @@ def clean_patient_data():
     print("  ✗ Contacts related to patients")
     print("  ✗ Flow analytics")
     print("  ✗ Notifications related to patients")
+    print("  ✗ Security audit logs (phone number records)")
     print("\nThis script will PRESERVE:")
     print("  ✓ Users (doctors/admins)")
     print("  ✓ Flow templates and versions")
@@ -86,7 +87,8 @@ def clean_patient_data():
                     "messages",
                     "patient_onboarding_saga",
                     "patient_flow_states",
-                    "patients"
+                    "patients",
+                    "security_audit_log"
                 ]
                 
                 counts_before = {}
@@ -175,8 +177,14 @@ def clean_patient_data():
                 deleted = cur.rowcount
                 print(f"   ✓ Deleted {deleted} flow states")
                 
-                # 13. Finally, delete patients
-                print("\n13. Deleting patients...")
+                # 13. Delete security audit logs (contains phone numbers)
+                print("\n13. Deleting security audit logs...")
+                cur.execute("DELETE FROM security_audit_log")
+                deleted = cur.rowcount
+                print(f"   ✓ Deleted {deleted} security audit log entries")
+                
+                # 14. Finally, delete patients (this removes phone numbers)
+                print("\n14. Deleting patients (including phone numbers)...")
                 cur.execute("DELETE FROM patients")
                 deleted = cur.rowcount
                 print(f"   ✓ Deleted {deleted} patients")
@@ -184,6 +192,7 @@ def clean_patient_data():
                 # Commit the transaction
                 conn.commit()
                 print("\n✓ All changes committed to database")
+                print("✓ All phone numbers have been removed from the database")
                 
                 # Verify deletion
                 print("\n📊 Verifying deletion...")
