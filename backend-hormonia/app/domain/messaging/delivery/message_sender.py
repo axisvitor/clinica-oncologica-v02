@@ -19,7 +19,7 @@ from app.integrations.evolution import get_evolution_client, EvolutionAPIError
 from app.integrations.whatsapp.services.message_service import WhatsAppMessageService as WhatsAppQueueService
 from app.models.message import Message, MessageType, MessageStatus
 from app.models.flow import PatientFlowState
-from app.services.message import MessageService
+from app.domain.messaging.core import MessageService
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
 from app.services.websocket_events import websocket_events
 from app.schemas.websocket import WebSocketEventType
