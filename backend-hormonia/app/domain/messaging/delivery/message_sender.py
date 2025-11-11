@@ -20,7 +20,7 @@ from app.integrations.whatsapp.services.message_service import WhatsAppMessageSe
 from app.models.message import Message, MessageType, MessageStatus
 from app.models.flow import PatientFlowState
 from app.domain.messaging.core import MessageService
-from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
+from app.domain.messaging.whatsapp.whatsapp_service import WhatsAppService, MessagingMode
 from app.services.websocket_events import websocket_events
 from app.schemas.websocket import WebSocketEventType
 from app.exceptions import ExternalServiceError, NotFoundError
@@ -75,7 +75,7 @@ class MessageSender:
             logger.info(f"MessageSender using {messaging_mode.value} mode with full retry/backoff support")
 
         # Initialize unified service as delegate
-        self._unified_service = UnifiedWhatsAppService(
+        self._unified_service = WhatsAppService(
             db=db,
             messaging_mode=messaging_mode  # Use queue mode by default for retry/backoff
         )
