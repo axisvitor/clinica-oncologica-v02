@@ -70,6 +70,15 @@ class DeliveryStatus(str, enum.Enum):
     CANCELLED = "cancelled"
 
 
+class MessagePriority(str, enum.Enum):
+    """Message priority levels for scheduling and rate limiting."""
+
+    CRITICAL = "critical"
+    HIGH = "high"
+    NORMAL = "normal"
+    LOW = "low"
+
+
 class Message(BaseModel):
     """Message model for WhatsApp communication."""
 
@@ -110,6 +119,19 @@ class Message(BaseModel):
 
     # Metadata for buttons, media URLs, etc.
     message_metadata = Column(JSONB, nullable=True, default=dict)
+
+    priority = Column(
+        SAEnum(
+            MessagePriority,
+            name="message_priority",
+            native_enum=True,
+            create_type=False,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+            validate_strings=True,
+        ),
+        nullable=False,
+        default=MessagePriority.NORMAL,
+    )
 
     # CRITICAL FIX #5: Idempotency key to prevent duplicate sends
     # Unique per (patient_id, idempotency_key) - enforced by database constraint

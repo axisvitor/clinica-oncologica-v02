@@ -181,27 +181,39 @@ def cache_result(
     return decorator
 
 
-def cache_response(seconds: int = 300):
+def cache_response(
+    seconds: int = 300,
+    *,
+    ttl: Optional[int] = None,
+    key_prefix: Optional[str] = None,
+    cache_type: str = "analytics_dashboard"
+):
     """
     Decorator for caching HTTP response data (backward compatibility with caching.py).
 
     Args:
         seconds: Cache TTL in seconds (default 5 minutes)
+        ttl: Optional override for TTL (takes precedence over ``seconds``)
+        key_prefix: Optional custom key prefix (defaults to function name)
+        cache_type: Cache bucket/type registered in the unified cache manager
     """
+
+    ttl_seconds = ttl if ttl is not None else seconds
+
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
             cache_manager = get_unified_cache_manager()
 
             # Generate cache key from function name and arguments
-            func_name = func.__name__
+            func_name = key_prefix or func.__name__
             key_parts = [
                 func_name,
                 str(hash(str(args) + str(sorted(kwargs.items()))))
             ]
 
             # Try to get from cache
-            cached_result = await cache_manager.get_async("analytics_dashboard", key_parts)
+            cached_result = await cache_manager.get_async(cache_type, key_parts)
             if cached_result is not None:
                 logger.debug(f"Cache hit for response {func_name}")
                 return cached_result
@@ -210,7 +222,7 @@ def cache_response(seconds: int = 300):
             result = await func(*args, **kwargs)
 
             # Cache the result
-            await cache_manager.set_async("analytics_dashboard", result, key_parts, seconds)
+            await cache_manager.set_async(cache_type, result, key_parts, ttl_seconds)
             logger.debug(f"Cached response for {func_name}")
 
             return result

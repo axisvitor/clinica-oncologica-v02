@@ -478,7 +478,7 @@ class BulkQuizOperation(BaseModel):
             raise ValueError(f"Operation must be one of: {allowed}")
         return v
 
-    @root_validator
+    @root_validator(skip_on_failure=True)
     def validate_operation_data(cls, values):
         operation = values.get("operation")
         if operation == "assign" and not values.get("template_id"):

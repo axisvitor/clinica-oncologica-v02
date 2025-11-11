@@ -156,7 +156,7 @@ class ConversionEventCreate(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
     timestamp: Optional[datetime] = None
 
-    @root_validator
+    @root_validator(skip_on_failure=True)
     def validate_user_identifier(cls, values):
         """Ensure either user_id or anonymous_id is provided."""
         if not values.get("user_id") and not values.get("anonymous_id"):
@@ -351,7 +351,7 @@ class ExperimentCreate(BaseModel):
             raise ValueError("Exactly one conversion goal must be marked as primary")
         return v
 
-    @root_validator
+    @root_validator(skip_on_failure=True)
     def validate_dates(cls, values):
         """Validate start/end dates."""
         start_date = values.get("start_date")
@@ -433,7 +433,7 @@ class VariantAssignmentRequest(BaseModel):
     user_attributes: Optional[Dict[str, Any]] = Field(None, description="User attributes for segmentation")
     force_variant: Optional[VariantType] = Field(None, description="Force specific variant (testing only)")
 
-    @root_validator
+    @root_validator(skip_on_failure=True)
     def validate_user_identifier(cls, values):
         """Ensure either user_id or anonymous_id is provided."""
         if not values.get("user_id") and not values.get("anonymous_id"):

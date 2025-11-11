@@ -16,7 +16,7 @@ All validation rules must be thorough to prevent data integrity issues.
 """
 
 from typing import Optional, List, Dict, Any
-from datetime import datetime, date
+from datetime import datetime, date as date_type
 from uuid import UUID
 from enum import Enum
 
@@ -561,7 +561,7 @@ class BulkAlertResult(BaseModel):
 class AlertTrendV2(BaseModel):
     """Alert trend data for analytics."""
 
-    date: date = Field(description="Date of the data point")
+    date: date_type = Field(description="Date of the data point")
     total_alerts: conint(ge=0) = Field(description="Total alerts on this date")
     critical_alerts: conint(ge=0) = Field(description="Critical alerts")
     high_alerts: conint(ge=0) = Field(description="High severity alerts")

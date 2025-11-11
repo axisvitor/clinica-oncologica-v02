@@ -139,7 +139,7 @@ class StartExperimentRequest(BaseModel):
     confirm_patient_population: bool = Field(..., description="Confirm target patient population is appropriate")
     override_warnings: bool = Field(False, description="Override non-critical warnings")
 
-    @root_validator
+    @root_validator(skip_on_failure=True)
     def validate_confirmations(cls, values):
         required_confirmations = ['confirm_safety_review', 'confirm_hipaa_compliance', 'confirm_patient_population']
         for confirmation in required_confirmations:

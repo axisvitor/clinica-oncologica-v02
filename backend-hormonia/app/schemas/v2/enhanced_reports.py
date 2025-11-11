@@ -282,7 +282,7 @@ class DeliveryConfigCreate(BaseModel):
     is_active: bool = True
     send_on_error: bool = False
 
-    @root_validator
+    @root_validator(skip_on_failure=True)
     def validate_config(cls, values):
         """Ensure method-specific config is provided."""
         method = values.get("method")
@@ -355,7 +355,7 @@ class PublicLinkCreate(BaseModel):
     password: Optional[str] = Field(None, min_length=8, max_length=50)
     max_views: Optional[int] = Field(None, ge=1, le=10000)
 
-    @root_validator
+    @root_validator(skip_on_failure=True)
     def validate_password(cls, values):
         """Ensure password is provided if password_protected."""
         if values.get("password_protected") and not values.get("password"):

@@ -7,6 +7,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from app.models.admin import SystemStatsResponse as AdminSystemStatsResponse
+
 
 class UserCreateRequest(BaseModel):
     """Schema for creating a new user."""
@@ -174,3 +176,8 @@ class UserActivityResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# Backward compatibility aliases for V1 tests
+SystemStatsResponse = AdminSystemStatsResponse
+UserPermissionsUpdate = UserPermissionsUpdateRequest

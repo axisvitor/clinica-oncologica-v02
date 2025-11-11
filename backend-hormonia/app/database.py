@@ -186,6 +186,21 @@ def test_connection():
         }
 
 
+def get_engine(use_service_role: bool = False):
+    """
+    Backward-compatible accessor for the SQLAlchemy engine.
+
+    Args:
+        use_service_role: Kept for signature compatibility; no separate engine pool exists.
+
+    Returns:
+        Engine: The primary SQLAlchemy engine instance.
+    """
+    if use_service_role:
+        logger.debug("get_engine called with use_service_role=True; returning primary engine")
+    return engine
+
+
 def force_pool_recreation():
     """
     Force recreation of the database connection pool.

@@ -59,6 +59,7 @@ from .ai_service import (
     get_ai_service,
     reset_ai_service,
 )
+from .nlp_utilities import NLPUtilities
 
 from .cache_layer import (
     CacheLayer,
@@ -85,6 +86,7 @@ __all__ = [
     "AIService",
     "PatientContext",
     "ConcernLevel",
+    "NLPUtilities",
     "get_ai_service",
     "reset_ai_service",
     # Cache Layer

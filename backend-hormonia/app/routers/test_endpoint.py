@@ -2,9 +2,13 @@
 Endpoint de teste para debug
 """
 
+import pytest
 from fastapi import APIRouter, Depends, Request
 from app.middleware.csrf import validate_csrf_token
 from pydantic import BaseModel
+
+# Prevent pytest from collecting this helper module as a test suite.
+pytestmark = pytest.mark.skip("Helper router file, not intended for pytest collection.")
 
 router = APIRouter(prefix="/test", tags=["Test"])
 

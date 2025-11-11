@@ -1,10 +1,24 @@
 """
-Backward compatibility shim for FlowErrorHandler.
+Backward compatibility shim for flow error handling.
 
-Use app.services.flow.errors.handler instead.
+Legacy imports reference ``app.services.flow.core.error_handler`` while the
+consolidated implementation lives under ``app.services.flow.errors.handler``.
+This module simply re-exports the public API so existing code (and tests)
+continue to work without modification.
 """
 
-from ..errors.handler import FlowErrorHandler
+from ..errors.handler import (
+    FlowErrorHandler,
+    FlowError,
+    ErrorCategory,
+    ErrorSeverity,
+    RecoveryStrategy,
+)
 
-__all__ = ["FlowErrorHandler"]
-
+__all__ = [
+    "FlowErrorHandler",
+    "FlowError",
+    "ErrorCategory",
+    "ErrorSeverity",
+    "RecoveryStrategy",
+]
