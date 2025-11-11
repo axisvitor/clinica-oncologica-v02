@@ -74,3 +74,29 @@
 | public.alerts | idx_alerts_severity | 0 | 0 | 0 |
 | public.alerts | idx_alerts_type | 0 | 0 | 0 |
 | public.appointments | appointments_pkey | 0 | 0 | 0 |
+
+
+## Otimizações de Concorrência
+
+### Optimistic Locking em patient_flow_states
+
+A tabela `patient_flow_states` implementa **optimistic locking** através da coluna `version`:
+
+- **Coluna**: `version` (integer, NOT NULL, default 0)
+- **Índice**: `idx_patient_flow_states_version` (id, version)
+- **Propósito**: Prevenir race conditions em atualizações concorrentes de estados de fluxo
+
+**Como funciona:**
+1. Ao ler um registro, o valor atual de `version` é capturado
+2. Ao atualizar, a query inclui `WHERE id = ? AND version = ?`
+3. Se a versão mudou (outro processo atualizou), a query não afeta nenhuma linha
+4. O código detecta isso e pode retentar ou abortar a operação
+5. Após atualização bem-sucedida, `version` é incrementado
+
+**Benefícios:**
+- Evita lost updates em ambientes com múltiplos workers/processos
+- Não requer locks pessimistas no banco de dados
+- Melhor performance em cenários de baixa contenção
+- Essencial para sagas e fluxos assíncronos
+
+**Migration aplicada:** `004_add_flow_state_version` (Alembic)

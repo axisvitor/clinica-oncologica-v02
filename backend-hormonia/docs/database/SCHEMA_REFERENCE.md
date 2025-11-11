@@ -1090,6 +1090,7 @@
 | completed_at | timestamp with time zone | YES |  |
 | next_scheduled_at | timestamp with time zone | YES |  |
 | flow_metadata | jsonb | YES | '{}'::jsonb |
+| version | integer | NO | 0 |
 | created_at | timestamp with time zone | YES | now() |
 | updated_at | timestamp with time zone | YES | now() |
 
@@ -1105,6 +1106,7 @@
 - idx_patient_flow_states_patient: `CREATE INDEX idx_patient_flow_states_patient ON public.patient_flow_states USING btree (patient_id)`
 - idx_patient_flow_states_status: `CREATE INDEX idx_patient_flow_states_status ON public.patient_flow_states USING btree (status, last_interaction_at)`
 - idx_patient_flow_states_template: `CREATE INDEX idx_patient_flow_states_template ON public.patient_flow_states USING btree (flow_template_version_id)`
+- idx_patient_flow_states_version: `CREATE INDEX idx_patient_flow_states_version ON public.patient_flow_states USING btree (id, version)`
 - patient_flow_states_pkey: `CREATE UNIQUE INDEX patient_flow_states_pkey ON public.patient_flow_states USING btree (id)`
 - unique_patient_flow: `CREATE UNIQUE INDEX unique_patient_flow ON public.patient_flow_states USING btree (patient_id, flow_template_version_id)`
 
