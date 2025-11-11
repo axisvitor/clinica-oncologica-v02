@@ -9,9 +9,10 @@ API contracts can generate realistic JWT tokens during integration tests.
 from datetime import datetime, timedelta
 from typing import Optional
 
-from jose import jwt
+from jose import jwt, JWTError
 
 from app.config import settings
+from app.utils.security import verify_password as _verify_password_util
 
 # Default expiration for password reset tokens (24 hours)
 PASSWORD_RESET_TOKEN_EXPIRE_HOURS = 24
@@ -43,4 +44,42 @@ def create_password_reset_token(
     return jwt.encode(payload, secret_key or settings.SECRET_KEY, algorithm=algorithm)
 
 
-__all__ = ["create_password_reset_token", "PASSWORD_RESET_TOKEN_EXPIRE_HOURS"]
+def verify_password_reset_token(
+    token: str,
+    *,
+    secret_key: Optional[str] = None,
+    algorithms: Optional[list[str]] = None,
+) -> str:
+    """
+    Validate password reset token and return embedded email.
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            secret_key or settings.SECRET_KEY,
+            algorithms=algorithms or ["HS256"],
+        )
+        email = payload.get("sub")
+        if not email:
+            raise ValueError("Missing subject")
+        return email
+    except JWTError as exc:
+        from fastapi import HTTPException, status
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token",
+        ) from exc
+
+
+__all__ = [
+    "create_password_reset_token",
+    "verify_password_reset_token",
+    "verify_password",
+    "PASSWORD_RESET_TOKEN_EXPIRE_HOURS",
+]
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Proxy to existing password verification helper for backwards compatibility."""
+    return _verify_password_util(plain_password, hashed_password)

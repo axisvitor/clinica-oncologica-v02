@@ -26,6 +26,14 @@ interface DedupeCacheEntry<TData> {
 
 type QueryFunctionType<TData, TError> = NonNullable<UseQueryOptions<TData, TError>['queryFn']>;
 
+type ExecutableQueryFn<TData, TError> = (...args: any[]) => Promise<TData> | TData;
+
+function isExecutableQueryFn<TData, TError>(
+  fn?: QueryFunctionType<TData, TError>
+): fn is ExecutableQueryFn<TData, TError> {
+  return typeof fn === 'function';
+}
+
 const metricsStore: QueryPerformanceMetrics[] = [];
 const MAX_METRICS_STORED = 100;
 const logger = createLogger('useOptimizedQuery');
@@ -92,11 +100,13 @@ export function useDedupeAwareQueryFn<TData, TError>({
   }, [queryKeyString]);
 
   return useMemo(() => {
-    if (!originalQueryFn) {
+    if (!isExecutableQueryFn(originalQueryFn)) {
       return originalQueryFn;
     }
 
-    return (async (...args: Parameters<QueryFunctionType<TData, TError>>) => {
+    const executableFn = originalQueryFn;
+
+    return (async (...args: Parameters<typeof executableFn>) => {
       const now = Date.now();
       const cacheEntry = dedupeCacheRef.current[queryKeyString];
 
@@ -113,13 +123,13 @@ export function useDedupeAwareQueryFn<TData, TError>({
         return cacheEntry.data;
       }
 
-      const result = await originalQueryFn(...args);
+      const result = await executableFn(...args);
       dedupeCacheRef.current[queryKeyString] = {
         timestamp: now,
         data: result,
       };
       return result;
-    }) as QueryFunctionType<TData, TError>;
+    }) as typeof executableFn;
   }, [originalQueryFn, queryKeyString, dedupeWindowMs]);
 }
 

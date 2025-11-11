@@ -43,6 +43,8 @@ from .dependencies import (
 from app.dependencies.auth_dependencies import get_current_user_from_session, get_redis_cache
 from app.core.redis_client import get_async_redis_client
 from app.utils.rate_limiter import limiter
+from app.utils.security import get_password_hash
+from app.core.security import verify_password_reset_token
 from app.config import settings
 
 router = APIRouter()
@@ -989,6 +991,38 @@ async def request_password_reset(
     return {
         "success": True,
         "message": "If the email exists, a password reset link has been sent. Please use Firebase client SDK for password reset."
+    }
+
+
+@router.post(
+    "/reset-password",
+    summary="Reset password with token",
+    tags=["auth-v2"],
+)
+@limiter.limit("5/hour")
+async def reset_password_with_token(
+    request: Request,
+    payload: PasswordResetConfirm,
+    db: Session = Depends(get_db),
+):
+    """Reset a user's password given a valid token."""
+    email = verify_password_reset_token(payload.token)
+    user = db.query(User).filter(User.email == email).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    user.hashed_password = get_password_hash(payload.new_password)
+    user.updated_at = datetime.utcnow()
+    db.add(user)
+    db.commit()
+
+    return {
+        "message": "Password reset successful",
+        "user_id": str(user.id),
     }
 
 

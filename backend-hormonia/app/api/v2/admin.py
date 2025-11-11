@@ -31,7 +31,11 @@ from app.repositories.user import UserRepository
 from app.services.audit_service import AuditService
 from app.utils.security import get_password_hash, verify_password
 from app.utils.rate_limiter import limiter
-from app.infrastructure.cache import cache_response, invalidate_user_cache
+from app.infrastructure.cache import (
+    cache_response,
+    get_unified_cache_manager,
+    invalidate_user_cache,
+)
 from app.dependencies import get_request_context, RequestContext
 from app.dependencies.auth_dependencies import get_current_user, _get_service_provider
 from app.services import ServiceProvider
@@ -57,16 +61,18 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+# Cache settings for system metrics endpoint
+SYSTEM_STATS_CACHE_TYPE = "system_metrics"
+SYSTEM_STATS_CACHE_KEY = ["admin-system-stats"]
+SYSTEM_STATS_CACHE_TTL_SECONDS = 60
+
+
 # ============================================================================
 # AUTHENTICATION & AUTHORIZATION
 # ============================================================================
 
-_admin_bearer = HTTPBearer(auto_error=False)
-
 async def get_admin_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_admin_bearer),
-    db: Session = Depends(get_db),
-    services: ServiceProvider = Depends(_get_service_provider),
+    current_user: User = Depends(get_current_user),
     context: RequestContext = Depends(get_request_context),
 ) -> User:
     """
@@ -80,32 +86,6 @@ async def get_admin_user(
 
     TODO: Integrate with actual authentication system (Firebase/JWT)
     """
-    if credentials is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required",
-        )
-
-    token_value = credentials.credentials
-
-    if token_value.startswith(("admin_token_", "test_token_")):
-        raw_user_id = token_value.split("_", 2)[-1]
-        try:
-            user_uuid = UUID(raw_user_id)
-        except ValueError:
-            user_uuid = None
-
-        if user_uuid:
-            override_user = (
-                db.query(User)
-                .filter(User.id == user_uuid)
-                .first()
-            )
-            if override_user and override_user.role == UserRole.ADMIN:
-                return override_user
-
-    current_user = await get_current_user(credentials, services)
-
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -132,15 +112,7 @@ def _require_admin(current_user: User) -> None:
         )
 
 
-async def _ensure_bearer_token(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_admin_bearer),
-) -> None:
-    """Ensure an Authorization header is present before invoking admin routes."""
-    if credentials is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required",
-        )
+_admin_bearer = HTTPBearer(auto_error=False)
 
 
 def _status_count(db: Session, status_value: str) -> int:
@@ -160,10 +132,16 @@ def _status_count(db: Session, status_value: str) -> int:
 @limiter.limit("60/minute")
 async def get_system_stats(
     db: Session = Depends(get_db),
-    _: None = Depends(_ensure_bearer_token),
     admin_user: User = Depends(get_admin_user),
 ):
     """Return high-level platform metrics for admin dashboards."""
+    cache_manager = get_unified_cache_manager()
+    cached_stats = await cache_manager.get_async(
+        SYSTEM_STATS_CACHE_TYPE, SYSTEM_STATS_CACHE_KEY
+    )
+    if cached_stats:
+        return cached_stats
+
     now = datetime.utcnow()
     start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
@@ -203,7 +181,7 @@ async def get_system_stats(
         else 0.0
     )
 
-    return {
+    stats_payload = {
         "generated_at": now.isoformat(),
         "users": {
             "total": total_users,
@@ -231,6 +209,15 @@ async def get_system_stats(
             "active_sessions": max(active_users // 2, 1),
         },
     }
+
+    await cache_manager.set_async(
+        SYSTEM_STATS_CACHE_TYPE,
+        stats_payload,
+        SYSTEM_STATS_CACHE_KEY,
+        ttl_override=SYSTEM_STATS_CACHE_TTL_SECONDS,
+    )
+
+    return stats_payload
 
 
 # ============================================================================

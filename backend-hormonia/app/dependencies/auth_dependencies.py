@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 # In-memory registry used by test fixtures to bypass Firebase validation.
 TEST_TOKEN_REGISTRY: Dict[str, User] = {}
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 # Initialize Firebase Auth Service if configured
 _firebase_service = None
@@ -324,7 +324,17 @@ async def get_current_user(
         HTTPException 401: Invalid token or user not found
         HTTPException 403: User account is inactive
     """
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required"
+        )
+
     token_value = credentials.credentials
+
+    cached_local = TEST_TOKEN_REGISTRY.get(token_value)
+    if cached_local:
+        return cached_local
 
     # Fast-path for local/testing tokens used by contract tests
     if token_value.startswith(("admin_token_", "test_token_")):

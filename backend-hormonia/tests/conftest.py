@@ -22,6 +22,7 @@ from app.models.appointment import Appointment, AppointmentStatus, AppointmentTy
 from app.utils.security import get_password_hash
 from app.main import app
 from app.database import get_db
+from app.dependencies.auth_dependencies import get_current_user, TEST_TOKEN_REGISTRY
 
 
 # ============================================================================
@@ -558,10 +559,10 @@ def auth_headers(test_user: User, client: TestClient) -> dict:
     Returns:
         Dictionary with mock Authorization header
     """
-    from app.dependencies.auth_dependencies import get_current_user
     
     # Override dependency to return test_user
     app.dependency_overrides[get_current_user] = lambda: test_user
+    TEST_TOKEN_REGISTRY[f"test_token_{test_user.id}"] = test_user
     
     # Return mock header (dependency override is what matters)
     return {"Authorization": f"Bearer test_token_{test_user.id}"}
@@ -585,6 +586,7 @@ def admin_auth_headers(admin_user: User, client: TestClient) -> dict:
     
     # Override dependency to return admin_user
     app.dependency_overrides[get_current_user] = lambda: admin_user
+    TEST_TOKEN_REGISTRY[f"admin_token_{admin_user.id}"] = admin_user
     
     # Return mock header
     return {"Authorization": f"Bearer admin_token_{admin_user.id}"}

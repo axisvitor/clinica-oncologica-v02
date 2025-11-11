@@ -279,13 +279,14 @@ export function isSuperAdmin(user: AppUser | null): boolean {
 export function getDisplayName(user: AppUser | null): string {
   if (!user) return 'Guest'
 
-  if (user.full_name && user.full_name.trim()) {
-    return user.full_name
+  const fullName = user.full_name?.trim()
+  if (fullName) {
+    return fullName
   }
 
-  if (user.email) {
-    // @ts-expect-error TODO: fix userId type
-    return user.email.split('@')[0]
+  const [emailLocalPart] = (user.email || '').split('@')
+  if (emailLocalPart) {
+    return emailLocalPart
   }
 
   return 'User'
@@ -300,12 +301,16 @@ export function getUserInitials(user: AppUser | null): string {
   const displayName = getDisplayName(user)
   const parts = displayName.split(' ')
 
-  // @ts-expect-error TODO: fix session undefined checks
   if (parts.length >= 2) {
-    return (parts[0][0] + parts[1][0]).toUpperCase()
+    const firstInitial = parts[0]?.charAt(0) ?? ''
+    const secondInitial = parts[1]?.charAt(0) ?? ''
+    const initials = `${firstInitial}${secondInitial}`.trim()
+    if (initials) {
+      return initials.toUpperCase()
+    }
   }
 
-  return displayName.substring(0, 2).toUpperCase()
+  return displayName.substring(0, Math.min(2, displayName.length)).toUpperCase()
 }
 
 /**
@@ -409,10 +414,12 @@ export function parsePermission(permission: string): { resource: string; action:
     return { resource: '*', action: '*' }
   }
 
-    // @ts-expect-error TODO: fix email undefined
   const parts = permission.split('.')
   if (parts.length === 2) {
-    return { resource: parts[0], action: parts[1] }
+    const [resource, action] = parts
+    if (resource && action) {
+      return { resource, action }
+    }
   }
 
   return null
