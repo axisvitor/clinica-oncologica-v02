@@ -425,15 +425,21 @@ class EvolutionClient:
         Returns:
             API response with message ID and status
         """
+        # Validate message content
+        if not message or not message.strip():
+            raise ValueError(
+                f"Cannot send empty message. "
+                f"Message parameter is required and must be non-empty. "
+                f"Received: {repr(message)}"
+            )
+        
         # Validate and format phone number
         clean_number = self._format_phone_number(phone_number)
 
-        # Evolution API v2 payload format
+        # Evolution sendText endpoint requires a top-level "text" field
         payload = {
             "number": clean_number,
-            "textMessage": {
-                "text": message
-            }
+            "text": message
         }
 
         if delay:
