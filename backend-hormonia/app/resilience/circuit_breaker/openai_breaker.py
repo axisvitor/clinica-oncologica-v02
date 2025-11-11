@@ -2,13 +2,52 @@
 OpenAI-specific Circuit Breaker
 
 Specialized circuit breaker for OpenAI API with intelligent fallbacks.
+Falls back gracefully when the optional ``openai`` package is not installed.
 """
 
-import openai
+import asyncio
+import logging
 from typing import Any, Dict, List, Optional
+
 from ..circuit_breaker.breaker import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerStates
 from ..circuit_breaker.cache_fallback import CacheFallback, CachedCircuitBreakerMixin
-import logging
+
+try:
+    import openai  # type: ignore
+    _OPENAI_AVAILABLE = True
+except ImportError:  # pragma: no cover - executed only when optional dep missing
+    _OPENAI_AVAILABLE = False
+
+    class OpenAIUnavailableError(RuntimeError):
+        """Raised when OpenAI operations are attempted without the dependency."""
+
+    class _OpenAIPlaceholder:
+        class APIError(Exception):
+            pass
+
+        class RateLimitError(Exception):
+            pass
+
+        class APITimeoutError(Exception):
+            pass
+
+        class APIConnectionError(Exception):
+            pass
+
+        class ChatCompletion:
+            @staticmethod
+            def create(*_, **__):
+                raise OpenAIUnavailableError(
+                    "The 'openai' package is not installed. Install it to enable OpenAI integrations."
+                )
+
+            @staticmethod
+            async def acreate(*_, **__):
+                raise OpenAIUnavailableError(
+                    "The 'openai' package is not installed. Install it to enable OpenAI integrations."
+                )
+
+    openai = _OpenAIPlaceholder()  # type: ignore
 
 logger = logging.getLogger(__name__)
 
