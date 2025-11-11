@@ -10,39 +10,9 @@ metadata:
   medical_focus: "Treatment adherence and initial support"
 
 messages:
-  1:
-    intent: "introduction_and_welcome"
-    base_content: "Apresentar a Hormon[IA] e estabelecer vínculo inicial"
-    message_type: "text"
-    core_elements:
-      greeting: true
-      name_usage: true
-      role_explanation: true
-      supportive_tone: true
-    personalization_hints: 
-      - "greeting_style"
-      - "introduction_approach" 
-      - "warmth_level"
-    ai_instructions: |
-      Crie uma mensagem de boas-vindas calorosa e pessoal que:
-      - Use o nome do paciente naturalmente
-      - Apresente a Hormon[IA] como uma companheira de jornada
-      - Transmita segurança e apoio
-      - Evite linguagem médica formal
-      - Seja genuinamente acolhedora
-    follow_up:
-      intent: "explain_purpose"
-      delay_seconds: 30
-      ai_instructions: |
-        Explique o propósito da assistente de forma conversacional:
-        - Como uma amiga que vai ajudar a organizar tudo
-        - Sem pressão ou obrigações
-        - Focando nos benefícios práticos
-    variations:
-      - "Seja muito bem-vinda ao seu novo começo!"
-      - "Que alegria ter você aqui conosco!"
-      - "Estou aqui para te acompanhar nessa jornada!"
-
+  # Note: Day 1 welcome message is sent by the onboarding saga (welcome_message.py)
+  # This flow starts from day 2 to avoid duplication
+  
   2:
     intent: "educational_support"
     base_content: "Explicar como a assistente funciona e seus benefícios"

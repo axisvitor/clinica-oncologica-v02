@@ -630,7 +630,7 @@ class SagaOrchestrator:
         patient_dict["doctor_id"] = doctor_id
 
         try:
-            # Optionally generate initial welcome message
+            # Generate initial welcome message
             initial_message_text = None
             try:
                 from app.config import settings
@@ -638,14 +638,17 @@ class SagaOrchestrator:
                     try:
                         from app.templates.whatsapp.welcome_message import get_welcome_message
                         initial_message_text = get_welcome_message(
-                            patient_name=patient_dict.get("name"),
-                            clinic_name=getattr(settings, "CLINIC_NAME", "Clínica"),
+                            patient_name=patient_dict.get("name", "paciente"),
+                            clinic_name=getattr(settings, "CLINIC_NAME", "Neoplasias Litoral"),
                             support_phone=getattr(settings, "CLINIC_SUPPORT_PHONE", None),
                         )
-                    except Exception:
-                        # Fallback: no initial message if template import fails
+                        logger.info(f"Generated welcome message for patient registration")
+                    except Exception as e:
+                        logger.error(f"Failed to generate welcome message: {e}", exc_info=True)
+                        # Will be generated in _send_initial_message_action if None
                         initial_message_text = None
-            except Exception:
+            except Exception as e:
+                logger.error(f"Failed to import settings for welcome message: {e}", exc_info=True)
                 initial_message_text = None
 
             # Execute saga
@@ -1268,7 +1271,27 @@ class SagaOrchestrator:
             Exception: If message sending fails
         """
         patient_id = context["patient_id"]
-        initial_message = context["initial_message"]
+        initial_message = context.get("initial_message")
+        
+        # Ensure we always have a message to send - use welcome_message template
+        if not initial_message or not initial_message.strip():
+            try:
+                from app.templates.whatsapp.welcome_message import get_welcome_message
+                from app.config import settings
+                
+                patient_name = context.get("patient_data", {}).get("name", "paciente")
+                clinic_name = getattr(settings, "CLINIC_NAME", "Neoplasias Litoral")
+                support_phone = getattr(settings, "CLINIC_SUPPORT_PHONE", None)
+                
+                initial_message = get_welcome_message(
+                    patient_name=patient_name,
+                    clinic_name=clinic_name,
+                    support_phone=support_phone
+                )
+                logger.info(f"Generated welcome message for patient {patient_id}")
+            except Exception as e:
+                logger.error(f"Failed to generate welcome message: {e}")
+                raise Exception(f"Cannot send message without content: {e}")
 
         logger.info(f"Sending initial message to patient: {patient_id}")
 
