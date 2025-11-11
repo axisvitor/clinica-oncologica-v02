@@ -245,9 +245,6 @@ class DLQService:
 
         except Exception as e:
             logger.error(f"Erro ao atualizar métricas DLQ: {e}")
-</text>
-
-
     def _schedule_automatic_retry(self, failed_message: FailedMessage):
         """
         Agenda retry automático para erro transiente.

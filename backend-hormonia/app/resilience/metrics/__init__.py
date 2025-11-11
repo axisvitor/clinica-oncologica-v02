@@ -1,14 +1,20 @@
 """
 Resilience Metrics Collection and Monitoring
 
-Comprehensive metrics for all resilience patterns.
+This package exposes resilience metrics helpers. Flask-only pieces
+(`create_metrics_blueprint`) are optional so FastAPI deployments without
+Flask installed don't crash during import.
 """
 
 from .collector import ResilienceMetrics, MetricsCollector
-from .dashboard import create_metrics_blueprint
 
-# Note: exporters.py doesn't exist yet - these are provided by the main monitoring module
-# TODO: Create dedicated exporters.py if resilience-specific export formats are needed
+try:  # Optional Flask blueprint
+    from .dashboard import create_metrics_blueprint  # type: ignore
+except Exception:  # pragma: no cover - Flask may be absent
+    def create_metrics_blueprint(*_args, **_kwargs):
+        raise RuntimeError(
+            "create_metrics_blueprint requires Flask. Install Flask or disable the metrics dashboard."
+        )
 
 __all__ = [
     'ResilienceMetrics',
