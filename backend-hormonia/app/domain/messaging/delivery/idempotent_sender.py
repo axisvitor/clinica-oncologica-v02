@@ -281,8 +281,16 @@ class IdempotentMessageSender:
 
         Raises:
             IdempotencyError: If idempotency check fails critically
+            ValueError: If content is empty
             Exception: If sending fails
         """
+        # 0. Validate content is not empty
+        if not content or not content.strip():
+            raise ValueError(
+                f"Cannot send empty message to patient {patient_id}. "
+                f"Content must be a non-empty string. Received: {repr(content)}"
+            )
+        
         # 1. Generate or use provided idempotency key
         if idempotency_key is None:
             idempotency_key = self._generate_idempotency_key(
