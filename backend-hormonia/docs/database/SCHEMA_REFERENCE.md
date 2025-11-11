@@ -1041,6 +1041,7 @@
 | failure_reason | text | YES |  |
 | next_retry_at | timestamp with time zone | YES |  |
 | idempotency_key | character varying | NO |  |
+| priority | USER-DEFINED | NO | 'normal'::message_priority |
 
 #### Chave Primária
 - id
@@ -1138,6 +1139,7 @@
 | failed_at | timestamp with time zone | YES |  |
 | created_at | timestamp with time zone | NO | now() |
 | updated_at | timestamp with time zone | NO | now() |
+| last_retry_at | timestamp with time zone | YES |  |
 
 #### Chave Primária
 - id
@@ -1148,6 +1150,7 @@
 
 #### Índices
 - idx_patient_onboarding_saga_doctor_id: `CREATE INDEX idx_patient_onboarding_saga_doctor_id ON public.patient_onboarding_saga USING btree (doctor_id)`
+- idx_patient_onboarding_saga_last_retry: `CREATE INDEX idx_patient_onboarding_saga_last_retry ON public.patient_onboarding_saga USING btree (last_retry_at)`
 - idx_patient_onboarding_saga_patient_id: `CREATE INDEX idx_patient_onboarding_saga_patient_id ON public.patient_onboarding_saga USING btree (patient_id)`
 - idx_patient_onboarding_saga_retry: `CREATE INDEX idx_patient_onboarding_saga_retry ON public.patient_onboarding_saga USING btree (status, next_retry_at) WHERE (status = 'RETRY_SCHEDULED'::saga_status)`
 - idx_patient_onboarding_saga_status: `CREATE INDEX idx_patient_onboarding_saga_status ON public.patient_onboarding_saga USING btree (status)`
