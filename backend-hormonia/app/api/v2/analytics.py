@@ -609,8 +609,10 @@ async def get_treatment_distribution(
         logger.info("Caching result...")
         await _set_cached_result(cache_key, result)
         logger.info("Result cached successfully")
-        
-        logger.info(f"Returning result with {result['total_patients']} patients")
+    except Exception as cache_error:
+        logger.warning(f"Failed to cache analytics result: {cache_error}")
+
+    logger.info(f"Returning result with {result['total_patients']} patients")
     return result
 
 
@@ -668,6 +670,3 @@ async def get_risk_assessment(
         "generated_at": datetime.utcnow().isoformat(),
         "lookback_days": lookback_days,
     }
-    except Exception as e:
-        logger.error(f"Error in final steps: {e}")
-        raise

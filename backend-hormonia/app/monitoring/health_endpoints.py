@@ -467,8 +467,7 @@ async def get_sla_metrics(
             detail=str(e)
         )
 
-@rou
-ter.post("/circuit-breaker/reset")
+@router.post("/circuit-breaker/reset")
 async def reset_database_circuit_breaker() -> Dict[str, Any]:
     """
     Emergency endpoint to reset the database circuit breaker.

@@ -385,7 +385,8 @@ def _get_recent_activity(db: Session, patient_ids: Optional[List[UUID]] = None, 
     # Build patient filter
     patient_filter = ""
     if patient_ids:
-        patient_filter = f"AND m.patient_id = ANY(ARRAY[{','.join([f\"'{pid}'\" for pid in patient_ids])}]::uuid[])"
+        id_list = ",".join(f"'{pid}'" for pid in patient_ids)
+        patient_filter = f"AND m.patient_id = ANY(ARRAY[{id_list}]::uuid[])"
 
     # Recent messages
     message_query = text(f"""
@@ -460,7 +461,8 @@ def _get_engagement_chart_data(db: Session, patient_ids: Optional[List[UUID]] = 
 
     patient_filter = ""
     if patient_ids:
-        patient_filter = f"AND patient_id = ANY(ARRAY[{','.join([f\"'{pid}'\" for pid in patient_ids])}]::uuid[])"
+        id_list = ",".join(f"'{pid}'" for pid in patient_ids)
+        patient_filter = f"AND patient_id = ANY(ARRAY[{id_list}]::uuid[])"
 
     query = text(f"""
         WITH date_series AS (

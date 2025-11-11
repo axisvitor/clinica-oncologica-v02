@@ -12,6 +12,7 @@ Features:
 - Metrics tracking for monitoring
 """
 
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -81,7 +82,7 @@ def retry_patient_onboarding_saga(self, saga_id: str) -> dict:
             logger.warning(
                 f"Saga {saga_id} has exceeded max retries ({saga.retry_count})"
             )
-            await _alert_admin_max_retries_exceeded(saga, db)
+            asyncio.run(_alert_admin_max_retries_exceeded(saga, db))
             return {
                 "status": "max_retries_exceeded",
                 "message": f"Saga has been retried {saga.retry_count} times",
@@ -115,7 +116,7 @@ def retry_patient_onboarding_saga(self, saga_id: str) -> dict:
         orchestrator = SagaOrchestrator(db=db, redis_client=redis_client)
 
         # Attempt to resume saga from last successful step
-        result = await orchestrator.resume_saga(saga_id=UUID(saga_id))
+        result = asyncio.run(orchestrator.resume_saga(saga_id=UUID(saga_id)))
 
         if result["status"] == "completed":
             logger.info(f"Saga {saga_id} completed successfully on retry")
@@ -374,20 +375,12 @@ def _is_ready_for_retry(saga: PatientOnboardingSaga) -> bool:
 
 
 def _calculate_exponential_backoff(retry_count: int) -> int:
-    """
-    Calculate exponential backoff delay in seconds.
-
-    Backoff formula: base_delay * (2 ^ retry_count)
-    - Retry 1: 60s (1 min)
-    - Retry 2: 120s (2 min)
-    - Retry 3: 240s (4 min)
-
-    Args:
-        retry_count: Number of retries already attempted
-
-    Returns:
-        int: Delay in seconds before next retry
-    """
+    """Calculate exponential backoff delay in seconds."""
+    # Backoff formula: base_delay * (2 ^ retry_count)
+    # Examples:
+    #   Retry 1 -> 60s (1 min)
+    #   Retry 2 -> 120s (2 min)
+    #   Retry 3 -> 240s (4 min)
     base_delay = settings.get("SAGA_RETRY_BASE_DELAY_SECONDS", 60)
     max_delay = settings.get("SAGA_RETRY_MAX_DELAY_SECONDS", 600)  # 10 min
 
@@ -477,7 +470,7 @@ async def _send_admin_email_alert(saga: PatientOnboardingSaga) -> None:
 
         subject = f"[URGENT] Patient Onboarding Saga Failed: {saga.id}"
 
-        body = f"""
+        body = f'''
         <h2>Patient Onboarding Saga Failed</h2>
 
         <p>A patient onboarding saga has exceeded the maximum retry attempts and requires manual intervention.</p>
@@ -501,7 +494,7 @@ async def _send_admin_email_alert(saga: PatientOnboardingSaga) -> None:
         <p>Please review the saga logs and take appropriate action to resolve the issue.</p>
 
         <p><strong>View Saga:</strong> <a href="{settings.ADMIN_DASHBOARD_URL}/sagas/{saga.id}">Click here</a></p>
-        """
+        '''
 
         admin_email = settings.get("ADMIN_EMAIL", "admin@example.com")
 
