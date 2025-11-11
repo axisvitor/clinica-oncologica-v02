@@ -5,7 +5,7 @@ This module provides common fixtures used across unit and integration tests,
 including database sessions, test users, authentication tokens, and mock clients.
 """
 import pytest
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import uuid4
 from typing import Generator
 import json
@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 
 from app.models.base import Base
 from app.models.user import User, UserRole
+from app.models.appointment import Appointment, AppointmentStatus, AppointmentType
 from app.utils.security import get_password_hash
 from app.main import app
 from app.database import get_db
@@ -134,7 +135,17 @@ def db_session() -> Generator[Session, None, None]:
         yield session
     finally:
         session.close()
-        Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture
+def db(db_session: Session) -> Generator[Session, None, None]:
+    """
+    Backward-compatible fixture alias.
+
+    Some legacy contract tests expect a ``db`` fixture; reuse the scoped
+    SQLite session so they continue to run without modification.
+    """
+    yield db_session
 
 
 @pytest.fixture(scope="function")
@@ -209,6 +220,49 @@ def create_test_user(
     return user
 
 
+@pytest.fixture
+def sample_user(db_session: Session) -> User:
+    """Create a single sample user for contract tests."""
+    return create_test_user(
+        db_session,
+        email=f"sample_user_{uuid4().hex[:6]}@test.com",
+        full_name="Sample User",
+        role=UserRole.DOCTOR,
+    )
+
+
+@pytest.fixture
+def sample_users(db_session: Session) -> list[User]:
+    """Create multiple users with different statuses."""
+    users = [
+        create_test_user(
+            db_session,
+            email=f"sample_doctor_{uuid4().hex[:6]}@test.com",
+            full_name="Doctor Active",
+            role=UserRole.DOCTOR,
+            is_active=True,
+        ),
+        create_test_user(
+            db_session,
+            email=f"sample_admin_{uuid4().hex[:6]}@test.com",
+            full_name="Admin Active",
+            role=UserRole.ADMIN,
+            is_active=True,
+        ),
+        create_test_user(
+            db_session,
+            email=f"sample_inactive_{uuid4().hex[:6]}@test.com",
+            full_name="Doctor Inactive",
+            role=UserRole.DOCTOR,
+            is_active=False,
+        ),
+    ]
+    return users
+
+
+# ============================================================================
+# Patient Fixtures
+# ============================================================================
 def create_admin_user(
     db_session: Session,
     email: str = "admin@example.com",
@@ -448,6 +502,44 @@ def test_patient(db_session: Session, test_user: User):
     return create_test_patient(db_session, doctor=test_user)
 
 
+@pytest.fixture
+def sample_appointments(
+    db_session: Session, sample_users: list[User]
+) -> list[Appointment]:
+    """Create a few appointments for analytics tests."""
+    doctor = sample_users[0]
+    patient = create_test_patient(
+        db_session,
+        doctor=doctor,
+        name="Contract Patient",
+    )
+
+    appointments: list[Appointment] = []
+    statuses = [
+        AppointmentStatus.SCHEDULED.value,
+        AppointmentStatus.COMPLETED.value,
+        AppointmentStatus.CANCELLED.value,
+    ]
+
+    for idx, status in enumerate(statuses):
+        appointment = Appointment(
+            id=uuid4(),
+            patient_id=patient.id,
+            practitioner_id=doctor.id,
+            appointment_type=AppointmentType.CONSULTATION.value,
+            status=status,
+            scheduled_at=datetime.utcnow() + timedelta(days=idx),
+            duration_minutes=30,
+            reminder_sent=False,
+            confirmation_sent=False,
+        )
+        db_session.add(appointment)
+        appointments.append(appointment)
+
+    db_session.commit()
+    return appointments
+
+
 # ============================================================================
 # Authentication Fixtures
 # ============================================================================
@@ -496,6 +588,24 @@ def admin_auth_headers(admin_user: User, client: TestClient) -> dict:
     
     # Return mock header
     return {"Authorization": f"Bearer admin_token_{admin_user.id}"}
+
+
+@pytest.fixture
+def admin_token(admin_auth_headers: dict) -> str:
+    """
+    Return a bearer token string for admin contract tests.
+
+    Relies on ``admin_auth_headers`` to override authentication dependencies.
+    """
+    return admin_auth_headers["Authorization"].split(" ", 1)[1]
+
+
+@pytest.fixture
+def user_token(auth_headers: dict) -> str:
+    """
+    Return a bearer token for a regular (non-admin) user.
+    """
+    return auth_headers["Authorization"].split(" ", 1)[1]
 
 
 # ============================================================================
@@ -557,4 +667,3 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "slow: mark test as slow running"
     )
-

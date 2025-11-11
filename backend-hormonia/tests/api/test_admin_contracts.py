@@ -686,43 +686,4 @@ class TestAPIContractEdgeCases:
         assert all(code in [200, 429] for code in status_codes)
 
 
-# Pytest fixtures (to be implemented in conftest.py)
-@pytest.fixture
-def client():
-    """Test client fixture"""
-    return TestClient(app)
-
-
-@pytest.fixture
-def admin_token(client: TestClient, db: Session):
-    """Generate admin authentication token"""
-    # Implementation depends on your auth system
-    pass
-
-
-@pytest.fixture
-def user_token(client: TestClient, db: Session):
-    """Generate regular user authentication token"""
-    # Implementation depends on your auth system
-    pass
-
-
-@pytest.fixture
-def sample_user(db: Session):
-    """Create sample user for testing"""
-    # Implementation depends on your data model
-    pass
-
-
-@pytest.fixture
-def sample_users(db: Session):
-    """Create multiple sample users for testing"""
-    # Implementation depends on your data model
-    pass
-
-
-@pytest.fixture
-def sample_appointments(db: Session):
-    """Create sample appointments for testing"""
-    # Implementation depends on your data model
-    pass
+# Fixtures for this module are provided via tests/conftest.py.

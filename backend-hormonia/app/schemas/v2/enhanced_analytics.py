@@ -271,6 +271,7 @@ class PredictiveAnalytics(BaseModel):
     notes: str = Field(..., description="Additional notes about predictions")
 
     class Config:
+        protected_namespaces = ()
         json_schema_extra = {
             "example": {
                 "metric_type": "patients",

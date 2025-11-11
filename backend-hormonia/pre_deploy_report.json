@@ -1,0 +1,12 @@
+{
+  "status": "PASSOU COM AVISOS",
+  "ready_for_deploy": true,
+  "passed": 29,
+  "warnings": 2,
+  "errors": 0,
+  "error_list": [],
+  "warning_list": [
+    "SENTRY_DSN n\u00e3o configurada - DSN do Sentry para monitoramento",
+    "Alembic n\u00e3o configurado (n\u00e3o bloqueante se banco est\u00e1 OK)"
+  ]
+}

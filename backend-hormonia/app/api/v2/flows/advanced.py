@@ -533,7 +533,7 @@ async def check_redis_health(
 
 
 @router.get(
-    "",
+    "/",
     response_model=List[FlowStateV2Response],
     summary="List all flows",
     description="Get paginated list of all flows with cursor pagination"

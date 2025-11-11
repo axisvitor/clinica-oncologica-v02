@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from uuid import uuid4, UUID
 from unittest.mock import Mock, AsyncMock, patch
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 from app.models.user import User, UserRole
 from app.models.patient import Patient

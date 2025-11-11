@@ -71,7 +71,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 @router.get(
-    "",
+    "/",
     response_model=MessageV2List,
     summary="List messages with filters",
     description="Get paginated list of messages with cursor pagination and optional filters"

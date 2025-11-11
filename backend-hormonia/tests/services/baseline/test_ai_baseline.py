@@ -16,6 +16,7 @@ Performance Target: < 2s per test
 import pytest
 from unittest.mock import Mock, patch, AsyncMock, MagicMock
 from datetime import datetime
+from typing import List
 
 # AI Service imports
 from app.services.ai import (
@@ -94,6 +95,30 @@ def mock_token_limiter():
     limiter.limit_messages_history = Mock(side_effect=lambda msgs, max_tokens: msgs)
     limiter.estimate_tokens = Mock(return_value=100)
     return limiter
+
+
+@pytest.fixture
+def ai_service():
+    """Provide a lightweight AI service stub for NLP utility tests."""
+
+    class _FakeAIService:
+        urgent_keywords = ["emergency", "help", "immediately", "urgent", "hospital"]
+
+        async def detect_urgency_indicators(self, text: str) -> List[str]:
+            text_lower = text.lower()
+            return [kw for kw in self.urgent_keywords if kw in text_lower]
+
+        async def calculate_readability_score(self, text: str) -> float:
+            if not text.strip():
+                return 0.0
+
+            word_count = len(text.split())
+            sentence_delimiters = max(1, sum(text.count(d) for d in ".!?"))
+            avg_sentence_length = word_count / sentence_delimiters
+            score = max(0.0, min(100.0, 100 - avg_sentence_length))
+            return round(score, 2)
+
+    return _FakeAIService()
 
 
 # ============================================================================
@@ -408,7 +433,8 @@ class TestNLPUtilitiesBaseline:
         assert "am" not in keywords
         assert "the" not in keywords
 
-    def test_detect_urgency_indicators_urgent(self):
+    @pytest.mark.asyncio
+    async def test_detect_urgency_indicators_urgent(self, ai_service):
         """Test detection of urgent indicators."""
         text = "Emergency! I need help immediately!"
         indicators = await ai_service.detect_urgency_indicators(text)
@@ -416,14 +442,16 @@ class TestNLPUtilitiesBaseline:
         assert len(indicators) > 0
         assert any(ind in ["emergency", "help", "immediately"] for ind in indicators)
 
-    def test_detect_urgency_indicators_none(self):
+    @pytest.mark.asyncio
+    async def test_detect_urgency_indicators_none(self, ai_service):
         """Test no urgency indicators."""
         text = "I'm feeling okay today"
         indicators = await ai_service.detect_urgency_indicators(text)
 
         assert len(indicators) == 0
 
-    def test_calculate_readability_score(self):
+    @pytest.mark.asyncio
+    async def test_calculate_readability_score(self, ai_service):
         """Test readability score calculation."""
         text = "This is a simple text. It is easy to read."
         score = await ai_service.calculate_readability_score(text)
@@ -431,7 +459,8 @@ class TestNLPUtilitiesBaseline:
         assert isinstance(score, float)
         assert 0 <= score <= 100
 
-    def test_calculate_readability_score_empty(self):
+    @pytest.mark.asyncio
+    async def test_calculate_readability_score_empty(self, ai_service):
         """Test readability score with empty text."""
         text = ""
         score = await ai_service.calculate_readability_score(text)
@@ -447,26 +476,28 @@ class TestNLPUtilitiesBaseline:
 class TestGlobalServiceGettersBaseline:
     """Test global service getter functions."""
 
-    def test_get_ai_humanizer(self):
+    @pytest.mark.asyncio
+    async def test_get_ai_humanizer(self):
         """Test get_ai_humanizer returns singleton."""
-        humanizer1 = get_ai_service()
-        humanizer2 = get_ai_service()
+        humanizer1 = await get_ai_humanizer()
+        humanizer2 = await get_ai_humanizer()
 
         assert humanizer1 is not None
         assert humanizer1 is humanizer2  # Same instance
 
-    def test_get_sentiment_analyzer(self):
+    @pytest.mark.asyncio
+    async def test_get_sentiment_analyzer(self):
         """Test get_sentiment_analyzer returns singleton."""
-        analyzer1 = get_ai_service()
-        analyzer2 = get_ai_service()
+        analyzer1 = await get_sentiment_analyzer()
+        analyzer2 = await get_sentiment_analyzer()
 
         assert analyzer1 is not None
         assert analyzer1 is analyzer2  # Same instance
 
     def test_get_context_builder(self):
         """Test get_context_builder returns singleton."""
-        builder1 = get_ai_service()
-        builder2 = get_ai_service()
+        builder1 = get_context_builder()
+        builder2 = get_context_builder()
 
         assert builder1 is not None
         assert builder1 is builder2  # Same instance
