@@ -711,23 +711,17 @@ async def test_webhook(
 # ============================================================================
 # WEBHOOK EVENTS & INBOUND
 # ============================================================================
-@router.post("/inbound", response_model=WebhookInboundResponse)
-async def receive_inbound_webhook(
+
+async def _process_inbound_webhook(
     request: Request,
     event_data: WebhookInboundEvent,
-    db: Session = Depends(get_db),
-    redis_cache = Depends(get_redis_cache),
-    verification: dict = Depends(verify_webhook_signature_v2),
-):
+    db: Session,
+    redis_cache,
+    verification: dict,
+) -> WebhookInboundResponse:
     """
-    Receive incoming webhook from external systems (Evolution API).
-
-    Security:
-    - HMAC signature verification required
-    - Timestamp validation (5 min window)
-    - Idempotency checking (24h window)
-
-    Public endpoint (no authentication required beyond webhook signature).
+    Internal function to process inbound webhooks.
+    Shared by both /inbound and /whatsapp endpoints.
     """
     try:
         webhook_id = verification.get("webhook_id")
@@ -798,6 +792,50 @@ async def receive_inbound_webhook(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
+
+
+@router.post("/inbound", response_model=WebhookInboundResponse)
+async def receive_inbound_webhook(
+    request: Request,
+    event_data: WebhookInboundEvent,
+    db: Session = Depends(get_db),
+    redis_cache = Depends(get_redis_cache),
+    verification: dict = Depends(verify_webhook_signature_v2),
+):
+    """
+    Receive incoming webhook from external systems (Evolution API).
+
+    Security:
+    - HMAC signature verification required
+    - Timestamp validation (5 min window)
+    - Idempotency checking (24h window)
+
+    Public endpoint (no authentication required beyond webhook signature).
+    """
+    return await _process_inbound_webhook(request, event_data, db, redis_cache, verification)
+
+
+@router.post("/whatsapp", response_model=WebhookInboundResponse)
+async def receive_whatsapp_webhook(
+    request: Request,
+    event_data: WebhookInboundEvent,
+    db: Session = Depends(get_db),
+    redis_cache = Depends(get_redis_cache),
+    verification: dict = Depends(verify_webhook_signature_v2),
+):
+    """
+    Receive incoming webhook from WhatsApp/Evolution API.
+    
+    This is an alias for /inbound endpoint for backward compatibility.
+
+    Security:
+    - HMAC signature verification required
+    - Timestamp validation (5 min window)
+    - Idempotency checking (24h window)
+
+    Public endpoint (no authentication required beyond webhook signature).
+    """
+    return await _process_inbound_webhook(request, event_data, db, redis_cache, verification)
 
 
 @router.get("/events", response_model=WebhookEventTypeList)
