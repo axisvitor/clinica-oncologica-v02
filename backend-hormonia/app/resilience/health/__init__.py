@@ -15,7 +15,13 @@ from .checks import (
     MemoryHealthCheck,
     CPUHealthCheck
 )
-from .endpoints import create_health_blueprint
+
+try:  # Optional dependency: Flask is only required when using the blueprint
+    from .endpoints import create_health_blueprint  # type: ignore
+    HAS_HEALTH_BLUEPRINT = True
+except ModuleNotFoundError:
+    create_health_blueprint = None  # type: ignore
+    HAS_HEALTH_BLUEPRINT = False
 
 __all__ = [
     'HealthChecker',
@@ -24,6 +30,8 @@ __all__ = [
     'DatabaseHealthCheck',
     'DiskSpaceHealthCheck',
     'MemoryHealthCheck',
-    'CPUHealthCheck',
-    'create_health_blueprint'
+    'CPUHealthCheck'
 ]
+
+if HAS_HEALTH_BLUEPRINT:
+    __all__.append('create_health_blueprint')

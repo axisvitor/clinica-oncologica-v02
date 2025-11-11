@@ -6,11 +6,17 @@ Advanced rate limiting with multiple strategies and graceful degradation.
 
 import time
 import hashlib
-from typing import Dict, Optional, Any, Callable, List
-from dataclasses import dataclass
-from enum import Enum
-from flask import request, g
 import logging
+from dataclasses import dataclass, field
+from enum import Enum
+from types import SimpleNamespace
+from typing import Any, Callable, Dict, List, Mapping, Optional
+
+try:  # Optional Flask dependency
+    from flask import request as flask_request, g as flask_g  # type: ignore
+except ImportError:  # pragma: no cover - Flask not installed
+    flask_request = None
+    flask_g = SimpleNamespace()
 
 from .token_bucket import TokenBucket, TokenBucketConfig, TokenBucketManager
 
@@ -68,6 +74,15 @@ class RateLimitResult:
         return headers
 
 
+@dataclass
+class RateLimitContext:
+    """Framework-agnostic request data for rate limiting decisions."""
+    client_ip: str = "unknown"
+    user_id: Optional[str] = None
+    endpoint: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
 class RateLimiter:
     """
     Advanced rate limiter with multiple strategies
@@ -110,13 +125,15 @@ class RateLimiter:
 
     def check_rate_limit(self,
                         key: Optional[str] = None,
-                        tokens: int = 1) -> RateLimitResult:
+                        tokens: int = 1,
+                        context: Optional["RateLimitContext"] = None) -> RateLimitResult:
         """
         Check if request should be rate limited
 
         Args:
             key: Optional custom key (uses strategy to generate if None)
             tokens: Number of tokens to consume
+            context: Optional request metadata used to derive rate limit keys
 
         Returns:
             RateLimitResult with decision and metadata
@@ -124,7 +141,7 @@ class RateLimiter:
         self._total_requests += 1
 
         # Generate bucket key
-        bucket_id = key or self._generate_bucket_key()
+        bucket_id = key or self._generate_bucket_key(context=context)
 
         # Check whitelist
         if self._is_whitelisted(bucket_id):
@@ -152,31 +169,33 @@ class RateLimiter:
 
         return result
 
-    def _generate_bucket_key(self) -> str:
+    def _generate_bucket_key(self, context: Optional["RateLimitContext"] = None) -> str:
         """Generate bucket key based on strategy"""
         if self.config.strategy == RateLimitStrategy.CUSTOM:
             if self.config.key_func:
-                return self.config.key_func()
-            else:
-                raise ValueError("Custom strategy requires key_func")
+                try:
+                    return self.config.key_func(context)
+                except TypeError:
+                    return self.config.key_func()
+            raise ValueError("Custom strategy requires key_func")
 
         elif self.config.strategy == RateLimitStrategy.PER_IP:
             # Use client IP
-            return self._get_client_ip()
+            return f"ip_{self._get_client_ip(context)}"
 
         elif self.config.strategy == RateLimitStrategy.PER_USER:
             # Use user ID if available
-            user_id = self._get_user_id()
+            user_id = self._get_user_id(context)
             if user_id:
                 return f"user_{user_id}"
             else:
                 # Fallback to IP if no user
-                return f"ip_{self._get_client_ip()}"
+                return f"ip_{self._get_client_ip(context)}"
 
         elif self.config.strategy == RateLimitStrategy.PER_ENDPOINT:
             # Use endpoint + IP
-            endpoint = self._get_endpoint()
-            client_ip = self._get_client_ip()
+            endpoint = self._get_endpoint(context)
+            client_ip = self._get_client_ip(context)
             return f"endpoint_{endpoint}_{client_ip}"
 
         elif self.config.strategy == RateLimitStrategy.GLOBAL:
@@ -186,60 +205,204 @@ class RateLimiter:
         else:
             raise ValueError(f"Unknown rate limit strategy: {self.config.strategy}")
 
-    def _get_client_ip(self) -> str:
-        """Get client IP address"""
-        try:
-            # Try to get real IP from headers (behind proxy)
-            if hasattr(request, 'headers'):
-                forwarded_for = request.headers.get('X-Forwarded-For')
-                if forwarded_for:
-                    return forwarded_for.split(',')[0].strip()
+    @staticmethod
+    def _extract_from_context(context: Optional["RateLimitContext"], *keys: str) -> Optional[Any]:
+        """Safely extract attribute from multiple context styles."""
+        if context is None:
+            return None
 
-                real_ip = request.headers.get('X-Real-IP')
-                if real_ip:
-                    return real_ip
+        sources = [context]
 
-            # Fallback to remote address
-            if hasattr(request, 'remote_addr'):
-                return request.remote_addr or 'unknown'
+        if isinstance(context, RateLimitContext):
+            sources.append(context.metadata)
 
-        except Exception:
-            pass
+        extra_source = None
+        if isinstance(context, Mapping):
+            extra_source = context.get('extra')
+        elif hasattr(context, 'extra'):
+            extra_source = getattr(context, 'extra')
 
-        return 'unknown'
+        if isinstance(extra_source, Mapping):
+            sources.append(extra_source)
 
-    def _get_user_id(self) -> Optional[str]:
-        """Get user ID from request context"""
-        try:
-            # Try to get from Flask g object
-            if hasattr(g, 'current_user') and g.current_user:
-                if hasattr(g.current_user, 'id'):
-                    return str(g.current_user.id)
-                elif hasattr(g.current_user, 'get_id'):
-                    return str(g.current_user.get_id())
-
-            # Try to get from JWT token or session
-            if hasattr(g, 'user_id'):
-                return str(g.user_id)
-
-        except Exception:
-            pass
+        for source in sources:
+            for key in keys:
+                value = None
+                if isinstance(source, Mapping):
+                    value = source.get(key)
+                if value is None and hasattr(source, key):
+                    value = getattr(source, key)
+                if value is not None:
+                    return value
 
         return None
 
-    def _get_endpoint(self) -> str:
+    def _resolve_request_object(self, context: Optional["RateLimitContext"]) -> Optional[Any]:
+        """Return the best available request object."""
+        request_obj = self._extract_from_context(context, 'request')
+        if request_obj is not None:
+            return request_obj
+        return flask_request
+
+    def _resolve_headers(self, context: Optional["RateLimitContext"]) -> Optional[Any]:
+        """Return headers from context or request if available."""
+        headers = self._extract_from_context(context, 'headers')
+        if headers is not None:
+            return headers
+
+        request_obj = self._resolve_request_object(context)
+        if request_obj and hasattr(request_obj, 'headers'):
+            return getattr(request_obj, 'headers')
+
+        return None
+
+    @staticmethod
+    def _get_header_value(headers: Optional[Any], key: str) -> Optional[str]:
+        """Case-insensitive header access."""
+        if headers is None:
+            return None
+
+        getter = getattr(headers, 'get', None)
+        if callable(getter):
+            value = getter(key)
+            if value is None:
+                value = getter(key.lower())
+            return value
+
+        if isinstance(headers, Mapping):
+            return headers.get(key) or headers.get(key.lower())
+
+        return None
+
+    @staticmethod
+    def _hash_path(path: str) -> str:
+        """Hashes path to create compact bucket identifiers."""
+        path_hash = hashlib.md5(path.encode()).hexdigest()[:8]
+        return f"path_{path_hash}"
+
+    @staticmethod
+    def _format_endpoint(endpoint: Any) -> str:
+        """Return a string identifier for the endpoint."""
+        if isinstance(endpoint, str):
+            return endpoint
+
+        if callable(endpoint):
+            return getattr(endpoint, '__name__', str(endpoint))
+
+        return str(endpoint)
+
+    def _get_client_ip(self, context: Optional["RateLimitContext"] = None) -> str:
+        """Get client IP address"""
+        ip = self._extract_from_context(context, 'client_ip', 'ip', 'remote_addr')
+        if ip:
+            ip_str = str(ip)
+            if ip_str.lower() != 'unknown':
+                return ip_str
+
+        headers = self._resolve_headers(context)
+        forwarded_for = self._get_header_value(headers, 'X-Forwarded-For')
+        if forwarded_for:
+            return forwarded_for.split(',')[0].strip()
+
+        real_ip = self._get_header_value(headers, 'X-Real-IP')
+        if real_ip:
+            return real_ip
+
+        request_obj = self._resolve_request_object(context)
+        if request_obj:
+            client = getattr(request_obj, 'client', None)
+            if client:
+                host = getattr(client, 'host', None)
+                if host:
+                    return host
+
+            if hasattr(request_obj, 'remote_addr'):
+                remote_addr = getattr(request_obj, 'remote_addr')
+                if remote_addr:
+                    return remote_addr
+
+        return 'unknown'
+
+    def _get_user_id(self, context: Optional["RateLimitContext"] = None) -> Optional[str]:
+        """Get user ID from request context"""
+        user_id = self._extract_from_context(context, 'user_id')
+        if user_id:
+            return str(user_id)
+
+        user_obj = self._extract_from_context(context, 'user')
+        state = self._extract_from_context(context, 'state')
+
+        candidates = [user_obj]
+        if state is not None:
+            candidates.append(getattr(state, 'user', None))
+            state_user_id = getattr(state, 'user_id', None)
+            if state_user_id:
+                return str(state_user_id)
+
+        for candidate in candidates:
+            if candidate is None:
+                continue
+
+            candidate_id = getattr(candidate, 'id', None)
+            if candidate_id is not None:
+                return str(candidate_id)
+
+            get_id = getattr(candidate, 'get_id', None)
+            if callable(get_id):
+                user_value = get_id()
+                if user_value:
+                    return str(user_value)
+
+        flask_user = getattr(flask_g, 'current_user', None)
+        if flask_user:
+            flask_id = getattr(flask_user, 'id', None)
+            if flask_id is not None:
+                return str(flask_id)
+
+            flask_get_id = getattr(flask_user, 'get_id', None)
+            if callable(flask_get_id):
+                user_value = flask_get_id()
+                if user_value:
+                    return str(user_value)
+
+        flask_user_id = getattr(flask_g, 'user_id', None)
+        if flask_user_id is not None:
+            return str(flask_user_id)
+
+        return None
+
+    def _get_endpoint(self, context: Optional["RateLimitContext"] = None) -> str:
         """Get endpoint identifier"""
-        try:
-            if hasattr(request, 'endpoint'):
-                return request.endpoint or 'unknown'
+        endpoint = self._extract_from_context(context, 'endpoint')
+        if endpoint:
+            return self._format_endpoint(endpoint)
 
-            if hasattr(request, 'path'):
-                # Create hash of path to avoid long keys
-                path_hash = hashlib.md5(request.path.encode()).hexdigest()[:8]
-                return f"path_{path_hash}"
+        path = self._extract_from_context(context, 'path')
+        if path:
+            return self._hash_path(str(path))
 
-        except Exception:
-            pass
+        request_obj = self._resolve_request_object(context)
+        if request_obj:
+            endpoint_attr = getattr(request_obj, 'endpoint', None)
+            if endpoint_attr:
+                return self._format_endpoint(endpoint_attr)
+
+            scope = getattr(request_obj, 'scope', None)
+            if isinstance(scope, Mapping):
+                scope_endpoint = scope.get('endpoint')
+                if scope_endpoint:
+                    return self._format_endpoint(scope_endpoint)
+
+            request_path = getattr(request_obj, 'path', None)
+            if request_path:
+                return self._hash_path(str(request_path))
+
+            url = getattr(request_obj, 'url', None)
+            if url:
+                try:
+                    return self._hash_path(str(url.path))
+                except Exception:
+                    pass
 
         return 'unknown'
 

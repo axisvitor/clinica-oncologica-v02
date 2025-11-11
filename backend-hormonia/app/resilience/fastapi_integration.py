@@ -20,7 +20,7 @@ from .health import (
     MemoryHealthCheck,
     CPUHealthCheck
 )
-from .rate_limit import RateLimiter, RateLimitConfig, RateLimitStrategy
+from .rate_limit import RateLimiter, RateLimitConfig, RateLimitStrategy, RateLimitContext
 from .metrics import metrics_collector
 from .config import config_manager, ResilienceConfig
 
@@ -321,8 +321,9 @@ class FastAPIResilienceManager:
                     response = await call_next(request)
                     return response
 
-                # Check rate limit
-                result = self.rate_limiter.check_rate_limit()
+                # Check rate limit with request context
+                context = self._build_rate_limit_context(request)
+                result = self.rate_limiter.check_rate_limit(context=context)
 
                 if not result.allowed:
                     # Create rate limit response
@@ -364,6 +365,102 @@ class FastAPIResilienceManager:
                 return response
 
         logger.info("Rate limiting middleware registered")
+
+    def _build_rate_limit_context(self, request: Request) -> RateLimitContext:
+        """Create RateLimitContext for the current FastAPI request."""
+        state = getattr(request, 'state', None)
+        scope = getattr(request, 'scope', None)
+        scope_dict = scope if isinstance(scope, dict) else {}
+
+        user_obj = getattr(state, 'user', None) if state else None
+        scope_user = scope_dict.get('user')
+        if user_obj is None and scope_user is not None:
+            user_obj = scope_user
+
+        user_id_value: Optional[str] = None
+        if state:
+            state_user_id = getattr(state, 'user_id', None)
+            if state_user_id is not None:
+                user_id_value = self._normalize_user_identifier(state_user_id)
+
+        if user_id_value is None:
+            user_id_value = self._resolve_user_id_from_object(user_obj)
+
+        if user_id_value is None and scope_user is not None:
+            user_id_value = self._resolve_user_id_from_object(scope_user)
+
+        headers = getattr(request, 'headers', None)
+        if user_id_value is None and headers is not None:
+            header_user = headers.get('X-User-Id') or headers.get('x-user-id')
+            if header_user:
+                normalized_header = self._normalize_user_identifier(header_user)
+                if normalized_header:
+                    user_id_value = normalized_header
+
+        client_ip = request.client.host if request.client else None
+
+        endpoint_callable = scope_dict.get('endpoint')
+        endpoint_name = (
+            getattr(endpoint_callable, '__name__', str(endpoint_callable))
+            if endpoint_callable
+            else None
+        )
+
+        path_value = None
+        try:
+            path_value = request.url.path
+        except Exception:
+            path_value = scope_dict.get('path')
+
+        metadata: Dict[str, Any] = {
+            'path': path_value,
+            'headers': headers,
+            'request': request,
+            'state': state,
+            'scope': scope_dict,
+            'client': getattr(request, 'client', None),
+            'user': user_obj,
+            'extra': {'scope': scope_dict} if scope_dict else None,
+        }
+
+        return RateLimitContext(
+            client_ip=client_ip or "unknown",
+            user_id=user_id_value,
+            endpoint=endpoint_name,
+            metadata=metadata,
+        )
+
+    @staticmethod
+    def _resolve_user_id_from_object(user: Any) -> Optional[str]:
+        """Best effort extraction of a user identifier."""
+        if user is None:
+            return None
+
+        if isinstance(user, dict):
+            for key in ('id', 'user_id', 'uid'):
+                candidate = user.get(key)
+                normalized = FastAPIResilienceManager._normalize_user_identifier(candidate)
+                if normalized:
+                    return normalized
+            return None
+
+        return FastAPIResilienceManager._normalize_user_identifier(user)
+
+    @staticmethod
+    def _normalize_user_identifier(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if isinstance(value, (int, str)):
+            return str(value)
+        if hasattr(value, "id"):
+            return str(getattr(value, "id"))
+        if hasattr(value, "get_id"):
+            getter = getattr(value, "get_id")
+            if callable(getter):
+                result = getter()
+                if result is not None:
+                    return str(result)
+        return None
 
     def _should_bypass_route(self, path: str) -> bool:
         """Check if route should bypass rate limiting"""
