@@ -21,13 +21,13 @@ logger = logging.getLogger(__name__)
 
 
 async def _get_current_user_simple(
-    session_id: str = Cookie(None, alias="session_id"),
+    session_cookie_id: str = Cookie(None, alias="session_id"),
     x_session_id: str = Header(None, alias="X-Session-ID"),
     db: Session = Depends(get_db),
     redis_cache = Depends(get_redis_cache)
 ):
     """Simplified session validation."""
-    final_session_id = session_id or x_session_id
+    final_session_id = session_cookie_id or x_session_id
     if not final_session_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
