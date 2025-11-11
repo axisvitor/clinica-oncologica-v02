@@ -199,6 +199,44 @@ class UnifiedCacheManager:
             else:
                 self._stats.errors += 1
 
+    # ------------------------------------------------------------------
+    # Cache invalidation helpers (compatibility with legacy interfaces)
+    # ------------------------------------------------------------------
+
+    def invalidate_pattern(self, pattern: str, namespace: Optional[str] = None) -> int:
+        """
+        Invalidate cache entries that match a pattern.
+
+        This keeps backward compatibility with the old cache API.
+        """
+        try:
+            from .invalidation import CacheInvalidator  # Local import to avoid circular dependency
+
+            invalidator = CacheInvalidator(cache_manager=self)
+            return invalidator.invalidate_pattern(pattern, namespace=namespace)
+        except Exception as exc:
+            logger.error(
+                "UnifiedCacheManager.invalidate_pattern failed",
+                exc_info=True,
+                extra={"pattern": pattern, "namespace": namespace, "error": str(exc)},
+            )
+            return 0
+
+    async def invalidate_pattern_async(self, pattern: str, namespace: Optional[str] = None) -> int:
+        """Async variant of invalidate_pattern."""
+        try:
+            from .invalidation import CacheInvalidator
+
+            invalidator = CacheInvalidator(cache_manager=self)
+            return await invalidator.invalidate_pattern_async(pattern, namespace=namespace)
+        except Exception as exc:
+            logger.error(
+                "UnifiedCacheManager.invalidate_pattern_async failed",
+                exc_info=True,
+                extra={"pattern": pattern, "namespace": namespace, "error": str(exc)},
+            )
+            return 0
+
     def get(
         self,
         cache_type: str,
