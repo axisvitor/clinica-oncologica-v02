@@ -24,7 +24,7 @@
 - **Relacionamentos**: 57 chaves estrangeiras ativas
 - **Triggers**: 14 gatilhos
 - **Enums personalizados**: 13 tipos
-- **Índices**: 263 índices no total
+- **Índices**: 264 índices no total
 
 ---
 
