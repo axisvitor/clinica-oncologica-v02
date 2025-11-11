@@ -220,7 +220,7 @@ export function WhatsAppIntegrationHub() {
     const messageData: Record<string, unknown> = {
       instance_name: selectedInstance,
       to: messageForm.to,
-      message_type: 'text'
+      ['message_type']: 'text'
     }
 
     if (messageForm.mediaFile) {
@@ -234,19 +234,19 @@ export function WhatsAppIntegrationHub() {
       // Determine message type based on file type
       const fileType = messageForm.mediaFile.type
       if (fileType.startsWith('image/')) {
-        messageData.message_type = 'image'
+        messageData['message_type'] = 'image'
       } else if (fileType.startsWith('audio/')) {
-        messageData.message_type = 'audio'
+        messageData['message_type'] = 'audio'
       } else {
-        messageData.message_type = 'document'
+        messageData['message_type'] = 'document'
       }
 
-      messageData.media_file = messageForm.mediaFile
-      messageData.media_caption = messageForm.mediaCaption
+      messageData['media_file'] = messageForm.mediaFile
+      messageData['media_caption'] = messageForm.mediaCaption
     }
 
     if (messageForm.text.trim()) {
-      messageData.text = messageForm.text
+      messageData['text'] = messageForm.text
     }
 
     sendMessageMutation.mutate(messageData)
