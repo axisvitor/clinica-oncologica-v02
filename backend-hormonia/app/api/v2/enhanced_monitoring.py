@@ -424,7 +424,7 @@ async def get_apm_global_stats(
 async def get_apm_endpoints_stats(
     current_user: User = Depends(get_admin_user),
     pagination: Dict = Depends(get_pagination_params),
-    sort_by: str = Query("total_requests", regex="^(total_requests|error_rate|avg_latency)$"),
+    sort_by: str = Query("total_requests", pattern="^(total_requests|error_rate|avg_latency)$"),
 ) -> APMEndpointListResponse:
     """
     Get statistics for all endpoints.
@@ -1015,7 +1015,7 @@ async def get_business_metric_stats(
 @async_cache(cache_type="anomalies_recent", ttl=CACHE_TTL_REALTIME)
 async def get_recent_anomalies(
     hours: int = Query(24, ge=1, le=168),
-    severity: Optional[str] = Query(None, regex="^(low|medium|high|critical)$"),
+    severity: Optional[str] = Query(None, pattern="^(low|medium|high|critical)$"),
     metric: Optional[str] = Query(None),
     current_user: User = Depends(get_admin_user),
     pagination: Dict = Depends(get_pagination_params),

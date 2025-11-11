@@ -535,7 +535,7 @@ class QuizGenerateRequestV2(BaseModel):
         ...,
         description="Template to use for generation"
     )
-    target_month: constr(regex=r"^\d{4}-\d{2}$") = Field(
+    target_month: constr(pattern=r"^\d{4}-\d{2}$") = Field(
         ...,
         description="Target month (YYYY-MM format)"
     )

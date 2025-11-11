@@ -1057,7 +1057,7 @@ async def ai_health_check() -> AIHealthResponse:
     description="Retrieve token usage and cost metrics (cached 1h).",
 )
 async def get_usage_statistics(
-    period: str = Query("day", regex="^(hour|day|week|month)$"),
+    period: str = Query("day", pattern="^(hour|day|week|month)$"),
     current_user: User = Depends(verify_physician_or_admin),
 ) -> UsageStatsResponse:
     """Get token usage and cost statistics."""
