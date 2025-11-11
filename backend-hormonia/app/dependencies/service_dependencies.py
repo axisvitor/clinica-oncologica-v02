@@ -169,6 +169,11 @@ async def get_websocket_manager_instance():
     from app.services.websocket import get_websocket_manager
     return get_websocket_manager()
 
+def get_websocket_manager():
+    """Synchronous helper to expose the unified WebSocket manager via DI."""
+    from app.services.websocket import get_websocket_manager as _get_manager
+    return _get_manager()
+
 # =============================================================================
 # FLOW MANAGEMENT SERVICES (Specific to flow domain)
 # =============================================================================

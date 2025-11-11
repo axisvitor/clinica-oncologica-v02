@@ -1,4 +1,5 @@
 # Multi-stage Docker build for thread-safe production deployment
+ARG APP_SRC=backend-hormonia
 FROM python:3.13-slim@sha256:77cab44fc9bb15aad23d6df227e651b0a6c7a57e788ab318d5f68c7e5b4f3d42 as base
 
 # Set environment variables for Python
@@ -25,7 +26,7 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 WORKDIR /app
 
 # Copy requirements first for better caching
-COPY requirements.txt .
+COPY ${APP_SRC}/requirements.txt ./requirements.txt
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
@@ -34,7 +35,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 FROM base as production
 
 # Copy application code
-COPY --chown=appuser:appuser . .
+COPY --chown=appuser:appuser ${APP_SRC}/ .
 
 # Create necessary directories
 RUN mkdir -p /app/logs /app/uploads && \

@@ -17,4 +17,7 @@ warnings.warn(
 # Re-export from new location
 from app.domain.flows.events import FlowEventBroadcaster
 
-__all__ = ["FlowEventBroadcaster"]
+# Provide a singleton instance to preserve the old import style
+flow_event_broadcaster = FlowEventBroadcaster()
+
+__all__ = ["FlowEventBroadcaster", "flow_event_broadcaster"]
