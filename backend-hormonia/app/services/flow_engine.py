@@ -23,6 +23,9 @@ from app.domain.flows.engine import FlowEngine as NewFlowEngine
 from app.domain.flows.engine import ContextBuilder as NewContextBuilder
 from app.models.flow import PatientFlowState
 
+# Re-export the compatibility FlowEngineIntegrationService from app.services.flow
+from app.services.flow import FlowEngineIntegrationService as FlowEngineIntegrationService  # noqa: F401
+
 # Issue deprecation warning
 warnings.warn(
     "app.services.flow_engine is deprecated. "
