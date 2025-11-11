@@ -15,6 +15,25 @@ from app.config import settings
 deployment_mode = "development" if settings.DEBUG else "production"
 app = create_application(deployment_mode=deployment_mode)
 
+
+# Simple health check endpoint for Railway/Docker health checks
+@app.get("/health", tags=["Health"])
+async def root_health_check():
+    """
+    Simple health check endpoint at root level for Railway/Docker.
+    Returns basic status without dependency checks.
+    """
+    import time
+    from datetime import datetime
+    
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat() + 'Z',
+        "version": "2.0.0",
+        "environment": settings.ENVIRONMENT
+    }
+
+
 # Add a simple test endpoint to verify the server is working (debug mode only)
 if settings.DEBUG:
     @app.get("/test", tags=["Debug"])
