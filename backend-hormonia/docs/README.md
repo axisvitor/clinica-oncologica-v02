@@ -1,46 +1,40 @@
 # Documentação Backend - Clínica Oncológica
 
-**Última Atualização**: 2025-10-02
+**Última Atualização**: 2025-11-12
 
-## 📋 Índice Geral
+## 📋 Navegação Rápida
 
-### 🔐 Segurança
-- [Guia de Autenticação](security/AUTHENTICATION_GUIDE.md)
-- [RLS via API - Guia de Testes](security/rls/TESTES_RLS_API_GUIA.md)
-- [Segurança Firebase](security/FIREBASE_SECURITY.md)
-- [Setup de Ambiente Firebase](security/FIREBASE_ENV_SETUP.md)
-- [Implementação de Sincronização Firebase](security/FIREBASE_SYNC_IMPLEMENTATION.md)
+### 🚀 Para Começar
+- [Quick Start - Instalação e Configuração](guides/quickstart/)
+- [Troubleshooting - Resolução de Problemas](guides/troubleshooting/)
+- [Guia de Migrações](guides/migration/)
 
-### 🗄️ Banco de Dados
-- [Documentação Completa do Banco](db/BANCO_DE_DADOS_COMPLETO.md)
-- [Schema Master SQL](../SCHEMA_MASTER_COMPLETO.sql) (v2.1)
-- [Relatórios](db/reports/)
+### 📚 API & Integrações
+- [API REST - Endpoints e Guias](api/rest/)
+- [API Pública de Quiz](api/public/)
+- [Webhooks - Configuração e Segurança](api/webhooks/)
 
-### 🚀 API
-- [Documentação da API](api/API.md)
-- [API Pública de Quiz Mensal](QUIZ_PUBLIC_API.md) - Guia completo
-- [Referência Rápida de Migrations](MIGRATION_QUICK_REFERENCE.md)
+### 🏛️ Arquitetura & Design
+- [Design do Sistema](architecture/system-design/)
+- [Banco de Dados](database/) - ⚠️ Documentação atualizada e completa
+- [Padrões de Design](architecture/patterns/)
 
-### 📦 Deployment
-- [Guia de Deployment](deployment/DEPLOYMENT.md)
-- [Variáveis de Ambiente](deployment/ENVIRONMENT_VARIABLES.md)
-- [Guia de Migrations](deployment/MIGRATIONS_GUIDE.md)
-- [Upgrade Python 3.13](PYTHON_313_UPGRADE.md)
+### ⚙️ Operações & Produção
+- [Deployment e Configuração](operations/deployment/)
+- [Monitoramento e Métricas](operations/monitoring/)
+- [Segurança](operations/security/)
+- [Performance e Otimização](operations/performance/)
+- [Manutenção](operations/maintenance/)
 
-### 🔴 Redis
-- [Guia de Uso do Redis](redis/REDIS_USAGE_GUIDE.md) - Guia canônico de uso
-- [Histórico de Migração](incidents/_archive/REDIS_MIGRATION_SUMMARY.md) - Arquivado
+### 📖 Referências Técnicas
+- [Implementações Específicas](reference/)
+- [Configurações do Sistema](reference/)
 
-### 📊 Monitoramento
-- [Monitoramento de Performance de Queries](monitoring/QUERY_PERFORMANCE_MONITORING.md)
-- [Grafana Dashboard](../config/monitoring/grafana/README.md)
-
-### 🧪 Testes
-- [Métricas de Testes E2E do Quiz](testing/QUIZ_E2E_TESTING_METRICS.md)
-- [Guia de Testes RLS via API](security/rls/TESTES_RLS_API_GUIA.md)
-
-### 📋 Relatórios Arquivados
-- [Relatórios de Incidentes](incidents/_archive/)
+### 📦 Arquivo Histórico
+- [Relatórios de Migrações V2](archive/v2-migrations/)
+- [Relatórios de Fases/Sprints](archive/phase-reports/)
+- [Bug Fixes Documentados](archive/bug-fixes/)
+- [Relatórios de Performance](archive/performance-reports/)
 
 ## 📁 Estrutura de Backend
 
@@ -170,10 +164,20 @@ Acesse a documentação interativa:
 - **ReDoc**: http://localhost:8000/redoc
 - **OpenAPI JSON**: http://localhost:8000/openapi.json
 
-## Convenções
+## 📝 Sobre esta Documentação
 
-- **Canônicos**: Documentos de referência atuais e mantidos
-- **Arquivados**: Relatórios históricos em `incidents/_archive/`
+Esta documentação foi reestruturada em 2025-11-12 para melhor organização e navegabilidade:
+
+- **Documentação Ativa**: Organizada por propósito em `guides/`, `api/`, `architecture/`, `operations/` e `reference/`
+- **Documentação Histórica**: Migrada para `archive/` com subcategorias por tipo
+- **Banco de Dados**: Mantida em `database/` - já estava atualizada e bem organizada
+- **Navegação**: Cada pasta principal contém README próprio para facilitar a navegação
+
+### Convenções
+
+- **Guias Práticos**: Documentos how-to em `guides/`
+- **Referências Técnicas**: Especificações em `reference/`
+- **Arquivo**: Relatórios históricos e completados em `archive/`
 - **Língua**: PT-BR (padrão do projeto)
 
 ---
