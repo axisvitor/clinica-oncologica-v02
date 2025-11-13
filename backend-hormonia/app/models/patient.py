@@ -3,6 +3,7 @@ Patient model for hormone therapy patients.
 Corresponds to the actual Supabase schema structure.
 """
 from sqlalchemy import Column, String, Date, Integer, ForeignKey, Enum, Text, UniqueConstraint, Index, DateTime
+import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import enum
@@ -17,12 +18,10 @@ if TYPE_CHECKING:
 class FlowState(enum.Enum):
     """Patient flow state enumeration - matches Supabase enum."""
     ONBOARDING = "onboarding"
-    ONBOARDING_START = "onboarding"  # Alias for saga orchestrator compatibility
     ACTIVE = "active"
     PAUSED = "paused"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
-    INACTIVE = "cancelled"  # Legacy alias maintained for backward compatibility
 
 
 class Patient(BaseModel):
@@ -53,7 +52,7 @@ class Patient(BaseModel):
     __tablename__ = "patients"
     
     # Basic information (matches Supabase schema exactly)
-    doctor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    doctor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     phone = Column(String, nullable=False, index=True)
     name = Column(String, nullable=False)
     email = Column(String, nullable=True)
@@ -126,9 +125,17 @@ class Patient(BaseModel):
     analytics = relationship("FlowAnalytics", back_populates="patient", lazy="select", passive_deletes=True)
 
     # Constraints and indexes to match DB uniques
+    # After migration 009: Composite unique constraints scoped to doctor_id
     __table_args__ = (
-        UniqueConstraint('cpf', name='patients_cpf_key'),
-        UniqueConstraint('phone', name='patients_phone_key'),
+        # Composite unique constraints to prevent duplicates per doctor
+        UniqueConstraint('email', 'doctor_id', name='uq_patient_email_doctor'),
+        UniqueConstraint('cpf', 'doctor_id', name='uq_patient_cpf_doctor'),
+        UniqueConstraint('phone', 'doctor_id', name='uq_patient_phone_doctor'),
+
+        # Composite indexes for faster lookups
+        Index('idx_patient_phone_doctor', 'phone', 'doctor_id'),
+        Index('idx_patient_email_doctor', 'email', 'doctor_id', postgresql_where=sa.text('email IS NOT NULL')),
+        Index('idx_patient_cpf_doctor', 'cpf', 'doctor_id', postgresql_where=sa.text('cpf IS NOT NULL')),
     )
 
     # NOTE: cpf, diagnosis, treatment_phase, doctor_notes are now dedicated columns
