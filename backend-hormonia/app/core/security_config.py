@@ -97,7 +97,17 @@ class APISecurityConfig(BaseModel):
     cors_allow_origins: List[str] = ["https://app.hormonia.io"]
     cors_allow_credentials: bool = True
     cors_allow_methods: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-    cors_allow_headers: List[str] = ["*"]
+    # SECURITY: Explicit header whitelist - NEVER use ["*"] with credentials
+    # Using wildcard headers with allow_credentials=True violates CORS security
+    # and can expose all request headers to cross-origin requests
+    cors_allow_headers: List[str] = [
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "X-CSRF-Token",
+        "Accept",
+        "Origin"
+    ]
 
     # API key settings
     require_api_key_for_public_endpoints: bool = False
@@ -349,6 +359,15 @@ class SecurityConfigLoader:
         # Check CORS settings
         if "*" in self._config.api_security.cors_allow_origins:
             warnings.append("CORS allow origins should not include wildcard in production")
+
+        # SECURITY: Check for wildcard headers with credentials
+        if (self._config.api_security.cors_allow_credentials and
+            "*" in self._config.api_security.cors_allow_headers):
+            warnings.append(
+                "CRITICAL: CORS wildcard headers with credentials enabled - "
+                "this exposes all request headers to cross-origin requests and "
+                "can lead to credential leakage"
+            )
 
         return warnings
 

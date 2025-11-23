@@ -1,9 +1,9 @@
 import React, { useState } from 'react'
-import { SystemInitializationWizard } from '../components/initialization'
-import { useAuth } from '../contexts/AuthContext'
+import { SystemInitializationWizard } from '@/features/initialization/SystemInitializationWizard'
+import { useAuth } from '@/app/providers/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { toast } from '../hooks/use-toast'
-import { createLogger } from '../lib/logger'
+import { toast } from '@/hooks/use-toast'
+import { createLogger } from '@/lib/logger'
 
 const logger = createLogger('InitializationPage')
 

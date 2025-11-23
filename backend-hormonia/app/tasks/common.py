@@ -35,7 +35,7 @@ from app.models.flow_analytics import FlowAnalytics, FlowMessage
 # Services - frequently imported
 from app.domain.messaging.delivery import MessageSender
 from app.services.quiz import QuizSessionService
-from app.services.report import ReportService
+from app.services.reporting import ReportService
 from app.services.conversation_memory import get_conversation_memory
 
 # Repositories - commonly used

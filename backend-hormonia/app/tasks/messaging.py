@@ -10,9 +10,9 @@ from celery.exceptions import Retry
 
 from app.celery_app import celery_app
 from app.database import get_db
-from app.domain.messaging.delivery import MessageSender
-from app.services.message import MessageService
+from app.domain.messaging.core import MessageService
 from app.models.message import MessageStatus, MessageType
+from app.schemas.message import MessageUpdate
 from app.exceptions import ExternalServiceError
 from app.tasks.base import MessageTask, get_db_session
 
@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 
 # MessageTask is now imported from app.tasks.base
 
+
+from app.services.unified_whatsapp_service import get_whatsapp_service, MessageType, MessagePriority
 
 @celery_app.task(bind=True, base=MessageTask, name="send_scheduled_message")
 def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
@@ -45,6 +47,7 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
     self.log_task_start(message_id=message_id)
 
     try:
+        # We need a session for MessageService to get the message details
         with get_db_session() as db:
             message_service = MessageService(db)
 
@@ -67,28 +70,51 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
                     "message_id": message_id,
                     "status": message.status.value
                 }
+            
+            # Get patient phone number
+            patient = message.patient
+            if not patient or not patient.phone:
+                 logger.error(f"Patient phone not found for message {message_id}")
+                 return {
+                    "success": False, 
+                    "error": "Patient phone number missing",
+                    "message_id": message_id
+                 }
 
-            # Send the message using the same session with LEGACY mode (sync Session)
-            from app.services.unified_whatsapp_service import MessagingMode
-            message_sender = MessageSender(db, messaging_mode=MessagingMode.LEGACY)
-
+            # Send using Unified WhatsApp Service
+            whatsapp_service = get_whatsapp_service()
+            
+            # Map internal MessageType to Unified MessageType if needed, or use TEXT as default
+            # Assuming simple text for now based on legacy usage
+            
             import asyncio
-            success = asyncio.run(message_sender.send_message(message))
+            result = asyncio.run(whatsapp_service.send_message(
+                phone_number=patient.phone,
+                message_type=MessageType.TEXT,
+                content={"text": message.content},
+                priority=MessagePriority.NORMAL,
+                metadata=message.message_metadata
+            ))
 
-            result = {
-                "success": success,
-                "message_id": message_id,
-                "patient_id": str(message.patient_id),
-                "sent_at": datetime.utcnow().isoformat()
-            }
-
+            success = result.get("status") in ["queued", "sent", "delivered", "read"] or result.get("key", {}).get("id")
+            
+            # Update status locally based on result (MessageService/WhatsAppService might handle this, 
+            # but we ensure consistency here)
             if success:
+                message_service.mark_as_sent(message_id, result.get("key", {}).get("id") or "queued")
                 logger.info(f"Successfully sent scheduled message {message_id}")
             else:
-                logger.error(f"Failed to send scheduled message {message_id}")
-                result["error"] = "Message sending failed"
+                logger.error(f"Failed to send scheduled message {message_id}: {result}")
+                # Fail will be handled by exception block or manual update
+                raise ExternalServiceError(f"Provider returned failure: {result}")
 
-            return result
+            return {
+                "success": True,
+                "message_id": message_id,
+                "patient_id": str(message.patient_id),
+                "sent_at": datetime.utcnow().isoformat(),
+                "provider_result": result
+            }
 
     except Exception as exc:
         logger.error(f"Error sending scheduled message {message_id}: {exc}", exc_info=True)
@@ -133,12 +159,20 @@ def process_scheduled_messages(self, limit: int = 100) -> dict[str, Any]:
 
     try:
         with get_db_session() as db:
-            from app.services.unified_whatsapp_service import MessagingMode
-            message_sender = MessageSender(db, messaging_mode=MessagingMode.LEGACY)
+            message_service = MessageService(db)
 
-            # Process scheduled messages
-            import asyncio
-            processed_count = asyncio.run(message_sender.send_scheduled_messages(limit))
+            # Get due messages
+            due_messages = message_service.get_scheduled_messages(
+                before_time=datetime.utcnow(),
+                limit=limit
+            )
+            
+            processed_count = 0
+            for message in due_messages:
+                # Trigger individual send task for each message
+                # sending is idempotent, so it's safe to retry
+                send_scheduled_message.delay(str(message.id))
+                processed_count += 1
 
             result = self.create_success_result(
                 processed_count=processed_count,
@@ -175,13 +209,57 @@ def retry_failed_messages(self, limit: int = 50, max_retries: int = 3) -> dict[s
 
     try:
         with get_db_session() as db:
-            from app.services.unified_whatsapp_service import MessagingMode
-            message_sender = MessageSender(db, messaging_mode=MessagingMode.LEGACY)
+            message_service = MessageService(db)
 
-            # Retry failed messages
-            import asyncio
-            retry_count = asyncio.run(message_sender.retry_failed_messages(limit))
+            # Get failed messages that are candidates for retry
+            # Note: filtering by retry count would be ideal here, but we'll filter in loop for now
+            failed_messages = message_service.get_messages_with_filters(
+                status=MessageStatus.FAILED,
+                limit=limit * 2  # Fetch more to account for max_retries filter
+            )
 
+            retry_count = 0
+            for message in failed_messages:
+                # Check if max retries exceeded
+                # Assuming message.message_metadata stores retry info or we track it elsewhere
+                # If not available, we might be retrying indefinitely. 
+                # Ideally Message model has retry_count column.
+                
+                current_retries = message.retry_count if hasattr(message, 'retry_count') else 0
+                
+                if current_retries < max_retries:
+                     # Increment retry count locally or let send_task handle it?
+                     # send_scheduled_message handles the sending.
+                     # We should probably update status to PENDING before triggering?
+                     # Or just trigger it. send_scheduled_message checks for PENDING, 
+                     # so we might need to reset status first if it checks that strict.
+                     # However, send_scheduled_message implementation I wrote:
+                     # checks: if message.status != MessageStatus.PENDING: return "already processed"
+                     # So we MUST reset status to PENDING.
+                     
+                     # Update message status to PENDING to allow retry
+                     try:
+                         message_service.update_message(
+                             message.id, 
+                             MessageUpdate(
+                                 status=MessageStatus.PENDING,
+                                 message_metadata={
+                                     **(message.message_metadata or {}),
+                                     "retry_trigger": "auto_retry_task",
+                                     "last_retry_at": datetime.utcnow().isoformat()
+                                 }
+                             )
+                         )
+                         # Trigger send
+                         send_scheduled_message.delay(str(message.id))
+                         retry_count += 1
+                         
+                         if retry_count >= limit:
+                             break
+                             
+                     except Exception as e:
+                         logger.error(f"Failed to queue retry for message {message.id}: {e}")
+            
             result = self.create_success_result(
                 retry_count=retry_count,
                 retried_at=datetime.utcnow().isoformat()

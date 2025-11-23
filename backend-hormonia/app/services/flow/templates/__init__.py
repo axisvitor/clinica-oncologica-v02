@@ -1,3 +1,4 @@
+from typing import Any
 """
 Flow Templates - Template management for Flow Services (QW-021).
 

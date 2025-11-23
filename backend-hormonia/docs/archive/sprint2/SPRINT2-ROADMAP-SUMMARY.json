@@ -1,0 +1,325 @@
+{
+  "sprint": "Sprint +2",
+  "version": "1.0",
+  "created": "2025-11-15",
+  "status": "PLANNING_COMPLETE",
+  "summary": {
+    "total_weeks": 7,
+    "total_developer_days": 140,
+    "team_size": 4,
+    "success_probability": "high"
+  },
+  "milestones": [
+    {
+      "week": 1,
+      "goal": "ISSUE-004 validated, ISSUE-005 Phase 1 complete",
+      "deliverables": [
+        "ISSUE-004 merged to main",
+        "PatientValidationService extracted",
+        "LOC reduced from 687 to 550"
+      ]
+    },
+    {
+      "week": 2,
+      "goal": "ISSUE-005 complete - OnboardingService < 200 LOC",
+      "deliverables": [
+        "PatientMessagingService extracted",
+        "PatientFlowInitializationService extracted",
+        "Final LOC: ~190 (71% reduction)"
+      ]
+    },
+    {
+      "week": 3,
+      "goal": "ISSUE-006 Phase 1 - BaseOrchestrator implemented",
+      "deliverables": [
+        "BaseOrchestrator design complete",
+        "Base class implemented and tested",
+        "Migration plan documented"
+      ]
+    },
+    {
+      "week": 4,
+      "goal": "ISSUE-006 Phase 2 - Orchestrators migrated",
+      "deliverables": [
+        "FlowOrchestrator migrated (45% reduction)",
+        "SagaOrchestrator migrated (40% reduction)",
+        "50%+ overall code reduction"
+      ]
+    },
+    {
+      "week": 5,
+      "goal": "Critical paths 90%+ test coverage",
+      "deliverables": [
+        "Patient onboarding: 95% coverage",
+        "Saga pattern: 90% coverage",
+        "Flow orchestration: 90% coverage"
+      ]
+    },
+    {
+      "week": 6,
+      "goal": "Service layer 80%+ test coverage",
+      "deliverables": [
+        "Patient services: 85% coverage",
+        "Messaging services: 80% coverage",
+        "Quiz services: 80% coverage"
+      ]
+    },
+    {
+      "week": 7,
+      "goal": "70%+ overall coverage + deployment",
+      "deliverables": [
+        "API endpoints: 75% coverage",
+        "Overall coverage: 70%+",
+        "Production deployment complete"
+      ]
+    }
+  ],
+  "risks": [
+    {
+      "id": "RISK-001",
+      "description": "Breaking changes during refactoring",
+      "probability": "medium",
+      "impact": "high",
+      "mitigation": "Feature flags, canary deployments, automated rollback",
+      "residual_risk": "low"
+    },
+    {
+      "id": "RISK-002",
+      "description": "Test coverage regression",
+      "probability": "medium",
+      "impact": "medium",
+      "mitigation": "Pre-commit hooks, CI/CD gates, daily coverage reports",
+      "residual_risk": "low"
+    },
+    {
+      "id": "RISK-003",
+      "description": "Scope creep",
+      "probability": "medium",
+      "impact": "medium",
+      "mitigation": "Strict scope definition, change request process, time-boxing",
+      "residual_risk": "low"
+    },
+    {
+      "id": "RISK-004",
+      "description": "Team capacity issues",
+      "probability": "low",
+      "impact": "medium",
+      "mitigation": "Cross-training, documentation, backup developers",
+      "residual_risk": "very_low"
+    },
+    {
+      "id": "RISK-005",
+      "description": "Integration complexity",
+      "probability": "low",
+      "impact": "medium",
+      "mitigation": "Integration tests, staging environment, gradual rollout",
+      "residual_risk": "low"
+    }
+  ],
+  "dependencies": [
+    {
+      "from": "ISSUE-004",
+      "to": "ISSUE-005",
+      "type": "prerequisite",
+      "status": "satisfied"
+    },
+    {
+      "from": "ISSUE-005",
+      "to": "ISSUE-006",
+      "type": "recommended",
+      "status": "pending"
+    },
+    {
+      "from": "ISSUE-005",
+      "to": "Test Coverage Phase 1",
+      "type": "parallel",
+      "status": "pending"
+    },
+    {
+      "from": "ISSUE-006",
+      "to": "Test Coverage Phase 2",
+      "type": "parallel",
+      "status": "pending"
+    }
+  ],
+  "success_criteria": {
+    "issue_004": {
+      "status": "complete",
+      "criteria": [
+        "Constructor injection implemented",
+        "Zero internal service instantiation",
+        "100% test coverage on DI pattern",
+        "Documentation complete"
+      ]
+    },
+    "issue_005": {
+      "status": "pending",
+      "target_loc": 200,
+      "current_loc": 687,
+      "reduction_percentage": 71,
+      "criteria": [
+        "PatientValidationService extracted",
+        "PatientMessagingService extracted",
+        "PatientFlowInitializationService extracted",
+        "All tests passing",
+        "Test coverage >85%",
+        "Zero breaking changes"
+      ]
+    },
+    "issue_006": {
+      "status": "pending",
+      "code_reduction_target": 50,
+      "criteria": [
+        "BaseOrchestrator implemented",
+        "FlowOrchestrator migrated (45% reduction)",
+        "SagaOrchestrator migrated (40% reduction)",
+        "All tests passing",
+        "Test coverage >85%",
+        "Zero breaking changes"
+      ]
+    },
+    "test_coverage": {
+      "status": "pending",
+      "overall_target": 70,
+      "critical_paths_target": 90,
+      "service_layer_target": 80,
+      "api_endpoints_target": 75,
+      "criteria": [
+        "Critical paths: 90%+ coverage",
+        "Service layer: 80%+ coverage",
+        "API endpoints: 75%+ coverage",
+        "Overall: 70%+ coverage",
+        "CI/CD gates enforcing minimums"
+      ]
+    }
+  },
+  "metrics": {
+    "current_state": {
+      "god_classes": 9,
+      "largest_file_loc": 1280,
+      "test_coverage": 40,
+      "total_tests": 3450,
+      "collection_errors": 8
+    },
+    "target_state": {
+      "god_classes": 3,
+      "largest_file_loc": 500,
+      "test_coverage": 70,
+      "total_tests": 5000,
+      "collection_errors": 0
+    },
+    "improvement": {
+      "god_class_reduction": 67,
+      "loc_reduction_onboarding": 71,
+      "orchestrator_code_reduction": 50,
+      "test_coverage_increase": 30,
+      "new_tests_added": 1550
+    }
+  },
+  "resource_allocation": {
+    "total_developer_days": 140,
+    "total_developer_hours": 1120,
+    "team": [
+      {
+        "role": "Senior Developer (Lead)",
+        "days": 35,
+        "responsibilities": [
+          "Architecture design",
+          "Code review",
+          "Complex refactoring",
+          "Risk mitigation"
+        ]
+      },
+      {
+        "role": "Mid-Level Developer #1",
+        "days": 35,
+        "responsibilities": [
+          "Service extraction",
+          "Test implementation",
+          "Integration work",
+          "Documentation"
+        ]
+      },
+      {
+        "role": "Mid-Level Developer #2",
+        "days": 35,
+        "responsibilities": [
+          "Orchestrator migration",
+          "Test coverage",
+          "API testing",
+          "Bug fixes"
+        ]
+      },
+      {
+        "role": "Junior Developer",
+        "days": 35,
+        "responsibilities": [
+          "Unit test writing",
+          "Documentation",
+          "Test fixture creation",
+          "Code cleanup"
+        ]
+      }
+    ],
+    "hours_by_activity": {
+      "refactoring": 320,
+      "test_writing": 448,
+      "code_review": 168,
+      "documentation": 112,
+      "integration_testing": 72
+    }
+  },
+  "deployment_strategy": {
+    "phases": [
+      {
+        "name": "Canary",
+        "percentage": 5,
+        "duration_hours": 24,
+        "rollback_trigger": "error_rate_increase_1_percent"
+      },
+      {
+        "name": "Beta",
+        "percentage": 25,
+        "duration_hours": 24,
+        "rollback_trigger": "user_feedback_negative"
+      },
+      {
+        "name": "Staged",
+        "percentage": 50,
+        "duration_hours": 24,
+        "rollback_trigger": "performance_degradation_50_percent"
+      },
+      {
+        "name": "Full",
+        "percentage": 100,
+        "duration_hours": 168,
+        "rollback_trigger": "critical_endpoint_failure"
+      }
+    ],
+    "rollback": {
+      "automated_triggers": [
+        "Error rate >2% increase",
+        "Latency >50% increase",
+        "Critical endpoint failures",
+        "Database connection failures"
+      ],
+      "recovery_time_objective_minutes": 15
+    }
+  },
+  "quality_gates": {
+    "automated": [
+      "All tests passing (100%)",
+      "Test coverage >70% (overall)",
+      "No linting errors",
+      "No type checking errors",
+      "Security scan passing",
+      "Performance benchmarks within 10% of baseline"
+    ],
+    "manual": [
+      "Code review approved (2 reviewers)",
+      "Architecture review (for major changes)",
+      "Documentation updated",
+      "Changelog entry added"
+    ]
+  }
+}

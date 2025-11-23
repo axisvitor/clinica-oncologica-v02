@@ -9,7 +9,7 @@ from app.celery_app import celery_app
 from app.config import settings
 from app.database import SessionLocal
 from app.schemas.report import ReportGenerationRequest
-from app.services.report import ReportService
+from app.services.reporting import ReportService
 
 logger = logging.getLogger(__name__)
 

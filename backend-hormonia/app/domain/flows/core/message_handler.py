@@ -10,12 +10,11 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.services.message_scheduler import MessageScheduler
+from app.domain.messaging.scheduling import MessageScheduler
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
-from app.domain.messaging.delivery import MessageSender
 from app.services.template_loader import MessageTemplate
-from app.services.flow_analytics import FlowAnalyticsService
-from app.services.flow_event_broadcaster import flow_event_broadcaster
+from app.services.analytics import FlowAnalyticsService
+from app.domain.flows.events import flow_event_broadcaster
 from app.services.platform_synchronization import get_platform_sync_service
 from app.models.message import Message, MessageType, MessageStatus, MessageDirection
 from app.models.flow import PatientFlowState
@@ -38,30 +37,23 @@ class MessageHandler:
     def __init__(self,
                  db: Session,
                  message_scheduler: Optional[MessageScheduler] = None,
-                 message_sender: Optional[MessageSender] = None,
-                 analytics_service: Optional[FlowAnalyticsService] = None,
-                 use_unified_service: bool = True):
+                 analytics_service: Optional[FlowAnalyticsService] = None):
         """
         Initialize message handler.
 
         Args:
             db: Database session
             message_scheduler: Message scheduler instance
-            message_sender: Message sender instance
             analytics_service: Analytics service instance
-            use_unified_service: Whether to use UnifiedWhatsAppService
         """
         self.db = db
         self.message_scheduler = message_scheduler or MessageScheduler(db)
 
-        # Use unified service by default for better reliability and performance
-        if use_unified_service:
-            self.message_sender = UnifiedWhatsAppService(
-                db=db,
-                messaging_mode=MessagingMode.HYBRID
-            )
-        else:
-            self.message_sender = message_sender or MessageSender(db)
+        # Use unified service exclusively
+        self.message_sender = UnifiedWhatsAppService(
+            db=db,
+            messaging_mode=MessagingMode.HYBRID
+        )
 
         self.analytics_service = analytics_service or FlowAnalyticsService(db)
         self.flow_broadcaster = flow_event_broadcaster

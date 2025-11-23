@@ -1,0 +1,746 @@
+erDiagram
+    users {
+        UUID id PK
+        VARCHAR255 email 
+        VARCHAR255 hashed_password 
+        VARCHAR255 full_name 
+        VARCHAR6 role 
+        BOOLEAN is_active 
+        VARCHAR255 firebase_uid 
+        VARCHAR8 auth_provider 
+        TIMESTAMP firebase_last_sign_in 
+        TIMESTAMP firebase_created_at 
+        BOOLEAN firebase_email_verified 
+        VARCHAR255 firebase_display_name 
+        VARCHAR500 firebase_photo_url 
+        JSONB firebase_custom_claims 
+        TIMESTAMP last_firebase_sync 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+    }
+    whatsapp_contacts {
+        TEXT id PK
+        TEXT instance_name 
+        TEXT phone_number 
+        TEXT formatted_number 
+        TEXT name 
+        TEXT profile_picture_url 
+        BOOLEAN is_whatsapp_user 
+        TIMESTAMP last_seen 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+        JSON contact_data 
+    }
+    whatsapp_instances {
+        TEXT id PK
+        TEXT name 
+        TEXT status 
+        TEXT qr_code 
+        TEXT webhook_url 
+        TEXT phone_number 
+        TEXT profile_name 
+        TEXT profile_picture_url 
+        BOOLEAN is_connected 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+        TIMESTAMP last_activity 
+        JSON settings 
+    }
+    patients {
+        UUID id PK
+        UUID doctor_id FK
+        VARCHAR20 phone 
+        VARCHAR255 name 
+        VARCHAR255 email 
+        DATE birth_date 
+        VARCHAR100 treatment_type 
+        DATE treatment_start_date 
+        VARCHAR50 treatment_phase 
+        TEXT diagnosis 
+        VARCHAR10 flow_state 
+        INTEGER current_day 
+        VARCHAR14 cpf 
+        TEXT doctor_notes 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+        JSONB metadata 
+        TIMESTAMP deleted_at 
+    }
+    message_status_events {
+        UUID id PK
+        UUID message_id FK
+        VARCHAR50 status 
+        VARCHAR50 previous_status 
+        VARCHAR255 whatsapp_id 
+        TIMESTAMP whatsapp_timestamp 
+        VARCHAR50 error_code 
+        TEXT error_message 
+        INTEGER retry_count 
+        JSONB metadata 
+        VARCHAR100 evolution_event_type 
+        JSONB evolution_payload 
+        TIMESTAMP created_at 
+    }
+    flow_kinds {
+        UUID id PK
+        VARCHAR50 kind_key 
+        VARCHAR255 display_name 
+        TEXT description 
+        BOOLEAN is_active 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+    }
+    flow_template_versions {
+        UUID id PK
+        UUID flow_kind_id FK
+        INTEGER version_number 
+        VARCHAR255 template_name 
+        TEXT description 
+        JSONB steps 
+        JSONB metadata 
+        BOOLEAN is_active 
+        BOOLEAN is_draft 
+        TIMESTAMP published_at 
+        TIMESTAMP deprecated_at 
+        UUID created_by FK
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+    }
+    patient_onboarding_saga {
+        UUID id PK
+        UUID patient_id FK
+        UUID doctor_id FK
+        VARCHAR28 status 
+        INTEGER current_step 
+        INTEGER retry_count 
+        INTEGER max_retries 
+        JSONB patient_data 
+        JSONB execution_log 
+        TEXT error_message 
+        VARCHAR255 error_type 
+        TIMESTAMP next_retry_at 
+        TIMESTAMP started_at 
+        TIMESTAMP completed_at 
+        TIMESTAMP failed_at 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+        TIMESTAMP last_retry_at 
+    }
+    patient_flow_states {
+        UUID id PK
+        UUID patient_id FK
+        UUID flow_template_version_id FK
+        INTEGER current_step 
+        JSONB step_data 
+        VARCHAR50 status 
+        TIMESTAMP started_at 
+        TIMESTAMP last_interaction_at 
+        TIMESTAMP completed_at 
+        TIMESTAMP next_scheduled_at 
+        JSONB flow_metadata 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+        INTEGER version 
+    }
+    flow_template_stats {
+        UUID id PK
+        UUID flow_template_version_id FK
+        INTEGER total_uses 
+        INTEGER active_instances 
+        INTEGER completed_instances 
+        NUMERIC5__2 avg_completion_rate 
+        NUMERIC10__2 avg_duration_hours 
+        NUMERIC3__2 avg_rating 
+        INTEGER total_ratings 
+        TIMESTAMP last_calculated_at 
+    }
+    error_logs {
+        UUID id PK
+        VARCHAR100 error_type 
+        TEXT error_message 
+        TEXT stack_trace 
+        JSONB context 
+        INTEGER count 
+        TIMESTAMP first_seen 
+        TIMESTAMP last_seen 
+        BOOLEAN resolved 
+        VARCHAR20 severity 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+    }
+    flow_template_shares {
+        UUID id PK
+        UUID flow_template_version_id FK
+        UUID shared_by FK
+        UUID shared_with FK
+        BOOLEAN can_view 
+        BOOLEAN can_edit 
+        BOOLEAN can_reshare 
+        TEXT share_notes 
+        TIMESTAMP shared_at 
+        TIMESTAMP expires_at 
+    }
+    flow_template_categories {
+        UUID id PK
+        VARCHAR50 category_key 
+        VARCHAR255 display_name 
+        TEXT description 
+        VARCHAR100 icon 
+        INTEGER sort_order 
+        BOOLEAN is_active 
+        TIMESTAMP created_at 
+    }
+    flow_states {
+        UUID id PK
+        UUID patient_id FK
+        VARCHAR50 flow_type 
+        INTEGER current_step 
+        TIMESTAMP started_at 
+        TIMESTAMP completed_at 
+        JSONB state_data 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+    }
+    quiz_templates {
+        UUID id PK
+        VARCHAR255 name 
+        VARCHAR50 version 
+        TEXT description 
+        JSONB questions 
+        BOOLEAN is_active 
+        VARCHAR100 category 
+        ARRAY tags 
+        INTEGER passing_score 
+        INTEGER time_limit_minutes 
+        BOOLEAN randomize_questions 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+    }
+    quiz_template_versions_v2 {
+        UUID id PK
+        UUID template_id FK
+        INTEGER version_number 
+        JSONB questions 
+        JSONB scoring_rules 
+        BOOLEAN is_active 
+        BOOLEAN is_draft 
+        TIMESTAMP published_at 
+        UUID created_by FK
+        TEXT change_notes 
+        TIMESTAMP created_at 
+    }
+    quiz_sessions {
+        UUID id PK
+        UUID patient_id FK
+        UUID quiz_template_id FK
+        VARCHAR50 status 
+        INTEGER current_question 
+        INTEGER total_questions 
+        INTEGER answered_questions 
+        NUMERIC5__2 score 
+        NUMERIC5__2 max_score 
+        BOOLEAN passed 
+        TIMESTAMP started_at 
+        TIMESTAMP completed_at 
+        INTEGER time_spent_seconds 
+        JSONB session_metadata 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+    }
+    quiz_sessions_v2 {
+        UUID id PK
+        UUID patient_id FK
+        UUID template_version_id FK
+        VARCHAR50 status 
+        TIMESTAMP started_at 
+        TIMESTAMP completed_at 
+        JSONB session_data 
+        TIMESTAMP created_at 
+    }
+    quiz_responses {
+        UUID id PK
+        UUID patient_id FK
+        UUID quiz_template_id FK
+        UUID quiz_session_id FK
+        VARCHAR100 question_id 
+        TEXT question_text 
+        VARCHAR50 response_type 
+        TEXT response_value 
+        BOOLEAN is_correct 
+        NUMERIC5__2 points_earned 
+        JSONB response_metadata 
+        TIMESTAMP responded_at 
+        INTEGER response_time_seconds 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+        TEXT other_text 
+    }
+    notifications {
+        UUID id PK
+        UUID user_id FK
+        UUID related_patient_id FK
+        VARCHAR50 notification_type 
+        VARCHAR50 priority 
+        VARCHAR200 title 
+        TEXT message 
+        VARCHAR500 action_url 
+        VARCHAR100 action_label 
+        JSONB notification_metadata 
+        BOOLEAN is_read 
+        TIMESTAMP read_at 
+        BOOLEAN is_archived 
+        TIMESTAMP archived_at 
+        TIMESTAMP expires_at 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+    }
+    whatsapp_delivery_failures {
+        UUID id PK
+        UUID patient_id FK
+        VARCHAR20 phone_number 
+        VARCHAR50 message_type 
+        TEXT message_content 
+        TEXT error_message 
+        VARCHAR50 error_code 
+        INTEGER retry_count 
+        INTEGER max_retries 
+        TIMESTAMP next_retry_at 
+        TIMESTAMP last_retry_at 
+        VARCHAR20 status 
+        TIMESTAMP resolved_at 
+        JSONB dlq_metadata 
+        UUID reviewed_by FK
+        UUID original_message_id FK
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+    }
+    admin_users {
+        UUID id PK
+        VARCHAR255 email 
+        VARCHAR255 password_hash 
+        VARCHAR100 first_name 
+        VARCHAR100 last_name 
+        VARCHAR11 role 
+        VARCHAR100 department 
+        VARCHAR20 phone_number 
+        BOOLEAN is_active 
+        BOOLEAN email_verified 
+        BOOLEAN two_factor_enabled 
+        VARCHAR255 two_factor_secret 
+        BOOLEAN must_change_password 
+        INTEGER failed_login_attempts 
+        TIMESTAMP locked_until 
+        TIMESTAMP last_login_at 
+        INET last_login_ip 
+        TIMESTAMP last_password_change 
+        INTEGER max_concurrent_sessions 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+        UUID created_by FK
+        UUID updated_by FK
+        JSONB metadata 
+    }
+    medical_reports {
+        UUID id PK
+        UUID patient_id FK
+        UUID generated_by FK
+        DATE period_start 
+        DATE period_end 
+        TEXT summary 
+        JSONB insights 
+        JSONB charts_data 
+        JSONB alerts 
+        VARCHAR50 report_type 
+        JSONB report_metadata 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+    }
+    alerts {
+        UUID id PK
+        UUID patient_id FK
+        VARCHAR100 type 
+        VARCHAR8 severity 
+        TEXT message 
+        JSONB data 
+        BOOLEAN acknowledged 
+        UUID acknowledged_by FK
+        TIMESTAMP acknowledged_at 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+    }
+    flow_analytics {
+        UUID id PK
+        UUID flow_template_version_id FK
+        UUID patient_id FK
+        INTEGER total_steps 
+        INTEGER completed_steps 
+        NUMERIC5__2 success_rate 
+        INTEGER avg_response_time_seconds 
+        JSONB step_analytics 
+        JSONB interaction_patterns 
+        TIMESTAMP period_start 
+        TIMESTAMP period_end 
+        TIMESTAMP calculated_at 
+    }
+    flow_messages {
+        UUID id PK
+        UUID flow_template_version_id FK
+        INTEGER step_number 
+        VARCHAR100 message_key 
+        TEXT message_text 
+        VARCHAR50 message_type 
+        JSONB buttons 
+        JSONB list_items 
+        JSONB conditions 
+        INTEGER delay_seconds 
+        TIMESTAMP created_at 
+    }
+    admin_user_permissions {
+        UUID admin_user_id PK,FK
+        UUID permission_id PK,FK
+        TIMESTAMP granted_at 
+        UUID granted_by FK
+    }
+    admin_permissions {
+        UUID id PK
+        VARCHAR100 name 
+        TEXT description 
+        VARCHAR50 category 
+        TIMESTAMP created_at 
+    }
+    admin_roles {
+        UUID id PK
+        VARCHAR50 name 
+        TEXT description 
+        BOOLEAN is_system_role 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+    }
+    admin_role_permissions {
+        UUID role_id PK,FK
+        UUID permission_id PK,FK
+        TIMESTAMP created_at 
+    }
+    webhook_events {
+        UUID id PK
+        VARCHAR100 event_type 
+        VARCHAR100 source 
+        JSONB payload 
+        BOOLEAN processed 
+        TIMESTAMP processed_at 
+        INTEGER retry_count 
+        INTEGER max_retries 
+        TIMESTAMP next_retry_at 
+        TEXT error_message 
+        TEXT error_stack_trace 
+        UUID related_message_id 
+        UUID related_patient_id 
+        VARCHAR64 event_hash 
+        BOOLEAN is_duplicate 
+        UUID original_event_id 
+        TIMESTAMP created_at 
+    }
+    security_audit_log {
+        UUID id PK
+        VARCHAR100 event_type 
+        VARCHAR20 phone_number 
+        UUID patient_id FK
+        TEXT message_content 
+        JSONB source_metadata 
+        INTEGER risk_score 
+        VARCHAR45 ip_address 
+        VARCHAR500 user_agent 
+        VARCHAR32 session_id 
+        TIMESTAMP created_at 
+        JSONB additional_data 
+        BOOLEAN alert_sent 
+    }
+    admin_sessions {
+        UUID id PK
+        UUID admin_user_id FK
+        VARCHAR255 session_token 
+        VARCHAR255 refresh_token 
+        INET ip_address 
+        TEXT user_agent 
+        VARCHAR255 device_fingerprint 
+        TIMESTAMP created_at 
+        TIMESTAMP last_activity 
+        TIMESTAMP expires_at 
+        BOOLEAN is_active 
+        VARCHAR100 logout_reason 
+        JSONB metadata 
+    }
+    admin_audit_log {
+        UUID id PK
+        UUID admin_user_id FK
+        UUID session_id FK
+        VARCHAR100 event_type 
+        VARCHAR50 event_category 
+        VARCHAR255 action 
+        VARCHAR100 resource_type 
+        VARCHAR255 resource_id 
+        INET ip_address 
+        TEXT user_agent 
+        VARCHAR500 endpoint 
+        VARCHAR7 http_method 
+        JSONB details 
+        JSONB changes 
+        BOOLEAN success 
+        TEXT error_message 
+        TIMESTAMP timestamp 
+        INTEGER duration_ms 
+        VARCHAR8 severity 
+    }
+    messages {
+        UUID id PK
+        UUID patient_id FK
+        VARCHAR8 direction 
+        VARCHAR22 type 
+        TEXT content 
+        JSONB message_metadata 
+        VARCHAR255 whatsapp_id 
+        VARCHAR9 status 
+        TIMESTAMP scheduled_for 
+        TIMESTAMP sent_at 
+        TIMESTAMP delivered_at 
+        TIMESTAMP read_at 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+        VARCHAR9 delivery_status 
+        INTEGER retry_count 
+        TIMESTAMP last_retry_at 
+        TEXT failure_reason 
+        TIMESTAMP next_retry_at 
+        VARCHAR255 idempotency_key 
+        VARCHAR8 priority 
+    }
+    user_sync_log {
+        UUID id PK
+        VARCHAR255 firebase_uid 
+        UUID supabase_user_id FK
+        VARCHAR50 sync_action 
+        VARCHAR50 sync_status 
+        JSONB firebase_data 
+        JSONB supabase_data 
+        TEXT error_message 
+        INTEGER retry_count 
+        TIMESTAMP synced_at 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+    }
+    admin_security_events {
+        UUID id PK
+        VARCHAR100 event_type 
+        VARCHAR8 severity 
+        INET ip_address 
+        TEXT user_agent 
+        UUID admin_user_id FK
+        UUID session_id FK
+        TEXT description 
+        JSONB details 
+        VARCHAR500 endpoint 
+        TIMESTAMP detected_at 
+        TIMESTAMP resolved_at 
+        TEXT resolution_notes 
+        BOOLEAN auto_resolved 
+        INTEGER risk_score 
+        VARCHAR8 threat_level 
+    }
+    admin_ip_whitelist {
+        UUID id PK
+        INET ip_address 
+        CIDR ip_range 
+        TEXT description 
+        UUID added_by FK
+        TIMESTAMP added_at 
+        BOOLEAN is_active 
+        TIMESTAMP expires_at 
+        TIMESTAMP last_used_at 
+        INTEGER usage_count 
+    }
+    admin_ip_blacklist {
+        UUID id PK
+        INET ip_address 
+        VARCHAR255 reason 
+        TIMESTAMP blocked_at 
+        UUID blocked_by FK
+        TIMESTAMP expires_at 
+        BOOLEAN is_permanent 
+        UUID incident_id 
+        VARCHAR8 threat_level 
+        INTEGER block_count 
+        JSONB details 
+        TEXT notes 
+    }
+    user_profiles {
+        UUID id PK
+        UUID user_id FK
+        TEXT bio 
+        VARCHAR500 avatar_url 
+        VARCHAR20 phone 
+        VARCHAR255 specialty 
+        VARCHAR100 license_number 
+        INTEGER years_of_experience 
+        JSONB preferences 
+        JSONB notification_settings 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+    }
+    audit_trail {
+        UUID id PK
+        VARCHAR255 table_name 
+        UUID record_id 
+        VARCHAR50 operation 
+        JSONB old_data 
+        JSONB new_data 
+        JSONB changes 
+        UUID actor_id 
+        VARCHAR50 actor_type 
+        VARCHAR255 actor_subject 
+        INET ip_address 
+        TEXT user_agent 
+        VARCHAR500 endpoint 
+        TIMESTAMP created_at 
+    }
+    audit_log_entries {
+        UUID id PK
+        VARCHAR100 event_type 
+        VARCHAR100 entity_type 
+        UUID entity_id 
+        UUID user_id 
+        JSONB old_values 
+        JSONB new_values 
+        JSONB metadata 
+        INET ip_address 
+        TEXT user_agent 
+        TIMESTAMP timestamp 
+    }
+    alembic_version {
+        VARCHAR32 version_num PK
+    }
+    appointments {
+        UUID id PK
+        UUID patient_id FK
+        UUID doctor_id FK
+        VARCHAR100 appointment_type 
+        VARCHAR50 status 
+        TIMESTAMP scheduled_at 
+        INTEGER duration_minutes 
+        TIMESTAMP completed_at 
+        TIMESTAMP cancelled_at 
+        TEXT pre_appointment_notes 
+        TEXT post_appointment_notes 
+        JSONB appointment_metadata 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+    }
+    contacts {
+        UUID id PK
+        VARCHAR255 name 
+        VARCHAR255 email 
+        VARCHAR20 phone 
+        VARCHAR50 contact_type 
+        UUID related_patient_id FK
+        UUID related_user_id FK
+        TEXT notes 
+        ARRAY tags 
+        JSONB contact_metadata 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+    }
+    audit_logs {
+        UUID id PK
+        VARCHAR50 event_type 
+        VARCHAR20 event_status 
+        UUID user_id FK
+        VARCHAR255 user_email 
+        VARCHAR255 firebase_uid 
+        INET ip_address 
+        VARCHAR500 user_agent 
+        VARCHAR255 resource 
+        VARCHAR100 action 
+        JSONB event_metadata 
+        VARCHAR500 message 
+        VARCHAR1000 error_details 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+    }
+    whatsapp_messages {
+        TEXT id PK
+        TEXT instance_name 
+        TEXT chat_id 
+        TEXT sender_id 
+        TEXT recipient_id 
+        TEXT message_type 
+        TEXT content 
+        TEXT media_url 
+        TEXT media_caption 
+        TEXT status 
+        TEXT external_id 
+        TIMESTAMP created_at 
+        TIMESTAMP updated_at 
+        TIMESTAMP sent_at 
+        TIMESTAMP delivered_at 
+        TIMESTAMP read_at 
+        TIMESTAMP failed_at 
+        INTEGER retry_count 
+        TEXT error_message 
+        JSON message_data 
+    }
+    patients }|--|| users : "doctor_id -> id"
+    message_status_events }|--|| messages : "message_id -> id"
+    flow_template_versions }|--|| users : "created_by -> id"
+    flow_template_versions }|--|| flow_kinds : "flow_kind_id -> id"
+    patient_onboarding_saga }|--|| users : "doctor_id -> id"
+    patient_onboarding_saga }|--|| patients : "patient_id -> id"
+    patient_flow_states }|--|| flow_template_versions : "flow_template_version_id -> id"
+    patient_flow_states }|--|| patients : "patient_id -> id"
+    flow_template_stats }|--|| flow_template_versions : "flow_template_version_id -> id"
+    flow_template_shares }|--|| flow_template_versions : "flow_template_version_id -> id"
+    flow_template_shares }|--|| users : "shared_by -> id"
+    flow_template_shares }|--|| users : "shared_with -> id"
+    flow_states }|--|| patients : "patient_id -> id"
+    quiz_template_versions_v2 }|--|| users : "created_by -> id"
+    quiz_template_versions_v2 }|--|| quiz_templates : "template_id -> id"
+    quiz_sessions }|--|| patients : "patient_id -> id"
+    quiz_sessions }|--|| quiz_templates : "quiz_template_id -> id"
+    quiz_sessions_v2 }|--|| patients : "patient_id -> id"
+    quiz_sessions_v2 }|--|| quiz_template_versions_v2 : "template_version_id -> id"
+    quiz_responses }|--|| patients : "patient_id -> id"
+    quiz_responses }|--|| quiz_templates : "quiz_template_id -> id"
+    quiz_responses }|--|| quiz_sessions : "quiz_session_id -> id"
+    notifications }|--|| patients : "related_patient_id -> id"
+    notifications }|--|| users : "user_id -> id"
+    whatsapp_delivery_failures }|--|| messages : "original_message_id -> id"
+    whatsapp_delivery_failures }|--|| patients : "patient_id -> id"
+    whatsapp_delivery_failures }|--|| users : "reviewed_by -> id"
+    admin_users }|--|| admin_users : "created_by -> id"
+    admin_users }|--|| admin_users : "updated_by -> id"
+    medical_reports }|--|| users : "generated_by -> id"
+    medical_reports }|--|| patients : "patient_id -> id"
+    alerts }|--|| users : "acknowledged_by -> id"
+    alerts }|--|| patients : "patient_id -> id"
+    flow_analytics }|--|| flow_template_versions : "flow_template_version_id -> id"
+    flow_analytics }|--|| patients : "patient_id -> id"
+    flow_messages }|--|| flow_template_versions : "flow_template_version_id -> id"
+    admin_user_permissions }|--|| admin_users : "admin_user_id -> id"
+    admin_user_permissions }|--|| admin_users : "granted_by -> id"
+    admin_user_permissions }|--|| admin_permissions : "permission_id -> id"
+    admin_role_permissions }|--|| admin_permissions : "permission_id -> id"
+    admin_role_permissions }|--|| admin_roles : "role_id -> id"
+    security_audit_log }|--|| patients : "patient_id -> id"
+    admin_sessions }|--|| admin_users : "admin_user_id -> id"
+    admin_audit_log }|--|| admin_users : "admin_user_id -> id"
+    admin_audit_log }|--|| admin_sessions : "session_id -> id"
+    messages }|--|| patients : "patient_id -> id"
+    user_sync_log }|--|| users : "supabase_user_id -> id"
+    admin_security_events }|--|| admin_users : "admin_user_id -> id"
+    admin_security_events }|--|| admin_sessions : "session_id -> id"
+    admin_ip_whitelist }|--|| admin_users : "added_by -> id"
+    admin_ip_blacklist }|--|| admin_users : "blocked_by -> id"
+    user_profiles }|--|| users : "user_id -> id"
+    appointments }|--|| users : "doctor_id -> id"
+    appointments }|--|| patients : "patient_id -> id"
+    contacts }|--|| patients : "related_patient_id -> id"
+    contacts }|--|| users : "related_user_id -> id"
+    audit_logs }|--|| users : "user_id -> id"

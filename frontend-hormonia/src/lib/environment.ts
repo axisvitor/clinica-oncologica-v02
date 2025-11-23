@@ -107,12 +107,13 @@ function getApiUrl(): string {
 
     // Local development
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://localhost:8000'
+      return (import.meta.env.VITE_API_URL || "http://localhost:8000")
     }
   }
 
-  // Fallback to production URL
-  return 'https://clinica-oncologica-v02-production.up.railway.app'
+  // Fallback to localhost for development
+  // Production deployments MUST set VITE_API_URL environment variable
+  return (import.meta.env.VITE_API_URL || "http://localhost:8000")
 }
 
 /**

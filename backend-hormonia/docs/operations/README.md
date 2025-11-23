@@ -1,47 +1,38 @@
-# Operações & Produção - Backend Hormonia
+# Operations Documentation
 
-Documentação operacional para deployment, monitoramento, segurança e manutenção.
+This directory contains operational guides, runbooks, and monitoring documentation for production support.
 
-## 📂 Subpastas
+## Quick Start
 
-### 🚀 [deployment/](deployment/)
-Deployment e configuração de produção
-- DEPLOYMENT_CONFIGURATION.md - Configuração de deployment
-- PRODUCTION_READINESS_FINAL.md - Checklist de prontidão para produção
+- **New to monitoring?** Start with [P0_MONITORING_QUICK_REFERENCE.md](P0_MONITORING_QUICK_REFERENCE.md)
+- **Setting up monitoring?** See [MONITORING_SETUP_SUMMARY.md](MONITORING_SETUP_SUMMARY.md)
+- **On-call rotation?** Read [P0_MONITORING_GUIDE.md](P0_MONITORING_GUIDE.md)
 
-### 📊 [monitoring/](monitoring/)
-Monitoramento e métricas
-- MONITORING.md - Guia de monitoramento
-- PRODUCTION_MONITORING_CHECKLIST.md - Checklist de monitoramento
-- RUNBOOK_QUIZ_METRICS.md - Runbook de métricas do quiz
+## Files
 
-### 🔐 [security/](security/)
-Segurança e proteção
-- SECURITY_HEADERS.md - Headers de segurança
-- SECURITY_HEADERS_SUMMARY.md - Resumo de headers
-- RATE_LIMITING.md - Rate limiting e proteção contra abuso
-- alerts_v2_safety_security_report.md - Relatório de segurança de alertas
-- upload_security.md - Segurança de uploads
+- `P0_MONITORING_QUICK_REFERENCE.md` - Quick reference card for on-call (print this!)
+- `MONITORING_SETUP_SUMMARY.md` - Executive summary of monitoring infrastructure
+- `P0_MONITORING_GUIDE.md` - Complete monitoring guide with detailed runbooks
+- `PRODUCTION_RUNBOOK.md` - General production operations runbook
+- `DEPLOYMENT_VALIDATION_CHECKLIST.md` - Pre/post deployment validation
 
-### ⚡ [performance/](performance/)
-Performance e otimização
-- QUERY_OPTIMIZATION.md - Otimização de queries
-- QUERY_CACHE_IMPLEMENTATION.md - Implementação de cache de queries
+## Alert Response Times
 
-### 🔧 [maintenance/](maintenance/)
-Manutenção e operações
-- BACKEND_TABLE_USAGE_AUDIT.md - Auditoria de uso de tabelas
+| Severity | Response Time | Channel |
+|----------|--------------|---------|
+| Critical | <5 minutes | PagerDuty + Slack + Email |
+| High | <15 minutes | Slack + Email |
+| Medium | <1 hour | Slack |
+| Warning | <4 hours | Email |
 
-### 📈 [scaling/](scaling/)
-Escalabilidade e crescimento
+## Support Contacts
 
-## 🎯 Quick Links
+- **Primary On-Call:** Backend Team Lead
+- **Escalation:** Engineering Director
+- **Slack:** #p0-critical-alerts, #incidents
 
-- [Checklist de Produção](deployment/PRODUCTION_READINESS_FINAL.md)
-- [Guia de Monitoramento](monitoring/MONITORING.md)
-- [Segurança](security/SECURITY_HEADERS.md)
-- [Performance](performance/QUERY_OPTIMIZATION.md)
+## Monitoring Access
 
----
-
-[← Voltar para Docs](../README.md)
+- **Grafana:** http://localhost:3000/d/p0-monitoring
+- **Prometheus:** http://localhost:9090
+- **Alertmanager:** http://localhost:9093

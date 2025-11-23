@@ -1,5 +1,16 @@
+/**
+ * DEPRECATED: Use @/lib/validations/admin-schemas.ts instead
+ *
+ * This file is kept for backward compatibility but should not be used for new code.
+ * The new admin-schemas.ts file matches the backend exactly and supports only
+ * the two valid roles: admin and doctor.
+ */
+
 import { z } from 'zod'
 
+/**
+ * @deprecated Use userCreateSchema from admin-schemas.ts
+ */
 export const createUserSchema = z.object({
   email: z.string()
     .min(1, 'Email é obrigatório')
@@ -7,7 +18,8 @@ export const createUserSchema = z.object({
   full_name: z.string()
     .min(3, 'Nome deve ter pelo menos 3 caracteres')
     .max(100, 'Nome deve ter no máximo 100 caracteres'),
-  role: z.enum(['super_admin', 'admin', 'doctor', 'nurse', 'patient', 'researcher', 'coordinator'], {
+  // WARNING: Only 'admin' and 'doctor' are valid in the backend
+  role: z.enum(['admin', 'doctor'], {
     required_error: 'Função é obrigatória'
   }),
   password: z.string()
@@ -26,6 +38,9 @@ export const createUserSchema = z.object({
   path: ['confirm_password']
 })
 
+/**
+ * @deprecated Use userUpdateSchema from admin-schemas.ts
+ */
 export const updateUserSchema = z.object({
   email: z.string()
     .min(1, 'Email é obrigatório')
@@ -33,7 +48,8 @@ export const updateUserSchema = z.object({
   full_name: z.string()
     .min(3, 'Nome deve ter pelo menos 3 caracteres')
     .max(100, 'Nome deve ter no máximo 100 caracteres'),
-  role: z.enum(['super_admin', 'admin', 'doctor', 'nurse', 'patient', 'researcher', 'coordinator'], {
+  // WARNING: Only 'admin' and 'doctor' are valid in the backend
+  role: z.enum(['admin', 'doctor'], {
     required_error: 'Função é obrigatória'
   }),
   permissions: z.array(z.string()).default([]),
@@ -41,6 +57,9 @@ export const updateUserSchema = z.object({
   two_factor_enabled: z.boolean().default(false)
 })
 
+/**
+ * @deprecated Use passwordChangeSchema from admin-schemas.ts
+ */
 export const updatePasswordSchema = z.object({
   current_password: z.string().min(1, 'Senha atual é obrigatória'),
   new_password: z.string()
@@ -56,12 +75,18 @@ export const updatePasswordSchema = z.object({
   path: ['confirm_new_password']
 })
 
+/**
+ * @deprecated Use permissionsUpdateSchema from admin-schemas.ts
+ */
 export const userPermissionsSchema = z.object({
   permissions: z.array(z.string()).min(1, 'Selecione pelo menos uma permissão')
 })
 
+/**
+ * @deprecated Use roleUpdateSchema from admin-schemas.ts
+ */
 export const userRoleSchema = z.object({
-  role: z.enum(['super_admin', 'admin', 'doctor', 'nurse', 'patient', 'researcher', 'coordinator'], {
+  role: z.enum(['admin', 'doctor'], {
     required_error: 'Função é obrigatória'
   })
 })

@@ -27,7 +27,12 @@ class IntegrationsSettings(BaseAppSettings):
         default="your-evolution-api-key-here", description="Evolution API key"
     )
     EVOLUTION_WEBHOOK_SECRET: Optional[str] = Field(
-        default=None, description="Evolution webhook secret for signature validation"
+        default=None,
+        description=(
+            "Evolution webhook secret for HMAC-SHA256 signature validation. "
+            "CRITICAL SECURITY: Must be set in production to prevent webhook spoofing. "
+            "Generate with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+        )
     )
     EVOLUTION_WEBHOOK_URL: Optional[str] = Field(
         default=None, description="Webhook URL for receiving Evolution API events"

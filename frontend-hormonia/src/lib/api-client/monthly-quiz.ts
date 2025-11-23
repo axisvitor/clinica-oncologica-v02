@@ -16,6 +16,9 @@ export interface QuizLink {
   quiz_session_id: string
   patient_id: string
   quiz_template_id: string
+  patient_name?: string
+  template_name?: string
+  template_version?: string
   token: string
   link: string
   link_url?: string
@@ -46,19 +49,7 @@ export interface QuizLinkBulkCreate {
   custom_message?: string
 }
 
-export interface QuizSession {
-  id: string
-  patient_id: string
-  quiz_template_id: string
-  status: 'pending' | 'in_progress' | 'completed' | 'expired'
-  started_at?: string
-  completed_at?: string
-  score?: number
-  total_questions?: number
-  answered_questions?: number
-  created_at: string
-  updated_at: string
-}
+// QuizSession is imported from @/types/api
 
 export interface QuizStats {
   // New field names (backend v2)
@@ -93,10 +84,15 @@ export interface QuizStats {
   }>
 }
 
-// Import and re-export QuizLinkStatus from centralized types
-import type { QuizLinkStatus as ApiQuizLinkStatus, QuizLinkStatusValue } from '@/types/api'
+// Import and re-export types from centralized types
+import type {
+  QuizLinkStatus as ApiQuizLinkStatus,
+  QuizLinkStatusValue,
+  QuizTemplate,
+  QuizSession
+} from '@/types/api'
 export type QuizLinkStatus = ApiQuizLinkStatus
-export type { QuizLinkStatusValue }
+export type { QuizLinkStatusValue, QuizTemplate, QuizSession }
 
 // Legacy interface for backward compatibility (deprecated)
 interface _QuizLinkStatus {
@@ -134,16 +130,7 @@ export interface QuizHistoryEntry {
 
 export type QuizHistory = QuizHistoryEntry[]
 
-export interface QuizTemplate {
-  id: string
-  name: string
-  description?: string
-  questions_count: number
-  estimated_duration_minutes?: number
-  is_active: boolean
-  created_at: string
-  updated_at: string
-}
+// QuizTemplate is imported from @/types/api
 
 export interface QuizResponse {
   id: string

@@ -28,7 +28,7 @@ import asyncio
 import logging
 import re
 
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 
 from app.integrations.gemini_client import get_gemini_client
 from app.core.redis_unified import redis_health
@@ -86,7 +86,7 @@ class FlowManager:
 
     def __init__(
         self,
-        db: Session,
+        db: Any,
         engine: Optional[FlowEngine] = None,
         validator: Optional[FlowValidator] = None,
         template_manager: Optional[FlowTemplateManager] = None,

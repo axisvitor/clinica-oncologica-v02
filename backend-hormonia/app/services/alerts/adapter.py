@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 from datetime import datetime
 
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 
 from app.repositories.alert import AlertRepository
 from app.repositories.patient import PatientRepository
@@ -41,7 +41,7 @@ class AlertManagerAdapter:
 
     def __init__(
         self,
-        db: Session,
+        db: Any,
         alert_manager: Optional[AlertManager] = None,
     ):
         """

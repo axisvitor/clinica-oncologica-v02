@@ -1,8 +1,8 @@
 ;(function () {
   const DEFAULT_CONFIG = {
-    apiUrl: 'http://localhost:8000/api/v2',
-    wsUrl: 'ws://localhost:8000/ws',
-    backendUrl: 'http://localhost:8000'
+    apiUrl: (typeof process !== 'undefined' && process.env && process.env.VITE_API_URL) || 'http://localhost:8000/api/v2',
+    wsUrl: (typeof process !== 'undefined' && process.env && process.env.VITE_WS_BASE_URL) || 'ws://localhost:8000/ws',
+    backendUrl: (typeof process !== 'undefined' && process.env && process.env.VITE_API_BASE_URL) || 'http://localhost:8000'
   }
 
   const globalScope = typeof window !== 'undefined' ? window : globalThis

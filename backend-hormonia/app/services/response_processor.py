@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from uuid import UUID
 from dataclasses import dataclass, field
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 
 from app.models.message import Message, MessageDirection, MessageType, MessageStatus
 from app.models.flow import PatientFlowState
@@ -23,9 +23,9 @@ from app.services.ai import (
     PatientContext,
     ConcernLevel
 )
-from app.services.flow_event_broadcaster import flow_event_broadcaster
+from app.domain.flows.events import flow_event_broadcaster
 from app.services.platform_synchronization import get_platform_sync_service
-from app.services.quiz_flow_integration import get_conversational_quiz_service
+from app.domain.quizzes.integration.flow_integration import get_conversational_quiz_service
 from app.utils.constants import (
     WHATSAPP_MESSAGE_LIMIT,
     URGENT_KEYWORDS,
@@ -191,7 +191,7 @@ class ResponseProcessor:
     within flow contexts with AI-powered analysis and routing.
     """
     
-    def __init__(self, db: Session, config: Optional[ResponseProcessorConfig] = None):
+    def __init__(self, db: Any, config: Optional[ResponseProcessorConfig] = None):
         """
         Initialize response processor.
         
@@ -1090,7 +1090,7 @@ class ResponseProcessor:
 _response_processor: Optional[ResponseProcessor] = None
 
 
-def get_response_processor(db: Session) -> ResponseProcessor:
+def get_response_processor(db: Any) -> ResponseProcessor:
     """
     Get response processor instance.
     

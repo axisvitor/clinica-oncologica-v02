@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { useToast } from '@/components/ui/use-toast'
+import { getErrorMessage } from '@/lib/type-guards'
 import type { QuizLinkStatusValue, MonthlyQuizStatusData } from '@/types/api'
+import type { QuizHistoryEntry } from '@/lib/api-client/monthly-quiz'
 
 export interface MonthlyQuizHistoryItem {
   id: string
@@ -24,13 +26,25 @@ export interface MonthlyQuizBulkStatus {
 /**
  * Hook to fetch quiz link status for a single patient
  */
+interface RawQuizStatusResponse {
+  session_id?: string
+  quiz_session_id?: string
+  status?: string
+  last_sent?: string
+  sent_at?: string
+  last_response?: string
+  accessed_at?: string
+  completed_at?: string
+  expires_at?: string
+}
+
 export function useMonthlyQuizStatus(patientId: string) {
   return useQuery<MonthlyQuizStatusData>({
     queryKey: ['monthly-quiz-status', patientId],
     queryFn: async () => {
       try {
         const response = await apiClient.monthlyQuiz.getPatientStatus(patientId)
-        const s: any = Array.isArray(response) ? response[0] : response
+        const s: RawQuizStatusResponse | undefined = Array.isArray(response) ? response[0] : response
 
         if (!s) {
           return {
@@ -48,9 +62,10 @@ export function useMonthlyQuizStatus(patientId: string) {
           completion_date: (s.status === 'completed' ? (s.last_response ?? s.completed_at) : undefined),
           expires_at: s.expires_at,
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         // If patient has no quiz link, return not_sent status
-        if (error.status === 404) {
+        const errorStatus = error && typeof error === 'object' && 'status' in error ? (error as any).status : null;
+        if (errorStatus === 404) {
           return {
             patient_id: patientId,
             status: 'not_sent' as QuizLinkStatusValue,
@@ -116,6 +131,8 @@ export function useBulkMonthlyQuizStatus(patientIds: string[]) {
   })
 }
 
+// RawQuizHistoryItem interface removed in favor of QuizHistoryEntry from api-client
+
 /**
  * Hook to fetch quiz link history for a patient
  */
@@ -124,18 +141,18 @@ export function useMonthlyQuizHistory(patientId: string) {
     queryKey: ['monthly-quiz-history', patientId],
     queryFn: async () => {
       const response = await apiClient.monthlyQuiz.getHistory(patientId)
-      return response.map((item: any) => ({
-        id: item.session_id || item['id'],
-        patient_id: item.patient_id,
-        patient_name: item.patient_name,
-        template_name: item.template_name,
-        template_id: item.quiz_template_id || item.template_id,
+      return response.map((item: QuizHistoryEntry): MonthlyQuizHistoryItem => ({
+        id: item.id,
+        patient_id: item.patient_id || patientId,
+        patient_name: item.patient_name || '',
+        template_id: item.quiz_template_id || '',
+        template_name: item.quiz_template_name || 'Questionário Mensal',
         status: mapBackendStatus(item.status),
-        sent_at: item.sent_at,
+        sent_at: item.sent_at || '',
         accessed_at: item.accessed_at,
         completed_at: item.completed_at,
-        expires_at: item.expires_at,
-        delivery_method: item.delivery_method || 'whatsapp'
+        expires_at: item.expires_at || '',
+        delivery_method: (item.delivery_method as 'whatsapp' | 'email' | 'sms') || 'whatsapp',
       }))
     },
     enabled: !!patientId,
@@ -165,10 +182,10 @@ export function useResendQuizLink() {
       queryClient.invalidateQueries({ queryKey: ['monthly-quiz-history'] })
       queryClient.invalidateQueries({ queryKey: ['monthly-quiz-stats'] })
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Erro ao reenviar link',
-        description: error.data?.message || 'Não foi possível reenviar o link do quiz',
+        description: getErrorMessage(error) || 'Não foi possível reenviar o link do quiz',
         variant: 'destructive'
       })
     }

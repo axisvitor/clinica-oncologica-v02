@@ -33,6 +33,12 @@ export interface Patient {
   current_day?: number  // Add missing property for compatibility
   createdAt: string
   updatedAt: string
+  // FIX: doctor_id is REQUIRED in backend (patient.py line 57: nullable=False)
+  // Changed from optional to required to match backend schema
+  doctor_id: string
+  // FIX: Added missing flow_state field from backend (patient.py line 70)
+  // Backend: Enum(FlowState), nullable=False, default=ONBOARDING
+  flow_state: 'onboarding' | 'active' | 'paused' | 'completed' | 'cancelled'
 }
 
 export interface AlertMessage {

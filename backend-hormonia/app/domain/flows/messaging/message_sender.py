@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.models.message import Message, MessageType, MessageStatus, MessageDirection
 from app.models.patient import Patient
-from app.services.message_scheduler import MessageScheduler
+from app.domain.messaging.scheduling import MessageScheduler
 from app.resilience.circuit_breaker.breaker import CircuitBreaker
 from app.utils.date_helpers import get_next_scheduled_time
 

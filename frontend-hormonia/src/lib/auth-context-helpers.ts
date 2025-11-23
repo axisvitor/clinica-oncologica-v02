@@ -28,7 +28,7 @@ export interface AppUser {
   permissions?: string[]
   created_at: string
   last_sign_in_at?: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 // Permission and role definitions
@@ -60,7 +60,7 @@ export interface AuthContextValue {
   // Auth methods
   signIn: (email: string, password: string) => Promise<void>
   signOut: () => Promise<void>
-  signUp: (email: string, password: string, metadata?: Record<string, any>) => Promise<void>
+  signUp: (email: string, password: string, metadata?: Record<string, unknown>) => Promise<void>
   resetPassword: (email: string) => Promise<void>
   updatePassword: (password: string) => Promise<void>
   refreshSession: () => Promise<void>

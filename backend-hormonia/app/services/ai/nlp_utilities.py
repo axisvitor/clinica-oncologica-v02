@@ -2,7 +2,7 @@
 Lightweight NLP utilities used by legacy services and baseline tests.
 """
 import re
-from typing import List
+from typing import Any, List
 
 
 class NLPUtilities:

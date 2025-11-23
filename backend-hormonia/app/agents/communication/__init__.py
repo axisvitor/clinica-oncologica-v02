@@ -6,12 +6,10 @@ and response processing with intelligent personalization.
 """
 
 from .message_composer import MessageComposerAgent
-from .quiz_conductor import QuizConductorAgent
 from .response_processor import ResponseProcessorAgent, ResponseAnalysis
 
 __all__ = [
     "MessageComposerAgent",
-    "QuizConductorAgent", 
     "ResponseProcessorAgent",
     "ResponseAnalysis"
 ]

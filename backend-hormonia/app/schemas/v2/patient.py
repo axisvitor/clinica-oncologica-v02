@@ -48,6 +48,7 @@ class PatientV2Base(BaseModel):
     doctor_notes: Optional[str] = Field(None, max_length=2000)
     diagnosis: Optional[str] = Field(None, max_length=500)
     treatment_phase: Optional[str] = Field(None, max_length=100)
+    timezone: str = Field("America/Sao_Paulo", description="Patient timezone (e.g., America/Sao_Paulo)")
     
     @validator("cpf")
     def validate_cpf(cls, v):

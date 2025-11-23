@@ -104,7 +104,7 @@ class QuizScheduler:
         """
         try:
             # Import quiz-specific services
-            from app.services.quiz_flow_integration import QuizTriggerService
+            from app.domain.quizzes.integration.flow_integration import QuizTriggerService
             from app.repositories.patient import PatientRepository
 
             quiz_trigger_service = QuizTriggerService(self.db)

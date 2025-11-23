@@ -20,7 +20,7 @@ from app.models.patient import Patient
 from app.repositories.flow import FlowStateRepository
 from app.repositories.message import MessageRepository
 from app.repositories.patient import PatientRepository
-from app.services.enhanced_flow_engine import FlowType
+from app.core.flow_types import FlowType
 from app.exceptions import ValidationError, FlowStateError
 
 logger = logging.getLogger(__name__)

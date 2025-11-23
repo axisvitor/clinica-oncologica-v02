@@ -25,10 +25,10 @@ export default function QuizContainer({
   onComplete,
   onTokenUpdate
 }: QuizContainerProps) {
-  const quizState = useQuizState({ 
-    session, 
+  const quizState = useQuizState({
+    session,
     initialToken: token,
-    onComplete 
+    onComplete
   })
   const quizAnswer = useQuizAnswer()
 
@@ -38,7 +38,7 @@ export default function QuizContainer({
 
   const navigation = useQuizNavigation({
     currentToken: token, // Only used for initial setup, not stored
-    currentQuestionIndex: quizState.currentQuestionIndex,
+    currentQuestionIndex: quizState.currentQuestionIndex || 0,
     currentQuestionId: quizState.currentQuestion.id,
     isLastQuestion: quizState.isLastQuestion,
     selectedAnswer: quizState.selectedAnswer,
@@ -48,7 +48,7 @@ export default function QuizContainer({
       quizState.setAnswers(new Map(quizState.answers.set(questionId, answer)))
     },
     onNextQuestion: () => {
-      quizState.setCurrentQuestionIndex(prev => prev + 1)
+      quizState.setCurrentQuestionIndex((prev) => (prev || 0) + 1)
       quizState.setSelectedAnswer(null)
     },
     onComplete: () => {
@@ -80,7 +80,7 @@ export default function QuizContainer({
         />
 
         <QuizProgress
-          currentQuestion={quizState.currentQuestionIndex + 1}
+          currentQuestion={(quizState.currentQuestionIndex || 0) + 1}
           totalQuestions={quizState.totalQuestions}
           progress={quizState.progress}
         />
@@ -89,7 +89,7 @@ export default function QuizContainer({
           <div className="space-y-4">
             <div className="flex items-start gap-3">
               <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold flex-shrink-0">
-                {quizState.currentQuestionIndex + 1}
+                {(quizState.currentQuestionIndex || 0) + 1}
               </div>
               <h2 className="text-lg font-semibold text-balance leading-relaxed flex-1">
                 {quizState.currentQuestion.text}
@@ -108,11 +108,15 @@ export default function QuizContainer({
           </div>
 
           <QuizNavigation
-            currentQuestionIndex={quizState.currentQuestionIndex}
+            currentQuestionIndex={quizState.currentQuestionIndex || 0}
             isLastQuestion={quizState.isLastQuestion}
             isSubmitting={quizState.isSubmitting}
             hasAnswer={!!quizState.selectedAnswer}
-            onPrevious={() => navigation.handlePreviousQuestion(quizState.setCurrentQuestionIndex)}
+            onPrevious={() => {
+              if ((quizState.currentQuestionIndex || 0) > 0) {
+                quizState.setCurrentQuestionIndex((prev) => (prev || 0) - 1)
+              }
+            }}
             onSubmit={navigation.handleSubmitAnswer}
           />
         </Card>

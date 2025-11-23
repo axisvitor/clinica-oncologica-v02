@@ -1,0 +1,112 @@
+name: ADR Validation
+
+on:
+  pull_request:
+    paths:
+      - 'docs/architecture/decisions/**'
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'docs/architecture/decisions/**'
+
+jobs:
+  validate-adrs:
+    runs-on: ubuntu-latest
+    name: Validate Architecture Decision Records
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+
+      - name: Validate ADRs
+        run: |
+          cd backend-hormonia
+          python scripts/adr/validate-adr.py
+        continue-on-error: false
+
+      - name: Check ADR index is up-to-date
+        run: |
+          cd backend-hormonia
+          python scripts/adr/generate-index.py
+
+          # Check if README was modified
+          if git diff --exit-code docs/architecture/decisions/README.md; then
+            echo "✅ ADR index is up-to-date"
+          else
+            echo "❌ ADR index is out of date. Run: python scripts/adr/generate-index.py"
+            exit 1
+          fi
+
+      - name: Comment PR with validation results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+
+            // Read validation results
+            const comment = `
+            ## 📋 ADR Validation Results
+
+            ✅ All Architecture Decision Records are valid and properly formatted.
+
+            **ADRs in this PR:**
+            ${context.payload.pull_request.changed_files}
+
+            ---
+            *Validation performed by [ADR Validation Workflow](.github/workflows/adr-validation.yml)*
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  check-adr-links:
+    runs-on: ubuntu-latest
+    name: Check ADR cross-references
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Check for broken ADR links
+        run: |
+          cd backend-hormonia/docs/architecture/decisions
+
+          # Find all ADR references in markdown files
+          echo "Checking for broken ADR links..."
+
+          BROKEN_LINKS=0
+
+          for file in ADR-*.md; do
+            # Skip template
+            if [ "$file" = "ADR-0000-template.md" ]; then
+              continue
+            fi
+
+            # Find ADR references like ADR-0001, ADR-0002, etc.
+            grep -oE 'ADR-[0-9]{4}' "$file" | while read -r ref; do
+              # Check if referenced ADR exists
+              if [ ! -f "${ref}"*.md ]; then
+                echo "❌ Broken link in $file: $ref not found"
+                BROKEN_LINKS=$((BROKEN_LINKS + 1))
+              fi
+            done
+          done
+
+          if [ $BROKEN_LINKS -gt 0 ]; then
+            echo "❌ Found $BROKEN_LINKS broken ADR reference(s)"
+            exit 1
+          fi
+
+          echo "✅ All ADR cross-references are valid"

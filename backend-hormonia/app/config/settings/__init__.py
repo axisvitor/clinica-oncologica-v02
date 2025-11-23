@@ -177,8 +177,15 @@ class Settings(
             # Note: Redis Cloud port 14149 does NOT use SSL/TLS
             # Validate URL scheme matches SSL setting
             if self.REDIS_SSL and not self.REDIS_URL.startswith("rediss://"):
-                print(
-                    "⚠️  WARNING: REDIS_SSL=True but URL doesn't use rediss:// scheme - SSL may not work correctly"
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    "Redis SSL configuration mismatch",
+                    extra={
+                        "redis_ssl": self.REDIS_SSL,
+                        "redis_url_scheme": self.REDIS_URL.split("://")[0] if "://" in self.REDIS_URL else "unknown",
+                        "warning": "REDIS_SSL=True but URL doesn't use rediss:// scheme"
+                    }
                 )
             elif not self.REDIS_SSL and self.REDIS_URL.startswith("rediss://"):
                 errors.append(

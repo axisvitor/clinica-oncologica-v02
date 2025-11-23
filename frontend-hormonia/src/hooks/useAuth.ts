@@ -1,10 +1,10 @@
 import { useContext } from 'react'
-import { AuthContext } from '@/contexts/AuthContext'
+import { AuthContext } from '@/app/providers/AuthContext'
 import { usePermissions } from './auth/usePermissions'
 import { useAuthRetry } from './auth/useAuthRetry'
 
 interface UseAuthOptions {
-  onAuthEvent?: (event: any) => void
+  onAuthEvent?: (event: React.MouseEvent) => void
   autoConnectWebSocket?: boolean
   persistTokens?: boolean
   retryConfig?: {

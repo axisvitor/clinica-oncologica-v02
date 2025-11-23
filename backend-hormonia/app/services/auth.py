@@ -6,7 +6,7 @@ import asyncio
 import inspect
 from collections import defaultdict
 
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 from jose import JWTError, jwt
 from jose.exceptions import ExpiredSignatureError
 
@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 class AuthService:
     """Service layer for authentication with enhanced security features"""
 
-    def __init__(self, db: Session, user_repository: UserRepository, redis_client=None):
+    def __init__(self, db: Any, user_repository: UserRepository, redis_client=None):
         self.db = db
         self.repository = user_repository
         self.redis = redis_client  # Compatible with sync/async/wrapper clients
@@ -55,65 +55,6 @@ class AuthService:
             'last_attempt': None,
             'ip_attempts': defaultdict(int)
         })
-    
-    async def authenticate_user(self, email: str, password: str, client_ip: Optional[str] = None) -> Optional[User]:
-        """
-        [DEPRECATED] Authenticate user with email and password.
-
-        WARNING: This method is deprecated. Firebase Authentication is now the primary auth system.
-        Local password authentication is disabled. This method will raise RuntimeError if Redis is unavailable.
-
-        Args:
-            email: User email address
-            password: Plain text password
-            client_ip: Client IP address for rate limiting
-
-        Returns:
-            User object if authentication successful, None otherwise
-
-        Raises:
-            RuntimeError: If Redis is not connected (required for rate limiting)
-        """
-        if not email or not password:
-            logger.warning("Empty email or password provided")
-            return None
-        
-        email = email.strip().lower()
-        
-        # Strict mode: require Redis for rate limiting/tracking
-        if not (self.redis and await self._redis_is_connected()):
-            logger.error("Redis unavailable for authentication rate limiting (strict mode)")
-            raise RuntimeError("Authentication dependencies unavailable: Redis")
-
-        # Check rate limiting
-        if await self._is_rate_limited(email, client_ip):
-            logger.warning(f"Rate limit exceeded for email: {email}, IP: {client_ip}")
-            return None
-
-        user = self.repository.get_by_email(email)
-        if not user:
-            await self._record_failed_attempt(email, client_ip)
-            logger.info(f"Authentication failed - user not found: {email}")
-            return None
-
-        if not verify_password(password, user.hashed_password):
-            await self._record_failed_attempt(email, client_ip)
-            logger.info(f"Authentication failed - invalid password: {email}")
-            return None
-            
-        if not user.is_active:
-            logger.warning(f"Authentication failed - inactive user: {email}")
-            return None
-        
-        # Clear failed attempts on successful authentication
-        await self._clear_failed_attempts(email)
-
-        # Cache user data on successful authentication
-        cache_user_data(str(user.id), user, ttl=1800)
-        logger.debug(f"Cached user profile on authentication: {user.id}")
-
-        logger.info(f"User authenticated successfully: {email}")
-        return user
     
     def create_access_token(
         self, 

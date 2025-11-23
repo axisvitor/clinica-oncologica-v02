@@ -1,0 +1,73 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+LICENSE
+CHANGELOG
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+azure-pipelines.yml
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Dependencies (will be installed in container)
+node_modules
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Build artifacts
+dist
+build
+*.egg-info
+.eggs
+
+# Test artifacts
+.pytest_cache
+.coverage
+htmlcov
+coverage
+test-results
+playwright-report
+
+# Temporary files
+tmp
+temp
+*.tmp
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Backup files
+*.bak
+*.backup

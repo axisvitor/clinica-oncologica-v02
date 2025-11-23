@@ -189,18 +189,6 @@ ROLE_DEFINITIONS: Dict[UserRole, RoleDefinition] = {
         requires_verification=True,
         allowed_domains=["med.br", "saude.gov.br", "crm.org.br", "hospital.com.br"],
     ),
-
-    # TODO: REMOVED - Role does not exist in system (only ADMIN and DOCTOR)
-    # UserRole.NURSE: RoleDefinition(...),
-
-    # TODO: REMOVED - Role does not exist in system (only ADMIN and DOCTOR)
-    # UserRole.PATIENT: RoleDefinition(...),
-
-    # TODO: REMOVED - Role does not exist in system (only ADMIN and DOCTOR)
-    # UserRole.RESEARCHER: RoleDefinition(...),
-
-    # TODO: REMOVED - Role does not exist in system (only ADMIN and DOCTOR)
-    # UserRole.COORDINATOR: RoleDefinition(...),
 }
 
 
@@ -267,8 +255,7 @@ class SecureRoleDeterminer:
                 return domain_role, f"Auto-assigned based on domain: {domain}"
 
             # Priority 3: Default role (most restrictive)
-            # TODO: REMOVED - UserRole.PATIENT does not exist (only ADMIN and DOCTOR)
-            default_role = UserRole.DOCTOR  # Changed from PATIENT to DOCTOR
+            default_role = UserRole.DOCTOR
             audit_entry.update({
                 "role_assigned": default_role,
                 "assignment_reason": "default_fallback",
@@ -281,7 +268,7 @@ class SecureRoleDeterminer:
 
         except Exception as e:
             audit_entry.update({
-                "role_assigned": UserRole.DOCTOR,  # Changed from PATIENT to DOCTOR
+                "role_assigned": UserRole.DOCTOR,
                 "assignment_reason": "error_fallback",
                 "error": str(e),
                 "security_level": "critical"
@@ -417,10 +404,6 @@ class SecureRoleDeterminer:
         # Admin can assign non-admin roles
         if assigner_role == UserRole.ADMIN and target_role != UserRole.ADMIN:
             return True
-
-        # TODO: REMOVED - UserRole.COORDINATOR and UserRole.PATIENT do not exist (only ADMIN and DOCTOR)
-        # if assigner_role == UserRole.COORDINATOR and target_role == UserRole.PATIENT:
-        #     return True
 
         return False
 

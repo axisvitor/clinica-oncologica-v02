@@ -18,10 +18,6 @@ class UserRole(str, enum.Enum):
 
     ADMIN = "admin"
     DOCTOR = "doctor"
-    NURSE = "nurse"
-    PATIENT = "patient"
-    RESEARCHER = "researcher"
-    COORDINATOR = "coordinator"
 
 
 # Core User Schemas
@@ -31,7 +27,7 @@ class UserCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=255, description="Full name of the user")
     email: EmailStr = Field(..., description="Email address (must be unique)")
     password: str = Field(..., min_length=8, max_length=128, description="Password (minimum 8 characters)")
-    role: UserRole = Field(default=UserRole.PATIENT, description="User role")
+    role: UserRole = Field(default=UserRole.DOCTOR, description="User role")
     phone_number: Optional[str] = Field(None, max_length=20, description="Phone number (optional)")
 
     @validator('password')

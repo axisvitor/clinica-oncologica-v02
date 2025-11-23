@@ -16,11 +16,12 @@ import { useToast } from "@/hooks/use-toast"
 
 interface QuizInterfaceProps {
   session: QuizSession
+  token?: string
   onComplete?: () => void
   resumeFromSaved?: boolean
 }
 
-export default function QuizInterface({ session, onComplete, resumeFromSaved = false }: QuizInterfaceProps) {
+export default function QuizInterface({ session, token, onComplete, resumeFromSaved = false }: QuizInterfaceProps) {
   const { toast } = useToast()
   const {
     currentQuestionIndex,
@@ -38,7 +39,7 @@ export default function QuizInterface({ session, onComplete, resumeFromSaved = f
     setAnswers,
     setOtherTexts,
     handleSubmitAnswer
-  } = useQuizState({ session, onComplete, resumeFromSaved })
+  } = useQuizState({ session, initialToken: token, onComplete, resumeFromSaved })
 
   // Reset selected answer when question changes
   useEffect(() => {
@@ -50,6 +51,31 @@ export default function QuizInterface({ session, onComplete, resumeFromSaved = f
       // Text is already in the OtherAnswer object
     }
   }, [currentQuestionIndex, currentQuestion.id, answers, otherTexts])
+
+  if (isCompleted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4" data-testid="quiz-success">
+        <div className="w-full max-w-md mx-auto space-y-6">
+          <Card className="p-8 text-center space-y-6">
+            <div className="w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto">
+              <CheckCircle className="w-12 h-12 text-green-600 dark:text-green-400" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold">Questionário Concluído!</h2>
+              <p className="text-muted-foreground" data-testid="quiz-success-message">
+                Obrigado por responder ao questionário mensal. Suas respostas foram registradas com sucesso.
+              </p>
+            </div>
+            <div className="pt-4 border-t space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Suas respostas ajudam nossa equipe a acompanhar seu bem-estar e oferecer o melhor cuidado possível.
+              </p>
+            </div>
+          </Card>
+        </div>
+      </div>
+    )
+  }
 
   const handleAnswerChange = (value: SingleAnswer | MultipleAnswer) => {
     setSelectedAnswer(value)
@@ -131,8 +157,8 @@ export default function QuizInterface({ session, onComplete, resumeFromSaved = f
   }
 
   const handlePreviousQuestion = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(prev => prev - 1)
+    if ((currentQuestionIndex || 0) > 0) {
+      setCurrentQuestionIndex((prev) => (prev || 0) - 1)
     }
   }
 
@@ -145,7 +171,7 @@ export default function QuizInterface({ session, onComplete, resumeFromSaved = f
         const otherTextValue = otherTexts.get(currentQuestion.id) || ""
 
         // Find the "other" option value dynamically
-        const otherOption = currentQuestion.options?.find(opt => {
+        const otherOption = currentQuestion.options?.find((opt: any) => {
           if (typeof opt === 'string') return false
           return opt.allow_other === true || opt.value.toLowerCase() === 'other' || opt.value.toLowerCase() === 'outro' || opt.value.toLowerCase() === 'outra'
         })
@@ -164,7 +190,7 @@ export default function QuizInterface({ session, onComplete, resumeFromSaved = f
               }}
               className="space-y-3"
             >
-              {currentQuestion.options?.map((option, index) => {
+              {currentQuestion.options?.map((option: any, index: number) => {
                 const optionValue = typeof option === 'string' ? option : option.value
                 const optionText = typeof option === 'string' ? option : option.text
                 return (
@@ -217,7 +243,7 @@ export default function QuizInterface({ session, onComplete, resumeFromSaved = f
         let hasOtherSelected = false
 
         // Find the "other" option value dynamically for multiple choice
-        const multiOtherOption = currentQuestion.options?.find(opt => {
+        const multiOtherOption = currentQuestion.options?.find((opt: any) => {
           if (typeof opt === 'string') return false
           return opt.allow_other === true || opt.value.toLowerCase() === 'other' || opt.value.toLowerCase() === 'outro' || opt.value.toLowerCase() === 'outra'
         })
@@ -236,7 +262,7 @@ export default function QuizInterface({ session, onComplete, resumeFromSaved = f
 
         return (
           <div className="space-y-3">
-            {currentQuestion.options?.map((option, index) => {
+            {currentQuestion.options?.map((option: any, index: number) => {
               const optionValue = typeof option === 'string' ? option : option.value
               const optionText = typeof option === 'string' ? option : option.text
               return (
@@ -382,40 +408,11 @@ export default function QuizInterface({ session, onComplete, resumeFromSaved = f
             </div>
           </RadioGroup>
         )
-
-      default:
-        return <p>Tipo de questão não suportado</p>
     }
   }
 
-  // Completion screen
-  if (isCompleted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="w-full max-w-md mx-auto space-y-6">
-          <Card className="p-8 text-center space-y-6">
-            <div className="w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto">
-              <CheckCircle className="w-12 h-12 text-green-600 dark:text-green-400" />
-            </div>
-            <div className="space-y-2">
-              <h2 className="text-2xl font-bold">Questionário Concluído!</h2>
-              <p className="text-muted-foreground">
-                Obrigado por responder ao questionário mensal. Suas respostas foram registradas com sucesso.
-              </p>
-            </div>
-            <div className="pt-4 border-t space-y-2">
-              <p className="text-sm text-muted-foreground">
-                Suas respostas ajudam nossa equipe a acompanhar seu bem-estar e oferecer o melhor cuidado possível.
-              </p>
-            </div>
-          </Card>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4" data-testid="quiz-container">
       <div className="w-full max-w-2xl mx-auto space-y-6">
         {/* Header */}
         <div className="text-center space-y-4">
@@ -423,13 +420,13 @@ export default function QuizInterface({ session, onComplete, resumeFromSaved = f
             <Circle className="w-4 h-4 fill-current" />
             Quiz Mensal - {session.patient_name}
           </div>
-          <h1 className="text-2xl font-bold">{session.template_name}</h1>
+          <h1 className="text-2xl font-bold" data-testid="quiz-title">{session.template_name}</h1>
         </div>
 
         {/* Progress */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm text-muted-foreground">
-            <span>Pergunta {currentQuestionIndex + 1} de {totalQuestions}</span>
+            <span data-testid="question-number">Pergunta {(currentQuestionIndex || 0) + 1} de {totalQuestions}</span>
             <span>{Math.round(progress)}%</span>
           </div>
           <Progress value={progress} className="h-2" />
@@ -440,7 +437,7 @@ export default function QuizInterface({ session, onComplete, resumeFromSaved = f
           <div className="space-y-4">
             <div className="flex items-start gap-3">
               <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold flex-shrink-0">
-                {currentQuestionIndex + 1}
+                {(currentQuestionIndex || 0) + 1}
               </div>
               <h2 className="text-lg font-semibold text-balance leading-relaxed flex-1">
                 {currentQuestion.text}
@@ -455,7 +452,7 @@ export default function QuizInterface({ session, onComplete, resumeFromSaved = f
 
           {/* Actions */}
           <div className="flex gap-3 pt-4 border-t">
-            {currentQuestionIndex > 0 && (
+            {(currentQuestionIndex || 0) > 0 && (
               <Button
                 onClick={handlePreviousQuestion}
                 variant="outline"
@@ -471,6 +468,7 @@ export default function QuizInterface({ session, onComplete, resumeFromSaved = f
               onClick={handleAnswerSubmit}
               disabled={!selectedAnswer || isSubmitting}
               className="flex-1"
+              data-testid={isLastQuestion ? "submit-quiz" : "next-question"}
             >
               {isSubmitting ? (
                 <>

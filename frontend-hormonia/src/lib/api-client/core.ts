@@ -29,9 +29,12 @@ export interface ApiResponse<T> {
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
-  page: number;
-  size: number;
-  pages: number;
+  page?: number;
+  size?: number;
+  pages?: number;
+  has_more?: boolean;
+  next_cursor?: string | null;
+  data?: T[];
 }
 
 /**
@@ -144,15 +147,21 @@ export class ApiClientCore {
       return;
     }
 
-    // SECURITY: Block HTTP URLs in production to prevent mixed-content errors
+    // Remove trailing slashes for consistency
+    url = url.replace(/\/+$/, '');
+
+    // SECURITY: Auto-upgrade HTTP to HTTPS in production to prevent mixed-content errors
     if (url.startsWith("http://") && typeof window !== "undefined") {
       const isProduction =
-        window.location.protocol === "https:" || window.location.hostname !== "localhost";
+        window.location.protocol === "https:" &&
+        window.location.hostname !== "localhost" &&
+        !window.location.hostname.startsWith("127.0.0.1") &&
+        !window.location.hostname.startsWith("192.168.");
 
       if (isProduction) {
-        logger.error("🚨 SECURITY: Blocked HTTP URL in production:", url);
+        logger.warn("⚠️ SECURITY: Auto-upgrading HTTP to HTTPS in production:", url);
         url = url.replace("http://", "https://");
-        logger.log("   Corrected URL:", url);
+        logger.log("✓ Upgraded URL:", url);
       }
     }
 
@@ -219,7 +228,9 @@ export class ApiClientCore {
 
       try {
         logger.debug("[ApiClient] Initiating CSRF token fetch...");
-        const response = await fetch(`${this.baseURL}/api/v2/csrf-token`, {
+        // MIGRATION: Updated from deprecated /api/v2/csrf-token to /api/v2/auth/csrf-token
+        // See P1-1 issue: Frontend uses deprecated CSRF endpoint
+        const response = await fetch(`${this.baseURL}/api/v2/auth/csrf-token`, {
           credentials: "include",
           signal: controller.signal,
         });
@@ -429,7 +440,7 @@ export class ApiClientCore {
   async get<T>(endpoint: string, params?: Record<string, string | number | boolean>): Promise<T> {
     const options: RequestOptions = { method: "GET" };
     if (params) {
-      (options as any).params = params;
+      (options as RequestOptions & { params: Record<string, string | number | boolean> }).params = params;
     }
     return this.request<T>(endpoint, options);
   }
@@ -437,28 +448,36 @@ export class ApiClientCore {
   /**
    * POST request
    */
-  async post<T>(
+  async post<T, TData = unknown>(
     endpoint: string,
-    data?: any,
+    data?: TData,
     params?: Record<string, string | number | boolean>,
   ): Promise<T> {
     const options: RequestOptions = { method: "POST" };
-    if (data !== undefined) (options as any).body = JSON.stringify(data);
-    if (params) (options as any).params = params;
+    if (data !== undefined) {
+      (options as RequestOptions & { body: string }).body = JSON.stringify(data);
+    }
+    if (params) {
+      (options as RequestOptions & { params: Record<string, string | number | boolean> }).params = params;
+    }
     return this.request<T>(endpoint, options);
   }
 
   /**
    * PUT request
    */
-  async put<T>(
+  async put<T, TData = unknown>(
     endpoint: string,
-    data?: any,
+    data?: TData,
     params?: Record<string, string | number | boolean>,
   ): Promise<T> {
     const options: RequestOptions = { method: "PUT" };
-    if (data !== undefined) (options as any).body = JSON.stringify(data);
-    if (params) (options as any).params = params;
+    if (data !== undefined) {
+      (options as RequestOptions & { body: string }).body = JSON.stringify(data);
+    }
+    if (params) {
+      (options as RequestOptions & { params: Record<string, string | number | boolean> }).params = params;
+    }
     return this.request<T>(endpoint, options);
   }
 
@@ -470,21 +489,27 @@ export class ApiClientCore {
     params?: Record<string, string | number | boolean>,
   ): Promise<T> {
     const options: RequestOptions = { method: "DELETE" };
-    if (params) (options as any).params = params;
+    if (params) {
+      (options as RequestOptions & { params: Record<string, string | number | boolean> }).params = params;
+    }
     return this.request<T>(endpoint, options);
   }
 
   /**
    * PATCH request
    */
-  async patch<T>(
+  async patch<T, TData = unknown>(
     endpoint: string,
-    data?: any,
+    data?: TData,
     params?: Record<string, string | number | boolean>,
   ): Promise<T> {
     const options: RequestOptions = { method: "PATCH" };
-    if (data !== undefined) (options as any).body = JSON.stringify(data);
-    if (params) (options as any).params = params;
+    if (data !== undefined) {
+      (options as RequestOptions & { body: string }).body = JSON.stringify(data);
+    }
+    if (params) {
+      (options as RequestOptions & { params: Record<string, string | number | boolean> }).params = params;
+    }
     return this.request<T>(endpoint, options);
   }
 }

@@ -14,7 +14,7 @@ import json
 
 from sqlalchemy import text, event
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 
 from app.core.redis_unified import get_sync_redis
 from app.core.monitoring_logging import monitoring_logger
@@ -70,7 +70,7 @@ class QueryPerformanceMonitor:
     METRICS_RETENTION_HOURS = 24
     MAX_STORED_QUERIES = 1000
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         """Initialize query performance monitor."""
         self.db = db
         self.redis_client = get_sync_redis()

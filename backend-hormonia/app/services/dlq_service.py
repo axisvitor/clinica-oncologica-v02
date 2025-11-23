@@ -14,7 +14,7 @@ from enum import Enum
 from uuid import UUID
 import time
 
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 from sqlalchemy import desc, and_
 
 from app.models.failed_message import FailedMessage, FailureReason, DLQStatus
@@ -91,7 +91,7 @@ class DLQService:
     MAX_RETRY_ATTEMPTS = 5
     RETRY_DELAYS = [60, 300, 900, 3600, 7200]  # 1min, 5min, 15min, 1h, 2h
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         """
         Inicializa o serviço de DLQ.
 

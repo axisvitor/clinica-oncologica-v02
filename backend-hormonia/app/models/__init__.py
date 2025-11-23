@@ -44,10 +44,23 @@ from app.models.consent import Consent, ConsentType, ConsentStatus
 # Sprint 2: Webhook idempotency (P6)
 # Import as WebhookEvent to replace old message_events.WebhookEvent
 from app.models.webhook_event import WebhookEvent
+from app.models.webhook import WebhookEndpoint, WebhookDelivery, WebhookLog
 from app.models.failed_message import FailedMessage, FailureReason, DLQStatus
 
 # Error tracking models
 from app.models.error_tracking import ErrorLog
+
+# System Health models
+from app.models.system_health import (
+    SystemHealthSnapshot,
+    SystemIncident,
+    HealthStatus,
+    IncidentSeverity,
+    IncidentStatus
+)
+
+# Upload tracking for quota management (P2-3)
+from app.models.upload import Upload
 
 __all__ = [
     # Base
@@ -139,4 +152,19 @@ __all__ = [
 
     # Error tracking models
     "ErrorLog",
+
+    # System Health models
+    "SystemHealthSnapshot",
+    "SystemIncident",
+    "HealthStatus",
+    "IncidentSeverity",
+    "IncidentStatus",
+
+    # Upload tracking (P2-3)
+    "Upload",
+
+    # Webhook Management (P6)
+    "WebhookEndpoint",
+    "WebhookDelivery",
+    "WebhookLog",
 ]

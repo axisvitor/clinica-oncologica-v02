@@ -1,0 +1,202 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [main, develop, feature/*, docs-refactor-py313]
+  pull_request:
+    branches: [main, develop, docs-refactor-py313]
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd backend-hormonia
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff vulture eradicate interrogate autoflake radon
+
+      - name: Check unused imports
+        run: |
+          cd backend-hormonia
+          echo "Checking for unused imports..."
+          ruff check app/ tests/ --select F401 --output-format github
+        continue-on-error: true
+
+      - name: Check dead code
+        run: |
+          cd backend-hormonia
+          echo "Checking for dead code..."
+          vulture app/ --min-confidence 80 --exclude __pycache__,migrations,alembic
+        continue-on-error: true
+
+      - name: Check commented code
+        run: |
+          cd backend-hormonia
+          echo "Checking for commented code..."
+          python scripts/detect_commented_code.py --directories app/ tests/ --output commented_code_report.txt
+        continue-on-error: true
+
+      - name: Check docstring coverage
+        run: |
+          cd backend-hormonia
+          echo "Checking docstring coverage..."
+          interrogate app/ --fail-under 80 --verbose --exclude tests,__pycache__,migrations,alembic
+        continue-on-error: true
+
+      - name: Check hardcoded regex
+        run: |
+          cd backend-hormonia
+          echo "Checking for hardcoded regex patterns..."
+          python scripts/audit_regex_patterns.py --directory app/ --output regex_audit_report.txt
+        continue-on-error: true
+
+      - name: Calculate code complexity
+        run: |
+          cd backend-hormonia
+          echo "Calculating code complexity..."
+          radon cc app/ -a -s
+        continue-on-error: true
+
+      - name: Calculate maintainability index
+        run: |
+          cd backend-hormonia
+          echo "Calculating maintainability index..."
+          radon mi app/ -s
+        continue-on-error: true
+
+      - name: Generate comprehensive report
+        run: |
+          cd backend-hormonia
+          echo "Generating code quality report..."
+          python scripts/generate_code_quality_report.py --output docs/code-quality/FINAL_REPORT.md --json
+
+      - name: Upload quality reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-quality-reports
+          path: |
+            backend-hormonia/docs/code-quality/FINAL_REPORT.md
+            backend-hormonia/docs/code-quality/FINAL_REPORT.json
+            backend-hormonia/regex_audit_report.txt
+            backend-hormonia/commented_code_report.txt
+            backend-hormonia/dead_code_report.txt
+            backend-hormonia/docstring_coverage_report.txt
+
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let comment = '## Code Quality Report\n\n';
+
+            try {
+              const report = fs.readFileSync('backend-hormonia/docs/code-quality/FINAL_REPORT.md', 'utf8');
+              comment += report;
+            } catch (error) {
+              comment += 'Failed to generate report. See workflow logs for details.';
+            }
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd backend-hormonia
+          pip install ruff
+
+      - name: Lint with ruff
+        run: |
+          cd backend-hormonia
+          ruff check app/ tests/ --output-format github
+
+  format-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd backend-hormonia
+          pip install black isort
+
+      - name: Check formatting with black
+        run: |
+          cd backend-hormonia
+          black --check --line-length 100 app/ tests/
+
+      - name: Check import sorting with isort
+        run: |
+          cd backend-hormonia
+          isort --check --profile black --line-length 100 app/ tests/
+
+  security:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd backend-hormonia
+          pip install bandit safety
+
+      - name: Security check with bandit
+        run: |
+          cd backend-hormonia
+          bandit -r app/ -f json -o bandit_report.json
+        continue-on-error: true
+
+      - name: Security check with safety
+        run: |
+          cd backend-hormonia
+          safety check --json
+        continue-on-error: true
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            backend-hormonia/bandit_report.json

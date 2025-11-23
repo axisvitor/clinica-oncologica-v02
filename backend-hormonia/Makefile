@@ -78,12 +78,74 @@ flower:
 
 # Format code
 format:
-	black app/ tests/
-	isort app/ tests/
+	black --line-length 100 app/ tests/
+	isort --profile black --line-length 100 app/ tests/
+
+format-check:
+	black --check --line-length 100 app/ tests/
+	isort --check --profile black --line-length 100 app/ tests/
 
 # Lint code
 lint:
-	flake8 app/ tests/
+	ruff check app/ tests/
+
+lint-fix:
+	ruff check app/ tests/ --fix
+
+# Code Quality Tools
+install-quality:
+	pip install ruff black isort vulture eradicate interrogate autoflake radon bandit safety
+
+quality: lint dead-code docstrings unused-imports
+	@echo "✅ All quality checks complete"
+
+quality-report:
+	@echo "Generating comprehensive code quality report..."
+	python scripts/generate_code_quality_report.py --json
+	@echo "✅ Report generated: docs/code-quality/FINAL_REPORT.md"
+
+dead-code:
+	@echo "Detecting dead code..."
+	python scripts/detect_dead_code.py --output dead_code_report.txt
+
+docstrings:
+	@echo "Checking docstring coverage..."
+	python scripts/analyze_docstring_coverage.py --fail-under 95
+
+unused-imports:
+	@echo "Removing unused imports..."
+	python scripts/remove_unused_imports.py
+
+unused-imports-dry:
+	@echo "Checking for unused imports (dry run)..."
+	python scripts/remove_unused_imports.py --dry-run
+
+commented-code:
+	@echo "Detecting commented code..."
+	python scripts/detect_commented_code.py --output commented_code_report.txt
+
+regex-audit:
+	@echo "Auditing hardcoded regex patterns..."
+	python scripts/audit_regex_patterns.py --output regex_audit_report.txt
+
+complexity:
+	@echo "Calculating code complexity..."
+	radon cc app/ -a -s
+
+maintainability:
+	@echo "Calculating maintainability index..."
+	radon mi app/ -s
+
+# Pre-commit hooks
+pre-commit:
+	@echo "Installing pre-commit hooks..."
+	pip install pre-commit
+	pre-commit install
+	@echo "✅ Pre-commit hooks installed"
+
+pre-commit-run:
+	@echo "Running pre-commit on all files..."
+	pre-commit run --all-files
 
 # Setup development environment
 setup: install docker-up migrate
@@ -99,3 +161,10 @@ start: docker-up
 	@celery -A app.celery_app beat --loglevel=info --detach
 	@echo "Starting development server..."
 	@uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# All-in-one commands
+check-all: quality test
+	@echo "✅ All checks passed"
+
+fix-all: format lint-fix unused-imports
+	@echo "✅ All auto-fixes applied"

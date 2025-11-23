@@ -16,10 +16,10 @@ import {
   Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/app/providers/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useRoleGuard, PermissionGate } from "@/components/auth/ProtectedRoute";
+import { useRoleGuard, PermissionGate } from "@/features/auth/ProtectedRoute";
 import { getRoleLabel, getRoleColor, type RolePermissions } from "@/types/shared";
 
 interface NavigationItem {

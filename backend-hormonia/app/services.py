@@ -12,18 +12,19 @@ import logging
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.services.auth import AuthService
-from app.services.patient import PatientService, PatientIntegrityService
+from app.services.patient import PatientCRUDService, PatientIntegrityService
 from app.services.quiz import QuizService
-from app.services.report import ReportService
-from app.services.analytics import AnalyticsService
-from app.services.message import MessageService
-from app.services.flow import FlowEngineIntegrationService, FlowManagerAdapter, get_flow_config
-from app.services.flow_engine import FlowEngine
+from app.services.reporting import ReportService
+from app.domain.analytics.analytics_service import AnalyticsService
+from app.domain.messaging.core import MessageService
+from app.services.flow import FlowManager, get_flow_config
+from app.services.flow import FlowEngine  # Use the consolidated engine
+from app.services.enhanced_flow_engine import EnhancedFlowEngine
 # from app.services.notification import NotificationService  # TODO: Implement when needed
 from app.services.file import FileService
-from app.services.monthly_quiz_service import MonthlyQuizService
-from app.services.metrics_collector import MetricsCollectorService
-from app.services.metrics_redis_storage import MetricsRedisStorage
+from app.domain.quizzes import MonthlyQuizService
+from app.services.analytics.metrics_collector import MetricsCollectorService
+from app.services.analytics.metrics_redis_storage import MetricsRedisStorage
 from app.services.simple_session_service import SimpleSessionService
 
 # Import repositories
@@ -40,7 +41,7 @@ class ServiceProvider:
 
     This class is designed to be instantiated per-request with its own
     database session, ensuring thread safety and proper resource isolation.
-    Services are lazily instantiated to improve performance.
+    Services are lazily instantiated to improve performance.Fa
     """
 
     def __init__(self, db: Session, redis_client: Optional[object] = None):
@@ -205,10 +206,10 @@ class ServiceProvider:
         return self._auth_service
 
     @property
-    def flow_engine(self) -> FlowEngine:
+    def flow_engine(self) -> EnhancedFlowEngine:
         if self._flow_engine is None:
             # FlowEngine needs db
-            self._flow_engine = FlowEngine(self.db)
+            self._flow_engine = EnhancedFlowEngine(self.db)
         return self._flow_engine
 
     @property
@@ -222,10 +223,10 @@ class ServiceProvider:
         return self._patient_integrity_service
 
     @property
-    def patient_service(self) -> PatientService:
+    def patient_service(self) -> PatientCRUDService:
         if self._patient_service is None:
             # PatientService needs: db, PatientRepository, PatientIntegrityService, FlowEngine
-            self._patient_service = PatientService(
+            self._patient_service = PatientCRUDService(
                 db=self.db,
                 patient_repository=self.patient_repository,
                 integrity_service=self.patient_integrity_service,
@@ -269,13 +270,9 @@ class ServiceProvider:
         return self._message_service
 
     @property
-    def flow_service(self) -> FlowEngineIntegrationService:
+    def flow_service(self) -> FlowManager:
         if self._flow_service is None:
-            config = get_flow_config()
-            if config.is_consolidated_enabled():
-                self._flow_service = FlowManagerAdapter(self.db, show_warnings=False)
-            else:
-                self._flow_service = FlowEngineIntegrationService(self.db)
+            self._flow_service = FlowManager(self.db)
         return self._flow_service
 
     # @property
@@ -333,57 +330,4 @@ class ServiceProvider:
         return self._simple_session_service
 
 
-# Legacy function - NOW DISABLED to prevent thread-safety violations
-# CRITICAL: This function caused ALL requests to share the same SQLAlchemy session
-def get_service_provider(request) -> ServiceProvider:
-    """
-    ⛔ DEPRECATED AND DISABLED: Get service provider from FastAPI request.
 
-    CRITICAL THREAD-SAFETY VIOLATION:
-    This function returned app.state.service_provider which was a GLOBAL SINGLETON,
-    causing all concurrent requests to share the same SQLAlchemy session.
-
-    Problem Impact:
-    - Session cross-talk between requests
-    - Data corruption under concurrent load
-    - Unpredictable query results
-    - Race conditions in database transactions
-
-    SOLUTION: Use thread-safe dependency injection instead
-    --------------------------------------------------
-    OLD (UNSAFE):
-        def my_endpoint(services = Depends(get_service_provider)):
-            user = services.user_service.get_user()
-
-    NEW (THREAD-SAFE):
-        from app.dependencies import get_thread_safe_service_provider
-
-        def my_endpoint(services = Depends(get_thread_safe_service_provider)):
-            user = services.user_service.get_user()
-
-    Migration Guide: docs/deployment/SERVICE_DI_REFACTOR.md
-
-    Raises:
-        RuntimeError: ALWAYS raises to prevent unsafe usage
-    """
-    import warnings
-    warnings.warn(
-        "⛔ get_service_provider(request) is DEPRECATED and CAUSES THREAD-SAFETY VIOLATIONS. "
-        "Use get_thread_safe_service_provider() dependency injection instead. "
-        "See docs/deployment/SERVICE_DI_REFACTOR.md for migration guide.",
-        DeprecationWarning,
-        stacklevel=2
-    )
-
-    # ALWAYS raise to prevent unsafe usage
-    raise RuntimeError(
-        "❌ Global service provider is DISABLED for thread safety. "
-        "This function caused all requests to share the same SQLAlchemy session. "
-        "\n\n"
-        "SOLUTION: Use get_thread_safe_service_provider() instead:\n"
-        "  from app.dependencies import get_thread_safe_service_provider\n"
-        "  def my_endpoint(services = Depends(get_thread_safe_service_provider)):\n"
-        "      ...\n"
-        "\n"
-        "See: docs/deployment/SERVICE_DI_REFACTOR.md"
-    )

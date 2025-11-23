@@ -1,0 +1,259 @@
+name: Load Testing
+
+on:
+  # Run weekly on Sunday nights
+  schedule:
+    - cron: '0 2 * * 0'  # Every Sunday at 2 AM UTC
+
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: 'Load test scenario to run'
+        required: true
+        default: 'smoke'
+        type: choice
+        options:
+          - smoke
+          - load
+          - stress
+          - spike
+      duration:
+        description: 'Test duration (e.g., 1m, 5m, 10m)'
+        required: false
+        default: '1m'
+      users:
+        description: 'Number of concurrent users'
+        required: false
+        default: '10'
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    services:
+      # PostgreSQL database
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: hormonia_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      # Redis cache
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        working-directory: ./backend-hormonia
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install locust
+
+      - name: Start backend application
+        working-directory: ./backend-hormonia
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hormonia_test
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: test-secret-key-for-ci
+          ENVIRONMENT: testing
+        run: |
+          # Run migrations
+          alembic upgrade head
+
+          # Start application in background
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+
+          # Wait for application to be ready
+          sleep 10
+
+          # Health check
+          curl -f http://localhost:8000/api/v2/health || exit 1
+
+          echo "✅ Backend is running"
+
+      - name: Run smoke test
+        if: github.event.inputs.scenario == 'smoke' || github.event_name == 'schedule'
+        working-directory: ./backend-hormonia/locust
+        run: |
+          echo "🔥 Running smoke test..."
+          locust -f locustfile.py \
+            --host=http://localhost:8000 \
+            --headless \
+            -u 10 \
+            -r 2 \
+            --run-time 1m \
+            --html reports/smoke.html \
+            --csv reports/smoke
+
+      - name: Run load test
+        if: github.event.inputs.scenario == 'load'
+        working-directory: ./backend-hormonia/locust
+        run: |
+          echo "📊 Running load test..."
+          locust -f locustfile.py \
+            --host=http://localhost:8000 \
+            --headless \
+            -u 100 \
+            -r 10 \
+            --run-time 5m \
+            --html reports/load.html \
+            --csv reports/load
+
+      - name: Run stress test
+        if: github.event.inputs.scenario == 'stress'
+        working-directory: ./backend-hormonia/locust
+        run: |
+          echo "💪 Running stress test..."
+          locust -f locustfile.py \
+            --host=http://localhost:8000 \
+            --headless \
+            -u 500 \
+            -r 50 \
+            --run-time 10m \
+            --html reports/stress.html \
+            --csv reports/stress
+
+      - name: Run spike test
+        if: github.event.inputs.scenario == 'spike'
+        working-directory: ./backend-hormonia/locust
+        run: |
+          echo "⚡ Running spike test..."
+          locust -f locustfile.py \
+            --host=http://localhost:8000 \
+            --headless \
+            -u 1000 \
+            -r 100 \
+            --run-time 3m \
+            --html reports/spike.html \
+            --csv reports/spike
+
+      - name: Run custom test
+        if: github.event.inputs.users != ''
+        working-directory: ./backend-hormonia/locust
+        run: |
+          echo "🎯 Running custom test..."
+          locust -f locustfile.py \
+            --host=http://localhost:8000 \
+            --headless \
+            -u ${{ github.event.inputs.users }} \
+            -r 10 \
+            --run-time ${{ github.event.inputs.duration }} \
+            --html reports/custom.html \
+            --csv reports/custom
+
+      - name: Analyze results
+        working-directory: ./backend-hormonia/locust
+        run: |
+          echo "📊 Load Test Results Summary"
+          echo "=============================="
+
+          # Find the most recent CSV stats file
+          STATS_FILE=$(ls -t reports/*_stats.csv 2>/dev/null | head -1)
+
+          if [ -f "$STATS_FILE" ]; then
+            echo ""
+            echo "Statistics from: $STATS_FILE"
+            echo ""
+            head -20 "$STATS_FILE"
+
+            # Check for failures
+            FAILURES=$(grep -v "^Type" "$STATS_FILE" | awk -F',' '{sum+=$5} END {print sum}')
+
+            echo ""
+            echo "Total Failures: $FAILURES"
+
+            if [ "$FAILURES" -gt 100 ]; then
+              echo "⚠️  WARNING: High failure rate detected!"
+              exit 1
+            fi
+          else
+            echo "❌ No stats file found!"
+            exit 1
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-results-${{ github.event.inputs.scenario || 'smoke' }}
+          path: |
+            backend-hormonia/locust/reports/*.html
+            backend-hormonia/locust/reports/*.csv
+          retention-days: 30
+
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const statsFile = 'backend-hormonia/locust/reports/smoke_stats.csv';
+
+            if (fs.existsSync(statsFile)) {
+              const stats = fs.readFileSync(statsFile, 'utf8');
+              const comment = `## 📊 Load Test Results
+
+              \`\`\`
+              ${stats.split('\n').slice(0, 10).join('\n')}
+              \`\`\`
+
+              Full results available in workflow artifacts.
+              `;
+
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            }
+
+      - name: Check performance thresholds
+        working-directory: ./backend-hormonia/locust
+        run: |
+          echo "🎯 Checking performance thresholds..."
+
+          # Parse CSV stats and check thresholds
+          STATS_FILE=$(ls -t reports/*_stats.csv 2>/dev/null | head -1)
+
+          if [ -f "$STATS_FILE" ]; then
+            # Extract p95 response time (column 9)
+            P95=$(grep -v "^Type" "$STATS_FILE" | grep "Aggregated" | awk -F',' '{print $9}')
+
+            echo "P95 Response Time: ${P95}ms"
+
+            # Threshold: P95 should be < 500ms
+            if [ "$P95" -gt 500 ]; then
+              echo "❌ FAIL: P95 response time exceeds 500ms threshold"
+              exit 1
+            else
+              echo "✅ PASS: P95 response time within acceptable range"
+            fi
+          fi

@@ -1,85 +1,6 @@
-/**
- * Type definitions for Monthly Quiz Interface
- * Aligns with Backend API schemas
- */
 
-export enum QuestionType {
-  SINGLE_CHOICE = "single_choice",
-  MULTIPLE_CHOICE = "multiple_choice",
-  SCALE = "scale",
-  TEXT = "text",
-  YES_NO = "yes_no"
-}
-
-export interface QuestionOption {
-  id: string
-  text: string
-  value: string
-  is_correct?: boolean
-  allow_other?: boolean
-}
-
-export interface QuizQuestion {
-  id: string
-  text: string
-  type: QuestionType
-  options?: QuestionOption[]  // Changed from string[] to QuestionOption[]
-  min_value?: number
-  max_value?: number
-  required: boolean
-  allow_other?: boolean
-  metadata?: Record<string, any>
-}
-
-export interface QuizSession {
-  quiz_session_id: string
-  patient_name: string
-  template_name: string
-  template_version: string
-  questions: QuizQuestion[]
-  current_question_index: number
-  total_questions: number
-  expires_at: string
-  new_token?: string  // NEW: For token rotation
-}
-
-export interface QuizAccessRequest {
-  token: string
-}
-
-export interface QuizSubmitRequest {
-  token: string
-  question_id: string
-  response_value: string | string[]  // Accept both string and array
-  other_text?: string
-  response_metadata?: Record<string, any>
-}
-
-// Backend compatibility - matches MonthlyQuizSubmitResponse schema
-export interface QuizSubmitRequestBackend {
-  token: string
-  question_id: string
-  response_value: any  // Backend accepts Any type
-  other_text?: string
-  response_metadata?: Record<string, any>
-}
-
-export interface QuizSubmitResponse {
-  success: boolean
-  response_id?: string
-  message: string
-  is_last_question?: boolean
-  new_token?: string  // NEW: For token rotation
-}
-
-export interface QuizError {
-  detail: string
-  status?: number
-}
-
-// UI State types
 export interface OtherAnswer {
-  value: string  // Changed from hardcoded "OUTRA" to dynamic value
+  value: string
   customText: string
 }
 
@@ -95,14 +16,13 @@ export interface QuizUIState {
   otherTexts: Map<string, string>
 }
 
-// Dashboard types - matches backend MonthlyQuizLinkRead schema
 export interface MonthlyQuizLink {
   id: string
   patient_id: string
   template_id: string
   access_url: string
   expires_at: string
-  created_at: string  // Use this instead of sent_at
+  created_at: string
   is_active: boolean
   patient_name?: string
   patient_phone?: string
@@ -120,4 +40,62 @@ export interface MonthlyQuizStats {
   completion_rate: number
   average_completion_time?: number
   delivery_methods_distribution?: Record<string, number>
+}
+
+export interface QuizError {
+  message?: string
+  detail?: string
+  code?: string
+  status?: number
+}
+
+export type QuestionType = 'single_choice' | 'multiple_choice' | 'scale' | 'text' | 'yes_no'
+
+export interface QuizQuestion {
+  id: string
+  text: string
+  type: QuestionType
+  options?: (string | { id?: string; value: string; text: string; allow_other?: boolean })[]
+  min_value?: number
+  max_value?: number
+  allow_other?: boolean
+  required?: boolean
+}
+
+export interface QuizSession {
+  id: string
+  quiz_session_id: string
+  patient_id: string
+  template_id: string
+  patient_name: string
+  template_name: string
+  expires_at: string
+  questions: QuizQuestion[]
+  created_at?: string
+  completed_at?: string
+  status?: string
+  new_token?: string
+  current_question_index?: number
+}
+
+export interface QuizAccessRequest {
+  token: string
+}
+
+export interface QuizSubmitRequest {
+  token: string
+  question_id: string
+  response_value: string | string[]
+  response_metadata?: Record<string, any>
+  other_text?: string
+}
+
+export interface QuizSubmitResponse {
+  success: boolean
+  is_last_question: boolean
+  next_question?: QuizQuestion
+  session_status: string
+  message?: string
+  response_id?: string
+  new_token?: string
 }

@@ -4,7 +4,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Bell, Check, X, AlertTriangle, MessageSquare, FileText } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/app/providers/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -15,24 +15,18 @@ import {
 } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
-
-interface Notification {
-  id: string
-  type: 'alert' | 'message' | 'report' | 'quiz'
-  title: string
-  message: string
-  is_read: boolean
-  created_at: string
-  metadata?: Record<string, any>
-}
+import type { NotificationListResponse, Notification } from '@/types/notification'
 
 export function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false)
   const { user, isLoading: authLoading } = useAuth()
 
-  const { data: notificationsData, isLoading } = useQuery({
+  const { data: notificationsData, isLoading } = useQuery<NotificationListResponse>({
     queryKey: ['notifications'],
-    queryFn: () => apiClient.notifications.list(),
+    queryFn: async (): Promise<NotificationListResponse> => {
+      const result = await apiClient.notifications.list()
+      return result as NotificationListResponse
+    },
     enabled: !!user && !authLoading, // Only run when authenticated
     refetchInterval: 30000 // Refresh every 30 seconds
   })
@@ -72,8 +66,8 @@ export function NotificationCenter() {
         <Button variant="ghost" size="sm" className="relative">
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <Badge 
-              variant="destructive" 
+            <Badge
+              variant="destructive"
               className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
             >
               {unreadCount > 9 ? '9+' : unreadCount}
@@ -90,7 +84,7 @@ export function NotificationCenter() {
             </Button>
           )}
         </div>
-        
+
         <ScrollArea className="h-[400px]">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
@@ -106,13 +100,12 @@ export function NotificationCenter() {
               {notifications.map((notification: Notification) => {
                 const Icon = getNotificationIcon(notification.type)
                 const iconColor = getNotificationColor(notification.type)
-                
+
                 return (
                   <div
                     key={notification.id}
-                    className={`p-4 hover:bg-gray-50 cursor-pointer ${
-                      !notification.is_read ? 'bg-blue-50' : ''
-                    }`}
+                    className={`p-4 hover:bg-gray-50 cursor-pointer ${!notification.is_read ? 'bg-blue-50' : ''
+                      }`}
                   >
                     <div className="flex items-start space-x-3">
                       <div className={`flex-shrink-0 ${iconColor}`}>
@@ -120,9 +113,8 @@ export function NotificationCenter() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <p className={`text-sm font-medium ${
-                            !notification.is_read ? 'text-gray-900' : 'text-gray-700'
-                          }`}>
+                          <p className={`text-sm font-medium ${!notification.is_read ? 'text-gray-900' : 'text-gray-700'
+                            }`}>
                             {notification.title}
                           </p>
                           {!notification.is_read && (
@@ -146,7 +138,7 @@ export function NotificationCenter() {
             </div>
           )}
         </ScrollArea>
-        
+
         {notifications && notifications.length > 0 && (
           <>
             <Separator />

@@ -20,7 +20,20 @@ import type {
   QuizError
 } from "@/types/quiz"
 
-const DEFAULT_API_BASE_URL = 'http://localhost:8000/api/v2/monthly-quiz-public'
+// Determine default URL based on environment
+let defaultBaseUrl = "http://localhost:8000/api/v2/monthly-quiz-public";
+
+// In production, we require environment variables
+if (process.env.NODE_ENV === 'production' && !process.env.NEXT_PUBLIC_QUIZ_PUBLIC_API_URL && !process.env.NEXT_PUBLIC_API_URL) {
+  // Only throw if running on server-side to prevent build failures
+  if (typeof window === 'undefined') {
+    console.error("CRITICAL: NEXT_PUBLIC_QUIZ_PUBLIC_API_URL or NEXT_PUBLIC_API_URL must be set in production");
+  }
+} else if (process.env.NEXT_PUBLIC_API_URL) {
+  defaultBaseUrl = process.env.NEXT_PUBLIC_API_URL + '/api/v2/monthly-quiz-public';
+}
+
+const DEFAULT_API_BASE_URL = process.env.NEXT_PUBLIC_QUIZ_PUBLIC_API_URL || defaultBaseUrl;
 
 // Default timeout values (can be overridden by env vars)
 const DEFAULT_TIMEOUT = 30000 // 30 seconds

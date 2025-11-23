@@ -22,6 +22,7 @@ celery_app = Celery(
         "app.tasks.reports",
         "app.tasks.alerts",
         "app.tasks.quiz_link_tasks",
+        "app.tasks.quiz_flow",
         "app.tasks.saga_retry",
         "app.tasks.saga_monitoring"
     ]
@@ -166,6 +167,12 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.messaging.process_whatsapp_dlq",
         "schedule": 600.0,  # Every 10 minutes
         "kwargs": {"limit": 50}
+    },
+    # Quiz session expiration cleanup (HIGH-004)
+    "cleanup-expired-quiz-sessions": {
+        "task": "app.tasks.quiz_flow.cleanup_expired_quiz_sessions_task",
+        "schedule": 7200.0,  # Every 2 hours (runs at 12am, 2am, 4am, 6am, 8am, 10am, 12pm, 2pm, 4pm, 6pm, 8pm, 10pm)
+        "kwargs": {"max_age_hours": 48}
     },
 }
 

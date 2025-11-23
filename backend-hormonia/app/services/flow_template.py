@@ -3,7 +3,7 @@ Flow template management service using the new versioning system.
 """
 from typing import List, Optional, Any, Dict
 from uuid import UUID
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 
 from app.models.flow import FlowKind, FlowTemplateVersion
 from app.repositories.flow_kind import FlowKindRepository
@@ -15,7 +15,7 @@ from app.exceptions import ValidationError, NotFoundError
 class FlowTemplateService:
     """Service for managing flow templates with versioning."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         self.db = db
         self.flow_kind_repo = FlowKindRepository(db)
         self.template_version_repo = FlowTemplateVersionRepository(db)

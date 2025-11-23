@@ -6,6 +6,8 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
+    <!-- CSP nonce meta tag - injected by backend -->
+    <meta property="csp-nonce" content="{{ csp_nonce }}" />
     <title>Neoplasias Litoral - Clínica de Oncologia</title>
 
     <!-- Preconnect to Google Fonts for performance -->
@@ -24,10 +26,11 @@
     <!-- Config is loaded directly from import.meta.env in runtime-config.ts -->
     <!-- <script src="/config.js"></script> -->
     <!-- Vite resolves /main.tsx to correct hashed path in production -->
-    <script type="module" src="/main.tsx"></script>
-    
+    <script type="module" src="/src/main.tsx"></script>
+
     <!-- PRODUCTION SAFETY: Global error handler for unhandled errors -->
-    <script>
+    <!-- CSP Level 3: Using nonce instead of unsafe-inline -->
+    <script nonce="{{ csp_nonce }}">
       window.addEventListener('error', function(e) {
         console.error('🚨 Global error caught:', e.message, e.filename, e.lineno);
         // Don't show overlay in development (already has one)
@@ -42,7 +45,7 @@
           }
         }
       });
-      
+
       window.addEventListener('unhandledrejection', function(e) {
         console.error('🚨 Unhandled promise rejection:', e.reason);
         if (window.location.hostname.includes('railway.app')) {

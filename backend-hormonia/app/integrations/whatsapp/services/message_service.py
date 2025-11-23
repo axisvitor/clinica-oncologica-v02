@@ -173,11 +173,13 @@ class WhatsAppMessageService:
         self,
         evolution_client: EvolutionAPIClient,
         db_session: AsyncSession,
-        message_queue: MessageQueue
+        message_queue: MessageQueue,
+        message_status_handler: Optional[Any] = None  # Avoid circular import
     ):
         self.evolution_client = evolution_client
         self.db_session = db_session
         self.message_queue = message_queue
+        self.message_status_handler = message_status_handler
         self._processing = False
 
         # Circuit breaker for Evolution API
@@ -288,6 +290,17 @@ class WhatsAppMessageService:
             message.error_message = str(e)
             message.failed_at = datetime.utcnow()
             await self.db_session.commit()
+            
+            # Sync failure status to domain if handler is present
+            if self.message_status_handler and message.message_data:
+                domain_id = message.message_data.get('domain_message_id')
+                if domain_id:
+                    from app.models.message import MessageStatus as DomainMessageStatus
+                    await self.message_status_handler.handle_status_update(
+                        domain_message_id=domain_id,
+                        new_status=DomainMessageStatus.FAILED,
+                        error_message=str(e)
+                    )
             raise
 
     @trace(name="send_message_impl", attributes={"service": "evolution_api"})
@@ -326,6 +339,16 @@ class WhatsAppMessageService:
             message.sent_at = datetime.utcnow()
 
             logger.info(f"Message {message.id} sent successfully")
+            
+            # Sync sent status to domain if handler is present
+            if self.message_status_handler and message.message_data:
+                domain_id = message.message_data.get('domain_message_id')
+                if domain_id:
+                    from app.models.message import MessageStatus as DomainMessageStatus
+                    await self.message_status_handler.handle_status_update(
+                        domain_message_id=domain_id,
+                        new_status=DomainMessageStatus.SENT
+                    )
 
         except CircuitOpenError:
             logger.error(f"Circuit breaker open for Evolution API, message {message.id} cannot be sent")
@@ -366,6 +389,28 @@ class WhatsAppMessageService:
         await self.db_session.commit()
 
         logger.info(f"Updated message {message.id} status to {status}")
+        
+        # Sync status to domain if handler is present
+        if self.message_status_handler and message.message_data:
+            domain_id = message.message_data.get('domain_message_id')
+            if domain_id:
+                from app.models.message import MessageStatus as DomainMessageStatus
+                
+                # Map WhatsApp status to Domain status
+                domain_status = None
+                if status == MessageStatus.DELIVERED:
+                    domain_status = DomainMessageStatus.DELIVERED
+                elif status == MessageStatus.READ:
+                    domain_status = DomainMessageStatus.READ
+                elif status == MessageStatus.FAILED:
+                    domain_status = DomainMessageStatus.FAILED
+                
+                if domain_status:
+                    await self.message_status_handler.handle_status_update(
+                        domain_message_id=domain_id,
+                        new_status=domain_status,
+                        error_message=error_message
+                    )
 
     async def get_message_history(
         self,

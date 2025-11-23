@@ -43,10 +43,10 @@ export interface ApiRequest {
   url: string
   data?: any
   headers?: Record<string, string>
-  params?: Record<string, any>
+  params?: Record<string, unknown>
 }
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   data: T
   status: number
   statusText: string
@@ -127,7 +127,7 @@ export class SupabaseClientWrapper {
         lte: (column: string, value: any) => this.buildQuery(tableName, 'select', { columns, filters: { [`${column}:lte`]: value } }),
         like: (column: string, pattern: string) => this.buildQuery(tableName, 'select', { columns, filters: { [`${column}:like`]: pattern } }),
         ilike: (column: string, pattern: string) => this.buildQuery(tableName, 'select', { columns, filters: { [`${column}:ilike`]: pattern } }),
-        in: (column: string, values: any[]) => this.buildQuery(tableName, 'select', { columns, filters: { [`${column}:in`]: values } }),
+        in: (column: string, values: unknown[]) => this.buildQuery(tableName, 'select', { columns, filters: { [`${column}:in`]: values } }),
         order: (column: string, options?: { ascending?: boolean }) => this.buildQuery(tableName, 'select', { columns, order: { column, ascending: options?.ascending ?? true } }),
         limit: (count: number) => this.buildQuery(tableName, 'select', { columns, limit: count }),
         range: (from: number, to: number) => this.buildQuery(tableName, 'select', { columns, range: { from, to } }),
@@ -137,11 +137,11 @@ export class SupabaseClientWrapper {
       insert: (data: any) => this.buildQuery(tableName, 'insert', { data }),
       update: (data: any) => ({
         eq: (column: string, value: any) => this.buildQuery(tableName, 'update', { data, filters: { [column]: value } }),
-        match: (filters: Record<string, any>) => this.buildQuery(tableName, 'update', { data, filters })
+        match: (filters: Record<string, unknown>) => this.buildQuery(tableName, 'update', { data, filters })
       }),
       delete: () => ({
         eq: (column: string, value: any) => this.buildQuery(tableName, 'delete', { filters: { [column]: value } }),
-        match: (filters: Record<string, any>) => this.buildQuery(tableName, 'delete', { filters })
+        match: (filters: Record<string, unknown>) => this.buildQuery(tableName, 'delete', { filters })
       })
     }
   }
@@ -370,7 +370,7 @@ export class HttpApiClient {
   /**
    * Convenience methods
    */
-  async get<T>(url: string, params?: Record<string, any>, headers?: Record<string, string>): Promise<ApiResponse<T>> {
+  async get<T>(url: string, params?: Record<string, unknown>, headers?: Record<string, string>): Promise<ApiResponse<T>> {
     return this.request<T>({ method: 'GET', url, params, headers })
   }
 

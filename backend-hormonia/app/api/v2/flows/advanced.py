@@ -7,7 +7,7 @@ import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+from fastapi import APIRouter, Depends, Query, HTTPException, status, Request
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_
 
@@ -32,13 +32,13 @@ from ..dependencies import (
 from app.dependencies import (
     get_current_user,
     get_flow_management_service,
-    get_patient_service,
     get_flow_service,
 )
-from app.dependencies.service_dependencies import get_flow_analytics_service
+from app.repositories.patient import PatientRepository
+from app.dependencies.service_dependencies import get_flow_analytics_service, get_flow_engine
 from app.dependencies.auth_dependencies import get_redis_cache
 from app.services.flow_management import FlowManagementService
-from app.services.flow_engine import FlowEngineIntegrationService
+from app.services.enhanced_flow_engine import EnhancedFlowEngine
 from app.services.patient import PatientService
 from app.exceptions import (
     FlowStateNotFoundError,
@@ -102,6 +102,7 @@ async def _get_cached_or_compute(
 )
 @limiter.limit("10/hour")
 async def create_flow_rule(
+    request: Request,
     rule_data: FlowRuleV2Create,
     current_user: User = Depends(get_current_user),
     flow_management: FlowManagementService = Depends(get_flow_management_service),
@@ -193,6 +194,7 @@ async def get_flow_rules(
 )
 @limiter.limit("20/hour")
 async def update_flow_rule(
+    request: Request,
     rule_id: UUID,
     rule_data: FlowRuleV2Update,
     current_user: User = Depends(get_current_user),
@@ -221,6 +223,7 @@ async def update_flow_rule(
 )
 @limiter.limit("10/hour")
 async def delete_flow_rule(
+    request: Request,
     rule_id: UUID,
     current_user: User = Depends(get_current_user),
     flow_management: FlowManagementService = Depends(get_flow_management_service),
@@ -252,6 +255,7 @@ async def delete_flow_rule(
 )
 @limiter.limit("5/hour")
 async def create_ab_test(
+    request: Request,
     test_config: ABTestV2Create,
     current_user: User = Depends(get_current_user),
     flow_management: FlowManagementService = Depends(get_flow_management_service),
@@ -363,6 +367,7 @@ async def get_ab_test(
 )
 @limiter.limit("10/hour")
 async def update_ab_test(
+    request: Request,
     test_id: UUID,
     test_config: ABTestV2Update,
     current_user: User = Depends(get_current_user),
@@ -390,6 +395,7 @@ async def update_ab_test(
 )
 @limiter.limit("10/hour")
 async def stop_ab_test(
+    request: Request,
     test_id: UUID,
     current_user: User = Depends(get_current_user),
     flow_management: FlowManagementService = Depends(get_flow_management_service),
@@ -452,13 +458,13 @@ async def preview_flow_message(
     template_id: UUID,
     day: int = Query(1, ge=1),
     current_user: User = Depends(get_current_user),
-    flow_service: FlowEngineIntegrationService = Depends(get_flow_service),
+    flow_engine: EnhancedFlowEngine = Depends(get_flow_engine),
 ):
     """Preview flow message for healthcare providers"""
     try:
-        preview = await flow_service.preview_flow_message(
+        # Using generate_flow_message which incorporates AI
+        preview = await flow_engine.generate_flow_message(
             patient_id=patient_id,
-            template_id=template_id,
             day=day
         )
         return {
@@ -483,14 +489,15 @@ async def preview_flow_message(
 )
 async def check_gemini_health(
     current_user: User = Depends(get_current_user),
-    flow_service: FlowEngineIntegrationService = Depends(get_flow_service),
+    flow_engine: EnhancedFlowEngine = Depends(get_flow_engine),
 ):
     """Check Gemini AI integration health"""
     try:
-        health_status = await flow_service.check_gemini_health()
+        health_status = await flow_engine.health_check()
+        gemini_status = health_status.get("gemini_client", False)
         return {
             "service": "gemini",
-            "status": "healthy" if health_status else "unhealthy",
+            "status": "healthy" if gemini_status else "unhealthy",
             "details": health_status,
             "checked_at": datetime.utcnow().isoformat()
         }
@@ -511,14 +518,15 @@ async def check_gemini_health(
 )
 async def check_redis_health(
     current_user: User = Depends(get_current_user),
-    flow_service: FlowEngineIntegrationService = Depends(get_flow_service),
+    flow_engine: EnhancedFlowEngine = Depends(get_flow_engine),
 ):
     """Check Redis health"""
     try:
-        health_status = await flow_service.check_redis_health()
+        health_status = await flow_engine.health_check()
+        redis_status = health_status.get("template_cache", False) # Using template cache as proxy for redis connectivity
         return {
             "service": "redis",
-            "status": "healthy" if health_status else "unhealthy",
+            "status": "healthy" if redis_status else "unhealthy",
             "details": health_status,
             "checked_at": datetime.utcnow().isoformat()
         }
@@ -596,12 +604,13 @@ async def start_flow(
     patient_id: UUID = Query(...),
     flow_type: str = Query(...),
     current_user: User = Depends(get_current_user),
-    patient_service: PatientService = Depends(get_patient_service),
+    db: Session = Depends(get_db),
     flow_management: FlowManagementService = Depends(get_flow_management_service),
 ):
     """Start a new flow for a patient"""
     # Verify patient exists and user has access
-    patient = patient_service.get_patient(patient_id)
+    repo = PatientRepository(db)
+    patient = repo.get_by_id(patient_id)
     if not patient:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -638,12 +647,13 @@ async def process_patient_response(
     response_text: str = Query(...),
     response_metadata: Optional[Dict[str, Any]] = None,
     current_user: User = Depends(get_current_user),
-    patient_service: PatientService = Depends(get_patient_service),
+    db: Session = Depends(get_db),
     flow_management: FlowManagementService = Depends(get_flow_management_service),
 ):
     """Process a patient's response"""
     # Verify patient exists and user has access
-    patient = patient_service.get_patient(patient_id)
+    repo = PatientRepository(db)
+    patient = repo.get_by_id(patient_id)
     if not patient:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -685,6 +695,7 @@ async def process_patient_response(
 )
 @limiter.limit("30/minute")
 async def get_analytics_summary(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     redis_cache = Depends(get_redis_cache),

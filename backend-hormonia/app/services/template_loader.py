@@ -11,7 +11,7 @@ import logging
 from functools import lru_cache
 
 from pydantic import BaseModel, Field, validator
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 
 from app.models.flow import FlowKind, FlowTemplateVersion
 from app.repositories.flow_kind import FlowKindRepository
@@ -311,7 +311,7 @@ class EnhancedTemplateLoader:
     All templates MUST be in the database - no YAML fallback.
     """
 
-    def __init__(self, db: Session, cache_ttl_hours: int = 1, max_cache_size: int = 50):
+    def __init__(self, db: Any, cache_ttl_hours: int = 1, max_cache_size: int = 50):
         """
         Initialize versioned template loader.
 

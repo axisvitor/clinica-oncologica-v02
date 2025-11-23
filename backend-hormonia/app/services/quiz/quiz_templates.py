@@ -16,7 +16,7 @@ from uuid import UUID
 from datetime import datetime, timedelta
 import json
 from pathlib import Path
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 
 from app.models.quiz import QuizTemplate
 from app.repositories.quiz import QuizTemplateRepository
@@ -32,7 +32,7 @@ from app.exceptions import NotFoundError, ValidationError
 class TemplateLoader:
     """Service for loading quiz templates from various sources."""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         self.db = db
         self.repository = QuizTemplateRepository(db)
     
@@ -121,7 +121,7 @@ class TemplateValidator:
 class TemplateVersionManager:
     """Service for managing template versions."""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         self.db = db
         self.repository = QuizTemplateRepository(db)
     
@@ -207,7 +207,7 @@ class TemplateCache:
         self._cache_times.clear()
 
 
-def get_template_loader(db: Session) -> TemplateLoader:
+def get_template_loader(db: Any) -> TemplateLoader:
     """Get TemplateLoader instance."""
     return TemplateLoader(db)
 
@@ -217,6 +217,6 @@ def get_template_validator() -> TemplateValidator:
     return TemplateValidator()
 
 
-def get_version_manager(db: Session) -> TemplateVersionManager:
+def get_version_manager(db: Any) -> TemplateVersionManager:
     """Get TemplateVersionManager instance."""
     return TemplateVersionManager(db)

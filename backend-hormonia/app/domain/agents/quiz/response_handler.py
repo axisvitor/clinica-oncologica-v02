@@ -61,7 +61,11 @@ class ResponseHandler:
         complete_session_callback,
         send_clarification_callback
     ) -> Dict[str, Any]:
-        """Process patient response with swarm analysis."""
+        """
+        Process patient response with swarm analysis.
+
+        HIGH-005 FIX: Implements debouncing to prevent duplicate responses.
+        """
         patient_id = UUID(payload["patient_id"])
         response_text = payload["response_text"]
         message_metadata = payload.get("message_metadata", {})
@@ -70,6 +74,43 @@ class ResponseHandler:
         active_session = self.quiz_session_service.get_active_session(patient_id)
         if not active_session:
             return {"success": False, "error": "No active quiz session"}
+
+        # HIGH-005 FIX: Add debounce check
+        from app.services.quiz_response_debounce import get_quiz_debouncer
+
+        debouncer = get_quiz_debouncer(debounce_window_seconds=3)
+
+        # Get current question ID
+        current_question_id = (
+            active_session.current_question
+            if hasattr(active_session, 'current_question') and active_session.current_question
+            else str(active_session.current_question_index) if hasattr(active_session, 'current_question_index')
+            else "unknown"
+        )
+
+        # Check debounce
+        should_process = await debouncer.should_process_response(
+            session_id=active_session.id,
+            question_id=current_question_id,
+            message_metadata=message_metadata
+        )
+
+        if not should_process:
+            # Response debounced
+            self.logger.info(
+                f"Response debounced for patient {patient_id}",
+                extra={
+                    "patient_id": str(patient_id),
+                    "session_id": str(active_session.id),
+                    "question_id": current_question_id,
+                    "agent_id": self.agent_id
+                }
+            )
+            return {
+                "success": False,
+                "action": "debounced",
+                "message": "Response ignored - within debounce window"
+            }
 
         # Build context
         context = await build_context_callback(patient_id, "current")
@@ -117,6 +158,12 @@ class ResponseHandler:
         if context.current_question_index >= len(context.template.questions) - 1:
             # Complete quiz
             await complete_session_callback(context)
+
+            # HIGH-005 FIX: Clear debounce state on completion
+            from app.services.quiz_response_debounce import get_quiz_debouncer
+            debouncer = get_quiz_debouncer()
+            await debouncer.clear_debounce(active_session.id)
+
             return {
                 "success": True,
                 "action": "quiz_completed",

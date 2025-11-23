@@ -15,13 +15,11 @@ All agents inherit from BaseAgent and participate in swarm coordination.
 from .base import BaseAgent
 from .patient.flow_coordinator import FlowCoordinatorAgent
 from .communication.message_composer import MessageComposerAgent
-from .communication.quiz_conductor import QuizConductorAgent
 from .communication.response_processor import ResponseProcessorAgent
 
 __all__ = [
     "BaseAgent",
     "FlowCoordinatorAgent",
     "MessageComposerAgent",
-    "QuizConductorAgent",
     "ResponseProcessorAgent"
 ]

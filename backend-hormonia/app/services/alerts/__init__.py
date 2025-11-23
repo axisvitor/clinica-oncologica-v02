@@ -1,3 +1,4 @@
+from typing import Any
 """
 Unified Alert System - Public API.
 

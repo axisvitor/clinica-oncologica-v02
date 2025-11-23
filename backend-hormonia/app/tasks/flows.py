@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 from app.celery_app import celery_app
 from app.database import get_db
 from app.services.enhanced_flow_engine import get_enhanced_flow_engine, FlowType, MessageTemplate
-from app.domain.messaging.delivery import MessageSender
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
 from app.repositories.message import MessageRepository
@@ -24,6 +23,53 @@ from app.integrations.gemini_client import get_gemini_client
 from app.services.conversation_memory import get_conversation_memory
 
 logger = logging.getLogger(__name__)
+
+
+def send_critical_alert_sync(task_name: str, error: str, context: dict = None):
+    """
+    Helper to send critical alerts synchronously from Celery tasks.
+    Uses AlertManager to process the alert.
+    """
+    try:
+        from app.services.alerts import get_alert_manager, AlertRuleType, AlertSeverity, Alert
+        
+        # Create alert object
+        alert = Alert(
+            severity=AlertSeverity.CRITICAL,
+            rule_type=AlertRuleType.CUSTOM,
+            message=f"Critical failure in task {task_name}: {error}",
+            context=context or {},
+            timestamp=datetime.utcnow()
+        )
+        
+        # Get manager and process
+        # Note: AlertManager methods are async, so we need to run them in a loop
+        # But since we are in a sync Celery task (or one that might be sync), 
+        # we need to be careful about the event loop.
+        
+        manager = get_alert_manager()
+        
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+        if loop.is_running():
+            # If loop is running, we can't use run_until_complete
+            # This happens if the task is async but called synchronously?
+            # For safety in Celery, we usually want a fresh loop if possible or use thread pool
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    lambda: asyncio.run(manager.process_alert(alert))
+                )
+                future.result(timeout=10)
+        else:
+            loop.run_until_complete(manager.process_alert(alert))
+            
+    except Exception as e:
+        logger.error(f"Failed to send critical alert for {task_name}: {e}")
 
 
 class FlowTaskBase(Task):
@@ -55,11 +101,12 @@ class FlowTaskBase(Task):
             from app.config import settings
 
             # Use synchronous Redis client for Celery task context
+            from app.config.settings.tasks import REDIS_SOCKET_TIMEOUT, REDIS_SOCKET_CONNECT_TIMEOUT
             redis_client = redis.from_url(
                 settings.REDIS_URL,
                 decode_responses=True,
-                socket_connect_timeout=5,
-                socket_timeout=5,
+                socket_connect_timeout=REDIS_SOCKET_CONNECT_TIMEOUT,
+                socket_timeout=REDIS_SOCKET_TIMEOUT,
                 retry_on_timeout=True
             )
 
@@ -72,9 +119,10 @@ class FlowTaskBase(Task):
             }
 
             # Use synchronous Redis operations
+            from app.config.settings.tasks import REDIS_TASK_RESULT_EXPIRY
             redis_client.setex(
                 f"task_result:{task_id}",
-                3600,  # 1 hour expiration
+                REDIS_TASK_RESULT_EXPIRY,
                 json.dumps(result_data)
             )
 
@@ -84,128 +132,267 @@ class FlowTaskBase(Task):
             logger.error(f"Failed to store task result in Redis: {e}")
 
 
-@celery_app.task(bind=True, base=FlowTaskBase, max_retries=3, default_retry_delay=300)
-def process_daily_flows(self, limit: int = 100) -> dict[str, Any]:
+async def process_daily_flows_async(limit: int = 100) -> dict[str, Any]:
     """
-    Process daily flows for all active patients using EnhancedFlowEngine.
-    
+    Async version that processes flows in parallel batches.
+
+    This function prevents event loop memory leaks by using a single async context
+    and processing patients in batches with asyncio.gather().
+
     Args:
         limit: Maximum number of patients to process
-        
+
     Returns:
         dict[str, Any]: Processing results containing:
-            - total_patients: Number of patients processed
-            - successful: Number of successful processes
-            - failed: Number of failed processes
-            - skipped: Number of skipped processes
-            - results: List of individual processing results
-    
+            - processed_count: Number of patients processed
+            - success_count: Number of successful processes
+            - error_count: Number of failed processes
+            - errors: List of errors encountered
+            - patients_processed: List of processed patient details
+            - start_time: Processing start timestamp
+            - end_time: Processing end timestamp
+            - duration_seconds: Total processing duration
+
     Raises:
         Exception: If critical error occurs during processing
     """
+    from app.config.settings.tasks import FLOW_BATCH_SIZE, FLOW_PROCESSING_TIMEOUT
+
+    logger.info(f"Starting async daily flow processing for up to {limit} patients")
+
+    # Use async context manager for database
+    db = next(get_db())
+
     try:
-        logger.info(f"Starting daily flow processing for up to {limit} patients")
-        
-        # Get database session
-        db = next(get_db())
-        
-        try:
-            # Initialize services
-            flow_engine = get_enhanced_flow_engine(db)
-            flow_repo = FlowStateRepository(db)
-            patient_repo = PatientRepository(db)
-            
-            # Get active flow states
-            active_flows = flow_repo.get_active_flows(limit=limit)
-            
-            results = {
-                "processed_count": 0,
-                "success_count": 0,
-                "error_count": 0,
-                "errors": [],
-                "patients_processed": [],
-                "start_time": datetime.utcnow().isoformat()
-            }
-            
-            for flow_state in active_flows:
-                try:
-                    # Check if flow is paused
-                    if flow_state.state_data and flow_state.state_data.get("paused"):
-                        logger.info(f"Skipping paused flow for patient {flow_state.patient_id}")
-                        continue
-                    
-                    # Process patient flow using proper async context management
-                    try:
-                        # Create new event loop for this task if needed
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        try:
-                            patient_result = loop.run_until_complete(
-                                _process_single_patient_flow(flow_engine, flow_state)
-                            )
-                        finally:
-                            loop.close()
-                    except RuntimeError as e:
-                        if "cannot be called from a running event loop" in str(e):
-                            # We're already in an async context, use alternative approach
-                            import concurrent.futures
-                            with concurrent.futures.ThreadPoolExecutor() as executor:
-                                future = executor.submit(
-                                    lambda: asyncio.run(_process_single_patient_flow(flow_engine, flow_state))
-                                )
-                                patient_result = future.result(timeout=300)  # 5 minute timeout
-                        else:
-                            raise
-                    
-                    results["processed_count"] += 1
-                    results["patients_processed"].append({
-                        "patient_id": str(flow_state.patient_id),
-                        "result": patient_result
+        # Initialize services
+        flow_engine = get_enhanced_flow_engine(db)
+        flow_repo = FlowStateRepository(db)
+
+        # Get active flow states
+        active_flows = flow_repo.get_active_flows(limit=limit)
+
+        results = {
+            "processed_count": 0,
+            "success_count": 0,
+            "error_count": 0,
+            "errors": [],
+            "patients_processed": [],
+            "start_time": datetime.utcnow().isoformat()
+        }
+
+        # Filter out paused flows
+        active_flows = [
+            flow for flow in active_flows
+            if not (flow.state_data and flow.state_data.get("paused"))
+        ]
+
+        logger.info(f"Processing {len(active_flows)} active flows in batches of {FLOW_BATCH_SIZE}")
+
+        # Process in batches for parallel execution
+        batch_size = FLOW_BATCH_SIZE
+
+        for i in range(0, len(active_flows), batch_size):
+            batch = active_flows[i:i+batch_size]
+
+            logger.info(f"Processing batch {i//batch_size + 1}: {len(batch)} patients")
+
+            # Create tasks for the batch with timeout
+            tasks = [
+                asyncio.wait_for(
+                    _process_single_patient_flow_safe(flow_engine, flow, db),
+                    timeout=FLOW_PROCESSING_TIMEOUT
+                )
+                for flow in batch
+            ]
+
+            # Execute in parallel with exception handling
+            batch_results = await asyncio.gather(
+                *tasks,
+                return_exceptions=True  # Don't fail entire batch if one fails
+            )
+
+            # Process results
+            for flow, result in zip(batch, batch_results):
+                results["processed_count"] += 1
+
+                if isinstance(result, Exception):
+                    # Error occurred (including timeout)
+                    results["error_count"] += 1
+                    error_msg = str(result)
+
+                    if isinstance(result, asyncio.TimeoutError):
+                        error_msg = f"Processing timeout after {FLOW_PROCESSING_TIMEOUT}s"
+
+                    results["errors"].append({
+                        "patient_id": str(flow.patient_id),
+                        "error": error_msg
                     })
-                    
-                    if patient_result.get("status") == "success":
-                        results["success_count"] += 1
-                    else:
-                        results["error_count"] += 1
-                        results["errors"].append({
-                            "patient_id": str(flow_state.patient_id),
-                            "error": patient_result.get("error", "Unknown error")
-                        })
-                    
-                except Exception as e:
-                    logger.error(f"Error processing patient {flow_state.patient_id}: {e}")
+                    results["patients_processed"].append({
+                        "patient_id": str(flow.patient_id),
+                        "status": "error",
+                        "error": error_msg
+                    })
+
+                    logger.error(f"Flow processing failed for patient {flow.patient_id}: {error_msg}")
+
+                elif result.get("status") == "success":
+                    results["success_count"] += 1
+                    results["patients_processed"].append({
+                        "patient_id": str(flow.patient_id),
+                        "status": "success",
+                        "result": result
+                    })
+                else:
                     results["error_count"] += 1
                     results["errors"].append({
-                        "patient_id": str(flow_state.patient_id),
-                        "error": str(e)
+                        "patient_id": str(flow.patient_id),
+                        "error": result.get("error", "Unknown error")
                     })
-            
-            results["end_time"] = datetime.utcnow().isoformat()
-            results["duration_seconds"] = (
-                datetime.fromisoformat(results["end_time"]) - 
-                datetime.fromisoformat(results["start_time"])
-            ).total_seconds()
-            
-            logger.info(f"Daily flow processing completed: {results['success_count']}/{results['processed_count']} successful")
-            return results
-            
-        finally:
-            db.close()
-            
+                    results["patients_processed"].append({
+                        "patient_id": str(flow.patient_id),
+                        "status": "error",
+                        "result": result
+                    })
+
+        results["end_time"] = datetime.utcnow().isoformat()
+        results["duration_seconds"] = (
+            datetime.fromisoformat(results["end_time"]) -
+            datetime.fromisoformat(results["start_time"])
+        ).total_seconds()
+
+        logger.info(
+            f"Async daily flow processing completed: "
+            f"{results['success_count']}/{results['processed_count']} successful "
+            f"in {results['duration_seconds']:.2f} seconds"
+        )
+
+        return results
+
+    finally:
+        db.close()
+
+
+async def _process_single_patient_flow_safe(
+    engine,
+    flow_state: PatientFlowState,
+    db: Session
+) -> dict[str, Any]:
+    """
+    Process flow for a single patient with error handling and timeout.
+
+    This function wraps the original _process_single_patient_flow with
+    additional safety measures to prevent crashes.
+
+    Args:
+        engine: Enhanced flow engine instance
+        flow_state: Patient flow state object
+        db: Database session
+
+    Returns:
+        dict[str, Any]: Processing result with status and details
+    """
+    try:
+        result = await _process_single_patient_flow(engine, flow_state)
+        return result
+    except asyncio.TimeoutError:
+        logger.error(f"Flow processing timeout for patient {flow_state.patient_id}")
+        return {
+            "status": "timeout",
+            "patient_id": str(flow_state.patient_id),
+            "error": "Processing timeout"
+        }
     except Exception as e:
-        logger.error(f"Daily flow processing failed: {e}")
-        
+        logger.error(f"Flow processing error for patient {flow_state.patient_id}: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "patient_id": str(flow_state.patient_id),
+            "error": str(e)
+        }
+
+
+@celery_app.task(
+    bind=True,
+    base=FlowTaskBase,
+    max_retries=None,  # Set dynamically from settings
+    default_retry_delay=None,  # Set dynamically from settings
+    time_limit=None,  # Set dynamically from settings
+    soft_time_limit=None,  # Set dynamically from settings
+)
+def process_daily_flows(self, limit: int = 100) -> dict[str, Any]:
+    """
+    Process daily flows for all active patients using EnhancedFlowEngine.
+
+    This is a wrapper task that delegates to the async implementation to prevent
+    event loop memory leaks. Uses asyncio.run() ONCE to create and manage a single
+    event loop for the entire batch processing.
+
+    Args:
+        limit: Maximum number of patients to process
+
+    Returns:
+        dict[str, Any]: Processing results containing:
+            - processed_count: Number of patients processed
+            - success_count: Number of successful processes
+            - error_count: Number of failed processes
+            - errors: List of errors encountered
+            - patients_processed: List of processed patient details
+            - start_time/end_time: Processing timestamps
+            - duration_seconds: Total processing time
+
+    Raises:
+        MaxRetriesExceededError: If task fails after all retries
+    """
+    from app.config.settings.tasks import FLOW_MAX_RETRIES, TASK_TIME_LIMIT, TASK_SOFT_TIME_LIMIT
+
+    # Apply task limits from settings if not already set
+    if not self.time_limit:
+        self.time_limit = TASK_TIME_LIMIT
+    if not self.soft_time_limit:
+        self.soft_time_limit = TASK_SOFT_TIME_LIMIT
+    if not self.max_retries:
+        self.max_retries = FLOW_MAX_RETRIES
+
+    try:
+        logger.info(f"Starting daily flow processing task for up to {limit} patients")
+
+        # Execute async version ONCE with a single event loop
+        results = asyncio.run(process_daily_flows_async(limit))
+
+        return results
+
+    except Exception as e:
+        logger.error(f"Daily flow processing failed: {e}", exc_info=True)
+
         # Retry with exponential backoff
         if self.request.retries < self.max_retries:
-            retry_delay = 300 * (2 ** self.request.retries)  # 5min, 10min, 20min
-            logger.info(f"Retrying daily flow processing in {retry_delay} seconds (attempt {self.request.retries + 1})")
+            from app.config.settings.tasks import get_retry_countdown, FLOW_RETRY_DELAY
+            retry_delay = get_retry_countdown(self.request.retries, FLOW_RETRY_DELAY)
+
+            logger.warning(
+                f"Retrying daily flow processing in {retry_delay} seconds "
+                f"(attempt {self.request.retries + 1}/{self.max_retries})"
+            )
             raise self.retry(countdown=retry_delay, exc=e)
         else:
+            # Max retries reached - alert admin
             logger.error(f"Daily flow processing failed after {self.max_retries} attempts")
+
+            try:
+                from app.config.settings.tasks import ENABLE_ADMIN_ALERTS
+                if ENABLE_ADMIN_ALERTS:
+                    # Use synchronous helper for critical alerts
+                    send_critical_alert_sync(
+                        task_name="process_daily_flows",
+                        error=str(e),
+                        context={"retries": self.request.retries, "limit": limit}
+                    )
+            except Exception as alert_error:
+                logger.error(f"Failed to send admin alert: {alert_error}")
+
             raise MaxRetriesExceededError(f"Task failed after {self.max_retries} retries: {e}")
 
 
-@celery_app.task(bind=True, base=FlowTaskBase, max_retries=3, default_retry_delay=60)
+@celery_app.task(bind=True, base=FlowTaskBase, max_retries=None, default_retry_delay=None)
 def send_flow_message(self, patient_id: str, message_data: dict[str, Any], message_id: str = None) -> dict[str, Any]:
     """
     Send individual flow message with retry logic and exponential backoff.
@@ -232,6 +419,14 @@ def send_flow_message(self, patient_id: str, message_data: dict[str, Any], messa
     Raises:
         Exception: If message sending fails after all retries
     """
+    from app.config.settings.tasks import MESSAGE_MAX_RETRIES, MESSAGE_RETRY_DELAY
+
+    # Apply task limits from settings if not already set
+    if not self.max_retries:
+        self.max_retries = MESSAGE_MAX_RETRIES
+    if not self.default_retry_delay:
+        self.default_retry_delay = MESSAGE_RETRY_DELAY
+
     try:
         logger.info(f"Sending flow message to patient {patient_id}, message_id: {message_id}")
 
@@ -240,8 +435,8 @@ def send_flow_message(self, patient_id: str, message_data: dict[str, Any], messa
 
         try:
             # Initialize services with QUEUE mode for retry/backoff policies
-            from app.services.unified_whatsapp_service import MessagingMode
-            message_sender = MessageSender(db, messaging_mode=MessagingMode.QUEUE)
+            from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
+            message_sender = UnifiedWhatsAppService(db, messaging_mode=MessagingMode.QUEUE)
             patient_repo = PatientRepository(db)
             message_repo = MessageRepository(db)
 
@@ -311,10 +506,11 @@ def send_flow_message(self, patient_id: str, message_data: dict[str, Any], messa
                 if "cannot be called from a running event loop" in str(e):
                     import concurrent.futures
                     with concurrent.futures.ThreadPoolExecutor() as executor:
+                        from app.config.settings.tasks import MESSAGE_SEND_TIMEOUT
                         future = executor.submit(
                             lambda: asyncio.run(message_sender.send_message(message))
                         )
-                        success = future.result(timeout=60)  # 1 minute timeout
+                        success = future.result(timeout=MESSAGE_SEND_TIMEOUT)
                 else:
                     raise
 
@@ -378,7 +574,8 @@ def send_flow_message(self, patient_id: str, message_data: dict[str, Any], messa
 
         # Retry with exponential backoff
         if self.request.retries < self.max_retries:
-            retry_delay = 60 * (2 ** self.request.retries)  # 1min, 2min, 4min
+            from app.config.settings.tasks import get_retry_countdown
+            retry_delay = get_retry_countdown(self.request.retries, MESSAGE_RETRY_DELAY)
             logger.info(f"Retrying flow message send in {retry_delay} seconds (attempt {self.request.retries + 1})")
             raise self.retry(countdown=retry_delay, exc=e)
         else:
@@ -457,9 +654,10 @@ def cleanup_old_flow_data(self, days_old: int = 90) -> dict[str, Any]:
                         socket_timeout=5
                     )
 
+                    from app.config.settings.tasks import ARCHIVE_RETENTION_DAYS
                     redis_client.setex(
                         f"archived_flow:{flow.id}",
-                        86400 * 365,  # Keep archives for 1 year
+                        86400 * ARCHIVE_RETENTION_DAYS,
                         json.dumps(archive_data)
                     )
 
@@ -497,7 +695,7 @@ def cleanup_old_flow_data(self, days_old: int = 90) -> dict[str, Any]:
         raise
 
 
-@celery_app.task(bind=True, base=FlowTaskBase, max_retries=2, default_retry_delay=600)
+@celery_app.task(bind=True, base=FlowTaskBase, max_retries=None, default_retry_delay=None)
 def process_monthly_quizzes(self, limit: int = 50) -> dict[str, Any]:
     """
     Process monthly quiz triggers for eligible patients.
@@ -516,17 +714,23 @@ def process_monthly_quizzes(self, limit: int = 50) -> dict[str, Any]:
     Raises:
         Exception: If quiz processing fails
     """
+    from app.config.settings.tasks import QUIZ_MAX_RETRIES, QUIZ_PROCESSING_TIMEOUT
+
+    # Apply task limits from settings if not already set
+    if not self.max_retries:
+        self.max_retries = QUIZ_MAX_RETRIES
+
     try:
         logger.info(f"Starting monthly quiz processing for up to {limit} patients")
-        
+
         # Get database session
         db = next(get_db())
-        
+
         try:
             # Initialize quiz trigger service
-            from app.services.quiz_flow_integration import get_quiz_trigger_service
+            from app.domain.quizzes.integration.flow_integration import get_quiz_trigger_service
             quiz_trigger_service = get_quiz_trigger_service(db)
-            
+
             # Check and trigger monthly quizzes using proper async handling
             try:
                 loop = asyncio.new_event_loop()
@@ -544,7 +748,7 @@ def process_monthly_quizzes(self, limit: int = 50) -> dict[str, Any]:
                         future = executor.submit(
                             lambda: asyncio.run(quiz_trigger_service.check_and_trigger_monthly_quizzes(limit=limit))
                         )
-                        results = future.result(timeout=600)  # 10 minute timeout
+                        results = future.result(timeout=QUIZ_PROCESSING_TIMEOUT)
                 else:
                     raise
             
@@ -559,7 +763,8 @@ def process_monthly_quizzes(self, limit: int = 50) -> dict[str, Any]:
         
         # Retry with exponential backoff
         if self.request.retries < self.max_retries:
-            retry_delay = 600 * (2 ** self.request.retries)  # 10min, 20min
+            from app.config.settings.tasks import get_retry_countdown
+            retry_delay = get_retry_countdown(self.request.retries, QUIZ_PROCESSING_TIMEOUT)
             logger.info(f"Retrying monthly quiz processing in {retry_delay} seconds (attempt {self.request.retries + 1})")
             raise self.retry(countdown=retry_delay, exc=e)
         else:
@@ -567,7 +772,7 @@ def process_monthly_quizzes(self, limit: int = 50) -> dict[str, Any]:
             raise MaxRetriesExceededError(f"Task failed after {self.max_retries} retries: {e}")
 
 
-@celery_app.task(bind=True, base=FlowTaskBase, max_retries=3, default_retry_delay=300)
+@celery_app.task(bind=True, base=FlowTaskBase, max_retries=None, default_retry_delay=None)
 def generate_quiz_report(self, session_id: str) -> dict[str, Any]:
     """
     Generate medical report from completed quiz session.
@@ -585,17 +790,23 @@ def generate_quiz_report(self, session_id: str) -> dict[str, Any]:
     Raises:
         Exception: If report generation fails after all retries
     """
+    from app.config.settings.tasks import QUIZ_MAX_RETRIES, QUIZ_REPORT_TIMEOUT, QUIZ_REPORT_RETRY_DELAY
+
+    # Apply task limits from settings if not already set
+    if not self.max_retries:
+        self.max_retries = QUIZ_MAX_RETRIES
+
     try:
         logger.info(f"Generating quiz report for session {session_id}")
-        
+
         # Get database session
         db = next(get_db())
-        
+
         try:
             # Initialize quiz report generator
             from app.services.quiz_report_generator import get_quiz_report_generator
             report_generator = get_quiz_report_generator(db)
-            
+
             # Generate report using proper async handling
             try:
                 loop = asyncio.new_event_loop()
@@ -613,7 +824,7 @@ def generate_quiz_report(self, session_id: str) -> dict[str, Any]:
                         future = executor.submit(
                             lambda: asyncio.run(report_generator.generate_quiz_report(UUID(session_id)))
                         )
-                        report_id = future.result(timeout=300)  # 5 minute timeout
+                        report_id = future.result(timeout=QUIZ_REPORT_TIMEOUT)
                 else:
                     raise
             
@@ -635,7 +846,8 @@ def generate_quiz_report(self, session_id: str) -> dict[str, Any]:
         
         # Retry with exponential backoff
         if self.request.retries < self.max_retries:
-            retry_delay = 300 * (2 ** self.request.retries)  # 5min, 10min, 20min
+            from app.config.settings.tasks import get_retry_countdown
+            retry_delay = get_retry_countdown(self.request.retries, QUIZ_REPORT_RETRY_DELAY)
             logger.info(f"Retrying quiz report generation in {retry_delay} seconds (attempt {self.request.retries + 1})")
             raise self.retry(countdown=retry_delay, exc=e)
         else:
@@ -723,10 +935,11 @@ def monitor_flow_task_health(self) -> dict[str, Any]:
                     if "cannot be called from a running event loop" in str(e):
                         import concurrent.futures
                         with concurrent.futures.ThreadPoolExecutor() as executor:
+                            from app.config.settings.tasks import HEALTH_CHECK_TIMEOUT
                             future = executor.submit(
                                 lambda: asyncio.run(gemini_client.health_check())
                             )
-                            health_results["gemini_client"] = future.result(timeout=30)
+                            health_results["gemini_client"] = future.result(timeout=HEALTH_CHECK_TIMEOUT)
                     else:
                         raise
             except Exception as e:
@@ -734,8 +947,9 @@ def monitor_flow_task_health(self) -> dict[str, Any]:
             
             # Count active flows
             try:
+                from app.config.settings.tasks import HEALTH_ACTIVE_FLOWS_LIMIT
                 flow_repo = FlowStateRepository(db)
-                active_flows = flow_repo.get_active_flows(limit=1000)
+                active_flows = flow_repo.get_active_flows(limit=HEALTH_ACTIVE_FLOWS_LIMIT)
                 health_results["active_flows_count"] = len(active_flows)
             except Exception as e:
                 logger.error(f"Failed to count active flows: {e}")
@@ -827,15 +1041,32 @@ async def _process_single_patient_flow(flow_engine,
         # Calculate current day
         current_day = await flow_engine.calculate_patient_day(patient_id)
         
-        # Check if message should be sent today
+        # Get patient timezone
+        timezone_str = "America/Sao_Paulo"
+        if flow_state.patient and hasattr(flow_state.patient, "timezone"):
+             timezone_str = flow_state.patient.timezone
+        
+        try:
+            import pytz
+            tz = pytz.timezone(timezone_str)
+        except Exception:
+            logger.warning(f"Invalid timezone {timezone_str} for patient {patient_id}, defaulting to America/Sao_Paulo")
+            import pytz
+            tz = pytz.timezone("America/Sao_Paulo")
+
+        # Check if message should be sent today (in patient's timezone)
         last_message_date = None
         if flow_state.state_data and "last_message_sent" in flow_state.state_data:
             last_message_date = datetime.fromisoformat(flow_state.state_data["last_message_sent"])
+            # Ensure last_message_date is timezone aware
+            if last_message_date.tzinfo is None:
+                last_message_date = pytz.utc.localize(last_message_date)
+            last_message_date = last_message_date.astimezone(tz)
         
-        today = datetime.utcnow().date()
+        today_local = datetime.now(tz).date()
         
-        # Skip if message already sent today
-        if last_message_date and last_message_date.date() == today:
+        # Skip if message already sent today (local time)
+        if last_message_date and last_message_date.date() == today_local:
             return {
                 "status": "skipped",
                 "reason": "Message already sent today",
@@ -846,9 +1077,9 @@ async def _process_single_patient_flow(flow_engine,
         # Advance patient flow
         advancement_result = await flow_engine.advance_patient_flow(patient_id)
         
-        # Get message template for current day
-        flow_type = FlowType(flow_state.flow_type)
-        message_template = _get_message_template_for_day(flow_type, current_day)
+    # Get message template for current day
+        flow_type_enum = FlowType(flow_state.flow_type)
+        message_template = _get_message_template_for_day(db, flow_type_enum, current_day)
         
         if not message_template:
             return {
@@ -856,19 +1087,19 @@ async def _process_single_patient_flow(flow_engine,
                 "reason": "No message template for current day",
                 "patient_id": str(patient_id),
                 "current_day": current_day,
-                "flow_type": flow_type.value
+                "flow_type": flow_type_enum.value
             }
         
         # Generate personalized message
-        personalized_content = await flow_engine.generate_flow_message(patient_id, message_template)
+        personalized_content = await flow_engine.generate_flow_message(patient_id, current_day, message_template)
         
         # Schedule message for sending
         message_data = {
             "content": personalized_content,
             "type": "text",
             "flow_day": current_day,
-            "flow_type": flow_type.value,
-            "template_id": f"{flow_type.value}_day_{current_day}",
+            "flow_type": flow_type_enum.value,
+            "template_id": f"{flow_type_enum.value}_day_{current_day}",
             "personalized": True,
             "metadata": {
                 "generated_at": datetime.utcnow().isoformat(),
@@ -889,7 +1120,7 @@ async def _process_single_patient_flow(flow_engine,
             "status": "success",
             "patient_id": str(patient_id),
             "current_day": current_day,
-            "flow_type": flow_type.value,
+            "flow_type": flow_type_enum.value,
             "message_scheduled": True,
             "task_id": send_task.id,
             "advancement_result": advancement_result
@@ -906,59 +1137,86 @@ async def _process_single_patient_flow(flow_engine,
         db.close()
 
 
-def _get_message_template_for_day(flow_type: FlowType, day: int) -> Optional[MessageTemplate]:
+def _get_message_template_for_day(db: Session, flow_type: FlowType, day: int) -> Optional[MessageTemplate]:
     """
-    Get message template for specific flow type and day.
-    This is a simplified version - in production, this would load from YAML templates.
+    Get message template for specific flow type and day from database.
     
     Args:
+        db (Session): Database session
         flow_type (FlowType): Flow type enum value
         day (int): Current day in the flow
         
     Returns:
         Optional[MessageTemplate]: Message template for the specified day or None if not found
-    
-    Note:
-        This is a simplified implementation. In production, templates would be loaded
-        from YAML configuration files.
     """
-    # Simplified template mapping - in production, load from YAML files
-    templates = {
-        FlowType.INITIAL_15_DAYS: {
-            1: MessageTemplate(
-                day=1,
-                intent="introduction_and_welcome",
-                base_content="Oi [nome]! Sou a Hormon[IA], sua companheira nesta jornada. Estou aqui para te apoiar e organizar tudo para você. Como você está se sentindo hoje?",
-                personalization_hints=["greeting_style", "warmth_level"],
-                ai_instructions="Crie uma mensagem de boas-vindas calorosa e pessoal"
-            ),
-            2: MessageTemplate(
-                day=2,
-                intent="educational_support",
-                base_content="[nome], hoje vou te explicar como posso te ajudar de forma prática. Pense em mim como uma amiga que vai organizar sua rotina de saúde. Tem alguma dúvida sobre o tratamento?",
-                personalization_hints=["explanation_style", "reassurance_approach"],
-                ai_instructions="Explique os benefícios de forma natural e tranquilizadora"
-            )
-        },
-        FlowType.DAYS_16_45: {
-            16: MessageTemplate(
-                day=16,
-                intent="continued_support",
-                base_content="[nome], como foi sua primeira quinzena? Agora vamos aprofundar nossa parceria. Como você está se sentindo com as mudanças?",
-                personalization_hints=["check_in_style", "progress_acknowledgment"],
-                ai_instructions="Reconheça o progresso e demonstre interesse genuíno"
-            )
-        },
-        FlowType.MONTHLY_RECURRING: {
-            1: MessageTemplate(
-                day=1,
-                intent="monthly_welcome",
-                base_content="[nome], começamos um novo mês juntas! Como você está se sentindo? Vamos continuar cuidando da sua saúde com carinho.",
-                personalization_hints=["monthly_greeting", "continuity_emphasis"],
-                ai_instructions="Crie sensação de continuidade e renovação mensal"
-            )
-        }
-    }
-    
-    flow_templates = templates.get(flow_type, {})
-    return flow_templates.get(day)
+    try:
+        from app.models.flow import FlowKind, FlowTemplateVersion
+        
+        # 1. Find the Flow Kind
+        flow_kind = db.query(FlowKind).filter(
+            FlowKind.flow_type == flow_type.value,
+            FlowKind.is_active == True
+        ).first()
+        
+        if not flow_kind:
+            logger.warning(f"Flow kind not found or inactive: {flow_type.value}")
+            return None
+
+        # 2. Find the active Template Version for this kind
+        active_version = db.query(FlowTemplateVersion).filter(
+            FlowTemplateVersion.kind_id == flow_kind.id,
+            FlowTemplateVersion.is_active == True
+        ).first()
+        
+        if not active_version:
+            logger.warning(f"No active template version found for: {flow_type.value}")
+            return None
+
+        # 3. Extract steps/messages
+        # The 'messages' column is mapped to 'steps' in DB (JSONB)
+        steps = active_version.messages or []
+        
+        # 4. Find the specific day's step
+        target_step = None
+        for step in steps:
+            # Check if this step corresponds to the requested day
+            # The JSON structure might vary, checking common patterns
+            step_day = step.get('day') or step.get('step_id')
+            
+            # Handle both string and int comparisons
+            if str(step_day) == str(day):
+                target_step = step
+                break
+        
+        if not target_step:
+            # Log verbose only if needed, as many days won't have messages
+            # logger.debug(f"No step found for day {day} in flow {flow_type.value}")
+            return None
+            
+        # 5. Convert to MessageTemplate object
+        # Extract content and metadata
+        content = target_step.get('message') or target_step.get('content') or ""
+        if not content:
+            return None
+            
+        intent = target_step.get('intent', 'daily_engagement')
+        metadata = target_step.get('metadata', {})
+        personalization = metadata.get('personalization_hints', [])
+        ai_instructions = metadata.get('ai_instructions', '')
+        
+        return MessageTemplate(
+            day=day,
+            intent=intent,
+            base_content=content,
+            personalization_hints=personalization,
+            ai_instructions=ai_instructions,
+            variations=metadata.get('variations', [])
+        )
+        
+    except Exception as e:
+        logger.error(f"Error fetching template from DB for {flow_type.value} day {day}: {e}")
+        # Fallback to hardcoded safety net only on critical DB error
+        return _get_fallback_template(flow_type, day)
+
+def _get_fallback_template(flow_type: FlowType, day: int) -> Optional[MessageTemplate]:
+    """Fallback hardcoded templates in case of DB failure."""

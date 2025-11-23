@@ -15,7 +15,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from sqlalchemy import text
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 from redis import Redis
 import firebase_admin
 from firebase_admin import auth as firebase_auth

@@ -121,13 +121,85 @@ def setup_middleware(app: FastAPI) -> None:
             "Set EVOLUTION_WEBHOOK_SECRET to enable security"
         )
 
+    # CSRF Protection Middleware
+    # Protects against Cross-Site Request Forgery attacks on state-changing requests
+    if settings.CSRF_SECRET_KEY:
+        from app.core.csrf_middleware import CSRFMiddleware
+
+        app.add_middleware(
+            CSRFMiddleware,
+            secret_key=settings.CSRF_SECRET_KEY,
+            token_expiry=3600,  # 1 hour
+            exempt_paths=[
+                "/api/v2/csrf-token",
+                "/api/v2/auth/firebase/verify",
+                "/webhooks/",
+                "/api/public/",
+            ]
+        )
+        logger.info("✅ CSRF protection middleware added (HMAC-SHA256)")
+    else:
+        logger.warning(
+            "⚠️  CSRF protection DISABLED - "
+            "Set CSRF_SECRET_KEY to enable security"
+        )
+
     # Enhanced security middleware
     app.add_middleware(EnhancedSecurityMiddleware)
     logger.info("Enhanced security middleware added")
 
-    # Rate limiting middleware DISABLED per user request
-    # The rate limiter was causing issues for admin operations
-    logger.info("⚠️  Rate limiting middleware DISABLED - removed per admin request")
+    # Rate limiting middleware - RE-ENABLED for security (P0-01 CRITICAL)
+    # SECURITY FIX: P0-01 (CVSS 9.1) - Prevents DoS, brute force, and API abuse
+    # Uses Redis-backed distributed rate limiting with configurable limits per endpoint type
+    try:
+        from app.core.redis_client import get_redis_client
+        from app.core.rate_limit_config import (
+            RATE_LIMIT_WHITELIST_IPS,
+            RATE_LIMIT_EXEMPT_PATHS,
+        )
+        from app.middleware.distributed_rate_limiter import RateLimitTier, RateLimitConfig
+
+        # Get Redis client for distributed rate limiting
+        redis_client = get_redis_client()
+
+        if redis_client:
+            # Redis-backed distributed rate limiting
+            app.add_middleware(
+                RateLimitMiddleware,
+                redis=redis_client,
+                default_limit=100,  # Global default: 100 requests/minute
+                default_window=60,
+                tier_configs={
+                    RateLimitTier.PUBLIC: RateLimitConfig(
+                        requests=100, window=60, tier=RateLimitTier.PUBLIC
+                    ),
+                    RateLimitTier.DOCTOR: RateLimitConfig(
+                        requests=1000, window=60, tier=RateLimitTier.DOCTOR
+                    ),
+                    RateLimitTier.ADMIN: RateLimitConfig(
+                        requests=10000, window=60, tier=RateLimitTier.ADMIN
+                    ),
+                },
+                exempt_paths=RATE_LIMIT_EXEMPT_PATHS,
+                whitelist_ips=RATE_LIMIT_WHITELIST_IPS,
+            )
+            logger.info("✅ Rate limiting middleware ENABLED (Redis-backed, distributed)")
+        else:
+            logger.warning(
+                "⚠️  Redis unavailable - Rate limiting will use in-memory fallback "
+                "(not recommended for production with multiple workers)"
+            )
+            # Fallback to simple in-memory rate limiting
+            from app.middleware.rate_limiter import RateLimitMiddleware as SimpleLimiter
+            app.add_middleware(
+                SimpleLimiter,
+                requests_per_minute=100,
+                window_seconds=60
+            )
+            logger.info("✅ Rate limiting middleware ENABLED (in-memory fallback)")
+    except Exception as e:
+        logger.error(f"❌ Failed to configure rate limiting middleware: {e}")
+        raise  # Fail fast in production if rate limiting can't be configured
 
     # Request validation middleware - validates and sanitizes request parameters
     app.add_middleware(RequestValidationMiddleware, max_page_size=100)
@@ -151,6 +223,13 @@ def setup_middleware(app: FastAPI) -> None:
     # Configure CORS with security validation
     # Production: No regex, explicit HTTPS origins only
     # Development: Localhost regex pattern allowed
+    #
+    # SECURITY RATIONALE FOR EXPLICIT HEADERS:
+    # - Using wildcard ["*"] with allow_credentials=True exposes all request headers
+    #   to cross-origin requests, potentially leaking sensitive authentication tokens
+    # - Explicit header list follows principle of least privilege
+    # - Only headers needed for legitimate application functionality are allowed
+    # - Prevents credential leakage attacks via malicious cross-origin requests
     configure_cors(
         app,
         allowed_origins=cors_origins,
@@ -159,13 +238,15 @@ def setup_middleware(app: FastAPI) -> None:
         else r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
         allow_credentials=True,  # ✅ CRITICAL: Required for httpOnly cookies and credentials
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        # ✅ SECURITY: Explicit header whitelist prevents credential leakage
+        # Never use ["*"] with allow_credentials=True - this violates CORS security model
         allow_headers=[
-            "authorization",
-            "content-type",
-            "x-csrf-token",
-            "x-requested-with",
-            "accept",
-            "origin",
+            "Content-Type",      # Standard content negotiation
+            "Authorization",     # Bearer tokens and basic auth
+            "X-Requested-With",  # AJAX request detection
+            "X-CSRF-Token",      # CSRF protection tokens
+            "Accept",            # Content type acceptance
+            "Origin",            # Request origin (required for CORS)
         ],
     )
 

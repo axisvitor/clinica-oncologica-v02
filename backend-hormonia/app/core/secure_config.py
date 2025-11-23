@@ -156,17 +156,57 @@ class SecureConfigManager:
             }
         }
 
-    def get_security_headers(self) -> Dict[str, str]:
-        """Get security headers for HTTP responses."""
-        return {
+    def get_security_headers(self, nonce: str = None) -> Dict[str, str]:
+        """
+        Get security headers for HTTP responses with CSP Level 3 support.
+
+        Args:
+            nonce: Optional cryptographic nonce for CSP
+
+        Returns:
+            Dictionary of security headers
+        """
+        headers = {
             "X-Content-Type-Options": "nosniff",
             "X-Frame-Options": "DENY",
             "X-XSS-Protection": "1; mode=block",
             "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-            "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
             "Referrer-Policy": "strict-origin-when-cross-origin",
             "Permissions-Policy": "geolocation=(), microphone=(), camera=()"
         }
+
+        # CSP Level 3 with nonce support (eliminates unsafe-inline/unsafe-eval)
+        if nonce:
+            headers["Content-Security-Policy"] = (
+                f"default-src 'self'; "
+                f"script-src 'self' 'nonce-{nonce}' 'strict-dynamic' https://www.gstatic.com https://identitytoolkit.googleapis.com; "
+                f"style-src 'self' 'nonce-{nonce}' https://fonts.googleapis.com; "
+                f"img-src 'self' data: https:; "
+                f"font-src 'self' data: https://fonts.gstatic.com; "
+                f"connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com wss://*.railway.app https://*.railway.app; "
+                f"object-src 'none'; "
+                f"base-uri 'self'; "
+                f"form-action 'self'; "
+                f"frame-ancestors 'none'; "
+                f"block-all-mixed-content; "
+                f"upgrade-insecure-requests"
+            )
+        else:
+            # Fallback CSP without nonce (backwards compatibility)
+            headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "script-src 'self' https://www.gstatic.com https://identitytoolkit.googleapis.com; "
+                "style-src 'self' https://fonts.googleapis.com; "
+                "img-src 'self' data: https:; "
+                "font-src 'self' data: https://fonts.gstatic.com; "
+                "connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com wss://*.railway.app https://*.railway.app; "
+                "object-src 'none'; "
+                "base-uri 'self'; "
+                "form-action 'self'; "
+                "frame-ancestors 'none'"
+            )
+
+        return headers
 
     def get_rate_limit_config(self) -> Dict[str, Any]:
         """Get rate limiting configuration."""

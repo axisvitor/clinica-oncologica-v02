@@ -1,0 +1,153 @@
+{
+  "errors": {
+    "patient": {
+      "not_found": "Patient not found",
+      "duplicate_cpf": "CPF {cpf} is already registered in the system",
+      "duplicate_email": "Email {email} is already in use",
+      "duplicate_phone": "Phone number {phone} is already registered",
+      "invalid_cpf": "Invalid CPF",
+      "invalid_phone": "Invalid phone number: {phone}",
+      "invalid_email": "Invalid email: {email}",
+      "missing_required_field": "Required field: {field}",
+      "access_denied": "You don't have permission to access this patient",
+      "creation_failed": "Failed to create patient: {reason}",
+      "update_failed": "Failed to update patient: {reason}",
+      "delete_failed": "Failed to delete patient: {reason}"
+    },
+    "auth": {
+      "invalid_credentials": "Invalid email or password",
+      "token_expired": "Token expired. Please log in again",
+      "token_invalid": "Invalid or corrupted token",
+      "unauthorized": "Unauthorized access. Please log in to continue",
+      "forbidden": "You don't have permission to access this resource",
+      "session_expired": "Session expired. Please log in again",
+      "session_invalid": "Invalid or not found session",
+      "user_not_found": "User not found",
+      "user_inactive": "User account is inactive",
+      "weak_password": "Password is too weak. Use at least 8 characters with letters and numbers",
+      "password_mismatch": "Passwords do not match"
+    },
+    "quiz": {
+      "session_not_found": "Quiz session not found",
+      "session_expired": "Session expired. Please start again",
+      "session_already_completed": "Quiz has already been completed",
+      "invalid_answer": "Invalid answer for question {question_id}",
+      "question_not_found": "Question {question_id} not found",
+      "already_completed": "This quiz has already been completed",
+      "submission_failed": "Failed to submit answer: {reason}",
+      "invalid_session_state": "Invalid session state: {state}"
+    },
+    "webhook": {
+      "invalid_signature": "Invalid webhook signature",
+      "signature_missing": "Webhook signature not provided",
+      "processing_failed": "Failed to process webhook: {reason}",
+      "rate_limit_exceeded": "Rate limit exceeded. Try again in {retry_after} seconds",
+      "invalid_payload": "Invalid webhook payload",
+      "unknown_event": "Unknown event type: {event_type}"
+    },
+    "saga": {
+      "execution_failed": "Saga execution failed: {saga_id}",
+      "compensation_failed": "Saga compensation failed: {step}",
+      "timeout": "Operation timed out after {timeout} seconds",
+      "step_failed": "Saga step failed: {step}",
+      "rollback_failed": "Saga rollback failed: {reason}",
+      "invalid_state": "Invalid saga state: {state}"
+    },
+    "flow": {
+      "not_found": "Flow not found for patient {patient_id}",
+      "invalid_state": "Invalid flow state: {state}",
+      "transition_not_allowed": "State transition not allowed: {from_state} → {to_state}",
+      "execution_failed": "Flow execution failed: {reason}",
+      "template_not_found": "Flow template not found: {template_id}"
+    },
+    "validation": {
+      "required_field": "The field '{field}' is required",
+      "invalid_format": "Invalid format for '{field}'",
+      "min_length": "'{field}' must be at least {min} characters",
+      "max_length": "'{field}' must be at most {max} characters",
+      "min_value": "'{field}' must be greater than or equal to {min}",
+      "max_value": "'{field}' must be less than or equal to {max}",
+      "invalid_email": "Invalid email",
+      "invalid_phone": "Invalid phone number. Use format: +55 (11) 98765-4321",
+      "invalid_cpf": "Invalid CPF. Use format: 123.456.789-00",
+      "invalid_date": "Invalid date. Use format: YYYY-MM-DD",
+      "invalid_uuid": "Invalid UUID",
+      "invalid_enum": "Value '{value}' is not valid for {field}. Allowed values: {allowed}",
+      "value_error": "Validation error: {message}"
+    },
+    "server": {
+      "internal_error": "Internal server error. Please try again later",
+      "service_unavailable": "Service temporarily unavailable. Try again in a few minutes",
+      "database_error": "Database access error",
+      "timeout": "Operation timed out. Please try again",
+      "maintenance": "System under maintenance. We'll be back soon",
+      "configuration_error": "Server configuration error"
+    },
+    "whatsapp": {
+      "send_failed": "Failed to send WhatsApp message: {reason}",
+      "invalid_number": "Invalid WhatsApp number: {number}",
+      "not_connected": "WhatsApp is not connected",
+      "message_too_long": "Message too long. Maximum {max_length} characters",
+      "rate_limited": "Too many messages sent. Wait {wait_time} seconds"
+    },
+    "file": {
+      "upload_failed": "File upload failed: {reason}",
+      "invalid_type": "File type not allowed: {file_type}",
+      "too_large": "File too large. Maximum size: {max_size}MB",
+      "not_found": "File not found: {filename}",
+      "virus_detected": "File contains virus and was rejected"
+    },
+    "medication": {
+      "not_found": "Medication not found",
+      "invalid_dosage": "Invalid dosage: {dosage}",
+      "schedule_conflict": "Medication schedule conflict"
+    },
+    "appointment": {
+      "not_found": "Appointment not found",
+      "conflict": "An appointment already exists at this time",
+      "past_date": "Cannot schedule appointments for past dates",
+      "cancellation_failed": "Failed to cancel appointment: {reason}"
+    }
+  },
+  "success": {
+    "patient_created": "Patient created successfully",
+    "patient_updated": "Patient updated successfully",
+    "patient_deleted": "Patient deleted successfully",
+    "patient_activated": "Patient activated successfully",
+    "patient_deactivated": "Patient deactivated successfully",
+    "quiz_completed": "Quiz completed successfully",
+    "quiz_submitted": "Answer submitted successfully",
+    "message_sent": "Message sent successfully",
+    "file_uploaded": "File uploaded successfully",
+    "appointment_created": "Appointment created successfully",
+    "appointment_cancelled": "Appointment cancelled successfully",
+    "medication_added": "Medication added successfully",
+    "settings_updated": "Settings updated successfully",
+    "password_changed": "Password changed successfully",
+    "email_sent": "Email sent successfully"
+  },
+  "common": {
+    "loading": "Loading...",
+    "saving": "Saving...",
+    "deleting": "Deleting...",
+    "processing": "Processing...",
+    "please_wait": "Please wait",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "finish": "Finish",
+    "yes": "Yes",
+    "no": "No",
+    "ok": "OK",
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Information",
+    "success": "Success"
+  }
+}

@@ -3,15 +3,12 @@
  * Centralized type definitions for the flow engine system
  */
 
-import type {
-  FlowType,
-  FlowStatus,
-  MessageType,
-  Flow
-} from '@/types/api'
+import { FlowType, FlowStatus } from '@/types/api'
+import type { MessageType, Flow } from '@/types/api'
 
 // Re-export core types for convenience
-export type { FlowType, FlowStatus, MessageType, Flow }
+export { FlowType, FlowStatus }
+export type { MessageType, Flow }
 
 /**
  * FlowNode - Represents a single node in a flow execution graph

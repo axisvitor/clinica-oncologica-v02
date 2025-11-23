@@ -6,11 +6,9 @@ import { Button } from '@/components/ui/button'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { apiClient } from '@/lib/api-client'
 import { useMonthlyQuizAdmin } from '@/hooks/useMonthlyQuizAdmin'
-import { SendQuizLinkModal } from '@/components/quiz/SendQuizLinkModal'
-import { QuizLinkStatus } from '@/components/quiz/QuizLinkStatus'
-import { createLogger } from '../lib/logger'
-
-const logger = createLogger('MonthlyQuizDashboard')
+import { SendQuizLinkModal } from '@/features/quiz/SendQuizLinkModal'
+import { QuizLinkStatus } from '@/features/quiz/QuizLinkStatus'
+import { createLogger } from '@/lib/logger'
 import {
   Table,
   TableBody,
@@ -20,6 +18,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+
+const logger = createLogger('MonthlyQuizDashboard')
 
 export function MonthlyQuizDashboard() {
   const [selectedPatient, setSelectedPatient] = useState<{ id: string; name: string } | null>(null)

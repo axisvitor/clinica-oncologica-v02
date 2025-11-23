@@ -1,8 +1,13 @@
 # Documentação Frontend - Clínica Oncológica
 
-**Última Atualização**: 2025-10-02
+**Última Atualização**: 2025-11-13
 
 ## 📋 Índice Geral
+
+### 🚀 Onboarding (COMECE AQUI!)
+- **[Getting Started Guide](GETTING_STARTED.md)** - **Setup de 0 a 100 em 4 horas**
+- **[Environment Variables Guide](ENVIRONMENT_VARIABLES.md)** - Todas as variáveis explicadas
+- **[API Integration Guide](API_INTEGRATION.md)** - Como fazer requisições e usar React Query
 
 ### 🏗️ Arquitetura
 - [Sistema de Tipos](architecture/TYPE_SYSTEM.md)

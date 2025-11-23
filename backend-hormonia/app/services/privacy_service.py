@@ -13,7 +13,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from uuid import UUID
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 from sqlalchemy import Column, String, DateTime, JSON, Boolean, Text
 
 from app.database import Base
@@ -45,7 +45,7 @@ class ConsentRecord(Base):
 class PrivacyService:
     """Service for LGPD compliance and privacy management."""
 
-    def __init__(self, db: Session, audit_service: AuditService):
+    def __init__(self, db: Any, audit_service: AuditService):
         self.db = db
         self.audit_service = audit_service
         self.logger = logging.getLogger(__name__)

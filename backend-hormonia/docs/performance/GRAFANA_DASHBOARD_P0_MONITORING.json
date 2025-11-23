@@ -1,0 +1,657 @@
+{
+  "dashboard": {
+    "title": "P0 Performance Monitoring - Comprehensive Dashboard",
+    "uid": "p0-performance-monitoring",
+    "tags": ["p0", "performance", "database", "async", "templates", "production"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "📊 Overall Performance Score",
+        "type": "gauge",
+        "gridPos": {"x": 0, "y": 0, "w": 6, "h": 8},
+        "targets": [{
+          "expr": "(database_performance_score + async_performance_score + code_quality_score) / 3",
+          "legendFormat": "Overall Score"
+        }],
+        "options": {
+          "orientation": "auto",
+          "showThresholdLabels": true,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 70, "color": "yellow"},
+                {"value": 85, "color": "green"}
+              ]
+            },
+            "unit": "percent",
+            "decimals": 1
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "🗄️ Database Query Latency (P95)",
+        "type": "graph",
+        "gridPos": {"x": 6, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(database_query_duration_seconds_bucket{query_type=\"doctor_dashboard\"}[5m]))",
+            "legendFormat": "Doctor Dashboard"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(database_query_duration_seconds_bucket{query_type=\"patient_messages\"}[5m]))",
+            "legendFormat": "Patient Messages"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(database_query_duration_seconds_bucket{query_type=\"quiz_analytics\"}[5m]))",
+            "legendFormat": "Quiz Analytics"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(database_query_duration_seconds_bucket{query_type=\"alerts\"}[5m]))",
+            "legendFormat": "Alerts"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(database_query_duration_seconds_bucket{query_type=\"medical_reports\"}[5m]))",
+            "legendFormat": "Medical Reports"
+          }
+        ],
+        "yaxes": [{
+          "format": "s",
+          "label": "Latency",
+          "show": true
+        }],
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2,
+        "tooltip": {"shared": true},
+        "alert": {
+          "conditions": [{
+            "evaluator": {"params": [0.02], "type": "gt"},
+            "operator": {"type": "and"},
+            "query": {"params": ["A", "5m", "now"]},
+            "reducer": {"params": [], "type": "avg"},
+            "type": "query"
+          }],
+          "executionErrorState": "alerting",
+          "name": "High Database Query Latency",
+          "noDataState": "no_data",
+          "notifications": []
+        }
+      },
+      {
+        "id": 3,
+        "title": "⚡ Event Loop Performance",
+        "type": "graph",
+        "gridPos": {"x": 18, "y": 0, "w": 6, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(event_loop_lag_milliseconds_bucket[5m]))",
+            "legendFormat": "Event Loop Lag P95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(event_loop_lag_milliseconds_bucket[5m]))",
+            "legendFormat": "Event Loop Lag P99"
+          }
+        ],
+        "yaxes": [{
+          "format": "ms",
+          "label": "Lag",
+          "show": true
+        }],
+        "thresholds": [
+          {"value": 20, "colorMode": "custom", "fill": true, "line": true, "fillColor": "rgba(50, 200, 50, 0.2)", "lineColor": "rgba(50, 200, 50, 0.8)", "op": "lt"},
+          {"value": 50, "colorMode": "custom", "fill": true, "line": true, "fillColor": "rgba(255, 200, 0, 0.2)", "lineColor": "rgba(255, 200, 0, 0.8)", "op": "gt"}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "🎯 P0.1: Database Index Effectiveness",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 8, "w": 8, "h": 6},
+        "targets": [{
+          "expr": "(count(pg_stat_user_indexes_index_scans) / count(pg_stat_user_tables_seq_scans)) * 100",
+          "legendFormat": "Index Usage %"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 80, "color": "yellow"},
+                {"value": 90, "color": "green"}
+              ]
+            },
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "🎯 P0.1: Query Performance by Type",
+        "type": "table",
+        "gridPos": {"x": 8, "y": 8, "w": 16, "h": 6},
+        "targets": [{
+          "expr": "avg by (query_type) (rate(database_query_duration_seconds_sum[5m]) / rate(database_query_duration_seconds_count[5m]))",
+          "format": "table",
+          "instant": true
+        }],
+        "transformations": [{
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {"query_type": 0, "Value": 1},
+            "renameByName": {"query_type": "Query Type", "Value": "Avg Latency (s)"}
+          }
+        }],
+        "fieldConfig": {
+          "overrides": [{
+            "matcher": {"id": "byName", "options": "Avg Latency (s)"},
+            "properties": [{
+              "id": "custom.displayMode",
+              "value": "color-background-solid"
+            }, {
+              "id": "thresholds",
+              "value": {
+                "mode": "absolute",
+                "steps": [
+                  {"value": 0, "color": "green"},
+                  {"value": 0.02, "color": "yellow"},
+                  {"value": 0.1, "color": "red"}
+                ]
+              }
+            }]
+          }]
+        }
+      },
+      {
+        "id": 6,
+        "title": "🎯 P0.2: Async Onboarding Latency",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 14, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(onboarding_latency_milliseconds_bucket[5m]))",
+            "legendFormat": "P50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(onboarding_latency_milliseconds_bucket[5m]))",
+            "legendFormat": "P95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(onboarding_latency_milliseconds_bucket[5m]))",
+            "legendFormat": "P99"
+          }
+        ],
+        "yaxes": [{
+          "format": "ms",
+          "label": "Latency",
+          "show": true
+        }],
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2
+      },
+      {
+        "id": 7,
+        "title": "🎯 P0.2: ThreadPool Utilization",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 14, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "executor_queue_depth{pool=\"onboarding_sync\"}",
+            "legendFormat": "Queue Depth"
+          },
+          {
+            "expr": "executor_active_threads{pool=\"onboarding_sync\"}",
+            "legendFormat": "Active Threads"
+          },
+          {
+            "expr": "executor_max_workers{pool=\"onboarding_sync\"}",
+            "legendFormat": "Max Workers"
+          }
+        ],
+        "yaxes": [{
+          "format": "short",
+          "label": "Count",
+          "show": true
+        }],
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2,
+        "alert": {
+          "conditions": [{
+            "evaluator": {"params": [10], "type": "gt"},
+            "operator": {"type": "and"},
+            "query": {"params": ["A", "5m", "now"]},
+            "reducer": {"params": [], "type": "avg"},
+            "type": "query"
+          }],
+          "name": "High Executor Queue Depth",
+          "message": "ThreadPool queue depth exceeds 10 - potential bottleneck"
+        }
+      },
+      {
+        "id": 8,
+        "title": "🎯 P0.2: Concurrent Request Capacity",
+        "type": "gauge",
+        "gridPos": {"x": 0, "y": 22, "w": 6, "h": 6},
+        "targets": [{
+          "expr": "rate(http_requests_total[1m]) * 60",
+          "legendFormat": "Requests/Minute"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 400,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 250, "color": "yellow"},
+                {"value": 350, "color": "red"}
+              ]
+            },
+            "unit": "reqpm"
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "🎯 P0.2: Executor Task Success Rate",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 22, "w": 6, "h": 6},
+        "targets": [{
+          "expr": "(sum(rate(executor_tasks_completed_total{pool=\"onboarding_sync\"}[5m])) / sum(rate(executor_tasks_submitted_total{pool=\"onboarding_sync\"}[5m]))) * 100",
+          "legendFormat": "Success Rate"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 95, "color": "yellow"},
+                {"value": 99, "color": "green"}
+              ]
+            },
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "🎯 P0.3: Template Selection Performance",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 22, "w": 12, "h": 6},
+        "targets": [{
+          "expr": "histogram_quantile(0.95, rate(template_selection_duration_milliseconds_bucket[5m]))",
+          "legendFormat": "Template Selection P95"
+        }],
+        "yaxes": [{
+          "format": "ms",
+          "label": "Time",
+          "show": true,
+          "max": 5
+        }],
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2
+      },
+      {
+        "id": 11,
+        "title": "🎯 P0.3: Template Cache Hit Rate",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 28, "w": 6, "h": 6},
+        "targets": [{
+          "expr": "(sum(rate(template_cache_hits_total[5m])) / sum(rate(template_cache_lookups_total[5m]))) * 100",
+          "legendFormat": "Cache Hit Rate"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 85, "color": "yellow"},
+                {"value": 95, "color": "green"}
+              ]
+            },
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 12,
+        "title": "🎯 P0.3: Template Mapping Distribution",
+        "type": "piechart",
+        "gridPos": {"x": 6, "y": 28, "w": 6, "h": 6},
+        "targets": [{
+          "expr": "sum by (template_name) (rate(template_selections_total[1h]))",
+          "legendFormat": "{{template_name}}"
+        }],
+        "options": {
+          "legend": {"displayMode": "table", "placement": "right"},
+          "pieType": "pie",
+          "displayLabels": ["percent"]
+        }
+      },
+      {
+        "id": 13,
+        "title": "🎯 P0.3: Code Complexity Metrics",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 28, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "code_cyclomatic_complexity{module=\"flow_service\"}",
+            "legendFormat": "Cyclomatic Complexity"
+          },
+          {
+            "expr": "code_maintainability_index{module=\"flow_service\"}",
+            "legendFormat": "Maintainability Index"
+          },
+          {
+            "expr": "code_lines_of_code{module=\"flow_service\"}",
+            "legendFormat": "Lines of Code"
+          }
+        ],
+        "fieldConfig": {
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Cyclomatic Complexity"},
+              "properties": [{
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {"value": 0, "color": "green"},
+                    {"value": 15, "color": "yellow"},
+                    {"value": 30, "color": "red"}
+                  ]
+                }
+              }]
+            },
+            {
+              "matcher": {"id": "byName", "options": "Maintainability Index"},
+              "properties": [{
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {"value": 0, "color": "red"},
+                    {"value": 60, "color": "yellow"},
+                    {"value": 75, "color": "green"}
+                  ]
+                }
+              }]
+            }
+          ]
+        }
+      },
+      {
+        "id": 14,
+        "title": "📈 System Throughput (Requests/Second)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 34, "w": 12, "h": 8},
+        "targets": [{
+          "expr": "rate(http_requests_total[1m])",
+          "legendFormat": "Total Requests/s"
+        }, {
+          "expr": "rate(http_requests_total{status=~\"2..\"}[1m])",
+          "legendFormat": "Successful Requests/s"
+        }, {
+          "expr": "rate(http_requests_total{status=~\"5..\"}[1m])",
+          "legendFormat": "Error Requests/s"
+        }],
+        "yaxes": [{
+          "format": "reqps",
+          "label": "Requests/s",
+          "show": true
+        }],
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2
+      },
+      {
+        "id": 15,
+        "title": "💾 Database Connection Pool",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 34, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "db_connection_pool_active",
+            "legendFormat": "Active Connections"
+          },
+          {
+            "expr": "db_connection_pool_idle",
+            "legendFormat": "Idle Connections"
+          },
+          {
+            "expr": "db_connection_pool_max",
+            "legendFormat": "Max Connections"
+          }
+        ],
+        "yaxes": [{
+          "format": "short",
+          "label": "Connections",
+          "show": true
+        }],
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2
+      },
+      {
+        "id": 16,
+        "title": "⚠️ Error Rate (5xx)",
+        "type": "gauge",
+        "gridPos": {"x": 0, "y": 42, "w": 6, "h": 6},
+        "targets": [{
+          "expr": "(sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m]))) * 100",
+          "legendFormat": "Error Rate"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 10,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 1, "color": "yellow"},
+                {"value": 3, "color": "red"}
+              ]
+            },
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 17,
+        "title": "⏱️ Timeout Rate",
+        "type": "gauge",
+        "gridPos": {"x": 6, "y": 42, "w": 6, "h": 6},
+        "targets": [{
+          "expr": "(sum(rate(http_requests_timeout_total[5m])) / sum(rate(http_requests_total[5m]))) * 100",
+          "legendFormat": "Timeout Rate"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 5,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 0.5, "color": "yellow"},
+                {"value": 2, "color": "red"}
+              ]
+            },
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 18,
+        "title": "🖥️ CPU Utilization",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 42, "w": 6, "h": 6},
+        "targets": [{
+          "expr": "rate(process_cpu_seconds_total[5m]) * 100",
+          "legendFormat": "CPU Usage %"
+        }],
+        "yaxes": [{
+          "format": "percent",
+          "label": "CPU %",
+          "show": true,
+          "min": 0,
+          "max": 100
+        }],
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2,
+        "thresholds": [
+          {"value": 60, "colorMode": "custom", "fill": true, "line": true, "fillColor": "rgba(50, 200, 50, 0.2)", "op": "lt"},
+          {"value": 80, "colorMode": "custom", "fill": true, "line": true, "fillColor": "rgba(255, 200, 0, 0.2)", "op": "gt"}
+        ]
+      },
+      {
+        "id": 19,
+        "title": "💾 Memory Usage",
+        "type": "graph",
+        "gridPos": {"x": 18, "y": 42, "w": 6, "h": 6},
+        "targets": [{
+          "expr": "process_resident_memory_bytes / 1024 / 1024",
+          "legendFormat": "RSS Memory (MB)"
+        }],
+        "yaxes": [{
+          "format": "mbytes",
+          "label": "Memory",
+          "show": true
+        }],
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2
+      },
+      {
+        "id": 20,
+        "title": "📊 P0 Improvements Summary",
+        "type": "table",
+        "gridPos": {"x": 0, "y": 48, "w": 24, "h": 8},
+        "targets": [{
+          "expr": "p0_performance_metrics",
+          "format": "table",
+          "instant": true
+        }],
+        "transformations": [{
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {
+              "metric": 0,
+              "before": 1,
+              "after": 2,
+              "improvement": 3,
+              "status": 4
+            },
+            "renameByName": {
+              "metric": "Metric",
+              "before": "Before",
+              "after": "After",
+              "improvement": "Improvement",
+              "status": "Status"
+            }
+          }
+        }],
+        "fieldConfig": {
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Improvement"},
+              "properties": [{
+                "id": "custom.displayMode",
+                "value": "color-background-solid"
+              }, {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {"value": 0, "color": "red"},
+                    {"value": 50, "color": "yellow"},
+                    {"value": 80, "color": "green"}
+                  ]
+                }
+              }]
+            },
+            {
+              "matcher": {"id": "byName", "options": "Status"},
+              "properties": [{
+                "id": "custom.displayMode",
+                "value": "color-text"
+              }, {
+                "id": "mappings",
+                "value": [{
+                  "type": "value",
+                  "options": {
+                    "DEPLOYED": {"color": "green", "text": "✅ DEPLOYED"},
+                    "STAGING": {"color": "yellow", "text": "⚠️ STAGING"},
+                    "PENDING": {"color": "orange", "text": "🔄 PENDING"}
+                  }
+                }]
+              }]
+            }
+          ]
+        }
+      }
+    ],
+    "annotations": {
+      "list": [
+        {
+          "name": "Deployments",
+          "datasource": "-- Grafana --",
+          "enable": true,
+          "iconColor": "green",
+          "tags": ["deployment"]
+        },
+        {
+          "name": "P0 Fixes",
+          "datasource": "-- Grafana --",
+          "enable": true,
+          "iconColor": "blue",
+          "tags": ["p0", "fix"]
+        }
+      ]
+    },
+    "templating": {
+      "list": [
+        {
+          "name": "instance",
+          "type": "query",
+          "datasource": "Prometheus",
+          "query": "label_values(instance)",
+          "current": {"text": "All", "value": "$__all"},
+          "includeAll": true,
+          "multi": true
+        },
+        {
+          "name": "time_range",
+          "type": "interval",
+          "query": "1m,5m,15m,30m,1h,6h,12h,1d",
+          "current": {"text": "5m", "value": "5m"},
+          "auto": true
+        }
+      ]
+    }
+  }
+}

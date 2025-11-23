@@ -61,170 +61,12 @@ class QuizSessionManager:
             self.redis_client = self.redis_manager.get_compatible_client('sync')
         except Exception as e:
             logger.warning(f"Redis not available for fast patient checking: {e}")
-            self.redis_client = None
-
-    def _generate_token(
-        self,
-        patient_id: UUID,
-        quiz_template_id: UUID,
-        expires_at: datetime,
-        rotation_count: int = 0
-    ) -> str:
-        """Generate secure JWT token for quiz access with rotation support."""
-        now = datetime.utcnow()
-        payload = {
-            "patient_id": str(patient_id),
-            "quiz_template_id": str(quiz_template_id),
-            "expires_at": expires_at.isoformat(),
-            "exp": int(expires_at.timestamp()),
-            "iat": int(now.timestamp()),
-            "nbf": int(now.timestamp()),
-            "jti": secrets.token_urlsafe(32),
-            "type": "monthly_quiz",
-            "rotation_count": rotation_count,
-            "single_use": self.config.MONTHLY_QUIZ_SINGLE_USE_TOKENS,
-            "aud": "monthly_quiz",
-            "iss": "hormonia_backend"
-        }
-
-        token = jwt.encode(
-            payload,
-            self.config.MONTHLY_QUIZ_TOKEN_SECRET,
-            algorithm="HS256"
-        )
-
-        return token
-
-    def _verify_token(self, token: str) -> Dict[str, Any]:
-        """Verify and decode quiz access token."""
-        try:
-            # Basic token format validation
-            if not token or not isinstance(token, str):
-                raise ValidationError("Token is required and must be a string")
-
-            # Check if token has the correct JWT format (3 parts separated by dots)
-            token_parts = token.split('.')
-            if len(token_parts) != 3:
-                raise ValidationError("Invalid token format - must be a valid JWT")
-
-            # Verify each part is base64-encoded
-            for i, part in enumerate(token_parts):
-                if not part or not part.replace('-', '+').replace('_', '/').isalnum():
-                    if len(part) < 4:
-                        raise ValidationError(f"Invalid token format - part {i+1} too short")
-
-            payload = jwt.decode(
-                token,
-                self.config.MONTHLY_QUIZ_TOKEN_SECRET,
-                algorithms=["HS256"],
-                options={"verify_exp": True}
+        # Warn if using localhost in production-like environment
+        if "localhost" in self.config.MONTHLY_QUIZ_BASE_URL and self.config.ENVIRONMENT != "development":
+            logger.warning(
+                f"MONTHLY_QUIZ_BASE_URL is set to localhost ({self.config.MONTHLY_QUIZ_BASE_URL}) "
+                "in non-development environment. Quiz links will be invalid for external users."
             )
-
-            # Check expiration
-            expires_at = datetime.fromisoformat(payload["expires_at"])
-            if datetime.utcnow() > expires_at:
-                raise ValidationError("Quiz link has expired")
-
-            # Verify token type
-            if payload.get("type") != "monthly_quiz":
-                raise ValidationError("Invalid token type")
-
-            return payload
-
-        except jwt.ExpiredSignatureError:
-            raise ValidationError("Quiz link has expired")
-        except jwt.InvalidTokenError as e:
-            raise ValidationError(f"Invalid quiz token: {str(e)}")
-
-    def _check_patient_exists_fast(self, patient_id: str) -> bool:
-        """
-        Ultra-fast patient existence check with negative caching.
-
-        PERFORMANCE OPTIMIZATION:
-        - Cache hit: ~2ms (Redis lookup)
-        - Cache miss: ~10-20ms (indexed DB query + cache write)
-        - Prevents 7-8s delays on 404 responses
-        """
-        if not self.redis_client:
-            return self._check_patient_exists_db_only(patient_id)
-
-        cache_key = f"patient_not_found:{patient_id}"
-
-        # Check negative cache (2ms)
-        if self.redis_client.exists(cache_key):
-            logger.debug(f"Fast 404: Patient {patient_id[:8]}... cached as not found")
-            return False
-
-        # Check database with indexed query (10-20ms)
-        start_time = time.time()
-
-        try:
-            result = self.db.execute(text("""
-                SELECT 1 FROM patients
-                WHERE id = :patient_id
-                LIMIT 1
-            """), {"patient_id": patient_id})
-
-            exists = result.fetchone() is not None
-            query_time = (time.time() - start_time) * 1000
-
-            if exists:
-                logger.debug(f"Patient {patient_id[:8]}... found ({query_time:.1f}ms)")
-                return True
-            else:
-                # Cache negative result (TTL 60s to handle edge cases)
-                self.redis_client.setex(cache_key, 60, "1")
-                logger.debug(f"Patient {patient_id[:8]}... not found - cached ({query_time:.1f}ms)")
-                return False
-
-        except Exception as e:
-            logger.error(f"Error checking patient existence: {e}")
-            return self._check_patient_exists_db_only(patient_id)
-
-    def _check_patient_exists_db_only(self, patient_id: str) -> bool:
-        """Fallback method for patient existence check without Redis."""
-        try:
-            result = self.db.execute(text("""
-                SELECT 1 FROM patients
-                WHERE id = :patient_id
-                LIMIT 1
-            """), {"patient_id": patient_id})
-
-            return result.fetchone() is not None
-        except Exception as e:
-            logger.error(f"Database error checking patient existence: {e}")
-            return False
-
-    def _record_delivery_attempt(
-        self,
-        session: QuizSession,
-        delivery_method: DeliveryMethod,
-        status: str,
-        message_id: Optional[str] = None,
-        error: Optional[str] = None,
-        action: Optional[str] = None
-    ) -> None:
-        """Append delivery attempt details to session metadata."""
-        metadata = session.session_metadata or {}
-        attempts: List[Dict[str, Any]] = metadata.get("delivery_attempts", [])
-
-        attempt: Dict[str, Any] = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "method": delivery_method.value,
-            "status": status,
-        }
-        if message_id:
-            attempt["message_id"] = message_id
-        if error:
-            attempt["error"] = error
-        if action:
-            attempt["action"] = action
-
-        attempts.append(attempt)
-        metadata["delivery_attempts"] = attempts
-        metadata["last_delivery_status"] = status
-        metadata["last_delivery_method"] = delivery_method.value
-        session.session_metadata = metadata
 
     async def _send_quiz_link_notification(
         self,
@@ -236,40 +78,69 @@ class QuizSessionManager:
         expiry_hours: int,
         custom_message: Optional[str]
     ) -> Dict[str, Any]:
-        """Send the monthly quiz link to the patient via WhatsApp."""
-        try:
-            message_factory = MessageFactory(self.db)
-            message = message_factory.create_monthly_quiz_link_message(
-                patient_id=patient.id,
-                patient_name=patient.name,
-                link_url=link_url,
-                quiz_session_id=str(session.id),
-                expiry_hours=expiry_hours,
-                delivery_method=delivery_method.value,
-                custom_message=custom_message
-            )
+        """Send the monthly quiz link to the patient via WhatsApp with retries."""
+        max_retries = 3
+        retry_delay = 2  # seconds
+        last_error = None
 
-            whatsapp_service = UnifiedWhatsAppService(
-                db=self.db,
-                messaging_mode=MessagingMode.HYBRID
-            )
-            sent = await whatsapp_service.send_message(message)
+        message_factory = MessageFactory(self.db)
+        message = message_factory.create_monthly_quiz_link_message(
+            patient_id=patient.id,
+            patient_name=patient.name,
+            link_url=link_url,
+            quiz_session_id=str(session.id),
+            expiry_hours=expiry_hours,
+            delivery_method=delivery_method.value,
+            custom_message=custom_message
+        )
 
-            return {
-                "sent": sent,
-                "message_id": str(message.id)
+        whatsapp_service = UnifiedWhatsAppService(
+            db=self.db,
+            messaging_mode=MessagingMode.HYBRID
+        )
+
+        for attempt in range(max_retries):
+            try:
+                sent = await whatsapp_service.send_message(message)
+                
+                if sent:
+                    return {
+                        "sent": True,
+                        "message_id": str(message.id),
+                        "attempts": attempt + 1
+                    }
+                else:
+                    # If send_message returns False without raising, treat as failure and retry
+                    logger.warning(
+                        f"WhatsApp send returned False (attempt {attempt + 1}/{max_retries})",
+                        extra={"patient_id": str(patient.id)}
+                    )
+            except Exception as exc:
+                last_error = exc
+                logger.warning(
+                    f"Failed to send monthly quiz link (attempt {attempt + 1}/{max_retries}): {exc}",
+                    extra={
+                        "patient_id": str(patient.id),
+                        "quiz_session_id": str(session.id),
+                        "error": str(exc)
+                    }
+                )
+            
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+
+        # If we get here, all retries failed
+        error_msg = str(last_error) if last_error else "Unknown error (send returned False)"
+        logger.error(
+            "All retries failed for monthly quiz link delivery",
+            extra={
+                "patient_id": str(patient.id),
+                "quiz_session_id": str(session.id),
+                "delivery_method": delivery_method.value,
+                "error": error_msg
             }
-        except Exception as exc:
-            logger.error(
-                "Failed to send monthly quiz link message",
-                extra={
-                    "patient_id": str(patient.id),
-                    "quiz_session_id": str(session.id),
-                    "delivery_method": delivery_method.value,
-                    "error": str(exc)
-                }
-            )
-            raise
+        )
+        raise Exception(f"Failed to send after {max_retries} attempts: {error_msg}")
 
     async def create_quiz_link(
         self,

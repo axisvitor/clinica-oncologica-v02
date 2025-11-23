@@ -26,7 +26,7 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
-} from '@/components/charts/LazyRechartsComponents';
+} from '@/components/ui/charts/LazyRechartsComponents';
 import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import { ChartSkeleton } from '@/components/ui/chart-skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -344,30 +344,30 @@ const ClinicalMonitoringDashboard: React.FC = () => {
             </CardHeader>
             <CardContent>
               <Suspense fallback={<ChartSkeleton height="300px" />}>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={adherenceData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="day" />
-                  <YAxis yAxisId="left" />
-                  <YAxis yAxisId="right" orientation="right" />
-                  <Tooltip />
-                  <Legend />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="adherence"
-                    stroke="#10b981"
-                    name="Aderência (%)"
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="responses"
-                    stroke="#3b82f6"
-                    name="Respostas"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={adherenceData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="day" />
+                    <YAxis yAxisId="left" />
+                    <YAxis yAxisId="right" orientation="right" />
+                    <Tooltip />
+                    <Legend />
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="adherence"
+                      stroke="#10b981"
+                      name="Aderência (%)"
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="responses"
+                      stroke="#3b82f6"
+                      name="Respostas"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
               </Suspense>
             </CardContent>
           </Card>
@@ -382,25 +382,25 @@ const ClinicalMonitoringDashboard: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <Suspense fallback={<ChartSkeleton height="300px" />}>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={sentimentDistribution}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, value }: { name: string; value: number }) => `${name}: ${value}%`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {sentimentDistribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={sentimentDistribution}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, value }: { name: string; value: number }) => `${name}: ${value}%`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {sentimentDistribution.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </Suspense>
               </CardContent>
             </Card>
@@ -411,20 +411,20 @@ const ClinicalMonitoringDashboard: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <Suspense fallback={<ChartSkeleton height="300px" />}>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={adherenceData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="day" />
-                    <YAxis />
-                    <Tooltip />
-                    <Line
-                      type="monotone"
-                      dataKey="sentiment"
-                      stroke="#8b5cf6"
-                      name="Sentimento"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={adherenceData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="day" />
+                      <YAxis />
+                      <Tooltip />
+                      <Line
+                        type="monotone"
+                        dataKey="sentiment"
+                        stroke="#8b5cf6"
+                        name="Sentimento"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </Suspense>
               </CardContent>
             </Card>
@@ -490,22 +490,22 @@ const ClinicalMonitoringDashboard: React.FC = () => {
             </CardHeader>
             <CardContent>
               <Suspense fallback={<ChartSkeleton height="400px" />}>
-              <ResponsiveContainer width="100%" height={400}>
-                {/* PLACEHOLDER - Aguardando integração com useAdherenceData */}
-                <RadarChart data={[
-                  { metric: 'Mensagens', value: 75 },
-                  { metric: 'Quiz', value: 65 },
-                  { metric: 'Check-ins', value: 80 },
-                  { metric: 'Consultas', value: 90 },
-                  { metric: 'Feedback', value: 55 },
-                  { metric: 'App Usage', value: 70 },
-                ]}>
-                  <PolarGrid />
-                  <PolarAngleAxis dataKey="metric" />
-                  <PolarRadiusAxis angle={90} domain={[0, 100]} />
-                  <Radar name="Engajamento" dataKey="value" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.6} />
-                </RadarChart>
-              </ResponsiveContainer>
+                <ResponsiveContainer width="100%" height={400}>
+                  {/* PLACEHOLDER - Aguardando integração com useAdherenceData */}
+                  <RadarChart data={[
+                    { metric: 'Mensagens', value: 75 },
+                    { metric: 'Quiz', value: 65 },
+                    { metric: 'Check-ins', value: 80 },
+                    { metric: 'Consultas', value: 90 },
+                    { metric: 'Feedback', value: 55 },
+                    { metric: 'App Usage', value: 70 },
+                  ]}>
+                    <PolarGrid />
+                    <PolarAngleAxis dataKey="metric" />
+                    <PolarRadiusAxis angle={90} domain={[0, 100]} />
+                    <Radar name="Engajamento" dataKey="value" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.6} />
+                  </RadarChart>
+                </ResponsiveContainer>
               </Suspense>
             </CardContent>
           </Card>

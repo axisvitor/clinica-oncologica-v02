@@ -15,7 +15,7 @@ import logging
 from typing import Optional, Dict, Any, List, Union
 from datetime import datetime, timedelta
 from uuid import UUID
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 from sqlalchemy import desc, func, and_, or_
 from fastapi import Request
 
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 class AuditLogService:
     """Service for managing security audit logs."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         """
         Initialize audit log service.
 

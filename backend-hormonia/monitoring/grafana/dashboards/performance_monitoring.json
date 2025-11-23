@@ -1,0 +1,186 @@
+{
+  "dashboard": {
+    "title": "Performance Monitoring Dashboard",
+    "tags": ["performance", "latency", "cache"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 0,
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "title": "HTTP Response Time (p95)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95 Response Time"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "p99 Response Time"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Response Time"}
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [2.0], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "frequency": "1m",
+          "handler": 1,
+          "name": "High Response Time",
+          "noDataState": "no_data",
+          "notifications": []
+        }
+      },
+      {
+        "title": "Request Rate by Status",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum by (status_code) (rate(http_request_duration_seconds_count[5m]))",
+            "legendFormat": "{{status_code}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "reqps", "label": "Requests/sec"}
+        ]
+      },
+      {
+        "title": "Database Query Duration (p95)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(db_query_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95 Query Time"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(db_query_duration_seconds_bucket[5m]))",
+            "legendFormat": "p99 Query Time"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Query Time"}
+        ]
+      },
+      {
+        "title": "Cache Hit Rate",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "cache_hit_rate",
+            "legendFormat": "{{cache_type}} Hit Rate"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "label": "Hit Rate %", "min": 0, "max": 100}
+        ],
+        "thresholds": [
+          {
+            "value": 70,
+            "colorMode": "critical",
+            "op": "lt",
+            "fill": true,
+            "line": true,
+            "yaxis": "left"
+          }
+        ]
+      },
+      {
+        "title": "N+1 Query Detections",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 16, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "sum(rate(n1_query_detected_total[5m]))",
+            "legendFormat": "N+1 Queries/sec"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 1, "color": "yellow"},
+                {"value": 5, "color": "red"}
+              ]
+            },
+            "unit": "ops"
+          }
+        }
+      },
+      {
+        "title": "Slow Endpoints",
+        "type": "table",
+        "gridPos": {"x": 6, "y": 16, "w": 18, "h": 8},
+        "targets": [
+          {
+            "expr": "topk(10, histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])))",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {"Time": true},
+              "indexByName": {},
+              "renameByName": {
+                "endpoint": "Endpoint",
+                "method": "Method",
+                "Value": "p95 Duration (s)"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "title": "Error Rate",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 24, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(http_request_duration_seconds_count{status_code=~\"5..\"}[5m]) / rate(http_request_duration_seconds_count[5m]) * 100",
+            "legendFormat": "5xx Error Rate %"
+          },
+          {
+            "expr": "rate(http_request_duration_seconds_count{status_code=~\"4..\"}[5m]) / rate(http_request_duration_seconds_count[5m]) * 100",
+            "legendFormat": "4xx Error Rate %"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "label": "Error Rate %"}
+        ]
+      },
+      {
+        "title": "Database Queries by Operation",
+        "type": "piechart",
+        "gridPos": {"x": 12, "y": 24, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum by (operation) (rate(db_query_duration_seconds_count[5m]))",
+            "legendFormat": "{{operation}}"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -131,7 +131,7 @@ async def validate_authentication_system():
 
     try:
         # Test simplified service provider creation
-        from app.services_simple import SimplifiedServiceProvider
+        from app.services.simple_provider import SimplifiedServiceProvider
         from app.core.database_direct import get_direct_session
         from app.core.redis_unified import get_sync_redis
 

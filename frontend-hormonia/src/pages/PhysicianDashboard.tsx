@@ -15,15 +15,21 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Progress } from '@/components/ui/progress'
-import { AIAnalyticsDashboard } from '@/components/ai/AIAnalyticsDashboard'
+import { AIAnalyticsDashboard } from '@/features/ai/AIAnalyticsDashboard'
 import { apiClient } from '@/lib/api-client'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/app/providers/AuthContext'
 import { useDebounce } from '@/hooks/useDebounce'
 import { usePhysicianRiskAssessments } from '@/hooks/api/usePhysicianRiskAssessments'
 import { FEATURES } from '@/config'
-import type { AIInsight, AIRecommendation } from '@/lib/types/ai'
 import { ChatRole } from '@/types/api'
 import { createLogger } from '@/lib/logger'
+import { RiskBadge } from '@/features/patients/components/RiskBadge'
+import { PhysicianMetricsCards } from '@/features/dashboard/components/physician/PhysicianMetricsCards'
+import { PhysicianRiskTable } from '@/features/dashboard/components/physician/PhysicianRiskTable'
+import { PhysicianInsightsPanel } from '@/features/dashboard/components/physician/PhysicianInsightsPanel'
+import { PhysicianChatDialog } from '@/features/dashboard/components/physician/PhysicianChatDialog'
+import { PhysicianExportDialog } from '@/features/dashboard/components/physician/PhysicianExportDialog'
+import type { AIChatMessage as ChatMessage, AIInsight } from '@/types/api'
 
 const logger = createLogger('PhysicianDashboard')
 
@@ -38,15 +44,6 @@ interface DashboardMetrics {
   high_risk_patients: number
   avg_sentiment: number
   pending_reviews: number
-}
-
- 
-
-interface ChatMessage {
-  id: string
-  role: ChatRole
-  content: string
-  timestamp: string
 }
 
 export default function PhysicianDashboard() {
@@ -69,7 +66,7 @@ export default function PhysicianDashboard() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
-  
+
 
   const debouncedSearch = useDebounce(filters.search, 300)
 
@@ -78,7 +75,11 @@ export default function PhysicianDashboard() {
     queryKey: ['physician-dashboard-metrics'],
     queryFn: async () => {
       const response = await apiClient.analytics.dashboard()
-      return response
+      // Map DashboardAnalytics to DashboardMetrics if needed, or assume compatibility
+      // Based on types, apiClient.analytics.dashboard returns DashboardAnalytics
+      // We might need to adapt it if DashboardMetrics has different fields
+      // For now assuming compatibility or that we can use the response
+      return response as unknown as DashboardMetrics
     },
     staleTime: 60000, // 1 minute
     refetchInterval: 120000 // 2 minutes
@@ -127,7 +128,7 @@ export default function PhysicianDashboard() {
     queryFn: async () => {
       return apiClient.alerts.list({
         severity: 'high',
-        acknowledged: false,
+        status: 'pending',
         size: 10
       })
     },
@@ -227,7 +228,7 @@ export default function PhysicianDashboard() {
     navigate(`/physician/patients/${patientId}`)
   }, [navigate])
 
-  
+
 
   const handleSendChat = useCallback(() => {
     if (!chatInput.trim()) return
@@ -317,59 +318,7 @@ export default function PhysicianDashboard() {
       </div>
 
       {/* Risk Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-red-500 dark:bg-red-950/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center justify-between">
-              <span>Crítico</span>
-              <AlertTriangle className="h-4 w-4 text-red-500" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{riskCounts['critical']}</p>
-            <p className="text-xs text-muted-foreground mt-1">Requer atenção imediata</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-orange-500 dark:bg-orange-950/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center justify-between">
-              <span>Alto</span>
-              <TrendingUp className="h-4 w-4 text-orange-500" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{riskCounts['high']}</p>
-            <p className="text-xs text-muted-foreground mt-1">Monitoramento próximo</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-yellow-500 dark:bg-yellow-950/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center justify-between">
-              <span>Médio</span>
-              <Activity className="h-4 w-4 text-yellow-500" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{riskCounts['medium']}</p>
-            <p className="text-xs text-muted-foreground mt-1">Acompanhamento regular</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-green-500 dark:bg-green-950/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center justify-between">
-              <span>Baixo</span>
-              <Users className="h-4 w-4 text-green-500" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{riskCounts['low']}</p>
-            <p className="text-xs text-muted-foreground mt-1">Estável</p>
-          </CardContent>
-        </Card>
-      </div>
+      <PhysicianMetricsCards riskCounts={riskCounts} />
 
       {/* High-Risk Alerts */}
       {alerts && alerts.items && alerts.items.length > 0 && (
@@ -382,7 +331,7 @@ export default function PhysicianDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {alerts.items.map((alert: any) => (
+              {alerts.items.map((alert) => (
                 <div
                   key={alert.id}
                   className="flex items-center justify-between p-3 bg-destructive/10 rounded-lg"
@@ -495,163 +444,23 @@ export default function PhysicianDashboard() {
 
           {/* Patient Risk Table */}
           {!patientsLoading && !patientsError && patients.length > 0 && (
-            <>
-              <Card>
-                <CardContent className="pt-6">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Paciente</TableHead>
-                        <TableHead>Nível de Risco</TableHead>
-                        <TableHead>Score de Risco</TableHead>
-                        <TableHead>Alertas</TableHead>
-                        <TableHead>Última Avaliação</TableHead>
-                        <TableHead>Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {patients.map((patient) => (
-                        <TableRow key={patient.patient_id}>
-                          <TableCell className="font-medium">
-                            {patient.patient_name}
-                          </TableCell>
-                          <TableCell>
-                            <RiskBadge level={patient.risk_level} />
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Progress
-                                value={(patient.risk_score / 10) * 100}
-                                className="w-20"
-                              />
-                              <span className="text-sm tabular-nums">
-                                {patient.risk_score.toFixed(1)}/10
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {patient.recent_alerts.length > 0 && (
-                              <Badge variant="destructive">{patient.recent_alerts.length}</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {new Date(patient.assessment_date).toLocaleDateString('pt-BR')}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handlePatientClick(patient.patient_id)}
-                            >
-                              Detalhes
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-
-              {/* Pagination */}
-              {riskData && riskData.summary.total_patients > filters.size && (
-                <div className="flex justify-between items-center">
-                  <p className="text-sm text-muted-foreground">
-                    Mostrando {Math.min((filters.page - 1) * filters.size + 1, riskData.summary.total_patients)} -{' '}
-                    {Math.min(filters.page * filters.size, riskData.summary.total_patients)} de {riskData.summary.total_patients} pacientes
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setFilters({ ...filters, page: filters.page - 1 })}
-                      disabled={filters.page === 1}
-                    >
-                      Anterior
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setFilters({ ...filters, page: filters.page + 1 })}
-                      disabled={filters.page >= Math.ceil(riskData.summary.total_patients / filters.size)}
-                    >
-                      Próxima
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </>
+            <PhysicianRiskTable
+              patients={patients}
+              totalPatients={riskData?.summary.total_patients || 0}
+              page={filters.page}
+              size={filters.size}
+              onPageChange={(page) => setFilters({ ...filters, page })}
+              onPatientClick={handlePatientClick}
+            />
           )}
         </TabsContent>
 
         <TabsContent value="insights" className="space-y-4">
-          {insightsLoading ? (
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-center">
-                  <LoadingSpinner size="lg" />
-                  <p className="ml-3 text-muted-foreground">Carregando insights...</p>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {/* Key Insights */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Lightbulb className="h-5 w-5" />
-                    Insights Principais
-                  </CardTitle>
-                  <CardDescription>
-                    Padrões e recomendações detectadas pela IA
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {summaryInsights?.insights?.slice(0, 5).map((insight: AIInsight) => (
-                    <div key={insight.id} className="border rounded-lg p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-medium">{insight.title}</h4>
-                        <Badge variant={insight.priority === 'high' || insight.priority === 'critical' ? 'destructive' : 'default'}>
-                          {insight.priority}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{insight.description}</p>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3" />
-                        {new Date(insight.created_at).toLocaleString('pt-BR')}
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-
-              {/* Recommendations */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Brain className="h-5 w-5" />
-                    Recomendações IA
-                  </CardTitle>
-                  <CardDescription>
-                    Ações sugeridas baseadas em análise de dados
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {summaryInsights?.recommendations?.slice(0, 5).map((rec: AIRecommendation) => (
-                    <div key={rec.id} className="border rounded-lg p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-medium">{rec.title}</h4>
-                        <Badge>{rec.type}</Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{rec.description}</p>
-                      <p className="text-xs italic text-muted-foreground">{rec.rationale}</p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
-          )}
+          <PhysicianInsightsPanel
+            isLoading={insightsLoading}
+            insights={summaryInsights?.insights}
+            recommendations={(summaryInsights as any)?.recommendations}
+          />
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-4">
@@ -660,138 +469,23 @@ export default function PhysicianDashboard() {
       </Tabs>
 
       {/* AI Chat Dialog */}
-      <Dialog open={chatOpen} onOpenChange={setChatOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Brain className="h-5 w-5" />
-              Chat com IA - Orientação Clínica
-            </DialogTitle>
-            <DialogDescription>
-              Obtenha insights e orientações clínicas baseadas em IA
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col h-[60vh]">
-            {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto space-y-3 p-4 border rounded-md mb-4">
-              {chatMessages.length === 0 ? (
-                <div className="text-center text-muted-foreground py-8">
-                  <MessageSquare className="mx-auto h-8 w-8 mb-2" />
-                  <p>Inicie uma conversa com a IA</p>
-                  <p className="text-xs mt-1">Faça perguntas sobre pacientes, tratamentos ou análises</p>
-                </div>
-              ) : (
-                chatMessages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-[80%] rounded-lg p-3 ${
-                        msg.role === 'user'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted'
-                      }`}
-                    >
-                      <p className="text-sm">{msg.content}</p>
-                      <p className="text-xs opacity-70 mt-1">
-                        {new Date(msg.timestamp).toLocaleTimeString('pt-BR')}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              )}
-              {chatMutation.isPending && (
-                <div className="flex justify-start">
-                  <div className="bg-muted rounded-lg p-3">
-                    <LoadingSpinner size="sm" />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Chat Input */}
-            <div className="flex gap-2">
-              <Input
-                placeholder="Digite sua pergunta..."
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSendChat()}
-                disabled={chatMutation.isPending}
-              />
-              <Button
-                onClick={handleSendChat}
-                disabled={!chatInput.trim() || chatMutation.isPending}
-              >
-                <MessageSquare className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <PhysicianChatDialog
+        open={chatOpen}
+        onOpenChange={setChatOpen}
+        messages={chatMessages}
+        inputValue={chatInput}
+        onInputChange={setChatInput}
+        onSend={handleSendChat}
+        isPending={chatMutation.isPending}
+      />
 
       {/* Export Dialog */}
-      <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Exportar Relatório
-            </DialogTitle>
-            <DialogDescription>
-              Escolha o formato do relatório para exportação
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              O relatório incluirá todos os pacientes filtrados, insights e recomendações de IA.
-            </p>
-            <div className="flex gap-3">
-              <Button
-                className="flex-1"
-                variant="outline"
-                onClick={() => handleExport('pdf')}
-                disabled={exportMutation.isPending}
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                PDF
-              </Button>
-              <Button
-                className="flex-1"
-                variant="outline"
-                onClick={() => handleExport('excel')}
-                disabled={exportMutation.isPending}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Excel
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <PhysicianExportDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+        onExport={handleExport}
+        isPending={exportMutation.isPending}
+      />
     </div>
-  )
-}
-
-// Helper component for risk badge with proper styling
-function RiskBadge({ level }: { level: string }) {
-  const variants: Record<string, 'destructive' | 'default'> = {
-    critical: 'destructive',
-    high: 'destructive',
-    medium: 'default',
-    low: 'default'
-  }
-
-  const colors: Record<string, string> = {
-    critical: 'bg-red-500 text-white border-red-600',
-    high: 'bg-orange-500 text-white border-orange-600',
-    medium: 'bg-yellow-500 text-gray-900 border-yellow-600',
-    low: 'bg-green-500 text-white border-green-600'
-  }
-
-  return (
-    <Badge variant={variants[level] || 'default'} className={colors[level]}>
-      {level.toUpperCase()}
-    </Badge>
   )
 }

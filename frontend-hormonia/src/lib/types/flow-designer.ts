@@ -24,7 +24,7 @@ export enum FlowNodeType {
 export interface FlowNodeData {
   label: string
   description?: string
-  config: Record<string, any>
+  config: Record<string, unknown>
   validation?: ValidationRule[]
 }
 
@@ -56,7 +56,7 @@ export interface FlowVariable {
   id: string
   name: string
   type: 'string' | 'number' | 'boolean' | 'date' | 'object'
-  default_value?: any
+  default_value?: unknown
   description?: string
   required?: boolean
 }
@@ -73,7 +73,7 @@ export interface FlowMetadata {
 export interface ValidationRule {
   field: string
   rule: 'required' | 'min_length' | 'max_length' | 'pattern' | 'custom'
-  value?: any
+  value?: unknown
   message: string
 }
 
@@ -98,7 +98,7 @@ export interface ConditionNodeConfig {
 export interface ConditionRule {
   variable: string
   operator: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than' | 'exists'
-  value: any
+  value: unknown
   label?: string
 }
 
@@ -110,7 +110,7 @@ export interface DelayNodeConfig {
 
 export interface ActionNodeConfig {
   action_type: 'set_variable' | 'send_notification' | 'create_task' | 'update_patient' | 'trigger_webhook'
-  parameters: Record<string, any>
+  parameters: Record<string, unknown>
   description?: string
 }
 
@@ -143,7 +143,7 @@ export interface QuizQuestion {
 export interface QuizOption {
   id: string
   text: string
-  value: any
+  value: unknown
   points?: number
 }
 
@@ -204,7 +204,7 @@ export interface ClipboardItem {
 export interface HistoryItem {
   action: string
   timestamp: number
-  data: any
+  data: unknown
   description: string
 }
 
@@ -213,7 +213,7 @@ export interface FlowTestSession {
   id: string
   design_id: string
   current_node: string
-  variables: Record<string, any>
+  variables: Record<string, unknown>
   execution_log: FlowExecutionStep[]
   status: 'running' | 'completed' | 'error' | 'paused'
   started_at: string
@@ -224,8 +224,8 @@ export interface FlowExecutionStep {
   id: string
   node_id: string
   timestamp: string
-  input?: any
-  output?: any
+  input?: unknown
+  output?: unknown
   duration_ms: number
   status: 'success' | 'error' | 'skipped'
   error_message?: string
@@ -272,7 +272,7 @@ export interface FlowImportResult {
 
 // Additional exports for missing types
 export interface ChartData {
-  [key: string]: any
+  [key: string]: unknown
 }
 
 export interface TreatmentType {

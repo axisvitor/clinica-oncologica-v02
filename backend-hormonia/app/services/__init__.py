@@ -1,3 +1,4 @@
+from typing import Any
 """Services module exports."""
 
 # ServiceProvider - Special import to avoid name conflict with package
@@ -12,14 +13,12 @@ if _services_file.exists():
     _services_module = importlib.util.module_from_spec(_spec)
     _spec.loader.exec_module(_services_module)
 
-    # Import ServiceProvider and get_service_provider from the services.py file
+    # Import ServiceProvider from the services.py file
     ServiceProvider = _services_module.ServiceProvider
-    get_service_provider = _services_module.get_service_provider
 
 # Core Services
 from .auth import AuthService
-from .patient import PatientService
-from .message import MessageService
+from app.domain.messaging.core import MessageService
 from .quiz import (
     QuizTemplateService,
     QuizSessionService,
@@ -27,8 +26,7 @@ from .quiz import (
 )
 
 # Flow Services
-from .flow_engine import FlowEngine
-from .flow import FlowEngineIntegrationService
+from .flow import FlowEngine  # Consolidated Flow Engine
 from .flow_template import FlowTemplateService
 from .enhanced_flow_engine import EnhancedFlowEngine
 from .state_machine import StateMachine
@@ -47,8 +45,25 @@ from .alerts import (
 AlertService = AlertManagerAdapter
 
 # Analytics Services
-from .analytics import AnalyticsService
-from .flow_analytics import FlowAnalyticsService
+from app.domain.analytics.analytics_service import AnalyticsService
+from .analytics import (
+    FlowAnalyticsService,
+    ABTestingAnalyticsService,
+    AdminStatsService,
+    DataAggregator,
+    DataExtractionService,
+    EnhancedAnalyticsService,
+    MedicoStatsService,
+    MetricsCollector,
+    MetricsRedisStorage,
+    PerformanceMetricsCollector
+)
+
+# Admin Services
+from .admin import (
+    AdminUserService,
+    UserProvisioningService
+)
 
 # Integration Services
 from .hive_mind_integration import HiveMindIntegrationService  # Circular import resolved with lazy imports
@@ -56,8 +71,6 @@ from .platform_synchronization import PlatformSynchronizationService
 from .webhook_processor import WebhookProcessor
 
 # Messaging Services
-from .message_scheduler import MessageScheduler
-from .messaging import MessageSender
 from .websocket_events import websocket_events
 from .websocket import UnifiedWebSocketConnectionManager
 
@@ -68,7 +81,13 @@ ConnectionManager = UnifiedWebSocketConnectionManager
 from .template_loader import EnhancedTemplateLoader
 from .localization import LocalizationService
 from .audit_trail import AuditTrailService
-from .report import ReportService
+
+# Reporting Services
+from .reporting import (
+    ReportService,
+    EnhancedReportsService,
+    QuizReportGenerator
+)
 
 # Monitoring Services
 from .performance_monitoring import PerformanceMonitoringService
@@ -87,7 +106,6 @@ from .critical_error_escalation import CriticalErrorEscalationService
 __all__ = [
     # ServiceProvider (imported from services.py file)
     "ServiceProvider",
-    "get_service_provider",
 
     # Core Services
     "AuthService",
@@ -99,7 +117,6 @@ __all__ = [
     
     # Flow Services
     "FlowEngine",
-    "FlowEngineIntegrationService",
     "FlowTemplateService",
     "EnhancedFlowEngine",
     "StateMachine",
@@ -118,15 +135,26 @@ __all__ = [
     # Analytics Services
     "AnalyticsService",
     "FlowAnalyticsService",
+    "ABTestingAnalyticsService",
+    "AdminStatsService",
+    "DataAggregator",
+    "DataExtractionService",
+    "EnhancedAnalyticsService",
+    "MedicoStatsService",
+    "MetricsCollector",
+    "MetricsRedisStorage",
+    "PerformanceMetricsCollector",
     
+    # Admin Services
+    "AdminUserService",
+    "UserProvisioningService",
+
     # Integration Services
     "HiveMindIntegrationService",  # Circular import resolved with lazy imports
     "PlatformSynchronizationService",
     "WebhookProcessor",
     
     # Messaging Services
-    "MessageScheduler",
-    "MessageSender",
     "websocket_events",
     "ConnectionManager",
     
@@ -134,7 +162,11 @@ __all__ = [
     "EnhancedTemplateLoader",
     "LocalizationService",
     "AuditTrailService",
+    
+    # Reporting Services
     "ReportService",
+    "EnhancedReportsService",
+    "QuizReportGenerator",
     
     # Monitoring Services
     "PerformanceMonitoringService",

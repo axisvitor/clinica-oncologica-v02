@@ -37,7 +37,25 @@ class SecuritySettings(BaseAppSettings):
     # Session and Cookie Configuration
     # ============================================================================
     SESSION_COOKIE_SECURE: bool = Field(
-        default=False, description="Require HTTPS for session cookies"
+        default=False, description="Require HTTPS for session cookies (must be True in production)"
+    )
+    SESSION_COOKIE_HTTPONLY: bool = Field(
+        default=True, description="Prevent JavaScript access to session cookies (XSS protection)"
+    )
+    SESSION_COOKIE_SAMESITE: str = Field(
+        default="lax", description="SameSite cookie attribute: 'strict', 'lax', or 'none' (CSRF protection)"
+    )
+    SESSION_COOKIE_NAME: str = Field(
+        default="session_id", description="Name of the session cookie"
+    )
+    SESSION_COOKIE_PATH: str = Field(
+        default="/", description="Path for session cookie"
+    )
+    SESSION_COOKIE_DOMAIN: Optional[str] = Field(
+        default=None, description="Domain for session cookie (None = current domain only)"
+    )
+    SESSION_COOKIE_MAX_AGE: int = Field(
+        default=28800, description="Session cookie max age in seconds (default: 8 hours)"
     )
     SECURE_SSL_REDIRECT: bool = Field(default=False, description="Force HTTPS redirect")
 
@@ -146,6 +164,7 @@ class SecuritySettings(BaseAppSettings):
         # Parse boolean fields
         boolean_fields = [
             "SESSION_COOKIE_SECURE",
+            "SESSION_COOKIE_HTTPONLY",
             "SECURE_SSL_REDIRECT",
             "FIREBASE_REQUIRE_CUSTOM_CLAIMS",
             "FIREBASE_ENABLE_AUDIT_LOGGING",
@@ -318,6 +337,18 @@ class SecuritySettings(BaseAppSettings):
             if not self.SESSION_COOKIE_SECURE:
                 errors.append(
                     "SESSION_COOKIE_SECURE must be True in production environment"
+                )
+
+            # HttpOnly should always be true for security
+            if not self.SESSION_COOKIE_HTTPONLY:
+                errors.append(
+                    "SESSION_COOKIE_HTTPONLY must be True to prevent XSS attacks"
+                )
+
+            # SameSite should be strict or lax in production
+            if self.SESSION_COOKIE_SAMESITE.lower() not in ['strict', 'lax']:
+                errors.append(
+                    f"SESSION_COOKIE_SAMESITE must be 'strict' or 'lax' in production (got: {self.SESSION_COOKIE_SAMESITE})"
                 )
 
             # SSL redirect should be enabled in production

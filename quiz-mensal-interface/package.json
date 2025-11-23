@@ -1,20 +1,17 @@
 {
   "name": "quiz-mensal-interface",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
+    "dev": "next dev -p 3001",
     "build": "next build",
-    "dev": "next dev",
+    "start": "next start -p 3001",
     "lint": "next lint",
-    "start": "next start",
-    "railway-build": "pnpm install --no-frozen-lockfile && next build",
-    "test": "jest --passWithNoTests",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage --passWithNoTests",
-    "test:other-option": "jest tests/quiz-other-option.test.tsx --verbose",
-    "postinstall": "next telemetry disable",
     "health-check": "curl -f http://localhost:3000/api/health || exit 1",
-    "type-check": "tsc --noEmit --skipLibCheck"
+    "type-check": "tsc --noEmit --skipLibCheck",
+    "test:unit": "jest -c jest.config.unit.js",
+    "test:integration": "jest -c jest.config.integration.js",
+    "test:all": "npm run test:unit && npm run test:integration"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -68,7 +65,8 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
-    "zod": "3.25.67"
+    "zod": "3.25.67",
+    "@hormonia/shared-types": "file:../packages/shared-types"
   },
   "devDependencies": {
     "@axe-core/react": "^4.10.2",

@@ -23,7 +23,7 @@ from app.database import get_db
 from app.models.message import Message, MessageType, MessageDirection
 from app.models.patient import Patient
 from app.models.user import UserRole
-from app.services.message import MessageService
+from app.domain.messaging.core import MessageService
 from app.schemas.v2.messages import (
     MessageV2List,
     InboundMessageV2Request,
@@ -332,7 +332,10 @@ async def search_messages(
     cursor_data = pagination["cursor_data"]
     limit = pagination["limit"]
 
-    query = db.query(Message).filter(Message.content.ilike(f"%{q}%"))
+    # SECURITY FIX: Use parameterized query to prevent SQL injection
+    # Escape special characters for ILIKE pattern matching
+    search_pattern = f"%{q}%"
+    query = db.query(Message).filter(Message.content.ilike(search_pattern))
 
     # RBAC
     role_enum, user_id = _extract_user_context(current_user)

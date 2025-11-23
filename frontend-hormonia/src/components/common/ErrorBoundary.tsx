@@ -1,4 +1,4 @@
-import React, { Component, ReactNode } from 'react'
+import React, { Component, ReactNode, ErrorInfo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Alert, AlertDescription } from '../ui/alert'
@@ -11,14 +11,14 @@ const logger = createLogger('ErrorBoundary')
 interface ErrorBoundaryState {
   hasError: boolean
   error: Error | null
-  errorInfo: any
+  errorInfo: ErrorInfo | null
   errorId: string
 }
 
 interface ErrorBoundaryProps {
   children: ReactNode
   fallback?: ReactNode
-  onError?: (error: Error, errorInfo: any) => void
+  onError?: (error: Error, errorInfo: ErrorInfo) => void
   showDetails?: boolean
 }
 
@@ -42,7 +42,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     }
   }
 
-  componentDidCatch(error: Error, errorInfo: any) {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Log error details
     logger.error('Error boundary caught an error:', {
       error: error.message,
@@ -64,7 +64,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     // In production, you might want to report this to an error reporting service
     if (process.env['NODE_ENV'] === 'production') {
       // Report to Sentry, LogRocket, etc.
-      console.error('Production Error:', error, errorInfo)
+      logger.error('Production Error', { error, errorInfo })
     }
   }
 
@@ -237,7 +237,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
 // Hook version for functional components
 export function useErrorHandler() {
-  return (error: Error, errorInfo?: any) => {
+  return (error: Error, errorInfo?: ErrorInfo) => {
     logger.error('Manual error handler triggered:', {
       error: error.message,
       stack: error.stack,
@@ -246,7 +246,7 @@ export function useErrorHandler() {
 
     // In production, report to error service
     if (process.env['NODE_ENV'] === 'production') {
-      console.error('Production Error (Manual):', error, errorInfo)
+      logger.error('Production Error (Manual)', { error, errorInfo })
     }
   }
 }

@@ -7,7 +7,7 @@ import logging
 from typing import Optional, Any
 from datetime import datetime
 from uuid import UUID
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -15,7 +15,7 @@ from app.models.user import User
 from app.dependencies import get_current_user
 from app.dependencies.service_dependencies import get_flow_analytics_service
 from app.dependencies.auth_dependencies import get_redis_cache
-from app.services.flow_analytics import FlowAnalyticsService
+from app.services.analytics import FlowAnalyticsService
 from app.services.flow_dashboard import FlowDashboardService, DashboardTimeframe, get_flow_dashboard_service
 from app.exceptions import internal_server_exception
 from app.utils.rate_limiter import limiter
@@ -62,6 +62,7 @@ async def _get_cached_or_compute(
 )
 @limiter.limit("30/minute")
 async def get_dashboard_overview(
+    request: Request,
     timeframe: DashboardTimeframe = Query(DashboardTimeframe.LAST_7_DAYS),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -94,6 +95,7 @@ async def get_dashboard_overview(
 )
 @limiter.limit("30/minute")
 async def get_flow_metrics(
+    request: Request,
     flow_type: Optional[str] = Query(None),
     timeframe: DashboardTimeframe = Query(DashboardTimeframe.LAST_30_DAYS),
     current_user: User = Depends(get_current_user),
@@ -131,6 +133,7 @@ async def get_flow_metrics(
 )
 @limiter.limit("30/minute")
 async def get_patient_engagement_metrics(
+    request: Request,
     timeframe: DashboardTimeframe = Query(DashboardTimeframe.LAST_30_DAYS),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -163,6 +166,7 @@ async def get_patient_engagement_metrics(
 )
 @limiter.limit("20/minute")
 async def get_risk_assessment(
+    request: Request,
     risk_level: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=200),
     current_user: User = Depends(get_current_user),
@@ -200,6 +204,7 @@ async def get_risk_assessment(
 )
 @limiter.limit("30/minute")
 async def get_flow_performance_analytics(
+    request: Request,
     flow_type: Optional[str] = Query(None),
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
@@ -268,6 +273,7 @@ async def get_patient_journey_analytics(
 )
 @limiter.limit("10/minute")
 async def generate_flow_insights(
+    request: Request,
     flow_type: Optional[str] = Query(None),
     analysis_depth: str = Query("standard", pattern="^(basic|standard|detailed)$"),
     current_user: User = Depends(get_current_user),

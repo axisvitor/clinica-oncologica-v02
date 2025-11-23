@@ -626,7 +626,7 @@ def test_weighted_randomization_50_50(mock_db, mock_auth, admin_user, sample_exp
 
 def test_deterministic_assignment():
     """Test that same user gets same variant (deterministic)."""
-    from app.api.v2.ab_testing import _weighted_random_assignment
+    from app.api.v2.routers.ab_testing import _weighted_random_assignment
 
     variants = [
         {"type": "control", "traffic_weight": 0.5},
@@ -846,7 +846,7 @@ def test_conversion_requires_user_identifier():
 
 def test_calculate_confidence_interval():
     """Test confidence interval calculation."""
-    from app.api.v2.ab_testing import _calculate_confidence_interval
+    from app.api.v2.routers.ab_testing import _calculate_confidence_interval
 
     # Test with sample data
     conversion_rate = 0.25
@@ -863,7 +863,7 @@ def test_calculate_confidence_interval():
 
 def test_chi_square_test_significant():
     """Test chi-square test with significant difference."""
-    from app.api.v2.ab_testing import _perform_chi_square_test
+    from app.api.v2.routers.ab_testing import _perform_chi_square_test
 
     # Control: 100 conversions out of 500 (20%)
     # Treatment: 150 conversions out of 500 (30%)
@@ -883,7 +883,7 @@ def test_chi_square_test_significant():
 
 def test_chi_square_test_not_significant():
     """Test chi-square test with no significant difference."""
-    from app.api.v2.ab_testing import _perform_chi_square_test
+    from app.api.v2.routers.ab_testing import _perform_chi_square_test
 
     # Control: 100 conversions out of 500 (20%)
     # Treatment: 105 conversions out of 500 (21%)
@@ -901,7 +901,7 @@ def test_chi_square_test_not_significant():
 
 def test_t_test_analysis():
     """Test t-test for continuous metrics."""
-    from app.api.v2.ab_testing import _perform_t_test
+    from app.api.v2.routers.ab_testing import _perform_t_test
 
     # Generate sample data
     np.random.seed(42)
@@ -917,7 +917,7 @@ def test_t_test_analysis():
 
 def test_sample_size_calculation():
     """Test sample size calculation."""
-    from app.api.v2.ab_testing import _calculate_sample_size
+    from app.api.v2.routers.ab_testing import _calculate_sample_size
 
     n = _calculate_sample_size(
         baseline_rate=0.20,

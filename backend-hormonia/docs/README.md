@@ -1,185 +1,303 @@
-# Documentação Backend - Clínica Oncológica
+**Documentation Index**
 
-**Última Atualização**: 2025-11-12
-
-## 📋 Navegação Rápida
-
-### 🚀 Para Começar
-- [Quick Start - Instalação e Configuração](guides/quickstart/)
-- [Troubleshooting - Resolução de Problemas](guides/troubleshooting/)
-- [Guia de Migrações](guides/migration/)
-
-### 📚 API & Integrações
-- [API REST - Endpoints e Guias](api/rest/)
-- [API Pública de Quiz](api/public/)
-- [Webhooks - Configuração e Segurança](api/webhooks/)
-
-### 🏛️ Arquitetura & Design
-- [Design do Sistema](architecture/system-design/)
-- [Banco de Dados](database/) - ⚠️ Documentação atualizada e completa
-- [Padrões de Design](architecture/patterns/)
-
-### ⚙️ Operações & Produção
-- [Deployment e Configuração](operations/deployment/)
-- [Monitoramento e Métricas](operations/monitoring/)
-- [Segurança](operations/security/)
-- [Performance e Otimização](operations/performance/)
-- [Manutenção](operations/maintenance/)
-
-### 📖 Referências Técnicas
-- [Implementações Específicas](reference/)
-- [Configurações do Sistema](reference/)
-
-### 📦 Arquivo Histórico
-- [Relatórios de Migrações V2](archive/v2-migrations/)
-- [Relatórios de Fases/Sprints](archive/phase-reports/)
-- [Bug Fixes Documentados](archive/bug-fixes/)
-- [Relatórios de Performance](archive/performance-reports/)
-
-## 📁 Estrutura de Backend
-
-```
-backend-hormonia/
-├── app/
-│   ├── api/v1/              # REST endpoints
-│   │   ├── auth.py          # Authentication
-│   │   ├── patients.py      # Patient management
-│   │   ├── messages.py      # WhatsApp messaging
-│   │   ├── flows.py         # Conversation flows
-│   │   ├── quiz.py          # Quiz system
-│   │   └── reports.py       # Reports & analytics
-│   ├── core/                # Core modules
-│   │   ├── application_factory.py
-│   │   ├── middleware_setup.py
-│   │   ├── session_manager.py
-│   │   └── redis_manager.py
-│   ├── models/              # SQLAlchemy models
-│   ├── schemas/             # Pydantic schemas
-│   └── services/            # Business logic
-├── alembic/                 # Database migrations
-├── tests/                   # Pytest tests
-├── scripts/                 # Utility scripts
-└── docs/                    # Esta documentação
-```
-
-## 🚀 Quick Start
-
-```bash
-# Install
-cd backend-hormonia
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-
-# Configure
-cp .env.example .env
-# Edit .env with your credentials
-
-# Run
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# Test
-pytest
-```
-
-## 🔐 Segurança
-
-### Row Level Security (RLS)
-- 7 roles: admin, doctor, patient, service_provider, system, viewer, external_integration
-- Políticas por tabela no PostgreSQL
-- Audit trail completo
-- Validação runtime via middleware
-
-### Authentication
-- JWT com access token (30min) + refresh token (7 dias)
-- Token blacklist no Redis
-- Auto-refresh 5min antes de expirar
-- Integração Firebase + Supabase
-
-### Rate Limiting
-- 100 req/min por IP
-- 5 login attempts / 15 min
-- Configurável por endpoint
-
-## ⚡ Performance
-
-### Redis Cache
-- Dual-client (sync/async)
-- API response caching
-- Session storage
-- Rate limiting storage
-
-### Optimizations
-- Connection pooling (DB + Redis)
-- Middleware stack otimizado
-- Thread-safe session manager
-- 84.8% redução de chamadas Gemini via cache
-
-## 📊 Database
-
-### Models (SQLAlchemy)
-- User, Patient, Message, Flow, QuizSession, Report, Alert, AuditLog
-
-### Migrations (Alembic)
-```bash
-# Create migration
-alembic revision --autogenerate -m "description"
-
-# Run migrations
-alembic upgrade head
-
-# Rollback
-alembic downgrade -1
-```
-
-## 🧪 Testing
-
-```bash
-# All tests
-pytest
-
-# With coverage
-pytest --cov=app --cov-report=html
-
-# Specific tests
-pytest tests/test_auth.py
-pytest tests/test_core/  # Modular architecture tests
-
-# Verbose
-pytest -v
-```
-
-**Coverage Target:** 95%+
-
-## 📚 Navegação
-
-- [← Voltar para Raiz](../../README.md)
-- [Frontend →](../../frontend-hormonia/docs/README.md)
-- [Quiz Interface →](../../quiz-mensal-interface/docs/README.md)
-
-## 📄 API Documentation
-
-Acesse a documentação interativa:
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-- **OpenAPI JSON**: http://localhost:8000/openapi.json
-
-## 📝 Sobre esta Documentação
-
-Esta documentação foi reestruturada em 2025-11-12 para melhor organização e navegabilidade:
-
-- **Documentação Ativa**: Organizada por propósito em `guides/`, `api/`, `architecture/`, `operations/` e `reference/`
-- **Documentação Histórica**: Migrada para `archive/` com subcategorias por tipo
-- **Banco de Dados**: Mantida em `database/` - já estava atualizada e bem organizada
-- **Navegação**: Cada pasta principal contém README próprio para facilitar a navegação
-
-### Convenções
-
-- **Guias Práticos**: Documentos how-to em `guides/`
-- **Referências Técnicas**: Especificações em `reference/`
-- **Arquivo**: Relatórios históricos e completados em `archive/`
-- **Língua**: PT-BR (padrão do projeto)
+This guide provides quick access to all documentation resources for the Hormonia Backend.
 
 ---
 
-**Stack:** Python 3.13+ | FastAPI | PostgreSQL | Redis | Celery | Supabase + Firebase
+## 📚 Essential Documentation (Read First!)
+
+### 1. Database Migrations
+
+**START HERE:** `docs/database/DATA_MIGRATION_STRATEGY.md`
+- Complete migration guide (1500+ LOC)
+- Zero-downtime patterns
+- Production deployment procedures
+- Rollback strategies
+
+**TEMPLATE:** `alembic/MIGRATION_TEMPLATE.py`
+- Use this template for all new migrations
+- Comprehensive documentation structure
+- Pre/post deployment checklists
+
+**TESTING:** `scripts/test_migration_prod_dump.sh`
+```bash
+# Test migration on production data dump
+./scripts/test_migration_prod_dump.sh 018b_backfill_email_verified
+```
+
+### 2. API Documentation
+
+**EXAMPLES:** `docs/api/EXAMPLES.md`
+- 30+ API request/response examples
+- Authentication flows
+- Error handling
+- Pagination patterns
+
+**INTERACTIVE DOCS:**
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+- OpenAPI JSON: http://localhost:8000/openapi.json
+
+### 3. Environment Configuration
+
+**DEVELOPMENT:** `.env.example`
+- Copy to `.env` and update values
+- 50+ variables documented
+- Inline comments for each variable
+
+**PRODUCTION:** `.env.production.example`
+- Production-specific template
+- Security checklists
+- SSL/TLS requirements
+
+**VALIDATION:** `scripts/validate_env.py`
+```bash
+# Validate environment variables
+python scripts/validate_env.py
+
+# Strict validation for production
+python scripts/validate_env.py --strict --environment=production
+```
+
+### 4. API Testing (Postman)
+
+**COLLECTION:** `postman/Backend_Hormonia_API.postman_collection.json`
+- 50+ API requests organized by functionality
+- Automated test scripts
+- Variable extraction
+
+**GENERATE COLLECTION:**
+```bash
+# Regenerate Postman collection from OpenAPI
+cd backend-hormonia
+python scripts/generate_postman_collection.py
+```
+
+**IMPORT TO POSTMAN:**
+1. Open Postman
+2. Import `Backend_Hormonia_API.postman_collection.json`
+3. Import `Development.postman_environment.json`
+4. Run Authentication > Login
+5. JWT token auto-saved to environment
+
+---
+
+## 🎯 Quick Tasks
+
+### Create a New Migration
+
+```bash
+# 1. Create migration file
+cd backend-hormonia
+alembic revision -m "add_new_feature"
+
+# 2. Copy template structure from alembic/MIGRATION_TEMPLATE.py
+
+# 3. Fill in documentation sections:
+#    - WHY: Business justification
+#    - WHAT: Technical changes
+#    - IMPACT: Performance metrics
+#    - BENCHMARK: Test results
+#    - ROLLBACK: Safety assessment
+#    - RELATED: Links to issues/PRs
+
+# 4. Test on production data dump
+./scripts/test_migration_prod_dump.sh
+
+# 5. Deploy to staging
+alembic upgrade head
+```
+
+### Test API Endpoints
+
+```bash
+# 1. Generate/Update Postman collection
+cd backend-hormonia
+python scripts/generate_postman_collection.py
+
+# 2. Import to Postman
+# - Open Postman
+# - Import postman/Backend_Hormonia_API.postman_collection.json
+# - Import postman/Development.postman_environment.json
+
+# 3. Run tests
+# - Select Development environment
+# - Run Authentication > Login
+# - Start testing endpoints
+```
+
+### Validate Environment
+
+```bash
+# Development validation
+python scripts/validate_env.py
+
+# Production validation (strict mode)
+python scripts/validate_env.py --strict --environment=production
+
+# Fix any critical errors before deployment
+```
+
+### Run CI/CD API Tests
+
+```bash
+# Tests run automatically on:
+# - Push to main/develop/staging
+# - Pull requests
+# - Daily at 2 AM UTC
+
+# Manual run:
+# - Go to Actions tab in GitHub
+# - Select "Postman API Tests" workflow
+# - Click "Run workflow"
+```
+
+---
+
+## 📂 Documentation Structure
+
+```
+backend-hormonia/
+├── docs/
+│
+├── .env.example                            # Development template
+├── .env.production.example                 # Production template
+└── .env.test.example                       # Testing template
+```
+
+---
+
+## 🔗 Quick Links
+
+| Resource | Path | Description |
+|----------|------|-------------|
+| **Migration Guide** | `docs/database/DATA_MIGRATION_STRATEGY.md` | Complete migration strategy |
+| **Migration Template** | `alembic/MIGRATION_TEMPLATE.py` | Template for new migrations |
+| **API Examples** | `docs/api/EXAMPLES.md` | Request/response examples |
+| **Environment Guide** | `docs/deployment/README.md` | Deployment & Env Guide |
+| **Postman Collection** | `postman/Backend_Hormonia_API.postman_collection.json` | API test collection |
+| **Swagger UI** | http://localhost:8000/docs | Interactive API docs |
+
+---
+
+## 💡 Best Practices
+
+### Migrations
+
+✅ **DO:**
+- Use `alembic/MIGRATION_TEMPLATE.py` for all new migrations
+- Test on production data dumps before deployment
+- Document WHY, WHAT, IMPACT, BENCHMARK, ROLLBACK
+- Use CONCURRENTLY for indexes on large tables
+- Batch large data transformations (1000 rows/batch)
+
+❌ **DON'T:**
+- Skip migration documentation
+- Deploy untested migrations to production
+- Use table locks on large tables
+- Add NOT NULL without backfilling data
+
+### API Development
+
+✅ **DO:**
+- Add request/response examples to all endpoints
+- Use Pydantic schema examples
+- Test with Postman collection
+- Document error responses
+- Follow pagination patterns
+
+❌ **DON'T:**
+- Skip API documentation
+- Break backward compatibility
+- Return inconsistent error formats
+- Forget to update Postman collection
+
+### Environment Configuration
+
+✅ **DO:**
+- Use appropriate .env template (dev/prod/test)
+- Validate environment before deployment
+- Use SSL/TLS in production
+- Rotate secrets regularly
+- Document all variables
+
+❌ **DON'T:**
+- Commit .env files to git
+- Use development secrets in production
+- Skip environment validation
+- Use wildcard CORS in production
+
+---
+
+## 🆘 Troubleshooting
+
+### Migration Failed
+
+```bash
+# Check current migration state
+alembic current
+
+# Check migration history
+alembic history
+
+# Downgrade one step
+alembic downgrade -1
+
+# Test migration on prod dump
+./scripts/test_migration_prod_dump.sh
+```
+
+### Environment Validation Failed
+
+```bash
+# Run validation with detailed output
+python scripts/validate_env.py --environment=development
+
+# Check specific variable
+echo $DATABASE_URL
+
+# Verify .env file exists
+ls -la .env
+```
+
+### Postman Collection Out of Date
+
+```bash
+# Regenerate collection from OpenAPI
+cd backend-hormonia
+python scripts/generate_postman_collection.py
+
+# Reimport to Postman
+# - Delete old collection
+# - Import new collection
+# - Select environment
+```
+
+### API Tests Failing in CI/CD
+
+```bash
+# Check GitHub Actions logs
+# - Go to Actions tab
+# - Select failed workflow
+# - Review Newman test output
+
+# Run tests locally
+cd backend-hormonia/postman
+newman run Backend_Hormonia_API.postman_collection.json \
+  -e Development.postman_environment.json \
+  --env-var "base_url=http://localhost:8000"
+```
+
+---
+
+## 📞 Get Help
+
+1. **Documentation Issues:** Check `docs/` directory
+2. **Migration Issues:** See `docs/database/DATA_MIGRATION_STRATEGY.md`
+3. **API Issues:** See `docs/api/EXAMPLES.md`
+4. **Environment Issues:** Run `python scripts/validate_env.py`
+5. **Postman Issues:** See `postman/README.md`
+
+---
+
+**Happy coding! 🚀**

@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.patient_onboarding_saga import PatientOnboardingSaga, SagaStatus
-from app.coordination.saga_orchestrator import SagaOrchestrator
+from app.orchestration.saga_orchestrator import SagaOrchestrator
 from app.core.redis_client import get_redis_client
 from app.core.monitoring import capture_exception, capture_message
 from app.config import settings

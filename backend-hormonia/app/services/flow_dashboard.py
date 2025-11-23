@@ -5,12 +5,12 @@ Provides dashboard data, trend analysis, and optimization recommendations.
 import logging
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 from sqlalchemy import func, and_, or_, desc, asc
 from uuid import UUID
 from enum import Enum
 
-from app.services.flow_analytics import FlowAnalyticsService, EventType, RiskLevel, PatientRisk
+from app.services.analytics import FlowAnalyticsService, EventType, RiskLevel, PatientRisk
 from app.models.flow import PatientFlowState
 from app.models.flow_analytics import FlowAnalytics
 from app.models.patient import Patient
@@ -42,7 +42,7 @@ class FlowDashboardService:
     Provides real-time metrics, trend analysis, and actionable insights.
     """
     
-    def __init__(self, db: Session, analytics_service: Optional[FlowAnalyticsService] = None):
+    def __init__(self, db: Any, analytics_service: Optional[FlowAnalyticsService] = None):
         """
         Initialize flow dashboard service.
         
@@ -785,7 +785,7 @@ class FlowDashboardService:
 _flow_dashboard_service: Optional[FlowDashboardService] = None
 
 
-def get_flow_dashboard_service(db: Session) -> FlowDashboardService:
+def get_flow_dashboard_service(db: Any) -> FlowDashboardService:
     """
     Get flow dashboard service instance.
     

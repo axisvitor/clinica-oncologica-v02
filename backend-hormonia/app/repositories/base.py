@@ -180,48 +180,82 @@ class BaseRepository(Generic[ModelType]):
         - Quiz: Invalidate quiz:ID tag
         - Report: Invalidate report:ID tag
 
+        This method uses direct synchronous Redis access to avoid async/sync conflicts
+        in repository operations.
+
         Args:
             db_obj: Model instance that was mutated
         """
         try:
-            # Lazy import to avoid circular dependency at module level
-            from app.dependencies.service_dependencies import get_cache_service
+            # Lazy imports to avoid circular dependencies
+            import redis
+            from app.config import settings
 
-            # Note: get_cache_service() is async in service_dependencies.py
-            # For sync repository operations, we need sync cache access
-            # For now, skip cache invalidation (will be handled by service layer)
-            logger.debug(f"Cache invalidation skipped for {self.model.__name__} (async service)")
-            return
-
-            # TODO: Implement sync cache invalidation or refactor to async
-            # cache_service = get_cache_service()  # This is async
             model_name = self.model.__name__.lower()
 
-            # Get model ID
-            if hasattr(db_obj, 'id') and db_obj.id:
-                tag = f"{model_name}:{db_obj.id}"
-                cache_service.invalidate_by_tag(tag)
-                logger.debug(f"Cache invalidated for {tag}")
+            # Direct Redis access (sync) to avoid async/sync conflicts
+            try:
+                redis_client = redis.Redis.from_url(
+                    settings.REDIS_URL,
+                    decode_responses=True,
+                    socket_connect_timeout=2,
+                    socket_timeout=2
+                )
 
-            # Model-specific invalidations
+                # Test connection
+                redis_client.ping()
+
+            except (redis.ConnectionError, redis.TimeoutError) as e:
+                logger.warning(f"Redis connection failed, cache invalidation skipped: {e}")
+                return
+
+            # Invalidate specific item cache
+            if hasattr(db_obj, 'id') and db_obj.id:
+                # Pattern: cache:{model}:{id}:*
+                pattern = f"cache:{model_name}:{db_obj.id}:*"
+                keys = list(redis_client.scan_iter(match=pattern, count=100))
+                if keys:
+                    redis_client.delete(*keys)
+                    logger.debug(f"Invalidated {len(keys)} cache keys for {model_name}:{db_obj.id}")
+
+            # Invalidate list caches (queries, paginated results)
+            list_pattern = f"cache:{model_name}:list:*"
+            list_keys = list(redis_client.scan_iter(match=list_pattern, count=100))
+            if list_keys:
+                redis_client.delete(*list_keys)
+                logger.debug(f"Invalidated {len(list_keys)} list cache keys for {model_name}")
+
+            # Model-specific cache invalidations
             if model_name == 'patient':
                 # Invalidate doctor's patient list if patient has doctor_id
                 if hasattr(db_obj, 'doctor_id') and db_obj.doctor_id:
-                    doctor_tag = f"doctor:{db_obj.doctor_id}"
-                    cache_service.invalidate_by_tag(doctor_tag)
+                    doctor_pattern = f"cache:doctor:{db_obj.doctor_id}:*"
+                    doctor_keys = list(redis_client.scan_iter(match=doctor_pattern, count=100))
+                    if doctor_keys:
+                        redis_client.delete(*doctor_keys)
+                        logger.debug(f"Invalidated {len(doctor_keys)} cache keys for doctor:{db_obj.doctor_id}")
 
             elif model_name == 'quizsession':
                 # Invalidate patient's quiz list
                 if hasattr(db_obj, 'patient_id') and db_obj.patient_id:
-                    patient_tag = f"patient:{db_obj.patient_id}"
-                    cache_service.invalidate_by_tag(patient_tag)
+                    patient_pattern = f"cache:patient:{db_obj.patient_id}:quiz:*"
+                    patient_keys = list(redis_client.scan_iter(match=patient_pattern, count=100))
+                    if patient_keys:
+                        redis_client.delete(*patient_keys)
+                        logger.debug(f"Invalidated {len(patient_keys)} quiz cache keys for patient:{db_obj.patient_id}")
 
             elif model_name == 'medicalreport':
                 # Invalidate patient's report list
                 if hasattr(db_obj, 'patient_id') and db_obj.patient_id:
-                    patient_tag = f"patient:{db_obj.patient_id}"
-                    cache_service.invalidate_by_tag(patient_tag)
+                    patient_pattern = f"cache:patient:{db_obj.patient_id}:report:*"
+                    patient_keys = list(redis_client.scan_iter(match=patient_pattern, count=100))
+                    if patient_keys:
+                        redis_client.delete(*patient_keys)
+                        logger.debug(f"Invalidated {len(patient_keys)} report cache keys for patient:{db_obj.patient_id}")
+
+            # Close Redis connection
+            redis_client.close()
 
         except Exception as e:
-            # Log error but don't fail the mutation
-            logger.error(f"Cache invalidation error for {model_name}: {e}")
+            # Log error but don't fail the mutation - cache invalidation is non-critical
+            logger.warning(f"Cache invalidation failed for {self.model.__name__}: {e}", exc_info=True)

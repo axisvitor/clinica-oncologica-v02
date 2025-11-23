@@ -204,6 +204,9 @@ def get_simple_redis():
 
 def print_migration_guide():
     """Print migration guide for updating code"""
+    import logging
+    logger = logging.getLogger(__name__)
+
     guide = """
     ╔══════════════════════════════════════════════════════════════╗
     ║        Redis Client Migration Guide                          ║
@@ -279,7 +282,7 @@ def print_migration_guide():
 
     ════════════════════════════════════════════════════════════════
     """
-    print(guide)
+    logger.info(guide)
 
 
 if __name__ == "__main__":

@@ -1,16 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, Clock, ListFilter as Filter, Search, X, Download, RefreshCw, CheckCheck } from 'lucide-react'
-import { apiClient } from '../lib/api-client'
+import { apiClient } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { LoadingSpinner } from '../components/ui/loading-spinner'
-import { AlertCard } from '../components/alerts/AlertCard'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { AlertCard } from '@/features/alerts/AlertCard'
 import { useToast } from '@/components/ui/use-toast'
 import { Checkbox } from '@/components/ui/checkbox'
-import { createLogger } from '../lib/logger'
+import { createLogger } from '@/lib/logger'
 
 const logger = createLogger('AlertsPage')
 import {
@@ -67,7 +67,7 @@ export function AlertsPage() {
     queryFn: () => apiClient.alerts.list({
       page: currentPage,
       size: 20,
-      ...(filters.severity !== 'all' && { severity: filters.severity }),
+      ...(filters.severity !== 'all' && { severity: filters.severity as any }), // Cast to any to avoid strict type mismatch with string state
       ...(filters.acknowledged !== 'all' && { acknowledged: filters.acknowledged === 'true' })
     })
   })
@@ -81,11 +81,12 @@ export function AlertsPage() {
         description: 'O alerta foi marcado como reconhecido.',
       })
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       logger.error('Acknowledge error', { error })
+      const message = (error as { data?: { message?: string } }).data?.message || 'Ocorreu um erro inesperado.';
       toast({
         title: 'Erro ao reconhecer alerta',
-        description: error.data?.message || 'Ocorreu um erro inesperado.',
+        description: message,
         variant: 'destructive'
       })
     }
@@ -100,11 +101,12 @@ export function AlertsPage() {
         description: 'O alerta foi marcado como resolvido.',
       })
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       logger.error('Resolve error', { error })
+      const message = (error as { data?: { message?: string } }).data?.message || 'Ocorreu um erro inesperado.';
       toast({
         title: 'Erro ao resolver alerta',
-        description: error.data?.message || 'Ocorreu um erro inesperado.',
+        description: message,
         variant: 'destructive'
       })
     }
@@ -122,10 +124,11 @@ export function AlertsPage() {
         description: `${selectedAlerts.size} alertas foram reconhecidos com sucesso.`,
       })
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const message = (error as { message?: string }).message || 'Ocorreu um erro inesperado.';
       toast({
         title: 'Erro ao reconhecer alertas',
-        description: error.message || 'Ocorreu um erro inesperado.',
+        description: message,
         variant: 'destructive'
       })
     }
@@ -143,10 +146,11 @@ export function AlertsPage() {
         description: `${selectedAlerts.size} alertas foram resolvidos com sucesso.`,
       })
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const message = (error as { message?: string }).message || 'Ocorreu um erro inesperado.';
       toast({
         title: 'Erro ao resolver alertas',
-        description: error.message || 'Ocorreu um erro inesperado.',
+        description: message,
         variant: 'destructive'
       })
     }
@@ -157,13 +161,13 @@ export function AlertsPage() {
 
     // Apply type filter (client-side since backend doesn't support it)
     if (filters.type !== 'all') {
-      alerts = alerts.filter((alert: any) => alert.type === filters.type)
+      alerts = alerts.filter((alert) => alert.type === filters.type)
     }
 
     // Apply search filter (client-side)
     if (debouncedSearchQuery) {
       const query = debouncedSearchQuery.toLowerCase()
-      alerts = alerts.filter((alert: any) =>
+      alerts = alerts.filter((alert) =>
         alert.title?.toLowerCase().includes(query) ||
         alert.message?.toLowerCase().includes(query) ||
         alert.patient_name?.toLowerCase().includes(query)
@@ -177,9 +181,9 @@ export function AlertsPage() {
     const alerts = alertsData?.items || []
     return {
       total: alertsData?.total || 0,
-      unacknowledged: alerts.filter((a: any) => !a.is_acknowledged).length,
-      critical: alerts.filter((a: any) => a.severity === 'critical').length,
-      high: alerts.filter((a: any) => a.severity === 'high').length
+      unacknowledged: alerts.filter((a) => !a.is_acknowledged).length,
+      critical: alerts.filter((a) => a.severity === 'critical').length,
+      high: alerts.filter((a) => a.severity === 'high').length
     }
   }, [alertsData])
 
@@ -195,7 +199,7 @@ export function AlertsPage() {
     if (selectedAlerts.size === filteredAlerts.length) {
       setSelectedAlerts(new Set())
     } else {
-      setSelectedAlerts(new Set(filteredAlerts.map((a: any) => a.id)))
+      setSelectedAlerts(new Set(filteredAlerts.map((a) => a.id)))
     }
   }
 
@@ -218,7 +222,7 @@ export function AlertsPage() {
   }
 
   const handleExportAlerts = () => {
-    const csvData = filteredAlerts.map((alert: any) => ({
+    const csvData = filteredAlerts.map((alert) => ({
       'ID': alert.id,
       'Título': alert.title,
       'Mensagem': alert.message,
@@ -231,7 +235,7 @@ export function AlertsPage() {
     const headers: string[] = Object.keys(csvData[0] || {})
     const csvLines: string[] = [
       headers.join(','),
-      ...csvData.map((row: any) => headers.map((h: string) => `"${String(row[h as keyof typeof row] ?? '')}"`).join(','))
+      ...csvData.map((row) => headers.map((h: string) => `"${String(row[h as keyof typeof row] ?? '')}"`).join(','))
     ]
     const csv = csvLines.join('\n')
 
@@ -540,7 +544,7 @@ export function AlertsPage() {
                 </span>
               </div>
             )}
-            {filteredAlerts.map((alert: any) => (
+            {filteredAlerts.map((alert) => (
               <div key={alert.id} className="flex items-start gap-3">
                 <div className="pt-6">
                   <Checkbox

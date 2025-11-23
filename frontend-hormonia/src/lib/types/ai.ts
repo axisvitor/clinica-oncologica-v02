@@ -24,9 +24,14 @@ export interface ChatResponse {
   message: string
   confidence: number
   intent?: string
-  entities?: Record<string, any>
+  entities?: Record<string, unknown>
   suggestions?: string[]
   requires_human_review?: boolean
+}
+
+// Type for AI chat API response (matches backend structure)
+export interface AIChatResponse extends ChatResponse {
+  message: string
 }
 
 // Re-export from centralized types
@@ -67,16 +72,16 @@ export interface RecommendedAction {
 }
 
 export interface AnalysisRequest {
-  data: any
+  data: unknown
   analysis_type: 'sentiment' | 'pattern' | 'anomaly' | 'trend' | 'classification'
-  parameters?: Record<string, any>
+  parameters?: Record<string, unknown>
 }
 
 export interface AnalysisResult {
   type: string
-  result: any
+  result: unknown
   confidence: number
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
   created_at: string
 }
 
@@ -125,7 +130,7 @@ export interface AIFlowContext {
   patient_id: string
   flow_type: string
   current_day: number
-  patient_data: Record<string, any>
+  patient_data: Record<string, unknown>
   conversation_history: AIChatMessageImport[]
   preferences: PatientPreferences
 }
@@ -156,7 +161,7 @@ export interface AIGeneratedMessage {
 export interface AIEvent {
   type: 'insight_generated' | 'recommendation_created' | 'anomaly_detected' | 'sentiment_alert'
   patient_id?: string
-  data: any
+  data: unknown
   timestamp: string
   priority: 'low' | 'medium' | 'high' | 'critical'
 }
@@ -176,7 +181,7 @@ export interface AIConfig {
 export interface AIError {
   code: string
   message: string
-  details?: Record<string, any>
+  details?: Record<string, unknown>
   retry_after?: number
 }
 

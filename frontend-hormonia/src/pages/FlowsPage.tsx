@@ -1,9 +1,9 @@
 import React, { useState } from 'react'
 import { RefreshCw, AlertCircle } from 'lucide-react'
 import { useFlows, useFlowStats } from '@/hooks/useFlows'
-import { FlowsStats } from '@/components/flows/FlowsStats'
-import { FlowsTable } from '@/components/flows/FlowsTable'
-import { FlowsFilters } from '@/components/flows/FlowsFilters'
+import { FlowsStats } from '@/features/flows/FlowsStats'
+import { FlowsTable } from '@/features/flows/FlowsTable'
+import { FlowsFilters } from '@/features/flows/FlowsFilters'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 

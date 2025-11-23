@@ -15,18 +15,18 @@ import {
   Settings,
 } from "lucide-react";
 import { apiClient } from "../lib/api-client";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "@/app/providers/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { LoadingSpinner } from "../components/ui/loading-spinner";
-import { MetricCard } from "../components/dashboard/MetricCard";
-import { RecentActivity } from "../components/dashboard/RecentActivity";
-import { AlertsPanel } from "../components/dashboard/AlertsPanel";
-import { EngagementChart } from "../components/dashboard/EngagementChart";
-import QuickStats from "../components/dashboard/QuickStats";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { MetricCard } from "@/features/dashboard/MetricCard";
+import { RecentActivity } from "@/features/dashboard/RecentActivity";
+import { AlertsPanel } from "@/features/dashboard/AlertsPanel";
+import { EngagementChart } from "@/features/dashboard/EngagementChart";
+import QuickStats from "@/features/dashboard/QuickStats";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useRoleGuard, PermissionGate } from "@/components/auth/ProtectedRoute";
+import { useRoleGuard, PermissionGate } from "@/features/auth/ProtectedRoute";
 import { getRoleLabel } from "@/types/shared";
 import { Link } from "react-router-dom";
 

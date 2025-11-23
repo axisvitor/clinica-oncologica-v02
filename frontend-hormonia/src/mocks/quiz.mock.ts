@@ -6,7 +6,7 @@ export interface MockQuizTemplate {
   id: string
   title: string
   description: string
-  questions: any[]
+  questions: unknown[]
   is_active: boolean
   created_at: string
 }

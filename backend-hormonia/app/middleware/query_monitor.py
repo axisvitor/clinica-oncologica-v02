@@ -303,7 +303,8 @@ def monitor_queries(correlation_id: Optional[str] = None):
             # Execute queries
             results = db.query(Patient).all()
 
-        print(f"Executed {stats.total_queries} queries in {stats.total_time_ms}ms")
+        logger.info(f"Executed {stats.total_queries} queries in {stats.total_time_ms}ms",
+                    extra={"total_queries": stats.total_queries, "total_time_ms": stats.total_time_ms})
     """
     if correlation_id is None:
         correlation_id = str(uuid.uuid4())

@@ -5,9 +5,10 @@ Corresponds to the actual Supabase schema structure.
 from sqlalchemy import Column, String, Date, Integer, ForeignKey, Enum, Text, UniqueConstraint, Index, DateTime
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 import enum
 from typing import Dict, Any, Optional, TYPE_CHECKING
+from datetime import date, timedelta
 
 from app.models.base import BaseModel
 
@@ -52,8 +53,8 @@ class Patient(BaseModel):
     __tablename__ = "patients"
     
     # Basic information (matches Supabase schema exactly)
-    doctor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
-    phone = Column(String, nullable=False, index=True)
+    doctor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    phone = Column(String, nullable=False)
     name = Column(String, nullable=False)
     email = Column(String, nullable=True)
     birth_date = Column(Date, nullable=True)
@@ -70,7 +71,7 @@ class Patient(BaseModel):
 
     # Brazilian healthcare specific fields (now in dedicated columns after migration)
     # Migration: add_dedicated_patient_columns
-    cpf = Column(String(11), nullable=True, index=True)
+    cpf = Column(String(11), nullable=True)
     diagnosis = Column(Text, nullable=True, index=True)
     treatment_phase = Column(String(100), nullable=True, index=True)
     doctor_notes = Column(Text, nullable=True)
@@ -106,6 +107,7 @@ class Patient(BaseModel):
         passive_deletes=True
     )
     medical_reports = relationship("MedicalReport", back_populates="patient")
+    reports = relationship("Report", back_populates="patient")
     alerts = relationship("Alert", back_populates="patient")
 
     # Saga orchestrator relationship
@@ -138,24 +140,70 @@ class Patient(BaseModel):
         Index('idx_patient_cpf_doctor', 'cpf', 'doctor_id', postgresql_where=sa.text('cpf IS NOT NULL')),
     )
 
+    # =========================================================================
+    # VALIDATION METHODS (LOW-004, LOW-007)
+    # =========================================================================
+
+    @validates('birth_date')
+    def validate_birth_date_age(self, key, value: Optional[date]) -> Optional[date]:
+        """
+        Validate patient age at ORM level.
+
+        Reference: LOW-004 - birth_date Minimum Age Validation
+
+        Ensures patient is between 18 and 120 years old.
+        """
+        if value is None:
+            return value
+
+        today = date.today()
+
+        # Minimum 18 years old
+        min_date = today - timedelta(days=int(18 * 365.25))
+        if value > min_date:
+            age_years = (today - value).days / 365.25
+            raise ValueError(
+                f"Patient must be at least 18 years old. "
+                f"Birth date {value.isoformat()} indicates age of {age_years:.1f} years."
+            )
+
+        # Maximum 120 years old
+        max_date = today - timedelta(days=int(120 * 365.25))
+        if value < max_date:
+            age_years = (today - value).days / 365.25
+            raise ValueError(
+                f"Birth date {value.isoformat()} seems invalid "
+                f"(indicates age of {age_years:.1f} years, over 120 years old)."
+            )
+
+        # Not in the future
+        if value > today:
+            raise ValueError(f"Birth date {value.isoformat()} cannot be in the future.")
+
+        return value
+
+    @validates('patient_data')
+    def validate_metadata_schema(self, key, value: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """
+        Validate patient_data (metadata) against JSON schema at ORM level.
+
+        Reference: LOW-007 - JSONB Schema Validation
+
+        Ensures metadata conforms to defined schema.
+        """
+        if value is None or value == {}:
+            return value or {}
+
+        # Import here to avoid circular dependency
+        from app.utils.jsonb_validator import validate_patient_metadata
+
+        try:
+            return validate_patient_metadata(value)
+        except Exception as e:
+            raise ValueError(f"Invalid metadata schema: {str(e)}")
+
     # NOTE: cpf, diagnosis, treatment_phase, doctor_notes are now dedicated columns
     # No property accessors needed - they are direct column attributes
-
-    # Legacy compatibility methods for backward compatibility with old code
-    @property
-    def cpf_from_metadata(self) -> Optional[str]:
-        """Legacy: Get CPF (now from dedicated column, not metadata)."""
-        return self.cpf
-
-    @property
-    def diagnosis_from_metadata(self) -> Optional[str]:
-        """Legacy: Get diagnosis (now from dedicated column, not metadata)."""
-        return self.diagnosis
-
-    @property
-    def treatment_phase_from_metadata(self) -> Optional[str]:
-        """Legacy: Get treatment phase (now from dedicated column, not metadata)."""
-        return self.treatment_phase
 
     @property
     def doctor_name(self) -> Optional[str]:
@@ -185,50 +233,17 @@ class Patient(BaseModel):
             self.patient_data = {}
         self.patient_data.update(updates)
     
-    # Compatibility methods for legacy code
     @property
-    def patient_metadata(self) -> Optional[Dict[str, Any]]:
-        """Compatibility property for legacy code that uses patient_metadata."""
-        return self.patient_data
-    
-    @patient_metadata.setter
-    def patient_metadata(self, value: Optional[Dict[str, Any]]):
-        """Compatibility setter for legacy code."""
-        self.patient_data = value
-    
-    # NOTE: 'metadata' property removed due to SQLAlchemy conflict
-    # Use patient_data directly or patient_metadata for compatibility
-    
-    # Alternative field names for backwards compatibility
-    @property
-    def date_of_birth(self) -> Optional[Date]:
-        """Compatibility property for date_of_birth."""
-        return self.birth_date
-    
-    @date_of_birth.setter
-    def date_of_birth(self, value: Optional[Date]):
-        """Compatibility setter for date_of_birth."""
-        self.birth_date = value
-    
-    @property
-    def cancer_type(self) -> Optional[str]:
-        """Compatibility property for cancer_type (maps to treatment_type)."""
-        return self.treatment_type
-    
-    @cancer_type.setter
-    def cancer_type(self, value: Optional[str]):
-        """Compatibility setter for cancer_type."""
-        self.treatment_type = value
-    
-    @property
-    def treatment_stage(self) -> Optional[str]:
-        """Compatibility property for treatment_stage (maps to treatment_phase in metadata)."""
-        return self.treatment_phase
-    
-    @treatment_stage.setter
-    def treatment_stage(self, value: Optional[str]):
-        """Compatibility setter for treatment_stage."""
-        self.treatment_phase = value
+    def timezone(self) -> str:
+        """Get patient timezone from metadata (default: America/Sao_Paulo)."""
+        return self.patient_data.get('timezone', 'America/Sao_Paulo') if self.patient_data else 'America/Sao_Paulo'
+
+    @timezone.setter
+    def timezone(self, value: str):
+        """Set patient timezone in metadata."""
+        if not self.patient_data:
+            self.patient_data = {}
+        self.patient_data['timezone'] = value
     
     def __repr__(self):
         return f"<Patient(name='{self.name}', phone='{self.phone}')>"

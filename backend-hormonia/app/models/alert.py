@@ -41,7 +41,7 @@ class Alert(BaseModel):
     __tablename__ = "alerts"
 
     # Patient reference
-    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
 
     # Alert details - mapped to existing DB columns
     alert_type = Column("type", String(100), nullable=False)  # Maps to 'type' column
@@ -51,7 +51,7 @@ class Alert(BaseModel):
 
     # Acknowledgment tracking - maps to existing boolean field
     acknowledged = Column(Boolean, default=False, nullable=False)
-    acknowledged_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    acknowledged_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
     acknowledged_at = Column(DateTime(timezone=True), nullable=True)
 
     # Timestamps: align with DB (server_default now())

@@ -16,11 +16,12 @@ Legacy Files:
 
 from typing import List, Optional, Any, Dict, Callable, Tuple
 from uuid import UUID
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, time, timezone
 from dataclasses import dataclass
 from enum import Enum
 import logging
 import pytz
+import hashlib
 
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
@@ -148,6 +149,23 @@ class MessageService:
         self.db = db
         self.repository = MessageRepository(db)
 
+    def _generate_idempotency_key(
+        self,
+        patient_id: UUID,
+        content: str,
+        scheduled_for: datetime,
+        message_type: MessageType,
+    ) -> str:
+        """
+        Build deterministic idempotency key for message insertion.
+
+        Combines patient, type, scheduled time and content hash to prevent
+        duplicação de envios quando o mesmo payload é gerado mais de uma vez.
+        """
+        ts = scheduled_for.replace(microsecond=0).isoformat()
+        base = f"{patient_id}:{message_type.value}:{ts}:{content or ''}"
+        return hashlib.sha256(base.encode("utf-8")).hexdigest()
+
     @with_db_retry(max_retries=3)
     def create_message(self, message_data: MessageCreate) -> Message:
         """
@@ -160,6 +178,15 @@ class MessageService:
             Created Message object
         """
         message_dict = message_data.dict()
+        scheduled_time = message_dict.get("scheduled_for") or datetime.now(timezone.utc).replace(microsecond=0)
+        message_type = message_dict.get("type", MessageType.TEXT)
+        message_dict["scheduled_for"] = scheduled_time
+        message_dict["idempotency_key"] = self._generate_idempotency_key(
+            patient_id=message_dict["patient_id"],
+            content=message_dict.get("content"),
+            scheduled_for=scheduled_time,
+            message_type=message_type,
+        )
         return self.repository.create(message_dict)
 
     @with_db_retry(max_retries=3)
@@ -299,14 +326,22 @@ class MessageService:
         Returns:
             Scheduled Message object
         """
+        scheduled_time = (scheduled_for or datetime.now(timezone.utc)).replace(microsecond=0)
+        idempotency_key = self._generate_idempotency_key(
+            patient_id=patient_id,
+            content=content,
+            scheduled_for=scheduled_time,
+            message_type=message_type,
+        )
         message_data = {
             "patient_id": patient_id,
             "direction": MessageDirection.OUTBOUND,
             "type": message_type,
             "content": content,
-            "scheduled_for": scheduled_for,
+            "scheduled_for": scheduled_time,
             "message_metadata": message_metadata or {},
             "status": MessageStatus.PENDING,
+            "idempotency_key": idempotency_key,
         }
         return self.repository.create(message_data)
 
@@ -315,14 +350,7 @@ class MessageService:
         self, message_id: UUID, whatsapp_id: Optional[str] = None
     ) -> Optional[Message]:
         """
-        Mark message as sent.
-
-        Args:
-            message_id: Message UUID
-            whatsapp_id: Optional WhatsApp message ID
-
-        Returns:
-            Updated Message object or None
+        Mark message as sent (síncrono).
         """
         message = self.repository.get_by_id(message_id)
         if not message:
@@ -337,14 +365,7 @@ class MessageService:
     @with_db_retry(max_retries=3)
     def mark_as_failed(self, message_id: UUID, error_message: str) -> Optional[Message]:
         """
-        Mark message as failed.
-
-        Args:
-            message_id: Message UUID
-            error_message: Error description
-
-        Returns:
-            Updated Message object or None
+        Mark message as failed (síncrono).
         """
         message = self.repository.get_by_id(message_id)
         if not message:
@@ -354,13 +375,33 @@ class MessageService:
             "status": MessageStatus.FAILED,
             "delivery_status": DeliveryStatus.FAILED,
             "message_metadata": {
-                **message.message_metadata,
+                **(message.message_metadata or {}),
                 "error": error_message,
                 "failed_at": datetime.utcnow().isoformat(),
             },
         }
 
         return self.repository.update(message, update_data)
+
+    async def mark_as_sent_async(
+        self, message_id: UUID, whatsapp_id: Optional[str] = None
+    ) -> Optional[Message]:
+        """
+        Versão async: executa em thread para não bloquear o loop.
+        """
+        import asyncio
+
+        return await asyncio.to_thread(self.mark_as_sent, message_id, whatsapp_id)
+
+    async def mark_as_failed_async(
+        self, message_id: UUID, error_message: str
+    ) -> Optional[Message]:
+        """
+        Versão async: executa em thread para não bloquear o loop.
+        """
+        import asyncio
+
+        return await asyncio.to_thread(self.mark_as_failed, message_id, error_message)
 
 
 # ============================================================================

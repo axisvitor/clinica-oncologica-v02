@@ -1,0 +1,199 @@
+===============================================================================
+MIGRATION 003 INVESTIGATION - QUICK REFERENCE
+===============================================================================
+
+PROBLEM:
+  Migration 003 (add_last_retry_at) is MISSING from alembic_version table
+  Current state: [002] → ??? → [004]
+
+PRIORITY: P0 (Critical)
+
+===============================================================================
+QUICK START (For Database Administrator)
+===============================================================================
+
+1. RUN INVESTIGATION SCRIPT:
+   ─────────────────────────────────────────────────────────────────────────
+   cd backend-hormonia
+   python scripts/migration_investigation/investigate_migration_003.py
+
+2. CHECK EXIT CODE:
+   ─────────────────────────────────────────────────────────────────────────
+   echo $?
+
+   Exit Code Meaning:
+   • 0 = All correct (no action needed) ✅
+   • 1 = Applied but not recorded (simple fix) ⚠️
+   • 2 = Never applied (critical issue) 🔴
+   • 3 = Inconsistent state (manual investigation) 🟡
+
+3. APPLY FIX BASED ON EXIT CODE:
+   ─────────────────────────────────────────────────────────────────────────
+
+   IF EXIT CODE = 1 (Most Likely):
+   ───────────────────────────────
+   psql $DATABASE_URL -c "INSERT INTO alembic_version (version_num) VALUES ('003_add_last_retry_at');"
+
+   IF EXIT CODE = 2 (Critical):
+   ───────────────────────────────
+   # Create new idempotent migration
+   cd backend-hormonia
+   alembic revision -m "add_missing_last_retry_at_column"
+   # Edit migration file (see docs for example)
+   alembic upgrade head
+
+   IF EXIT CODE = 3 (Unknown):
+   ───────────────────────────────
+   # Review script output and JSON file
+   cat docs/database/MIGRATION_003_INVESTIGATION.json
+   # Contact development team
+
+4. VERIFY FIX:
+   ─────────────────────────────────────────────────────────────────────────
+   python scripts/migration_investigation/investigate_migration_003.py
+   echo $?  # Should be 0
+
+===============================================================================
+MIGRATION 003 DETAILS
+===============================================================================
+
+Revision ID:    003_add_last_retry_at
+Revises:        002_patient_onboarding_saga
+Table:          patient_onboarding_saga
+Column Added:   last_retry_at (timestamp with time zone, nullable)
+Index Added:    idx_patient_onboarding_saga_last_retry
+
+Purpose:        Track when last retry attempt was made for saga pattern
+
+Used By:        app/coordination/saga_orchestrator.py
+Impact:         Critical - Saga retry mechanism depends on this column
+
+===============================================================================
+FILES CREATED
+===============================================================================
+
+1. Investigation Script
+   └─ scripts/migration_investigation/investigate_migration_003.py
+      Automated database schema and version check (323 lines)
+
+2. Documentation
+   ├─ docs/database/MIGRATION_003_INVESTIGATION.md
+   │  Complete investigation report with scenarios and solutions (478 lines)
+   │
+   ├─ docs/database/MIGRATION_003_EXECUTIVE_SUMMARY.md
+   │  Executive summary for quick decision making (250+ lines)
+   │
+   └─ scripts/migration_investigation/README.md
+      Quick start guide for running the script (298 lines)
+
+3. This File
+   └─ MIGRATION_003_QUICK_REFERENCE.txt
+      One-page reference (this file)
+
+===============================================================================
+MANUAL SQL CHECKS (Optional)
+===============================================================================
+
+# Check if migration 003 is recorded
+psql $DATABASE_URL -c "SELECT * FROM alembic_version WHERE version_num = '003_add_last_retry_at';"
+
+# Check if column exists
+psql $DATABASE_URL -c "SELECT column_name FROM information_schema.columns WHERE table_name = 'patient_onboarding_saga' AND column_name = 'last_retry_at';"
+
+# Check if index exists
+psql $DATABASE_URL -c "SELECT indexname FROM pg_indexes WHERE indexname = 'idx_patient_onboarding_saga_last_retry';"
+
+# Check all migrations
+psql $DATABASE_URL -c "SELECT version_num FROM alembic_version ORDER BY version_num;"
+
+===============================================================================
+RISK ASSESSMENT
+===============================================================================
+
+Scenario 1 (Applied but not recorded):
+  Risk:       LOW ⚠️
+  Impact:     None (schema is correct)
+  Fix:        Simple SQL INSERT
+  Downtime:   None required
+  Time:       5 minutes
+
+Scenario 2 (Never applied):
+  Risk:       HIGH 🔴
+  Impact:     CRITICAL (application may fail)
+  Fix:        Create new migration
+  Downtime:   Possible (for migration)
+  Time:       30-60 minutes
+
+===============================================================================
+SUPPORT & DOCUMENTATION
+===============================================================================
+
+Full Investigation Report:
+  → docs/database/MIGRATION_003_INVESTIGATION.md
+
+Executive Summary:
+  → docs/database/MIGRATION_003_EXECUTIVE_SUMMARY.md
+
+Script Usage Guide:
+  → scripts/migration_investigation/README.md
+
+Migration Source Code:
+  → alembic/versions/003_add_last_retry_at.py
+
+Coordination Memory:
+  → npx claude-flow@alpha memory retrieve migration-003-status
+
+===============================================================================
+COORDINATION STATUS
+===============================================================================
+
+Agent:           Database Migration Inspector (Agent 31)
+Task ID:         migration-003-investigation
+Status:          ✅ COMPLETE
+Pre-task hook:   ✅ Executed
+Post-task hook:  ✅ Executed
+Memory stored:   ✅ migration-003-status
+Deliverables:    ✅ 3 files + script
+
+Next Agent:      Database Administrator (manual execution required)
+
+===============================================================================
+VERIFICATION CHECKLIST
+===============================================================================
+
+[ ] Investigation script runs successfully
+[ ] Exit code checked and understood
+[ ] Appropriate fix identified
+[ ] Backup taken before applying fix
+[ ] Fix applied (SQL or migration)
+[ ] Verification run shows exit code 0
+[ ] Application tested (saga retry scheduling)
+[ ] Team notified of resolution
+
+===============================================================================
+IMPORTANT NOTES
+===============================================================================
+
+✓ Investigation script only READS database (safe to run in production)
+✓ Script runs in 1-3 seconds (very fast)
+✓ All scenarios have documented resolutions
+✓ Script is idempotent (can run multiple times)
+✗ DO NOT apply migration 003 directly (use catch-up migration if needed)
+✗ DO NOT skip verification step after fix
+
+===============================================================================
+CONTACT
+===============================================================================
+
+Questions about:
+  • Script usage      → See scripts/migration_investigation/README.md
+  • Scenarios         → See docs/database/MIGRATION_003_INVESTIGATION.md
+  • Database fix      → Contact database administrator
+  • Application code  → Contact backend development team
+
+===============================================================================
+END OF QUICK REFERENCE
+===============================================================================
+Generated: 2025-11-16
+Agent: Database Migration Inspector (Agent 31)
+Status: Investigation Complete - Awaiting Execution

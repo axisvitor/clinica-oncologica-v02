@@ -1,0 +1,74 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║          MEDIUM-012: i18n Implementation - File Reference                 ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+📁 ABSOLUTE FILE PATHS
+
+CORE IMPLEMENTATION:
+───────────────────────────────────────────────────────────────────────────
+/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/requirements.txt
+/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/config/i18n.py
+/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/locales/pt-BR.json
+/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/locales/en-US.json
+/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/middleware/i18n_middleware.py
+/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/exceptions/i18n_exceptions.py
+/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/utils/pydantic_i18n.py
+
+TOOLS & TESTING:
+───────────────────────────────────────────────────────────────────────────
+/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/scripts/extract_translatable_strings.py
+/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/tests/api/test_i18n.py
+
+DOCUMENTATION:
+───────────────────────────────────────────────────────────────────────────
+/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/docs/guides/I18N_USAGE_GUIDE.md
+/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/docs/implementation/MEDIUM-012-I18N-IMPLEMENTATION.md
+/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/MEDIUM-012-COMPLETION-SUMMARY.md
+
+📊 FILE STATISTICS:
+───────────────────────────────────────────────────────────────────────────
+Core Code:          1,574 lines (7 files)
+Tests:                401 lines (1 file)
+Documentation:         29 KB (3 files)
+Translation Strings:  180+ strings (2 languages)
+Exception Classes:     30+ classes
+Test Cases:            30+ tests
+
+🎯 QUICK ACCESS COMMANDS:
+───────────────────────────────────────────────────────────────────────────
+
+# View configuration
+cat backend-hormonia/app/config/i18n.py
+
+# View Portuguese translations
+cat backend-hormonia/app/locales/pt-BR.json | jq
+
+# View English translations
+cat backend-hormonia/app/locales/en-US.json | jq
+
+# View exception classes
+cat backend-hormonia/app/exceptions/i18n_exceptions.py | grep "^class"
+
+# Run tests
+pytest backend-hormonia/tests/api/test_i18n.py -v
+
+# Extract hardcoded strings
+python backend-hormonia/scripts/extract_translatable_strings.py
+
+# View usage guide
+cat backend-hormonia/docs/guides/I18N_USAGE_GUIDE.md
+
+# View implementation report
+cat backend-hormonia/docs/implementation/MEDIUM-012-I18N-IMPLEMENTATION.md
+
+🚀 INTEGRATION CHECKLIST:
+───────────────────────────────────────────────────────────────────────────
+□ Install dependencies: pip install -r requirements.txt
+□ Add middleware to main.py: app.add_middleware(I18nMiddleware)
+□ Import exceptions: from app.exceptions.i18n_exceptions import *
+□ Replace HTTPException with i18n exceptions
+□ Add Pydantic error translation
+□ Test with both locales
+□ Run extraction script
+□ Update documentation
+

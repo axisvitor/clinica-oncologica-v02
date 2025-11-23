@@ -1,10 +1,10 @@
 import React from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useMedicoAuth } from '../../contexts/MedicoAuthContext'
+import { useMedicoAuth } from '@/app/providers/MedicoAuthContext'
 import { useMedicoDashboardStats } from '@/hooks/api/useMedicoDashboardStats'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
-import { createLogger } from '../../lib/logger'
+import { createLogger } from '@/lib/logger'
 
 const logger = createLogger('MedicoDashboard')
 

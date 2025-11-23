@@ -1,13 +1,14 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Play, Eye, Users, CheckCircle, Send, Clock } from 'lucide-react'
-import { apiClient } from '../lib/api-client'
+import { apiClient } from '@/lib/api-client'
+import { getErrorMessage } from '@/lib/utils/type-guards'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { LoadingSpinner } from '../components/ui/loading-spinner'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { useToast } from '@/components/ui/use-toast'
-import { MonthlyQuizStatus } from '@/components/patients/MonthlyQuizStatus'
+import { MonthlyQuizStatus } from '@/features/patients/MonthlyQuizStatus'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table,
@@ -80,10 +81,10 @@ export function QuizPage() {
       setSelectedTemplate('')
       setSelectedPatient('')
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Erro ao iniciar questionário',
-        description: error.data?.message || 'Ocorreu um erro inesperado.',
+        description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
         variant: 'destructive'
       })
     }
@@ -164,7 +165,7 @@ export function QuizPage() {
                     <SelectValue placeholder="Selecione um paciente" />
                   </SelectTrigger>
                   <SelectContent>
-                    {patientsData?.items?.map((patient: any) => (
+                    {patientsData?.items?.map((patient) => (
                       <SelectItem key={patient.id} value={patient.id}>
                         {patient.name}
                       </SelectItem>
@@ -180,7 +181,7 @@ export function QuizPage() {
                     <SelectValue placeholder="Selecione um template" />
                   </SelectTrigger>
                   <SelectContent>
-                    {templatesData?.items?.map((template: any) => (
+                    {templatesData?.items?.map((template) => (
                       <SelectItem key={template.id} value={template.id}>
                         {template.name}
                       </SelectItem>
@@ -309,7 +310,7 @@ export function QuizPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {templatesData?.items?.map((template: any) => (
+              {templatesData?.items?.map((template) => (
                 <Card key={template.id} className="hover:shadow-md transition-shadow">
                   <CardHeader>
                     <CardTitle className="text-lg">{template.name}</CardTitle>
@@ -320,7 +321,7 @@ export function QuizPage() {
                   <CardContent>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-500">
-                        {template.questions?.length || 0} perguntas
+                        {template.questions_count || 0} perguntas
                       </span>
                       <Badge variant="outline">Ativo</Badge>
                     </div>
@@ -385,11 +386,11 @@ export function QuizPage() {
               </TableHeader>
               <TableBody>
                 {activeLinks
-                  .filter((link: any) => {
+                  .filter((link) => {
                     if (linkStatusFilter === 'all') return true
                     return link.status === linkStatusFilter
                   })
-                  .map((link: any) => (
+                  .map((link) => (
                     <TableRow key={link.id}>
                       <TableCell>
                         <div>
@@ -405,7 +406,7 @@ export function QuizPage() {
                       </TableCell>
                       <TableCell>
                         <MonthlyQuizStatus
-                          status={link.status === 'active' ? 'sent' : link.status}
+                          status={link.status === 'sent' ? 'sent' : link.status}
                           lastSent={link.sent_at}
                           completionDate={link.completed_at}
                           expiresAt={link.expires_at}
@@ -476,7 +477,7 @@ export function QuizPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sessionsData?.items?.map((session: any) => (
+                {sessionsData?.items?.map((session) => (
                   <TableRow key={session.id}>
                     <TableCell>
                       <div>

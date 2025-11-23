@@ -8,7 +8,7 @@ from typing import List, Optional, Any, Tuple, Union
 from datetime import datetime, timedelta
 from enum import Enum
 from uuid import UUID, uuid4
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 
 from app.services.response_processor import (
     ResponseProcessingResult,
@@ -34,7 +34,7 @@ from app.repositories.message import MessageRepository
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
 from app.domain.messaging.delivery import MessageSender
-from app.services.message_scheduler import MessageScheduler
+from app.domain.messaging.scheduling import MessageScheduler
 from app.exceptions import NotFoundError, ValidationError
 
 logger = logging.getLogger(__name__)
@@ -151,7 +151,7 @@ class FollowUpSystemService:
     escalations, and healthcare provider notifications.
     """
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         """
         Initialize follow-up system service.
         
@@ -1176,7 +1176,7 @@ class FollowUpSystemService:
 _follow_up_system_service: Optional[FollowUpSystemService] = None
 
 
-def get_follow_up_system_service(db: Session) -> FollowUpSystemService:
+def get_follow_up_system_service(db: Any) -> FollowUpSystemService:
     """
     Get follow-up system service instance.
     

@@ -12,7 +12,7 @@ import statistics
 import json
 from collections import defaultdict, deque
 
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 from sqlalchemy import text
 from redis import Redis
 
@@ -68,7 +68,7 @@ class PerformanceBottleneck:
 class PerformanceMonitoringService:
     """Service for monitoring system performance and detecting bottlenecks."""
     
-    def __init__(self, db: Session, redis: Redis, flow_repository: FlowStateRepository):
+    def __init__(self, db: Any, redis: Redis, flow_repository: FlowStateRepository):
         self.db = db
         self.redis = redis
         self.flow_repository = flow_repository

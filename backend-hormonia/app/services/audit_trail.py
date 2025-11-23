@@ -10,7 +10,7 @@ from datetime import datetime
 from uuid import UUID, uuid4
 from enum import Enum
 from dataclasses import dataclass, field
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 from sqlalchemy import Column, String, DateTime, Text, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
 
@@ -108,7 +108,7 @@ class AuditTrailService:
     - Real-time audit event streaming
     """
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         """
         Initialize audit trail service.
         
@@ -553,7 +553,7 @@ class AuditTrailService:
 # Global audit trail service instance
 _audit_trail_service = None
 
-def get_audit_trail_service(db: Session) -> AuditTrailService:
+def get_audit_trail_service(db: Any) -> AuditTrailService:
     """Get audit trail service instance."""
     global _audit_trail_service
     if _audit_trail_service is None:

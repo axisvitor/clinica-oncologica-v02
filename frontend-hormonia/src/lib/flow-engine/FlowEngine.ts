@@ -16,7 +16,7 @@ import type {
 } from './types'
 import { apiClient } from '../api-client'
 import { createLogger } from '../logger'
-import { smartMapFlowResponse } from '../mappers/flowResponseMapper'
+import { smartMapFlowResponse } from './mappers/flowResponseMapper'
 import EventEmitter from 'eventemitter3'
 
 const logger = createLogger('FlowEngine')
@@ -57,9 +57,9 @@ export class FlowEngine extends EventEmitter {
   // Load flow templates
   async loadTemplates(): Promise<void> {
     try {
-      const templates: FlowTemplate[] = await apiClient.flows.getTemplates()
-      templates.forEach((template: FlowTemplate) => {
-        this.templates.set(template.flow_type, template)
+      const templates = await apiClient.flows.getTemplates()
+      templates.forEach((template) => {
+        this.templates.set(template.flow_type as FlowType, template as unknown as FlowTemplate)
       })
       logger.info('Flow templates loaded', { count: templates.length })
     } catch (error) {
@@ -72,10 +72,12 @@ export class FlowEngine extends EventEmitter {
     try {
       const flowState = await apiClient.flows.getState(patientId)
       if (flowState) {
-        this.activeFlows.set(patientId, flowState)
-        logger.debug('Flow state retrieved', { patientId, flowType: flowState.flow_type })
+        const state = flowState as unknown as FlowState
+        this.activeFlows.set(patientId, state)
+        logger.debug('Flow state retrieved', { patientId, flowType: state.flow_type })
+        return state
       }
-      return flowState
+      return null
     } catch (error) {
       logger.error('Failed to get flow state', { patientId, error })
       return null
@@ -138,7 +140,7 @@ export class FlowEngine extends EventEmitter {
   async pauseFlow(patientId: string): Promise<FlowState> {
     try {
       logger.info('Pausing flow', { patientId })
-      const flowState = await apiClient.flows.pause(patientId)
+      const flowState = await apiClient.flows.pause(patientId) as unknown as FlowState
       this.activeFlows.set(patientId, flowState)
 
       this.emit('flow_paused', {
@@ -160,7 +162,7 @@ export class FlowEngine extends EventEmitter {
   async resumeFlow(patientId: string): Promise<FlowState> {
     try {
       logger.info('Resuming flow', { patientId })
-      const flowState = await apiClient.flows.resume(patientId)
+      const flowState = await apiClient.flows.resume(patientId) as unknown as FlowState
       this.activeFlows.set(patientId, flowState)
 
       this.emit('flow_resumed', {
@@ -220,9 +222,9 @@ export class FlowEngine extends EventEmitter {
     const stateMachine = this.stateMachines.get(flowType)
     if (!stateMachine) return false
 
-    const transition = stateMachine.transitions.find(t => 
-      (t.from_state === fromState || t.from_state === '*') && 
-      t.to_state === toState && 
+    const transition = stateMachine.transitions.find(t =>
+      (t.from_state === fromState || t.from_state === '*') &&
+      t.to_state === toState &&
       t.trigger === trigger
     )
 
@@ -232,7 +234,8 @@ export class FlowEngine extends EventEmitter {
   // Get template for specific flow and day
   getMessageTemplate(flowType: FlowType, day: number): MessageTemplate | null {
     const template = this.templates.get(flowType)
-    return template?.messages[day] || null
+    if (!template || !template.messages) return null
+    return template.messages[day] || null
   }
 
   // Get all active flows
@@ -245,7 +248,7 @@ export class FlowEngine extends EventEmitter {
     try {
       const analytics = await apiClient.flows.getAnalytics()
       logger.debug('Flow analytics retrieved', { analytics })
-      return analytics as Record<string, unknown>
+      return analytics as unknown as Record<string, unknown>
     } catch (error) {
       logger.error('Failed to get flow analytics', { error })
       return null
@@ -266,7 +269,7 @@ export class FlowEngine extends EventEmitter {
     try {
       // Node processing logic would go here
       context.history.push(step)
-      
+
       return {
         success: true
       }
@@ -274,7 +277,7 @@ export class FlowEngine extends EventEmitter {
       step.result = 'failure'
       step.error = error instanceof Error ? error.message : 'Unknown error'
       context.history.push(step)
-      
+
       return {
         success: false,
         error: step.error
@@ -290,7 +293,7 @@ export class FlowEngine extends EventEmitter {
     contextData: Record<string, unknown>
   ): ConditionEvaluationResult {
     const actualValue = contextData[field]
-    
+
     let passed = false
     switch (operator) {
       case 'equals':

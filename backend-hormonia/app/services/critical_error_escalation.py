@@ -11,7 +11,7 @@ from enum import Enum
 from dataclasses import dataclass
 import json
 
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 from redis import Redis
 
 from app.services.flow_monitoring import FlowMonitoringService, AlertSeverity
@@ -61,7 +61,7 @@ class ActiveEscalation:
 class CriticalErrorEscalationService:
     """Service for escalating critical errors and managing notifications."""
     
-    def __init__(self, db: Session, redis: Redis, 
+    def __init__(self, db: Any, redis: Redis, 
                  monitoring_service: FlowMonitoringService,
                  websocket_service: WebSocketEventService):
         self.db = db

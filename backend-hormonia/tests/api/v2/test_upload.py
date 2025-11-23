@@ -18,6 +18,7 @@ Tests cover:
 import pytest
 import io
 import hashlib
+import json
 from datetime import datetime, timedelta
 from uuid import uuid4, UUID
 from pathlib import Path
@@ -61,6 +62,7 @@ def test_user(db_session):
         name="Test User",
         role=UserRole.DOCTOR,
         is_active=True,
+        firebase_uid="test_firebase_uid"
     )
     db_session.add(user)
     db_session.commit()
@@ -69,8 +71,8 @@ def test_user(db_session):
 
 @pytest.fixture
 def auth_headers(test_user):
-    """Create authentication headers."""
-    return {"Authorization": f"Bearer test-token-{test_user.id}"}
+    """Create authentication headers with Session ID."""
+    return {"X-Session-ID": f"test-session-{test_user.id}"}
 
 
 @pytest.fixture
@@ -113,6 +115,7 @@ class TestUploadEndpoint:
         self,
         client: TestClient,
         auth_headers,
+        test_user,
         sample_image_file,
         mock_redis_client,
         tmp_path,
@@ -120,13 +123,15 @@ class TestUploadEndpoint:
         """Test successful image upload."""
         filename, file_data, content_type = sample_image_file
 
-        with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
-            with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
-                response = client.post(
-                    "/api/v2/upload/",
-                    files={"file": (filename, file_data, content_type)},
-                    headers=auth_headers,
-                )
+        # Mock get_current_user_object_from_session
+        with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
+            with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
+                with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
+                    response = client.post(
+                        "/api/v2/upload/",
+                        files={"file": (filename, file_data, content_type)},
+                        headers=auth_headers,
+                    )
 
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
@@ -161,6 +166,7 @@ class TestUploadEndpoint:
         self,
         client: TestClient,
         auth_headers,
+        test_user,
         sample_image_file,
         mock_redis_client,
         tmp_path,
@@ -168,28 +174,29 @@ class TestUploadEndpoint:
         """Test image upload with thumbnail generation."""
         filename, file_data, content_type = sample_image_file
 
-        with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
-            with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
-                with patch("app.api.v2.upload.get_image_metadata") as mock_img_meta:
-                    # Mock image metadata
-                    mock_img_meta.return_value = Mock(
-                        width=100,
-                        height=100,
-                        format="png",
-                        has_alpha=False,
-                        color_mode="RGB",
-                    )
+        with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
+            with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
+                with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
+                    with patch("app.api.v2.upload.get_image_metadata") as mock_img_meta:
+                        # Mock image metadata
+                        mock_img_meta.return_value = Mock(
+                            width=100,
+                            height=100,
+                            format="png",
+                            has_alpha=False,
+                            color_mode="RGB",
+                        )
 
-                    response = client.post(
-                        "/api/v2/upload/",
-                        files={"file": (filename, file_data, content_type)},
-                        params={
-                            "generate_thumbnail": True,
-                            "generate_preview": True,
-                            "quality": 90,
-                        },
-                        headers=auth_headers,
-                    )
+                        response = client.post(
+                            "/api/v2/upload/",
+                            files={"file": (filename, file_data, content_type)},
+                            params={
+                                "generate_thumbnail": True,
+                                "generate_preview": True,
+                                "quality": 90,
+                            },
+                            headers=auth_headers,
+                        )
 
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
@@ -205,6 +212,7 @@ class TestUploadEndpoint:
         self,
         client: TestClient,
         auth_headers,
+        test_user,
         sample_image_file,
         mock_redis_client,
         tmp_path,
@@ -212,17 +220,18 @@ class TestUploadEndpoint:
         """Test image upload with resizing."""
         filename, file_data, content_type = sample_image_file
 
-        with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
-            with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
-                response = client.post(
-                    "/api/v2/upload/",
-                    files={"file": (filename, file_data, content_type)},
-                    params={
-                        "resize_width": 800,
-                        "quality": 85,
-                    },
-                    headers=auth_headers,
-                )
+        with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
+            with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
+                with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
+                    response = client.post(
+                        "/api/v2/upload/",
+                        files={"file": (filename, file_data, content_type)},
+                        params={
+                            "resize_width": 800,
+                            "quality": 85,
+                        },
+                        headers=auth_headers,
+                    )
 
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
@@ -232,6 +241,7 @@ class TestUploadEndpoint:
         self,
         client: TestClient,
         auth_headers,
+        test_user,
         sample_pdf_file,
         mock_redis_client,
         tmp_path,
@@ -239,13 +249,14 @@ class TestUploadEndpoint:
         """Test successful PDF upload."""
         filename, file_data, content_type = sample_pdf_file
 
-        with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
-            with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
-                response = client.post(
-                    "/api/v2/upload/",
-                    files={"file": (filename, file_data, content_type)},
-                    headers=auth_headers,
-                )
+        with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
+            with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
+                with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
+                    response = client.post(
+                        "/api/v2/upload/",
+                        files={"file": (filename, file_data, content_type)},
+                        headers=auth_headers,
+                    )
 
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
@@ -261,6 +272,7 @@ class TestUploadEndpoint:
         self,
         client: TestClient,
         auth_headers,
+        test_user,
         sample_text_file,
         mock_redis_client,
         tmp_path,
@@ -268,13 +280,14 @@ class TestUploadEndpoint:
         """Test successful text file upload."""
         filename, file_data, content_type = sample_text_file
 
-        with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
-            with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
-                response = client.post(
-                    "/api/v2/upload/",
-                    files={"file": (filename, file_data, content_type)},
-                    headers=auth_headers,
-                )
+        with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
+            with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
+                with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
+                    response = client.post(
+                        "/api/v2/upload/",
+                        files={"file": (filename, file_data, content_type)},
+                        headers=auth_headers,
+                    )
 
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
@@ -285,6 +298,7 @@ class TestUploadEndpoint:
         self,
         client: TestClient,
         auth_headers,
+        test_user,
         sample_image_file,
         mock_redis_client,
         tmp_path,
@@ -292,14 +306,15 @@ class TestUploadEndpoint:
         """Test upload with field selection."""
         filename, file_data, content_type = sample_image_file
 
-        with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
-            with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
-                response = client.post(
-                    "/api/v2/upload/",
-                    files={"file": (filename, file_data, content_type)},
-                    params={"fields": "id,url,file"},
-                    headers=auth_headers,
-                )
+        with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
+            with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
+                with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
+                    response = client.post(
+                        "/api/v2/upload/",
+                        files={"file": (filename, file_data, content_type)},
+                        params={"fields": "id,url,file"},
+                        headers=auth_headers,
+                    )
 
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
@@ -313,6 +328,7 @@ class TestUploadEndpoint:
         self,
         client: TestClient,
         auth_headers,
+        test_user,
         mock_redis_client,
         tmp_path,
     ):
@@ -321,13 +337,14 @@ class TestUploadEndpoint:
         large_data = b"x" * (51 * 1024 * 1024)
         filename = "large_file.bin"
 
-        with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
-            with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
-                response = client.post(
-                    "/api/v2/upload/",
-                    files={"file": (filename, io.BytesIO(large_data), "application/octet-stream")},
-                    headers=auth_headers,
-                )
+        with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
+            with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
+                with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
+                    response = client.post(
+                        "/api/v2/upload/",
+                        files={"file": (filename, io.BytesIO(large_data), "application/octet-stream")},
+                        headers=auth_headers,
+                    )
 
         assert response.status_code == status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
         data = response.json()
@@ -337,6 +354,7 @@ class TestUploadEndpoint:
         self,
         client: TestClient,
         auth_headers,
+        test_user,
         mock_redis_client,
         tmp_path,
     ):
@@ -345,13 +363,14 @@ class TestUploadEndpoint:
         data = b"fake executable data"
         filename = "malware.exe"
 
-        with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
-            with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
-                response = client.post(
-                    "/api/v2/upload/",
-                    files={"file": (filename, io.BytesIO(data), "application/x-executable")},
-                    headers=auth_headers,
-                )
+        with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
+            with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
+                with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
+                    response = client.post(
+                        "/api/v2/upload/",
+                        files={"file": (filename, io.BytesIO(data), "application/x-executable")},
+                        headers=auth_headers,
+                    )
 
         assert response.status_code == status.HTTP_415_UNSUPPORTED_MEDIA_TYPE
         data = response.json()
@@ -361,6 +380,7 @@ class TestUploadEndpoint:
         self,
         client: TestClient,
         auth_headers,
+        test_user,
         mock_redis_client,
         tmp_path,
     ):
@@ -368,13 +388,14 @@ class TestUploadEndpoint:
         data = b"fake script"
         filename = "script.sh"
 
-        with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
-            with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
-                response = client.post(
-                    "/api/v2/upload/",
-                    files={"file": (filename, io.BytesIO(data), "text/plain")},
-                    headers=auth_headers,
-                )
+        with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
+            with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
+                with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
+                    response = client.post(
+                        "/api/v2/upload/",
+                        files={"file": (filename, io.BytesIO(data), "text/plain")},
+                        headers=auth_headers,
+                    )
 
         # Should be rejected due to dangerous extension
         assert response.status_code in [
@@ -386,6 +407,7 @@ class TestUploadEndpoint:
         self,
         client: TestClient,
         auth_headers,
+        test_user,
         sample_image_file,
         mock_redis_client,
         tmp_path,
@@ -396,13 +418,14 @@ class TestUploadEndpoint:
         # Mock rate limit exceeded
         mock_redis_client.get = AsyncMock(return_value="25")  # Over limit
 
-        with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
-            with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
-                response = client.post(
-                    "/api/v2/upload/",
-                    files={"file": (filename, file_data, content_type)},
-                    headers=auth_headers,
-                )
+        with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
+            with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
+                with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
+                    response = client.post(
+                        "/api/v2/upload/",
+                        files={"file": (filename, file_data, content_type)},
+                        headers=auth_headers,
+                    )
 
         assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
         data = response.json()
@@ -412,6 +435,7 @@ class TestUploadEndpoint:
         self,
         client: TestClient,
         auth_headers,
+        test_user,
         sample_image_file,
         mock_redis_client,
         tmp_path,
@@ -419,15 +443,16 @@ class TestUploadEndpoint:
         """Test upload fails when virus detected."""
         filename, file_data, content_type = sample_image_file
 
-        with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
-            with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
-                with patch("app.api.v2.upload.scan_virus", return_value=False):
-                    response = client.post(
-                        "/api/v2/upload/",
-                        files={"file": (filename, file_data, content_type)},
-                        params={"scan_virus": True},
-                        headers=auth_headers,
-                    )
+        with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
+            with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
+                with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
+                    with patch("app.api.v2.upload.scan_virus", return_value=False):
+                        response = client.post(
+                            "/api/v2/upload/",
+                            files={"file": (filename, file_data, content_type)},
+                            params={"scan_virus": True},
+                            headers=auth_headers,
+                        )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         data = response.json()
@@ -437,6 +462,7 @@ class TestUploadEndpoint:
         self,
         client: TestClient,
         auth_headers,
+        test_user,
         sample_image_file,
         mock_redis_client,
         tmp_path,
@@ -444,13 +470,14 @@ class TestUploadEndpoint:
         """Test upload metadata is cached in Redis."""
         filename, file_data, content_type = sample_image_file
 
-        with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
-            with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
-                response = client.post(
-                    "/api/v2/upload/",
-                    files={"file": (filename, file_data, content_type)},
-                    headers=auth_headers,
-                )
+        with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
+            with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
+                with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
+                    response = client.post(
+                        "/api/v2/upload/",
+                        files={"file": (filename, file_data, content_type)},
+                        headers=auth_headers,
+                    )
 
         assert response.status_code == status.HTTP_201_CREATED
 
@@ -470,6 +497,7 @@ class TestGetUploadInfo:
         self,
         client: TestClient,
         auth_headers,
+        test_user,
         mock_redis_client,
     ):
         """Test successful get upload info from cache."""
@@ -516,11 +544,12 @@ class TestGetUploadInfo:
         import json
         mock_redis_client.get = AsyncMock(return_value=json.dumps(cached_data))
 
-        with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
-            response = client.get(
-                f"/api/v2/upload/{upload_id}",
-                headers=auth_headers,
-            )
+        with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
+            with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
+                response = client.get(
+                    f"/api/v2/upload/{upload_id}",
+                    headers=auth_headers,
+                )
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -532,6 +561,7 @@ class TestGetUploadInfo:
         self,
         client: TestClient,
         auth_headers,
+        test_user,
         mock_redis_client,
     ):
         """Test get upload info fails for non-existent upload."""
@@ -540,11 +570,12 @@ class TestGetUploadInfo:
         # Mock cache miss
         mock_redis_client.get = AsyncMock(return_value=None)
 
-        with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
-            response = client.get(
-                f"/api/v2/upload/{upload_id}",
-                headers=auth_headers,
-            )
+        with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
+            with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
+                response = client.get(
+                    f"/api/v2/upload/{upload_id}",
+                    headers=auth_headers,
+                )
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
         data = response.json()
@@ -554,6 +585,7 @@ class TestGetUploadInfo:
         self,
         client: TestClient,
         auth_headers,
+        test_user,
         mock_redis_client,
     ):
         """Test get upload info with field selection."""
@@ -594,12 +626,13 @@ class TestGetUploadInfo:
         import json
         mock_redis_client.get = AsyncMock(return_value=json.dumps(cached_data))
 
-        with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
-            response = client.get(
-                f"/api/v2/upload/{upload_id}",
-                params={"fields": "id,url"},
-                headers=auth_headers,
-            )
+        with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
+            with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
+                response = client.get(
+                    f"/api/v2/upload/{upload_id}",
+                    params={"fields": "id,url"},
+                    headers=auth_headers,
+                )
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -667,12 +700,13 @@ class TestDeleteUpload:
         import json
         mock_redis_client.get = AsyncMock(return_value=json.dumps(cached_data))
 
-        with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
-            with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
-                response = client.delete(
-                    f"/api/v2/upload/{upload_id}",
-                    headers=auth_headers,
-                )
+        with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
+            with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
+                with patch("app.api.v2.upload.UPLOAD_DIR", tmp_path):
+                    response = client.delete(
+                        f"/api/v2/upload/{upload_id}",
+                        headers=auth_headers,
+                    )
 
         assert response.status_code == status.HTTP_204_NO_CONTENT
 
@@ -686,6 +720,7 @@ class TestDeleteUpload:
         self,
         client: TestClient,
         auth_headers,
+        test_user,
         mock_redis_client,
     ):
         """Test delete fails for non-existent upload."""
@@ -694,11 +729,12 @@ class TestDeleteUpload:
         # Mock cache miss
         mock_redis_client.get = AsyncMock(return_value=None)
 
-        with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
-            response = client.delete(
-                f"/api/v2/upload/{upload_id}",
-                headers=auth_headers,
-            )
+        with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
+            with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
+                response = client.delete(
+                    f"/api/v2/upload/{upload_id}",
+                    headers=auth_headers,
+                )
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -706,6 +742,7 @@ class TestDeleteUpload:
         self,
         client: TestClient,
         auth_headers,
+        test_user,
         mock_redis_client,
     ):
         """Test delete fails when user doesn't own the file."""
@@ -747,10 +784,11 @@ class TestDeleteUpload:
         import json
         mock_redis_client.get = AsyncMock(return_value=json.dumps(cached_data))
 
-        with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
-            response = client.delete(
-                f"/api/v2/upload/{upload_id}",
-                headers=auth_headers,
-            )
+        with patch("app.api.v2.upload.get_current_user_object_from_session", return_value=test_user):
+            with patch("app.api.v2.upload.get_redis_client", return_value=mock_redis_client):
+                response = client.delete(
+                    f"/api/v2/upload/{upload_id}",
+                    headers=auth_headers,
+                )
 
         assert response.status_code == status.HTTP_403_FORBIDDEN

@@ -13,6 +13,25 @@ import { getRuntimeConfig, getRuntimeConfigSync, isProduction } from './lib/runt
 
 const logger = createLogger('Config');
 
+/**
+ * Automatically upgrades WebSocket protocol based on page protocol
+ * Ensures wss:// is used when page is served over HTTPS
+ *
+ * @param wsUrl - WebSocket URL to upgrade
+ * @returns Upgraded WebSocket URL with appropriate protocol
+ */
+function upgradeWebSocketProtocol(wsUrl: string | undefined): string | undefined {
+  if (!wsUrl || typeof window === 'undefined') {
+    return wsUrl
+  }
+
+  // Determine the appropriate protocol based on current page protocol
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+
+  // Replace ws:// or wss:// with the appropriate protocol
+  return wsUrl.replace(/^(ws|wss):/, protocol)
+}
+
 // Re-export runtime config functions for external access
 export { getRuntimeConfig, getRuntimeConfigSync, isProduction } from './lib/runtime-config';
 
@@ -37,7 +56,8 @@ export async function loadConfig() {
 
           // WebSocket Configuration
           // Prefer WS base if provided; fallback to WS URL
-          WS_BASE_URL: runtimeConfig.VITE_WS_BASE_URL || runtimeConfig.VITE_WS_URL,
+          // Auto-upgrade protocol to wss:// when using HTTPS
+          WS_BASE_URL: upgradeWebSocketProtocol(runtimeConfig.VITE_WS_BASE_URL || runtimeConfig.VITE_WS_URL),
 
           // WhatsApp Configuration
           WHATSAPP_INSTANCE_NAME: runtimeConfig.VITE_WHATSAPP_INSTANCE_NAME || 'hormonia-instance',

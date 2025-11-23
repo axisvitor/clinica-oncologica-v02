@@ -73,8 +73,9 @@ export function useMonthlyQuiz(): UseMonthlyQuizReturn {
     try {
       const response = await apiClient.monthlyQuiz.createLink(linkData);
       return response;
-    } catch (err: any) {
-      setError(err.message || 'Failed to create quiz link');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create quiz link';
+      setError(errorMessage);
       return null;
     } finally {
       setLoading(false);
@@ -93,8 +94,9 @@ export function useMonthlyQuiz(): UseMonthlyQuizReturn {
     try {
       const response = await apiClient.monthlyQuiz.bulkCreate(bulkData);
       return response;
-    } catch (err: any) {
-      setError(err.message || 'Failed to create bulk quiz links');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create bulk quiz links';
+      setError(errorMessage);
       return null;
     } finally {
       setLoading(false);
@@ -113,8 +115,9 @@ export function useMonthlyQuiz(): UseMonthlyQuizReturn {
     try {
       const response = await apiClient.monthlyQuiz.getStatus(sessionId);
       return response;
-    } catch (err: any) {
-      setError(err.message || 'Failed to get quiz link status');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to get quiz link status';
+      setError(errorMessage);
       return null;
     } finally {
       setLoading(false);
@@ -142,8 +145,9 @@ export function useMonthlyQuiz(): UseMonthlyQuizReturn {
 
       const response = await apiClient.monthlyQuiz.getStats(statsParams);
       return response;
-    } catch (err: any) {
-      setError(err.message || 'Failed to get quiz statistics');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to get quiz statistics';
+      setError(errorMessage);
       return null;
     } finally {
       setLoading(false);
@@ -168,8 +172,9 @@ export function useMonthlyQuiz(): UseMonthlyQuizReturn {
         }
       );
       return response;
-    } catch (err: any) {
-      setError(err.message || 'Failed to access quiz');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to access quiz';
+      setError(errorMessage);
       return null;
     } finally {
       setLoading(false);
@@ -194,8 +199,9 @@ export function useMonthlyQuiz(): UseMonthlyQuizReturn {
         }
       );
       return response;
-    } catch (err: any) {
-      setError(err.message || 'Failed to submit quiz response');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to submit quiz response';
+      setError(errorMessage);
       return null;
     } finally {
       setLoading(false);

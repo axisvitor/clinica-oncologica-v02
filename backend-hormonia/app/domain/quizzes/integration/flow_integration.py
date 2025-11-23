@@ -18,7 +18,7 @@ from app.services.quiz import QuizTemplateService, QuizSessionService, QuizRespo
 from app.services.enhanced_flow_engine import get_enhanced_flow_engine, FlowType
 from app.domain.messaging.delivery import MessageSender
 from app.domain.messaging.core import MessageFactory
-from app.services.quiz_metrics import get_quiz_metrics_collector
+from app.domain.analytics.quiz import get_quiz_metrics_collector
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
 from app.schemas.quiz import QuizSessionCreate, QuizResponseCreate, QuestionType, QuizSessionResponse

@@ -11,7 +11,7 @@ declare global {
 }
 
 declare module 'vitest' {
-  interface Assertion<T = any> extends TestingLibraryMatchers<string, T> {}
+  interface Assertion<T = unknown> extends TestingLibraryMatchers<string, T> {}
   interface AsymmetricMatchersContaining extends TestingLibraryMatchers<string, any> {}
 }
 

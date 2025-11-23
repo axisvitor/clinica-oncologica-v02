@@ -2,14 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from './useAuth'
 import { useConfig } from '@/lib/config-initializer'
 import { createLogger } from '../lib/logger'
+import type { WebSocketMessage, SystemNotification, PatientUpdate } from './types'
 
 const logger = createLogger('useWebSocket')
-
-interface WebSocketMessage {
-  type: string
-  data?: any
-  timestamp: string
-}
 
 interface WebSocketHookOptions {
   url?: string
@@ -197,17 +192,21 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
   }
 }
 
+/**
+ * Hook for system notifications via WebSocket
+ * @returns notifications array, connection status, and clear function
+ */
 export function useSystemNotifications() {
-  const [notifications, setNotifications] = useState<any[]>([])
+  const [notifications, setNotifications] = useState<SystemNotification[]>([])
 
-  const handleMessage = useCallback((message: WebSocketMessage) => {
-    if (message.type === 'system_notification') {
-      setNotifications(prev => [message.data, ...prev.slice(0, 49)]) // Keep last 50
+  const handleMessage = useCallback((message: WebSocketMessage<SystemNotification>) => {
+    if (message.type === 'system_notification' && message.data) {
+      setNotifications(prev => [message.data!, ...prev.slice(0, 49)]) // Keep last 50
     }
   }, [])
 
   const { isConnected } = useWebSocket({
-    onMessage: handleMessage
+    onMessage: handleMessage as (message: WebSocketMessage<unknown>) => void
   })
 
   return {
@@ -217,17 +216,21 @@ export function useSystemNotifications() {
   }
 }
 
+/**
+ * Hook for patient update events via WebSocket
+ * @returns updates array, connection status, and clear function
+ */
 export function usePatientUpdates() {
-  const [updates, setUpdates] = useState<any[]>([])
+  const [updates, setUpdates] = useState<PatientUpdate[]>([])
 
-  const handleMessage = useCallback((message: WebSocketMessage) => {
-    if (message.type === 'patient_update') {
-      setUpdates(prev => [message.data, ...prev.slice(0, 99)]) // Keep last 100
+  const handleMessage = useCallback((message: WebSocketMessage<PatientUpdate>) => {
+    if (message.type === 'patient_update' && message.data) {
+      setUpdates(prev => [message.data!, ...prev.slice(0, 99)]) // Keep last 100
     }
   }, [])
 
   const { isConnected } = useWebSocket({
-    onMessage: handleMessage
+    onMessage: handleMessage as (message: WebSocketMessage<unknown>) => void
   })
 
   return {

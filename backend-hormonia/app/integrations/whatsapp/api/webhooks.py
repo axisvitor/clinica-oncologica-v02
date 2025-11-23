@@ -49,6 +49,7 @@ async def evolution_webhook(
         background_tasks.add_task(
             process_webhook_event,
             webhook_data,
+            background_tasks, # Pass background_tasks down
             db
         )
 
@@ -59,7 +60,7 @@ async def evolution_webhook(
         raise HTTPException(status_code=400, detail=f"Webhook processing error: {str(e)}")
 
 
-async def process_webhook_event(webhook_data: WebhookPayload, db: AsyncSession):
+async def process_webhook_event(webhook_data: WebhookPayload, background_tasks: BackgroundTasks, db: AsyncSession):
     """Process webhook event in background."""
     try:
         event = webhook_data.event
@@ -68,7 +69,7 @@ async def process_webhook_event(webhook_data: WebhookPayload, db: AsyncSession):
 
         # Route to appropriate handler based on event type
         if event == "messages.upsert":
-            await handle_message_upsert(instance_name, data, db)
+            await handle_message_upsert(instance_name, data, background_tasks, db)
         elif event == "messages.update":
             await handle_message_update(instance_name, data, db)
         elif event == "send.message":
@@ -88,7 +89,7 @@ async def process_webhook_event(webhook_data: WebhookPayload, db: AsyncSession):
         logger.error(f"Error in webhook event processing: {e}")
 
 
-async def handle_message_upsert(instance_name: str, data: Dict[str, Any], db: AsyncSession):
+async def handle_message_upsert(instance_name: str, data: Dict[str, Any], background_tasks: BackgroundTasks, db: AsyncSession):
     """Handle incoming messages."""
     try:
         messages = data if isinstance(data, list) else [data]
@@ -164,8 +165,83 @@ async def handle_message_upsert(instance_name: str, data: Dict[str, Any], db: As
 
                 logger.info(f"Stored incoming message {message_id} from {sender_id}")
 
+                # ---------------------------------------------------------
+                # REACTIVE FLOW TRIGGER (Refactored)
+                # ---------------------------------------------------------
+                try:
+                    # Clean phone number (remove suffix)
+                    phone_number = sender_id.split('@')[0] if '@' in sender_id else sender_id
+
+                    # Find patient by phone
+                    from app.models.patient import Patient
+                    stmt = select(Patient).where(Patient.phone == phone_number)
+                    result = await db.execute(stmt)
+                    patient = result.scalar_one_or_none()
+
+                    if patient:
+                        logger.info(f"Message from patient {patient.id} detected. Triggering flow engine in background.")
+                        
+                        # Add to background tasks to avoid blocking the webhook response
+                        # and to manage the sync/async impedance mismatch separately
+                        background_tasks.add_task(
+                            _trigger_flow_response_async, 
+                            patient.id, 
+                            content
+                        )
+                    else:
+                        logger.debug(f"No patient found for phone {phone_number}")
+
+                except Exception as flow_error:
+                    logger.error(f"Error triggering flow engine: {flow_error}")
+                # ---------------------------------------------------------
+
+
     except Exception as e:
         logger.error(f"Error handling message upsert: {e}")
+
+
+async def _trigger_flow_response_async(patient_id: str, content: str):
+    """
+    Async helper to trigger the flow engine.
+    Offloads the sync/async hybrid execution to a separate thread to avoid blocking the main loop.
+    """
+    import asyncio
+    from app.database import get_scoped_session
+    from app.services.enhanced_flow_engine import get_enhanced_flow_engine
+    
+    logger.info(f"Starting background flow processing for patient {patient_id}")
+
+    def _run_hybrid_flow():
+        try:
+            # Create a new event loop for this thread to handle async calls within the engine
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            with get_scoped_session() as sync_db:
+                # Initialize engine with sync session
+                engine = get_enhanced_flow_engine(sync_db)
+                
+                # Run the async method in the thread's loop
+                # This allows sync DB calls to block the thread (fine) 
+                # while async AI calls are awaited properly
+                loop.run_until_complete(engine.process_patient_response(patient_id, content))
+                
+            loop.close()
+            logger.info(f"Completed background flow processing for patient {patient_id}")
+            
+        except Exception as e:
+            logger.error(f"Error in background flow thread for patient {patient_id}: {e}", exc_info=True)
+            try:
+                loop.close()
+            except:
+                pass
+
+    # Run in executor to avoid blocking the main event loop with sync DB calls
+    try:
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _run_hybrid_flow)
+    except Exception as e:
+        logger.error(f"Failed to schedule background flow task: {e}", exc_info=True)
 
 
 async def handle_message_update(instance_name: str, data: Dict[str, Any], db: AsyncSession):

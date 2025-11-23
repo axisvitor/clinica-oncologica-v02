@@ -7,16 +7,17 @@ import hashlib
 from typing import Any, Optional, Dict, List
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 from sqlalchemy.exc import IntegrityError
 import redis.asyncio as redis
 
+from app.config.settings.cache import cache_settings
 from app.models.message import Message, MessageType, MessageStatus, MessageDirection
 from app.models.patient import Patient
 from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion
-from app.services.message import MessageService
-from app.services.patient import PatientService
-from app.services.flow_engine import FlowEngine
+from app.domain.messaging.core import MessageService
+from app.repositories.patient import PatientRepository
+from app.services.flow import FlowEngine
 from app.services.enhanced_flow_engine import EnhancedFlowEngine
 from app.services.websocket_events import websocket_events
 from app.schemas.websocket import WebSocketEventType
@@ -47,7 +48,7 @@ class WebhookProcessor:
 
     def __init__(
         self,
-        db: Session,
+        db: Any,
         connection_state_repository: Optional[ConnectionStateRepository] = None,
     ):
         """
@@ -59,7 +60,7 @@ class WebhookProcessor:
         """
         self.db = db
         self.message_service = MessageService(db)
-        self.patient_service = PatientService(db)
+        self.patient_repo = PatientRepository(db)
         self.flow_engine = FlowEngine(db)
         self.enhanced_flow_engine = EnhancedFlowEngine(db)
         self.flow_state_repo = FlowStateRepository(db)
@@ -130,8 +131,12 @@ class WebhookProcessor:
 
             if existing_message:
                 logger.info(f"Duplicate webhook message detected (DB): {whatsapp_id}")
-                # Cache in Redis for future fast-path (TTL 1h)
-                await redis_client.setex(idempotency_key, 3600, str(existing_message.id))
+                # Cache in Redis for future fast-path
+                await redis_client.setex(
+                    idempotency_key,
+                    cache_settings.WEBHOOK_IDEMPOTENCY_TTL,
+                    str(existing_message.id)
+                )
                 return str(existing_message.id)
 
             # Step 3: Enhanced patient validation with security monitoring
@@ -211,8 +216,12 @@ class WebhookProcessor:
                 message_metadata=metadata,
             )
 
-            # Cache message_id in Redis for idempotency (TTL 1h)
-            await redis_client.setex(idempotency_key, 3600, str(message.id))
+            # Cache message_id in Redis for idempotency
+            await redis_client.setex(
+                idempotency_key,
+                cache_settings.WEBHOOK_IDEMPOTENCY_TTL,
+                str(message.id)
+            )
 
             logger.info(
                 f"Processed inbound message {message.id} from patient {patient.id} "
@@ -272,6 +281,17 @@ class WebhookProcessor:
                     await self._mark_webhook_processed(webhook_id, False, "Missing required fields")
                 return False
 
+            # Idempotency check
+            redis_client = await get_async_redis()
+            idempotency_key = f"webhook:status:{whatsapp_id}:{status}"
+            
+            is_duplicate = await redis_client.exists(idempotency_key)
+            if is_duplicate:
+                logger.info(f"Duplicate status webhook detected: {whatsapp_id} -> {status}")
+                if webhook_id:
+                    await self._mark_webhook_processed(webhook_id, True, "Duplicate status event")
+                return True
+
             # Update message status
             message = self.message_service.update_message_status_by_whatsapp_id(
                 whatsapp_id=whatsapp_id,
@@ -281,7 +301,7 @@ class WebhookProcessor:
             if message:
                 # Publish WebSocket event for status update
                 await websocket_events.publish_message_event(
-                    event_type=WebSocketEventType.MESSAGE_STATUS_UPDATE,
+                    event_type=WebSocketEventType.MESSAGE_STATUS_UPDATED,
                     message_id=message.id,
                     patient_id=message.patient_id,
                     direction=message.direction.value,
@@ -291,6 +311,13 @@ class WebhookProcessor:
                 )
 
                 logger.info(f"Updated message {message.id} status to {status}")
+
+                # Cache status update in Redis
+                await redis_client.setex(
+                    idempotency_key,
+                    cache_settings.WEBHOOK_IDEMPOTENCY_TTL,
+                    "1"
+                )
 
                 # Mark webhook as processed (P0 FIX #2)
                 if webhook_id:
@@ -350,9 +377,8 @@ class WebhookProcessor:
 
             if response.get("should_advance"):
                 # Advance flow if needed
-                advancement = await self.flow_engine.advance_flow(
-                    patient_id=patient.id,
-                    additional_context={"patient_response": message.content}
+                advancement = await self.enhanced_flow_engine.advance_patient_flow(
+                    patient_id=patient.id
                 )
                 logger.info(f"Flow advanced for patient {patient.id}: {advancement}")
 
@@ -384,17 +410,59 @@ class WebhookProcessor:
         """
         Handle message within active quiz context.
 
+        HIGH-005 FIX: Implements debouncing to prevent duplicate quiz responses
+        from rapid messages within a 3-second window.
+
         Args:
             patient: Patient record
             message: Inbound message
             quiz_session: Active quiz session
         """
         try:
-            from app.services.quiz_flow_integration import ConversationalQuizService
+            from app.domain.quizzes.integration.flow_integration import ConversationalQuizService
+            from app.services.quiz_response_debounce import get_quiz_debouncer
 
+            # HIGH-005 FIX: Check debounce before processing
+            debouncer = get_quiz_debouncer(debounce_window_seconds=3)
+
+            # Get current question ID from session
+            current_question_id = (
+                quiz_session.current_question
+                if hasattr(quiz_session, 'current_question') and quiz_session.current_question
+                else str(quiz_session.current_question_index) if hasattr(quiz_session, 'current_question_index')
+                else "unknown"
+            )
+
+            # Check if we should process this response (debounce check)
+            should_process = await debouncer.should_process_response(
+                session_id=quiz_session.id,
+                question_id=current_question_id,
+                message_metadata={
+                    'message_id': str(message.id),
+                    'whatsapp_id': message.whatsapp_id,
+                    'timestamp': message.timestamp.isoformat() if message.timestamp else None,
+                    'patient_id': str(patient.id)
+                }
+            )
+
+            if not should_process:
+                # Message is within debounce window - ignore
+                logger.info(
+                    f"Quiz response debounced for patient {patient.id}",
+                    extra={
+                        "patient_id": str(patient.id),
+                        "session_id": str(quiz_session.id),
+                        "question_id": current_question_id,
+                        "message_id": str(message.id),
+                        "whatsapp_id": message.whatsapp_id,
+                        "debounce_reason": "duplicate_within_3s_window"
+                    }
+                )
+                return
+
+            # Process quiz response (not debounced)
             quiz_service = ConversationalQuizService(self.db)
 
-            # Process quiz response
             result = await quiz_service.process_quiz_response(
                 patient_id=patient.id,
                 response_text=message.content,
@@ -413,10 +481,15 @@ class WebhookProcessor:
             # Handle result actions
             if result.get('action') == 'quiz_completed':
                 logger.info(f"Quiz completed for patient {patient.id}")
+                # Clear all debounce state for session on completion
+                await debouncer.clear_debounce(quiz_session.id)
             elif result.get('action') == 'next_question':
                 logger.info(f"Advanced to next question for patient {patient.id}")
+                # Debounce state automatically expires, no need to clear
             elif result.get('action') == 'request_clarification':
                 logger.info(f"Clarification requested for patient {patient.id}")
+                # Clear debounce to allow immediate retry
+                await debouncer.clear_debounce(quiz_session.id, current_question_id)
 
         except Exception as e:
             logger.error(
@@ -446,7 +519,7 @@ class WebhookProcessor:
                 "name": patient.name,
                 "phone": patient.phone,
                 "treatment_type": getattr(patient, "treatment_type", None),
-                "cancer_type": getattr(patient, "cancer_type", None),
+                "diagnosis": getattr(patient, "diagnosis", None),
             }
 
             # Generate AI response
@@ -520,8 +593,8 @@ class WebhookProcessor:
 
             # Step 4: Schedule the SAME message for immediate delivery
             # Import MessageScheduler
-            from app.services.message_scheduler import get_message_scheduler
-            scheduler = get_message_scheduler(self.db)
+            from app.domain.messaging.scheduling import MessageScheduler
+            scheduler = MessageScheduler(self.db)
 
             # Schedule the existing message (status: PENDING → SCHEDULED)
             send_time = datetime.utcnow() + timedelta(seconds=1)  # Send almost immediately
@@ -736,7 +809,7 @@ class WebhookProcessor:
             # Strategy 1: Normalize to E.164 and try with +
             normalized = self._normalize_phone_e164(phone)
             logger.info(f"Phone lookup attempt 1: E.164 format '{normalized}'")
-            patient = self.patient_service.get_by_phone(normalized)
+            patient = self.patient_repo.get_by_phone(normalized)
             if patient:
                 logger.info(f"Patient found with E.164 format: {normalized}")
                 return patient
@@ -744,31 +817,10 @@ class WebhookProcessor:
             # Strategy 2: Try without + prefix
             without_plus = normalized.lstrip("+")
             logger.info(f"Phone lookup attempt 2: Without + prefix '{without_plus}'")
-            patient = self.patient_service.get_by_phone(without_plus)
+            patient = self.patient_repo.get_by_phone(without_plus)
             if patient:
                 logger.info(f"Patient found without + prefix: {without_plus}")
                 return patient
-
-            # Strategy 3: Try adding +55 if not present
-            if not phone.startswith("55") and not phone.startswith("+55"):
-                with_country_code = f"+55{phone}"
-                logger.info(f"Phone lookup attempt 3: With country code '{with_country_code}'")
-                patient = self.patient_service.get_by_phone(with_country_code)
-                if patient:
-                    logger.info(f"Patient found with added country code: {with_country_code}")
-                    return patient
-
-                # Also try without +
-                logger.info(f"Phone lookup attempt 4: With country code no + '55{phone}'")
-                patient = self.patient_service.get_by_phone(f"55{phone}")
-                if patient:
-                    logger.info(f"Patient found with country code (no +): 55{phone}")
-                    return patient
-
-            # Strategy 4: Try removing country code (last 10-11 digits for Brazilian numbers)
-            if len(without_plus) > 11:
-                # Extract last 11 digits (DDD + 9 digits) or 10 digits (DDD + 8 digits)
-                local_11 = without_plus[-11:]
                 local_10 = without_plus[-10:]
 
                 logger.info(f"Phone lookup attempt 5: Local 11 digits '{local_11}'")
@@ -1103,8 +1155,12 @@ class WebhookProcessor:
                 "status": "pending"
             }
 
-            # Store with 5-minute expiration (QR codes expire quickly)
-            await redis_client.setex(qr_key, 300, str(qr_data))
+            # Store with QR code TTL (QR codes expire quickly)
+            await redis_client.setex(
+                qr_key,
+                cache_settings.QRCODE_TTL,
+                str(qr_data)
+            )
 
             logger.info(
                 f"Stored QR code for instance '{instance}'",

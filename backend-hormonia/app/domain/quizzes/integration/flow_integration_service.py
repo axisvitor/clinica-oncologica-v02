@@ -8,7 +8,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.services.quiz_flow_integration import QuizTriggerService, ConversationalQuizService
+from .flow_integration import QuizTriggerService, ConversationalQuizService
 from app.services.quiz import QuizTemplateService, QuizSessionService, QuizResponseService
 from app.services.enhanced_flow_engine import get_enhanced_flow_engine
 from app.repositories.flow import FlowStateRepository

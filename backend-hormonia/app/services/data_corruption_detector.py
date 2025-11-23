@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from enum import Enum
 import re
 
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 from sqlalchemy import text, func
 
 from app.models.patient import Patient
@@ -53,7 +53,7 @@ class DataCorruptionDetector:
     statistical analysis, and heuristic algorithms.
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         self.db = db
         self.corruption_patterns: List[CorruptionPattern] = []
         self.field_statistics: Dict[str, Dict[str, Any]] = {}
@@ -849,7 +849,7 @@ class DataCorruptionDetector:
         }
 
 
-def get_corruption_detector(db: Session) -> DataCorruptionDetector:
+def get_corruption_detector(db: Any) -> DataCorruptionDetector:
     """
     Get data corruption detector instance.
 

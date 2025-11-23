@@ -62,33 +62,29 @@ async def get_redis(services: ServiceProvider = Depends(_get_provider_dep)) -> O
 # =============================================================================
 
 # Patient Domain Services (THREAD-SAFE: Per-request session isolation)
-def get_patient_service(services: ServiceProvider = Depends(_get_provider_dep)):
-    """
-    Get PatientService with thread-safe per-request database session.
-
-    Thread-safety: Each request gets its own ServiceProvider with isolated session.
-    No session cross-talk between concurrent requests.
-
-    Returns:
-        PatientService instance with request-scoped dependencies
-    """
-    return services.patient_service
-
 def get_patient_repository(db: Session = Depends(get_db)):
     from app.repositories.patient import PatientRepository
     return PatientRepository(db)
+
+def get_patient_service(services: ServiceProvider = Depends(_get_provider_dep)):
+    """Get PatientCRUDService with thread-safe session."""
+    return services.patient_service
 
 # Flow Domain Services (THREAD-SAFE: Per-request session isolation)
 def get_flow_service(services: ServiceProvider = Depends(_get_provider_dep)):
     """Get FlowEngineIntegrationService with thread-safe session."""
     return services.flow_service
 
+def get_flow_engine(services: ServiceProvider = Depends(_get_provider_dep)):
+    """Get EnhancedFlowEngine with thread-safe session."""
+    return services.flow_engine
+
 def get_flow_state_repository(db: Session = Depends(get_db)):
     from app.repositories.flow import FlowStateRepository
     return FlowStateRepository(db)
 
 def get_flow_analytics_service(db: Session = Depends(get_db)):
-    from app.services.flow_analytics import FlowAnalyticsService
+    from app.services.analytics import FlowAnalyticsService
     return FlowAnalyticsService(db)
 
 # Quiz Domain Services (THREAD-SAFE: Per-request session isolation)

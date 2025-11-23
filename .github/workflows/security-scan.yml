@@ -1,0 +1,279 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main, develop, docs-refactor-py313]
+  pull_request:
+    branches: [main, develop, docs-refactor-py313]
+  schedule:
+    # Run security scans daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  security-headers:
+    name: Security Headers Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        working-directory: ./backend-hormonia
+        run: |
+          pip install -r requirements.txt
+
+      - name: Start application
+        working-directory: ./backend-hormonia
+        run: |
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          sleep 10
+
+      - name: Check security headers
+        run: |
+          echo "🔍 Checking security headers..."
+
+          # Check X-Frame-Options
+          if curl -sI http://localhost:8000/api/v2/health | grep -q "X-Frame-Options: DENY"; then
+            echo "✅ X-Frame-Options: DENY"
+          else
+            echo "❌ X-Frame-Options header missing or incorrect"
+            exit 1
+          fi
+
+          # Check X-Content-Type-Options
+          if curl -sI http://localhost:8000/api/v2/health | grep -q "X-Content-Type-Options: nosniff"; then
+            echo "✅ X-Content-Type-Options: nosniff"
+          else
+            echo "❌ X-Content-Type-Options header missing"
+            exit 1
+          fi
+
+          # Check Content-Security-Policy
+          if curl -sI http://localhost:8000/api/v2/health | grep -q "Content-Security-Policy:"; then
+            echo "✅ Content-Security-Policy configured"
+          else
+            echo "❌ Content-Security-Policy header missing"
+            exit 1
+          fi
+
+          # Check Referrer-Policy
+          if curl -sI http://localhost:8000/api/v2/health | grep -q "Referrer-Policy:"; then
+            echo "✅ Referrer-Policy configured"
+          else
+            echo "❌ Referrer-Policy header missing"
+            exit 1
+          fi
+
+          # Check Permissions-Policy
+          if curl -sI http://localhost:8000/api/v2/health | grep -q "Permissions-Policy:"; then
+            echo "✅ Permissions-Policy configured"
+          else
+            echo "❌ Permissions-Policy header missing"
+            exit 1
+          fi
+
+          echo ""
+          echo "🎉 All security headers present!"
+
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Run pip-audit
+        working-directory: ./backend-hormonia
+        run: |
+          echo "🔒 Scanning for vulnerabilities..."
+          pip-audit -r requirements.txt --desc --format json > audit-report.json || true
+
+          # Display summary
+          pip-audit -r requirements.txt || true
+
+      - name: Check for critical vulnerabilities
+        working-directory: ./backend-hormonia
+        run: |
+          if [ -f audit-report.json ]; then
+            CRITICAL=$(cat audit-report.json | grep -o '"severity": "CRITICAL"' | wc -l)
+            HIGH=$(cat audit-report.json | grep -o '"severity": "HIGH"' | wc -l)
+
+            echo "Critical vulnerabilities: $CRITICAL"
+            echo "High vulnerabilities: $HIGH"
+
+            if [ "$CRITICAL" -gt 0 ]; then
+              echo "❌ CRITICAL vulnerabilities found!"
+              echo "Address immediately before deployment."
+              exit 1
+            fi
+
+            if [ "$HIGH" -gt 5 ]; then
+              echo "⚠️  Warning: Multiple HIGH severity vulnerabilities"
+              echo "Consider updating dependencies."
+            fi
+          fi
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit-report
+          path: backend-hormonia/audit-report.json
+          retention-days: 30
+
+  code-scanning:
+    name: Code Security Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install security tools
+        run: |
+          pip install bandit safety
+
+      - name: Run Bandit security linter
+        working-directory: ./backend-hormonia
+        run: |
+          echo "🔍 Running Bandit security analysis..."
+          bandit -r app/ -f json -o bandit-report.json || true
+          bandit -r app/ || true
+
+      - name: Run Safety check
+        working-directory: ./backend-hormonia
+        run: |
+          echo "🛡️  Running Safety check..."
+          safety check --json > safety-report.json || true
+          safety check || true
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-scan-reports
+          path: |
+            backend-hormonia/bandit-report.json
+            backend-hormonia/safety-report.json
+          retention-days: 30
+
+  sast-scan:
+    name: Static Application Security Testing
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/python
+            p/owasp-top-ten
+          generateSarif: true
+
+      - name: Upload SARIF file
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+
+  secrets-scan:
+    name: Secrets Detection
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for secret scanning
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_SUMMARY: true
+
+  docker-scan:
+    name: Docker Image Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        working-directory: ./backend-hormonia
+        run: |
+          docker build -t backend-hormonia:test -f Dockerfile .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'backend-hormonia:test'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  security-scorecard:
+    name: Generate Security Scorecard
+    runs-on: ubuntu-latest
+    needs: [security-headers, dependency-scan, code-scanning]
+    if: always()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate scorecard
+        run: |
+          echo "# Security Scorecard" > security-scorecard.md
+          echo "" >> security-scorecard.md
+          echo "**Date:** $(date)" >> security-scorecard.md
+          echo "**Branch:** ${{ github.ref_name }}" >> security-scorecard.md
+          echo "" >> security-scorecard.md
+          echo "## Results" >> security-scorecard.md
+          echo "" >> security-scorecard.md
+          echo "| Check | Status |" >> security-scorecard.md
+          echo "|-------|--------|" >> security-scorecard.md
+          echo "| Security Headers | ${{ needs.security-headers.result == 'success' && '✅ Pass' || '❌ Fail' }} |" >> security-scorecard.md
+          echo "| Dependency Scan | ${{ needs.dependency-scan.result == 'success' && '✅ Pass' || '⚠️ Issues Found' }} |" >> security-scorecard.md
+          echo "| Code Analysis | ${{ needs.code-scanning.result == 'success' && '✅ Pass' || '⚠️ Issues Found' }} |" >> security-scorecard.md
+
+          cat security-scorecard.md
+
+      - name: Upload scorecard
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-scorecard
+          path: security-scorecard.md
+          retention-days: 90

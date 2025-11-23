@@ -56,7 +56,7 @@ Public API:
 
 Example Usage:
     >>> from app.services.quiz import QuizService, QuizEvaluator
-    >>> from sqlalchemy.orm import Session
+#     >>> from sqlalchemy.orm import
     >>>
     >>> # Create quiz session
     >>> service = QuizService(db)
@@ -77,7 +77,7 @@ Migration Notes:
 
     Old:
         from app.services.quiz import QuizTemplateService
-        from app.services.quiz_response_evaluator import QuizResponseEvaluator
+        from app.domain.quizzes.evaluation import QuizResponseEvaluator
 
     New (Recommended):
         from app.services.quiz import QuizService, QuizEvaluator
@@ -86,7 +86,7 @@ Version: 1.0.0 (QW-023)
 Status: Production Ready
 """
 
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 # Import quiz services
 from .quiz_service import (

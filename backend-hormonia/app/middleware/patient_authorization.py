@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 import redis.asyncio as redis
 
 from app.models.patient import Patient
-from app.services.patient import PatientService
+from app.repositories.patient import PatientRepository
 from app.core.redis_unified import get_async_redis
 from app.core.security_config import get_security_config
 from app.services.security_monitor import SecurityMonitor
@@ -37,7 +37,7 @@ class PatientAuthorizationMiddleware:
     def __init__(self, db: Session):
         """Initialize middleware with database session."""
         self.db = db
-        self.patient_service = PatientService(db)
+        self.patient_repo = PatientRepository(db)
         self.security_monitor = SecurityMonitor(db)
         self.security_config = get_security_config()
 
@@ -248,7 +248,7 @@ class PatientAuthorizationMiddleware:
     async def _safe_patient_lookup(self, phone: str) -> Optional[Patient]:
         """Safely lookup patient with error handling."""
         try:
-            return self.patient_service.get_by_phone(phone)
+            return self.patient_repo.get_by_phone(phone)
         except Exception as e:
             logger.debug(f"Patient lookup failed for {phone}: {e}")
             return None

@@ -13,7 +13,7 @@ import json
 import statistics
 from collections import defaultdict, deque
 
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 from sqlalchemy import and_, or_  # FIX: Add missing imports
 from redis import Redis
 
@@ -75,7 +75,7 @@ class SystemAlert:
 class FlowMonitoringService:
     """Service for monitoring flow operations and system health."""
 
-    def __init__(self, db: Session, redis: Redis, flow_repository: FlowStateRepository,
+    def __init__(self, db: Any, redis: Redis, flow_repository: FlowStateRepository,
                  corruption_detector: DataCorruptionDetector):
         self.db = db
         self.redis = redis

@@ -383,7 +383,7 @@ export interface ValidationErrorField {
   /** Validation error message */
   message: string
   /** Submitted value that failed validation */
-  value: any
+  value: unknown
 }
 
 /**
@@ -441,9 +441,9 @@ export interface ApiRequestConfig {
   /** Request headers */
   headers?: Record<string, string>
   /** Query parameters */
-  params?: Record<string, any>
+  params?: Record<string, unknown>
   /** Request body */
-  data?: any
+  data?: unknown
   /** Request timeout in milliseconds */
   timeout?: number
 }
@@ -451,7 +451,7 @@ export interface ApiRequestConfig {
 /**
  * API response wrapper
  */
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   /** Response data */
   data: T
   /** HTTP status code */
@@ -523,9 +523,10 @@ export interface MedicoDashboardQueryOptions {
 /**
  * Type guard to check if response is an error
  */
-export function isApiError(response: any): response is ApiErrorResponse {
+export function isApiError(response: unknown): response is ApiErrorResponse {
   return (
     typeof response === 'object' &&
+    response !== null &&
     'detail' in response &&
     'error_code' in response &&
     'timestamp' in response
@@ -535,14 +536,14 @@ export function isApiError(response: any): response is ApiErrorResponse {
 /**
  * Type guard to check if error is a validation error
  */
-export function isValidationError(error: any): error is ValidationErrorResponse {
+export function isValidationError(error: unknown): error is ValidationErrorResponse {
   return isApiError(error) && 'errors' in error && Array.isArray(error.errors)
 }
 
 /**
  * Type guard to check if error is a rate limit error
  */
-export function isRateLimitError(error: any): error is RateLimitErrorResponse {
+export function isRateLimitError(error: unknown): error is RateLimitErrorResponse {
   return isApiError(error) && 'retry_after' in error && typeof error.retry_after === 'number'
 }
 

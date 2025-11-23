@@ -1,69 +1,94 @@
-# Prometheus configuration for Hormonia quiz metrics
+# Prometheus Configuration for Clínica Hormonia
+# Advanced monitoring with service discovery and custom metrics
 
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
   external_labels:
     cluster: 'hormonia-production'
-    service: 'quiz-system'
+    environment: 'production'
 
 # Alertmanager configuration
 alerting:
   alertmanagers:
     - static_configs:
         - targets:
-            - 'alertmanager:9093'
+            - alertmanager:9093
 
-# Load alerting rules
+# Load alert rules
 rule_files:
+  - '/etc/prometheus/alerts.yml'
+  - '/etc/prometheus/recording-rules.yml'
   - '/etc/prometheus/rules/quiz_alerts.yml'
+  - '/etc/prometheus/p0_alerts.yml'
 
 # Scrape configurations
 scrape_configs:
-  # Redis exporter for quiz metrics
-  - job_name: 'redis-quiz-metrics'
-    scrape_interval: 10s
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
     static_configs:
-      - targets:
-          - 'redis-exporter:9121'
+      - targets: ['localhost:9090']
+
+  # Application metrics
+  - job_name: 'hormonia-app'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['app:8000']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'hormonia-backend'
+
+  # Custom application exporter
+  - job_name: 'hormonia-exporter'
+    static_configs:
+      - targets: ['app-exporter:9100']
+
+  # PostgreSQL exporter
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  # Redis exporter
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
     relabel_configs:
       - source_labels: [__address__]
         target_label: instance
         replacement: 'redis-primary'
 
-  # Application metrics (if backend exposes /metrics endpoint)
-  - job_name: 'hormonia-backend'
-    scrape_interval: 15s
-    metrics_path: '/metrics'
+  # Node exporter (system metrics)
+  - job_name: 'node'
     static_configs:
-      - targets:
-          - 'backend:8000'
-    metric_relabel_configs:
-      # Keep only quiz-related metrics
-      - source_labels: [__name__]
-        regex: '(quiz_.*|whatsapp_.*|webhook_.*)'
-        action: keep
+      - targets: ['node-exporter:9100']
 
-  # Prometheus self-monitoring
-  - job_name: 'prometheus'
+  # Celery exporter
+  - job_name: 'celery'
     static_configs:
-      - targets:
-          - 'localhost:9090'
+      - targets: ['celery-exporter:9808']
 
-  # Node exporter (for system metrics)
-  - job_name: 'node-exporter'
-    scrape_interval: 30s
+  # Docker container metrics
+  - job_name: 'cadvisor'
     static_configs:
-      - targets:
-          - 'node-exporter:9100'
+      - targets: ['cadvisor:8080']
 
-# Remote write (optional - for long-term storage)
+  # Nginx metrics
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+
+# Storage configuration
+storage:
+  tsdb:
+    path: /prometheus/data
+    retention.time: 30d
+    retention.size: 50GB
+
+# Remote write for long-term storage (optional)
 # remote_write:
-#   - url: 'https://prometheus-remote-write.example.com/api/v1/write'
-#     basic_auth:
-#       username: 'your-username'
-#       password: 'your-password'
+#   - url: "https://prometheus-long-term-storage/api/v1/write"
 #     queue_config:
 #       capacity: 10000
-#       max_shards: 5
-#       max_samples_per_send: 1000
+#       max_shards: 50
+#       min_shards: 1

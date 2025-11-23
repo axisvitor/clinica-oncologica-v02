@@ -14,14 +14,15 @@ class PatientFlowState(BaseModel):
     __tablename__ = "patient_flow_states"  # Changed to match actual table name
 
     # Patient reference
-    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # Flow details - using versioned system only
     template_version_id = Column(
         "flow_template_version_id",  # actual column name in database
         UUID(as_uuid=True),
         ForeignKey("flow_template_versions.id"),
-        nullable=False
+        nullable=False,
+        index=True
     )
     current_step = Column(Integer, nullable=True, default=0)
 

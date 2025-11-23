@@ -4,7 +4,7 @@ import logging
 from typing import Dict, List, Optional, Any
 from uuid import UUID
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 
 from .domain_services import (
     FlowProcessor, MessageScheduler, TemplateResolver, FlowAnalytics,
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class DatabaseFlowProcessor:
     """Concrete implementation focused ONLY on flow processing logic"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         self.db = db
         self.flow_repo = FlowStateRepository(db)
         self.patient_repo = PatientRepository(db)
@@ -93,7 +93,7 @@ class DatabaseFlowProcessor:
 class DatabaseMessageScheduler:
     """Concrete implementation focused ONLY on message scheduling"""
     
-    def __init__(self, db: Session, scheduler_service, redis_client=None):
+    def __init__(self, db: Any, scheduler_service, redis_client=None):
         self.db = db
         self.scheduler = scheduler_service
         self.redis = redis_client
@@ -240,7 +240,7 @@ class AITemplateResolver:
 class RedisFlowAnalytics:
     """Concrete implementation focused ONLY on flow analytics"""
     
-    def __init__(self, redis_client, db: Session):
+    def __init__(self, redis_client, db: Any):
         self.redis = redis_client
         self.db = db
     

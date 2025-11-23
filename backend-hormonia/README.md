@@ -100,13 +100,11 @@ Backend/
 │   └── main.py               # Entry point (25 lines)
 ├── docs/                      # Consolidated documentation
 │   ├── api/                   # API documentation
-│   │   └── API.md                  # Complete API reference
+│   │   └── EXAMPLES.md             # API examples and patterns
 │   ├── deployment/            # Deployment guides
-│   │   └── DEPLOYMENT.md           # Unified deployment guide
-│   └── systems/               # System documentation
-│       ├── FLOW_SYSTEM.md          # AI conversation flows
-│       ├── QUIZ_SYSTEM.md          # Medical assessments
-│       └── REDIS_GUIDE.md          # Redis implementation
+│   │   └── README.md               # Unified deployment guide
+│   └── database/              # Database documentation
+│       └── README.md               # Database guide
 ├── alembic/                   # Database migrations
 ├── tests/                     # Automated tests
 ├── scripts/                   # Utility scripts
@@ -243,7 +241,7 @@ python scripts/validate_deployment_health.py
 python scripts/validate_critical_fixes.py
 ```
 
-For complete configuration documentation, see [docs/DEPLOYMENT_CONFIGURATION.md](docs/DEPLOYMENT_CONFIGURATION.md).
+For complete configuration documentation, see [docs/deployment/README.md](docs/deployment/README.md).
 
 ---
 
@@ -458,7 +456,7 @@ Interactive API documentation is available at:
 - **Swagger UI**: `http://localhost:8000/docs`
 - **ReDoc**: `http://localhost:8000/redoc`
 - **OpenAPI JSON**: `http://localhost:8000/openapi.json`
-- **Complete Reference**: [docs/api/API.md](docs/api/API.md)
+- **Examples**: [docs/api/EXAMPLES.md](docs/api/EXAMPLES.md)
 
 ## 🧪 Testing
 
@@ -649,9 +647,8 @@ make format && make lint && make test
 
 For production deployment, consult our specialized guides:
 
-- **📚 [Complete Deployment Guide](docs/deployment/DEPLOYMENT.md)** - Comprehensive backend deployment guide
-- **🔧 [Railway Deployment](docs/deployment/RAILWAY_DEPLOYMENT.md)** - Railway platform deployment
-- **🐳 [Docker Deployment](docs/deployment/DEPLOYMENT.md#docker-deployment)** - Docker containerization
+- **📚 [Complete Deployment Guide](docs/deployment/README.md)** - Comprehensive backend deployment guide
+- **🐳 [Docker Deployment](docs/deployment/README.md#docker-deployment)** - Docker containerization
 
 ### Key Deployment Topics
 
@@ -683,15 +680,13 @@ For production deployment, consult our specialized guides:
 ## 📚 Additional Documentation
 
 ### System Guides
-- **🤖 [AI Flow System](docs/systems/FLOW_SYSTEM.md)** - AI-powered conversation flows
-- **📋 [Quiz System](docs/systems/QUIZ_SYSTEM.md)** - Medical assessment platform
-- **⚡ [Redis Implementation](docs/systems/REDIS_GUIDE.md)** - Caching and session storage
+- **📋 [Database Guide](docs/database/README.md)** - Database schema and migrations
+- **⚡ [Performance Guide](docs/performance/README.md)** - Performance tuning and benchmarks
 
 ### Deployment & Operations
-- **🚀 [Deployment Guide](docs/deployment/DEPLOYMENT.md)** - Complete deployment guide
-- **📊 [API Reference](docs/api/API.md)** - Complete API documentation
-- **🔒 [Security Configuration](docs/deployment/DEPLOYMENT.md#security-hardening)** - Security best practices
-- **⚡ [Performance Optimization](docs/deployment/DEPLOYMENT.md#production-optimizations)** - Performance tuning
+- **🚀 [Deployment Guide](docs/deployment/README.md)** - Complete deployment guide
+- **📊 [API Examples](docs/api/EXAMPLES.md)** - API usage examples
+- **🔒 [Security Configuration](docs/deployment/README.md#security-hardening)** - Security best practices
 
 ### Quick Links
 - **API Documentation**: `http://localhost:8000/docs`
@@ -704,7 +699,7 @@ For production deployment, consult our specialized guides:
 For support and questions:
 
 - **📖 Documentation**: Check API documentation at `/docs`
-- **🏗️ System Guides**: See `docs/systems/` for detailed system documentation
+- **🏗️ System Guides**: See `docs/` for detailed system documentation
 - **🐛 Issues**: Open an issue in the repository
 - **📝 Logs**: Check application logs for debugging
 - **🩺 Health Checks**: Use health endpoints for diagnostics

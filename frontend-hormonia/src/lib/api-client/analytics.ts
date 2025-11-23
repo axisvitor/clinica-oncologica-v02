@@ -321,3 +321,68 @@ export function createAnalyticsApi(client: ApiClientCore) {
 }
 
 export type AnalyticsApi = ReturnType<typeof createAnalyticsApi>
+
+/**
+ * Enhanced Analytics Integration
+ * Link to AI-powered analytics features
+ */
+export interface EnhancedInsight {
+  category: string
+  insights: Array<{
+    id: string
+    type: 'opportunity' | 'risk' | 'trend' | 'recommendation'
+    title: string
+    description: string
+    severity: 'low' | 'medium' | 'high' | 'critical'
+    confidence: number
+    data: Record<string, unknown>
+  }>
+  priority: number
+}
+
+export function createEnhancedAnalyticsIntegration(client: ApiClientCore) {
+  return {
+    /**
+     * Get AI-powered insights for standard analytics
+     */
+    async getEnhancedInsights(): Promise<EnhancedInsight[]> {
+      try {
+        const response = await client.get<{ success: boolean; data: EnhancedInsight[] }>(
+          '/api/v2/enhanced-analytics/insights'
+        )
+        return response.data
+      } catch (error) {
+        console.warn('Enhanced insights not available:', error)
+        return []
+      }
+    },
+
+    /**
+     * Check if enhanced analytics features are available
+     */
+    async isEnhancedAnalyticsAvailable(): Promise<boolean> {
+      try {
+        await client.get('/api/v2/enhanced-analytics/health')
+        return true
+      } catch {
+        return false
+      }
+    },
+
+    /**
+     * Get enhanced metrics for dashboard
+     */
+    async getEnhancedMetrics(params?: Record<string, unknown>): Promise<Record<string, unknown>> {
+      try {
+        const response = await client.get<{ success: boolean; data: Record<string, unknown> }>(
+          '/api/v2/enhanced-analytics/metrics',
+          params as any
+        )
+        return response.data
+      } catch (error) {
+        console.warn('Enhanced metrics not available:', error)
+        return {}
+      }
+    },
+  }
+}

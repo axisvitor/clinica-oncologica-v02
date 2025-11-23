@@ -1,76 +1,38 @@
 # Centralized Flow Template Configuration
 # This file defines unified template mappings for all conversation flows
 
+# Treatment type to flow template mapping
+# Maps patient treatment_type keywords to flow template identifiers
+treatment_type_mapping:
+  # Hormone therapy keywords
+  hormone:
+    keywords: ["hormone", "hormonal", "hormone_therapy", "hormonioterapia"]
+    template: "hormone_therapy_1"
+    priority: 10
+
+  # Chemotherapy keywords
+  chemotherapy:
+    keywords: ["chemotherapy", "quimio", "quimioterapia", "chemo"]
+    template: "chemotherapy_cycle_1"
+    priority: 10
+
+  # Initial onboarding keywords
+  initial:
+    keywords: ["initial", "onboarding", "new_patient"]
+    template: "day_1_15"
+    priority: 5
+
+  # Monthly follow-up keywords
+  monthly:
+    keywords: ["monthly", "followup", "follow_up", "maintenance"]
+    template: "day_16_45"
+    priority: 5
+
+# Default template when no match is found
+default_treatment_template: "day_1_15"
+
 # Flow type mappings and configurations
 flow_types:
-  # Early treatment phase (days 1-15)
-  day_1_15:
-    name: "Early Treatment Support"
-    description: "Initial treatment phase with daily support and education"
-    duration_days: 15
-    frequency: "daily"
-    priority: "high"
-    tags: ["initial", "support", "education"]
-
-    # Template mapping
-    template_mapping:
-      file_path: "templates/flows/day_1_15.yaml"
-      fallback_template: "basic_support"
-      version: "2.1.0"
-
-    # Timing configuration
-    timing:
-      start_hour: 9
-      end_hour: 18
-      timezone: "America/Sao_Paulo"
-      respect_patient_preferences: true
-
-    # Personalization settings
-    personalization:
-      ai_optimization: true
-      sentiment_analysis: true
-      adaptive_messaging: true
-      demographic_targeting: true
-
-  # Mid treatment phase (days 16-45)
-  day_16_45:
-    name: "Maintenance Treatment Support"
-    description: "Mid-treatment phase with regular check-ins and monitoring"
-    duration_days: 30
-    frequency: "every_2_days"
-    priority: "medium"
-    tags: ["maintenance", "monitoring", "adjustment"]
-
-    template_mapping:
-      file_path: "templates/flows/day_16_45.yaml"
-      fallback_template: "maintenance_support"
-      version: "2.0.0"
-
-    timing:
-      start_hour: 10
-      end_hour: 17
-      timezone: "America/Sao_Paulo"
-      respect_patient_preferences: true
-
-    personalization:
-      ai_optimization: true
-      sentiment_analysis: true
-      adaptive_messaging: true
-      symptom_tracking: true
-
-  # Monthly follow-up
-  monthly:
-    name: "Monthly Assessment"
-    description: "Monthly comprehensive assessment and follow-up"
-    duration_days: 1
-    frequency: "monthly"
-    priority: "high"
-    tags: ["assessment", "followup", "comprehensive"]
-
-    template_mapping:
-      file_path: "templates/flows/monthly_assessment.yaml"
-      fallback_template: "monthly_checkin"
-      version: "1.5.0"
 
     timing:
       start_hour: 9

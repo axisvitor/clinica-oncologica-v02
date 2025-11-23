@@ -57,8 +57,8 @@ export type WebSocketEventType =
 export interface WebSocketMessage {
   type: WebSocketEventType;
   timestamp: string;
-  data: Record<string, any>;
-  user?: any;
+  data: Record<string, unknown>;
+  user?: unknown;
   userId?: string;
 }
 
@@ -85,8 +85,8 @@ export interface PatientEventData {
   patient_id: string;
   patient_name?: string;
   doctor_id?: string;
-  changes?: Record<string, any>;
-  metadata?: Record<string, any>;
+  changes?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface MessageEventData {
@@ -97,7 +97,7 @@ export interface MessageEventData {
   content?: string;
   status?: string;
   whatsapp_id?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface QuizEventData {
@@ -107,10 +107,10 @@ export interface QuizEventData {
   session_id?: string;
   response_id?: string;
   question_id?: string;
-  answer?: any;
+  answer?: unknown;
   completed?: boolean;
   score?: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface FlowEventData {
@@ -122,9 +122,9 @@ export interface FlowEventData {
   enrollment_date: string;
   last_message_sent?: string;
   monthly_cycle?: number;
-  changes?: Record<string, any>;
+  changes?: Record<string, unknown>;
   milestone_reached?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ReportEventData {
@@ -134,7 +134,7 @@ export interface ReportEventData {
   status: 'generating' | 'completed' | 'failed';
   file_path?: string;
   error_message?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface AlertEventData {
@@ -150,7 +150,7 @@ export interface AlertEventData {
   resolved: boolean;
   resolved_by?: string;
   resolved_at?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface SystemEventData {
@@ -158,7 +158,7 @@ export interface SystemEventData {
   level: 'info' | 'warning' | 'error';
   affected_services?: string[];
   estimated_duration?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Authentication types
@@ -184,7 +184,7 @@ export interface JoinRoomResponse {
 }
 
 // Event handler types
-export type WebSocketEventHandler<T = any> = (data: T) => void;
+export type WebSocketEventHandler<T = unknown> = (data: T) => void;
 export type WebSocketErrorHandler = (error: WebSocketError) => void;
 export type WebSocketConnectionHandler = (state: WebSocketConnectionState) => void;
 
@@ -192,7 +192,7 @@ export interface WebSocketError {
   type: 'connection' | 'authentication' | 'message' | 'network';
   message: string;
   code?: string | number;
-  data?: any;
+  data?: unknown;
 }
 
 // Event subscription types
@@ -226,9 +226,9 @@ export interface IWebSocketManager {
   getCurrentRooms(): string[];
 
   // Event handling
-  on<T = any>(event: WebSocketEventType, handler: WebSocketEventHandler<T>): string;
+  on<T = unknown>(event: WebSocketEventType, handler: WebSocketEventHandler<T>): string;
   off(event: WebSocketEventType, handlerId?: string): void;
-  emit(event: WebSocketEventType, data: any): void;
+  emit(event: WebSocketEventType, data: unknown): void;
 
   // Utility methods
   ping(): Promise<boolean>;
@@ -251,7 +251,7 @@ export interface UseWebSocketReturn {
   disconnect: () => void;
   joinRoom: (patientId: string) => Promise<boolean>;
   leaveRoom: (patientId: string) => Promise<boolean>;
-  subscribe: <T = any>(event: WebSocketEventType, handler: WebSocketEventHandler<T>) => () => void;
+  subscribe: <T = unknown>(event: WebSocketEventType, handler: WebSocketEventHandler<T>) => () => void;
   emit: (event: WebSocketEventType, data: any) => void;
   stats: WebSocketStats;
   error: WebSocketError | null;

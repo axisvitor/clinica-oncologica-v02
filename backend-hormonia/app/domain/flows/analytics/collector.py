@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 from uuid import UUID
 
-from app.services.flow_analytics import FlowAnalyticsService
+from app.services.analytics import FlowAnalyticsService
 
 
 logger = logging.getLogger(__name__)

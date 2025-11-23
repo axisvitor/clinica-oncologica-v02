@@ -13,8 +13,8 @@ class FlowAnalytics(BaseModel):
     __tablename__ = "flow_analytics"
     
     # References
-    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
-    flow_template_version_id = Column(UUID(as_uuid=True), ForeignKey("flow_template_versions.id"), nullable=True)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    flow_template_version_id = Column(UUID(as_uuid=True), ForeignKey("flow_template_versions.id"), nullable=True, index=True)
     
     # Metrics
     total_messages_sent = Column(Integer, default=0, nullable=False)
@@ -58,7 +58,7 @@ class FlowMessage(BaseModel):
     __tablename__ = "flow_messages"
     
     # References - aligned with actual DB schema
-    flow_template_version_id = Column(UUID(as_uuid=True), ForeignKey("flow_template_versions.id"), nullable=False)
+    flow_template_version_id = Column(UUID(as_uuid=True), ForeignKey("flow_template_versions.id"), nullable=False, index=True)
     
     # Message structure - matching DB schema exactly
     step_number = Column(Integer, nullable=False)
@@ -75,8 +75,8 @@ class FlowMessage(BaseModel):
     delay_seconds = Column(Integer, default=0, nullable=True)
     
     # Legacy fields for backward compatibility
-    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=True)
-    message_id = Column(UUID(as_uuid=True), ForeignKey("messages.id"), nullable=True)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=True, index=True)
+    message_id = Column(UUID(as_uuid=True), ForeignKey("messages.id"), nullable=True, index=True)
     step_name = Column(String(100), nullable=True)  # Legacy alias for message_key
     content = Column(Text, nullable=True)  # Legacy alias for message_text
     scheduled_for = Column(DateTime(timezone=True), nullable=True)
@@ -95,7 +95,7 @@ class QuizQuestion(BaseModel):
     __tablename__ = "quiz_questions"
     
     # References
-    quiz_template_id = Column(UUID(as_uuid=True), ForeignKey("quiz_templates.id"), nullable=False)
+    quiz_template_id = Column(UUID(as_uuid=True), ForeignKey("quiz_templates.id"), nullable=False, index=True)
     
     # Question details
     question_text = Column(String, nullable=False)

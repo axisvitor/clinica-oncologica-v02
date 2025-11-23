@@ -18,9 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FlowDesigner } from '@/components/flow-designer/FlowDesigner';
-import { QuizTemplateCard } from '@/components/quiz/QuizTemplateCard';
-import { useTemplates, FlowTemplate, QuizTemplate } from '@/hooks/useTemplates';
+import { FlowDesigner } from '@/features/flow-designer/FlowDesigner';
+import { QuizTemplateCard } from '@/features/quiz/QuizTemplateCard';
+import { useTemplates, FlowTemplate, QuizTemplate, FlowTemplateStep, FlowTemplateCreate } from '@/hooks/useTemplates';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
@@ -32,6 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { logger } from '@/lib/logger';
 
 // Loading skeleton for template cards
 const TemplateCardSkeleton = memo(() => (
@@ -85,7 +86,7 @@ function TemplateManagementPage() {
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'draft'>('all');
   const [showFlowDesigner, setShowFlowDesigner] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<FlowTemplate | null>(null);
-  
+
   const [flowError, setFlowError] = useState<string | null>(null);
   const [quizError, setQuizError] = useState<string | null>(null);
 
@@ -116,7 +117,7 @@ function TemplateManagementPage() {
         setFlowTotalPages(response.pages);
       }
     } catch (error) {
-      console.error('Failed to load flow templates:', error)
+      logger.error('Failed to load flow templates', error)
       setFlowError('Erro ao carregar templates de flow')
       toast({
         title: 'Erro',
@@ -139,7 +140,7 @@ function TemplateManagementPage() {
         setQuizTotalPages(response.pages);
       }
     } catch (error) {
-      console.error('Failed to load quiz templates:', error)
+      logger.error('Failed to load quiz templates', error)
       setQuizError('Erro ao carregar templates de quiz')
       toast({
         title: 'Erro',
@@ -173,13 +174,13 @@ function TemplateManagementPage() {
 
   // Handle Flow Designer save
   const handleFlowSave = async (design: any) => {
-    // Convert FlowDesign to API format as array
-    const steps: any[] = design.nodes.map((node: any, index: number) => {
+    // Convert FlowDesign to API format as array of FlowTemplateStep
+    const steps: FlowTemplateStep[] = design.nodes.map((node: any, index: number): FlowTemplateStep => {
       const messageType = node.type || 'text';
-      
+
       // Validate message type
       if (!VALID_MESSAGE_TYPES.includes(messageType)) {
-        console.warn(`Invalid message_type '${messageType}', defaulting to 'text'`);
+        logger.warn(`Invalid message_type '${messageType}', defaulting to 'text'`);
       }
 
       return {
@@ -192,7 +193,7 @@ function TemplateManagementPage() {
       };
     });
 
-    const templateData = {
+    const templateData: FlowTemplateCreate = {
       kind_key: design.metadata?.flowType || 'custom_flow',
       display_name: design.metadata?.name || 'Novo Flow',
       description: design.metadata?.description || '',
@@ -268,7 +269,7 @@ function TemplateManagementPage() {
       is_draft: true,
       is_active: false,
     };
-    
+
     setEditingTemplate(newVersionTemplate as FlowTemplate);
     setFlowVersionNumber((template.version_number || 1) + 1);
     setFlowIsDraft(true);
@@ -492,7 +493,7 @@ function TemplateManagementPage() {
                 <QuizTemplateCard
                   key={quiz.id}
                   template={quiz}
-                  onPreview={() => console.warn('Preview', quiz.id)}
+                  onPreview={() => logger.debug('Preview quiz', quiz.id)}
                   onEdit={handleEditQuiz}
                   onDelete={handleDeleteQuiz}
                   showAdminActions={true}
@@ -609,8 +610,8 @@ function TemplateManagementPage() {
 // Helper function to convert template to FlowDesign format
 function convertTemplateToDesign(template: FlowTemplate): any {
   // Handle both array and dict formats for steps
-  let stepsArray: any[] = [];
-  
+  let stepsArray: unknown[] = [];
+
   if (Array.isArray(template.steps)) {
     stepsArray = template.steps;
   } else if (template.steps && typeof template.steps === 'object') {

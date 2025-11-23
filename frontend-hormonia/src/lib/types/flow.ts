@@ -6,76 +6,49 @@ import {
   MessageType,
   MessageDirection,
   MessageStatus,
-  type Flow
+  ResponseType,
+  Condition,
+  InteractiveElements,
+  FollowUpAction,
+  MessageTemplate,
+  ResponseResult,
+  FlowTemplate,
+  Flow,
+  FlowState,
+  DailyMetric,
+  FlowAnalytics
 } from '@/types/api'
 
-// Re-export core types for convenience (enums as values, types as types)
+// Re-export core types for convenience
 export {
   FlowType,
   FlowStatus,
   MessageType,
   MessageDirection,
-  MessageStatus
-}
-export type { Flow } from '@/types/api'
-
-// Legacy alias for backwards compatibility
-export type FlowState = Flow
-
-export enum ResponseType {
-  TEXT = 'text',
-  BUTTON = 'button',
-  QUICK_REPLY = 'quick_reply',
-  LIST = 'list'
+  MessageStatus,
+  ResponseType
 }
 
-// Core Flow Engine Interfaces
-export interface MessageTemplate {
-  id: string
-  day: number
-  content: string
-  message_type: MessageType
-  interactive_elements?: InteractiveElements
-  conditions?: Condition[]
-  personalization_hints: string[]
-  ai_instructions?: string
-  follow_up?: FollowUpAction[]
+export type {
+  Condition,
+  InteractiveElements,
+  FollowUpAction,
+  MessageTemplate,
+  ResponseResult,
+  FlowTemplate,
+  Flow,
+  FlowState,
+  DailyMetric,
+  FlowAnalytics
 }
 
-export interface FlowTemplate {
-  id: string
-  flow_type: FlowType
-  name: string
-  description: string
-  messages: Record<number, MessageTemplate>
-  metadata: Record<string, any>
-  humanization_level: 'high' | 'medium' | 'low'
-}
-
-export interface InteractiveElements {
-  buttons?: Array<{ id: string; text: string; action: string }>
-  quick_replies?: string[]
-  list_items?: Array<{ id: string; title: string; description?: string }>
-}
+// Local types that are not in API client types yet (or specific to frontend logic)
 
 export interface InteractiveOption {
   id: string
   title: string
   description?: string
   payload?: string
-}
-
-export interface Condition {
-  field: string
-  operator: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than'
-  value: any
-}
-
-export interface FollowUpAction {
-  intent: string
-  delay_seconds: number
-  ai_instructions?: string
-  conditions?: Condition[]
 }
 
 // Response Processing
@@ -85,48 +58,22 @@ export interface InboundMessage {
   content: string
   message_type: MessageType
   timestamp: string
-  metadata?: Record<string, any>
-}
-
-export interface ResponseResult {
-  response_type: ResponseType
-  extracted_data: Record<string, any>
-  sentiment_score: number
-  requires_attention: boolean
-  follow_up_actions: FollowUpAction[]
+  metadata?: Record<string, unknown>
 }
 
 export interface StructuredResponse {
   intent: string
-  entities: Record<string, any>
+  entities: Record<string, unknown>
   confidence: number
   raw_text: string
 }
 
-// Flow Analytics
-export interface FlowAnalytics {
-  total_active_flows: number
-  completion_rate: number
-  engagement_rate: number
-  average_response_time: number
-  flows_by_type: Record<FlowType, number>
-  daily_metrics: DailyMetric[]
-}
-
-export interface DailyMetric {
-  date: string
-  messages_sent: number
-  responses_received: number
-  new_enrollments: number
-  completions: number
-}
-
 // Flow Engine Events
 export interface FlowEvent {
-  type: 'flow_started' | 'flow_paused' | 'flow_resumed' | 'flow_completed' | 'message_sent' | 'response_received'
+  type: 'flow_started' | 'flow_paused' | 'flow_resumed' | 'flow_completed' | 'message_sent' | 'response_received' | 'flow_advanced'
   patient_id: string
   flow_id: string
-  data?: Record<string, any>
+  data?: Record<string, unknown>
   timestamp: string
 }
 
@@ -146,9 +93,6 @@ export interface FlowStateMachine {
   final_states: string[]
 }
 
-// Note: FlowTransition and FlowStateMachine are already exported above (lines 134-147)
-// No need for duplicate re-export
-
 // Flow Designer interface for design mode
 export interface FlowDesigner {
   id: string
@@ -158,7 +102,7 @@ export interface FlowDesigner {
   status: FlowStatus
   nodes: FlowNode[]
   connections: FlowConnection[]
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
   created_at: string
   updated_at: string
 }

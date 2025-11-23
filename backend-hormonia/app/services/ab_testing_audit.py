@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Union
 from uuid import UUID
 
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 from sqlalchemy import and_, or_, func, desc
 
 from app.models.ab_experiment import ABExperimentAudit, ABExperiment
@@ -89,7 +89,7 @@ class ABTestingAuditService:
 
     def __init__(
         self,
-        db: Session,
+        db: Any,
         encryption_service: Optional[EncryptionService] = None,
         privacy_service: Optional[PrivacyService] = None
     ):
@@ -743,6 +743,6 @@ class ABTestingAuditService:
         }
 
 
-def get_ab_testing_audit_service(db: Session) -> ABTestingAuditService:
+def get_ab_testing_audit_service(db: Any) -> ABTestingAuditService:
     """Get A/B testing audit service instance."""
     return ABTestingAuditService(db)

@@ -254,11 +254,13 @@ if __name__ == '__main__':
 
     These examples show how to use the search utilities in your repositories.
     """
+    import logging
+    logger = logging.getLogger(__name__)
 
     # Example 1: Simple GIN search
-    print("Example 1: Simple GIN search")
-    print("-" * 50)
-    print("""
+    logger.info("Example 1: Simple GIN search")
+    logger.info("-" * 50)
+    logger.info("""
     from app.models.patient import Patient
     from app.utils.search import gin_search, SearchLanguage
 
@@ -269,9 +271,9 @@ if __name__ == '__main__':
     """)
 
     # Example 2: Multi-term search
-    print("\nExample 2: Multi-term search")
-    print("-" * 50)
-    print("""
+    logger.info("\nExample 2: Multi-term search")
+    logger.info("-" * 50)
+    logger.info("""
     from app.utils.search import gin_multi_term_search, SearchLanguage
 
     # Search for "maria" AND "silva"
@@ -286,9 +288,9 @@ if __name__ == '__main__':
     """)
 
     # Example 3: Search with ranking
-    print("\nExample 3: Search with ranking")
-    print("-" * 50)
-    print("""
+    logger.info("\nExample 3: Search with ranking")
+    logger.info("-" * 50)
+    logger.info("""
     from app.utils.search import gin_search, create_search_rank, SearchLanguage
     from sqlalchemy import desc
 
@@ -303,9 +305,9 @@ if __name__ == '__main__':
     """)
 
     # Example 4: Highlighted search results
-    print("\nExample 4: Highlighted search results")
-    print("-" * 50)
-    print("""
+    logger.info("\nExample 4: Highlighted search results")
+    logger.info("-" * 50)
+    logger.info("""
     from app.utils.search import gin_search, highlight_search_results, SearchLanguage
 
     # Get highlighted results
@@ -324,6 +326,6 @@ if __name__ == '__main__':
     )
 
     for patient, highlighted_name in patients:
-        print(f"Original: {patient.name}")
-        print(f"Highlighted: {highlighted_name}")
+        logger.info(f"Original: {patient.name}")
+        logger.info(f"Highlighted: {highlighted_name}")
     """)

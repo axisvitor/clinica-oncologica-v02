@@ -16,6 +16,10 @@ from app.services.circuit_breaker import CircuitBreaker
 from app.exceptions import ServiceError, ValidationError
 from app.services.encryption_service import get_encryption_service
 
+# Import refactored modules
+from app.services.whatsapp.security import WhatsAppSecurity
+from app.services.whatsapp.analytics import WhatsAppAnalytics
+from app.services.whatsapp.message_router import MessageRouter
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +73,10 @@ class WhatsAppUnifiedService:
         self.evolution_api = evolution_api_client
         self.redis = redis_client
         self.encryption_service = get_encryption_service()
+
+        # Initialize helper services
+        self.analytics = WhatsAppAnalytics(redis_client)
+        self.router = MessageRouter(redis_client)
 
         # Circuit breaker configuration
         self.circuit_breaker = CircuitBreaker(
@@ -139,7 +147,7 @@ class WhatsAppUnifiedService:
             )
 
             # Track successful delivery
-            await self._track_delivery(message, result)
+            await self.analytics.track_delivery(message, result)
 
             return result
 
@@ -262,21 +270,48 @@ class WhatsAppUnifiedService:
 
     async def handle_webhook(
         self,
-        webhook_data: Dict[str, Any]
+        webhook_data: Dict[str, Any],
+        signature_header: Optional[str] = None,
+        timestamp_header: Optional[str] = None,
+        raw_payload: Optional[bytes] = None
     ) -> Dict[str, Any]:
         """
-        Handle incoming WhatsApp webhook.
+        Handle incoming WhatsApp webhook with signature validation.
 
         Args:
             webhook_data: Webhook payload from Evolution API
+            signature_header: X-Webhook-Signature or X-Hub-Signature-256 header value
+            timestamp_header: X-Webhook-Timestamp header value
+            raw_payload: Raw request body bytes for signature verification
 
         Returns:
             Dict containing processing result
+
+        Raises:
+            ValidationError: If webhook signature is invalid
+            ServiceError: If webhook processing fails
         """
         try:
-            # Validate webhook signature if configured
-            if not self._validate_webhook_signature(webhook_data):
-                raise ValidationError("Invalid webhook signature")
+            # CRITICAL: Validate webhook signature BEFORE processing
+            is_valid = WhatsAppSecurity.validate_webhook_signature(
+                webhook_data=webhook_data,
+                signature_header=signature_header,
+                timestamp_header=timestamp_header,
+                raw_payload=raw_payload
+            )
+
+            if not is_valid:
+                logger.error(
+                    "SECURITY: Rejected webhook with invalid signature",
+                    extra={
+                        "has_signature": bool(signature_header),
+                        "has_timestamp": bool(timestamp_header),
+                        "event_type": webhook_data.get("event", "unknown")
+                    }
+                )
+                raise ValidationError(
+                    "Invalid webhook signature. Request rejected for security."
+                )
 
             # Extract message data
             message_data = self._extract_message_data(webhook_data)
@@ -290,6 +325,9 @@ class WhatsAppUnifiedService:
                 logger.warning(f"Unknown webhook type: {message_data['type']}")
                 return {"status": "ignored", "reason": "unknown_type"}
 
+        except ValidationError:
+            # Re-raise validation errors (HTTP 401)
+            raise
         except Exception as e:
             logger.error(f"Webhook handling error: {e}", exc_info=True)
             raise ServiceError(f"Failed to handle webhook: {e}")
@@ -311,7 +349,7 @@ class WhatsAppUnifiedService:
                     # Check rate limit again
                     if await self._check_rate_limit(message.phone_number):
                         result = await self._send_message_internal(message)
-                        await self._track_delivery(message, result)
+                        await self.analytics.track_delivery(message, result)
                         processed.append(message)
 
                         # Add delay to respect rate limits
@@ -462,47 +500,6 @@ class WhatsAppUnifiedService:
             )
             self.message_queue = self.message_queue[:1000]
 
-    async def _track_delivery(
-        self,
-        message: WhatsAppMessage,
-        result: Dict[str, Any]
-    ):
-        """Track message delivery for analytics."""
-        if not self.redis:
-            return
-
-        try:
-            # Store delivery record
-            delivery_data = {
-                "phone_number": message.phone_number,
-                "message_type": message.message_type.value,
-                "priority": message.priority.value,
-                "status": result.get("status", "sent"),
-                "message_id": result.get("message_id"),
-                "timestamp": datetime.utcnow().isoformat(),
-                "metadata": message.metadata
-            }
-
-            # Store in Redis with expiration
-            await self.redis.set(
-                f"whatsapp:delivery:{result.get('message_id', 'unknown')}",
-                delivery_data,
-                expire=86400  # 24 hours
-            )
-
-            # Update daily statistics
-            stats_key = f"whatsapp:stats:{datetime.utcnow().strftime('%Y%m%d')}"
-            await self.redis.hincrby(stats_key, "total_sent", 1)
-            await self.redis.hincrby(
-                stats_key,
-                f"type_{message.message_type.value}",
-                1
-            )
-            await self.redis.expire(stats_key, 604800)  # 7 days
-
-        except Exception as e:
-            logger.warning(f"Failed to track delivery: {e}")
-
     def _is_retriable_error(self, error: Exception) -> bool:
         """Check if error is retriable."""
         retriable_errors = [
@@ -515,16 +512,6 @@ class WhatsAppUnifiedService:
         error_str = str(error).lower()
         return any(err in error_str for err in retriable_errors)
 
-    def _validate_webhook_signature(self, webhook_data: Dict[str, Any]) -> bool:
-        """Validate webhook signature for security."""
-        # Implement webhook signature validation based on Evolution API
-        # For now, return True if no secret is configured
-        if not hasattr(settings, 'EVOLUTION_WEBHOOK_SECRET'):
-            return True
-
-        # TODO: Implement actual signature validation
-        return True
-
     def _extract_message_data(self, webhook_data: Dict[str, Any]) -> Dict[str, Any]:
         """Extract relevant data from webhook payload."""
         # Parse Evolution API webhook format
@@ -536,30 +523,307 @@ class WhatsAppUnifiedService:
         }
 
     async def _handle_incoming_message(self, message_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle incoming WhatsApp message."""
-        # Route to appropriate service based on message content
-        # This would integrate with quiz, flow, and other services
+        """
+        Handle incoming WhatsApp message with intelligent routing.
+        """
+        phone_number = message_data.get("phone_number", "")
+        message = message_data.get("message", {})
+        timestamp = message_data.get("timestamp", "")
 
-        logger.info(f"Received message from {message_data['phone_number']}")
+        logger.info(
+            f"Routing incoming message from {phone_number}",
+            extra={
+                "phone": phone_number,
+                "type": message.get("type", "unknown"),
+                "timestamp": timestamp
+            }
+        )
 
-        # TODO: Implement message routing logic
-        return {
-            "status": "received",
-            "phone_number": message_data["phone_number"],
-            "timestamp": message_data["timestamp"]
-        }
+        try:
+            # Extract message text using router
+            message_text = self.router.extract_message_text(message)
+
+            # Determine routing target using router
+            routing_target = await self.router.determine_routing_target(
+                phone_number, message_text
+            )
+
+            # Route to appropriate handler
+            if routing_target == "quiz":
+                result = await self._route_to_quiz_service(phone_number, message_text)
+            elif routing_target == "flow":
+                result = await self._route_to_flow_service(phone_number, message_text)
+            elif routing_target == "support":
+                result = await self._route_to_support_service(phone_number, message_text)
+            else:
+                # Default: general message handler
+                result = await self._route_to_general_handler(phone_number, message_text)
+
+            # Log routing decision
+            logger.info(
+                f"Message routed to {routing_target}",
+                extra={
+                    "phone": phone_number,
+                    "target": routing_target,
+                    "result": result.get("status", "unknown")
+                }
+            )
+
+            return {
+                "status": "routed",
+                "phone_number": phone_number,
+                "target": routing_target,
+                "timestamp": timestamp,
+                "result": result
+            }
+
+        except Exception as e:
+            logger.error(
+                f"Message routing failed: {e}",
+                extra={"phone": phone_number},
+                exc_info=True
+            )
+            return {
+                "status": "error",
+                "phone_number": phone_number,
+                "timestamp": timestamp,
+                "error": str(e)
+            }
+
+    async def _route_to_quiz_service(
+        self,
+        phone_number: str,
+        message_text: str
+    ) -> Dict[str, Any]:
+        """Route message to quiz service."""
+        # Import here to avoid circular dependencies
+        try:
+            from app.services.quiz_service import get_quiz_service
+
+            quiz_service = get_quiz_service()
+            return await quiz_service.handle_whatsapp_message(phone_number, message_text)
+        except Exception as e:
+            logger.error(f"Quiz service routing failed: {e}", exc_info=True)
+            return {"status": "error", "message": str(e)}
+
+    async def _route_to_flow_service(
+        self,
+        phone_number: str,
+        message_text: str
+    ) -> Dict[str, Any]:
+        """Route message to flow service."""
+        try:
+            from app.services.flow_service import get_flow_service
+
+            flow_service = get_flow_service()
+            return await flow_service.handle_whatsapp_message(phone_number, message_text)
+        except Exception as e:
+            logger.error(f"Flow service routing failed: {e}", exc_info=True)
+            return {"status": "error", "message": str(e)}
+
+    async def _route_to_support_service(
+        self,
+        phone_number: str,
+        message_text: str
+    ) -> Dict[str, Any]:
+        """Route message to support service."""
+        # Send automated support response
+        await self.send_message(
+            phone_number=phone_number,
+            message_type=MessageType.TEXT,
+            content={
+                "text": (
+                    "Recebemos sua mensagem. Nossa equipe de suporte "
+                    "entrará em contato em breve. Para emergências, "
+                    "ligue para nosso atendimento 24h."
+                )
+            },
+            priority=MessagePriority.HIGH
+        )
+
+        return {"status": "support_notified", "message": "Support team notified"}
+
+    async def _route_to_general_handler(
+        self,
+        phone_number: str,
+        message_text: str
+    ) -> Dict[str, Any]:
+        """Handle general messages."""
+        # Send generic acknowledgment
+        await self.send_message(
+            phone_number=phone_number,
+            message_type=MessageType.TEXT,
+            content={
+                "text": (
+                    "Obrigado por sua mensagem! Como posso ajudar?\n\n"
+                    "• Digite 'quiz' para questionário de sintomas\n"
+                    "• Digite 'consulta' para agendar\n"
+                    "• Digite 'ajuda' para falar com o suporte"
+                )
+            }
+        )
+
+        return {"status": "acknowledged", "message": "Generic response sent"}
 
     async def _handle_status_update(self, status_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle message status update."""
-        # Update delivery tracking
+        """
+        Handle WhatsApp message status updates.
+        """
+        try:
+            # Extract status information
+            message_id = status_data.get("message_id")
+            phone_number = status_data.get("phone_number")
+            status = status_data.get("status", "unknown")
+            timestamp = status_data.get("timestamp", datetime.utcnow().isoformat())
 
-        logger.info(f"Status update: {status_data}")
+            logger.info(
+                f"Processing status update: {status}",
+                extra={
+                    "message_id": message_id,
+                    "phone": phone_number,
+                    "status": status,
+                    "timestamp": timestamp
+                }
+            )
 
-        # TODO: Implement status update handling
-        return {
-            "status": "processed",
-            "timestamp": datetime.utcnow().isoformat()
-        }
+            # Update database
+            await self._update_message_status_in_db(
+                message_id=message_id,
+                status=status,
+                timestamp=timestamp
+            )
+
+            # Update Redis cache
+            if self.redis and message_id:
+                await self.analytics.update_status_cache(message_id, status, timestamp)
+
+            # Trigger callbacks based on status
+            if status == "delivered":
+                await self._handle_delivered_status(message_id, phone_number)
+            elif status == "read":
+                await self._handle_read_status(message_id, phone_number)
+            elif status == "failed":
+                await self._handle_failed_status(message_id, phone_number, status_data)
+
+            # Update metrics
+            await self.analytics.update_delivery_metrics(status)
+
+            return {
+                "status": "processed",
+                "message_id": message_id,
+                "delivery_status": status,
+                "timestamp": timestamp
+            }
+
+        except Exception as e:
+            logger.error(
+                f"Status update processing failed: {e}",
+                extra={"status_data": status_data},
+                exc_info=True
+            )
+            return {
+                "status": "error",
+                "error": str(e),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+
+    async def _update_message_status_in_db(
+        self,
+        message_id: str,
+        status: str,
+        timestamp: str
+    ):
+        """
+        Update message status in database.
+        """
+        try:
+            # Import here to avoid circular dependencies
+            from app.models.message import Message
+            from app.database import SessionLocal
+
+            with SessionLocal() as db:
+                message = db.query(Message).filter(
+                    Message.whatsapp_message_id == message_id
+                ).first()
+
+                if message:
+                    message.delivery_status = status
+                    message.status_updated_at = datetime.fromisoformat(
+                        timestamp.replace("Z", "+00:00")
+                    )
+
+                    if status == "delivered":
+                        message.delivered_at = message.status_updated_at
+                    elif status == "read":
+                        message.read_at = message.status_updated_at
+
+                    db.commit()
+
+                    logger.debug(
+                        f"Updated message {message_id} status to {status}",
+                        extra={"message_id": message_id, "status": status}
+                    )
+                else:
+                    logger.warning(
+                        f"Message not found in database: {message_id}",
+                        extra={"message_id": message_id}
+                    )
+
+        except Exception as e:
+            logger.error(
+                f"Failed to update message status in DB: {e}",
+                extra={"message_id": message_id, "status": status},
+                exc_info=True
+            )
+
+    async def _handle_delivered_status(self, message_id: str, phone_number: str):
+        """Handle delivered status callback."""
+        logger.debug(f"Message {message_id} delivered to {phone_number}")
+
+        # Could trigger analytics, notifications, etc.
+        if self.redis:
+            await self.redis.hincrby("whatsapp:metrics:delivery", "delivered", 1)
+
+    async def _handle_read_status(self, message_id: str, phone_number: str):
+        """Handle read status callback."""
+        logger.debug(f"Message {message_id} read by {phone_number}")
+
+        # Could trigger follow-up actions, analytics, etc.
+        if self.redis:
+            await self.redis.hincrby("whatsapp:metrics:delivery", "read", 1)
+
+    async def _handle_failed_status(
+        self,
+        message_id: str,
+        phone_number: str,
+        status_data: Dict[str, Any]
+    ):
+        """
+        Handle failed delivery status.
+        """
+        error_info = status_data.get("error", "Unknown error")
+
+        logger.error(
+            f"Message delivery failed: {message_id}",
+            extra={
+                "message_id": message_id,
+                "phone": phone_number,
+                "error": error_info
+            }
+        )
+
+        # Could trigger retry logic, admin alerts, etc.
+        if self.redis:
+            await self.redis.hincrby("whatsapp:metrics:delivery", "failed", 1)
+
+        # Store failed message for retry
+        if self.redis:
+            retry_key = f"whatsapp:failed:{message_id}"
+            await self.redis.set(
+                retry_key,
+                {"phone": phone_number, "error": error_info, "timestamp": status_data.get("timestamp")},
+                expire=86400
+            )
 
 
 # Singleton instance

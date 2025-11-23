@@ -24,7 +24,7 @@ from .core.message_factory import MessageFactory
 from .scheduling.message_scheduler import MessageScheduler
 
 # Delivery
-from .delivery.message_sender import MessageSender
+from .delivery import MessageSender
 from .delivery.idempotent_sender import IdempotentMessageSender
 
 # WhatsApp integration

@@ -385,7 +385,7 @@ def track_queries(session: Session):
             # Execute queries
             results = db.query(Patient).all()
 
-        print(f"Executed {tracker.query_count} queries")
+        logger.info(f"Executed {tracker.query_count} queries", extra={"query_count": tracker.query_count})
     """
     class QueryTracker:
         def __init__(self):

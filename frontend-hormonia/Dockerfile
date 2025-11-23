@@ -1,14 +1,24 @@
 # Frontend Dockerfile - React/Vite com build otimizado
-FROM node:20-slim AS builder
+FROM node:18-alpine AS builder
 
 # Definir diretório de trabalho
 WORKDIR /app
 
-# Copiar arquivos de dependências
-COPY package*.json ./
+# Copy shared packages
+COPY packages/shared-types ./packages/shared-types
 
-# Instalar dependências
-RUN npm ci --prefer-offline --no-audit
+# Copy frontend package
+COPY frontend-hormonia/package.json ./frontend-hormonia/
+COPY frontend-hormonia/tsconfig.json ./frontend-hormonia/
+COPY frontend-hormonia/vite.config.ts ./frontend-hormonia/
+COPY frontend-hormonia/index.html ./frontend-hormonia/
+COPY frontend-hormonia/public ./frontend-hormonia/public
+COPY frontend-hormonia/src ./frontend-hormonia/src
+
+# Install dependencies and build
+WORKDIR /app/frontend-hormonia
+RUN npm install
+RUN npm run build --prefer-offline --no-audit
 
 # Copiar código fonte
 COPY . .

@@ -79,27 +79,51 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         return "; ".join(hsts_parts)
 
-    def _get_default_csp(self) -> str:
+    def _get_default_csp(self, nonce: str = None) -> str:
         """
-        Get default Content-Security-Policy.
+        Get default Content-Security-Policy with CSP Level 3 nonce support.
 
         This CSP is designed for a typical FastAPI + React application:
+        - Uses nonces instead of unsafe-inline/unsafe-eval (CSP Level 3)
+        - strict-dynamic for modern browser compatibility
         - Allows same-origin resources by default
-        - Allows inline styles (needed for many UI libraries)
-        - Restricts script sources to same-origin only
         - Prevents loading resources from arbitrary origins
+
+        Args:
+            nonce: Optional cryptographic nonce for this request
+
+        Returns:
+            CSP policy string with nonce if provided
         """
-        return (
-            "default-src 'self'; "
-            "script-src 'self'; "
-            "style-src 'self' 'unsafe-inline'; "
-            "img-src 'self' data: https:; "
-            "font-src 'self' data:; "
-            "connect-src 'self'; "
-            "frame-ancestors 'none'; "
-            "base-uri 'self'; "
-            "form-action 'self'"
-        )
+        if nonce:
+            return (
+                f"default-src 'self'; "
+                f"script-src 'self' 'nonce-{nonce}' 'strict-dynamic' https://www.gstatic.com https://identitytoolkit.googleapis.com; "
+                f"style-src 'self' 'nonce-{nonce}' https://fonts.googleapis.com; "
+                f"img-src 'self' data: https:; "
+                f"font-src 'self' data: https://fonts.gstatic.com; "
+                f"connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com wss://*.railway.app https://*.railway.app; "
+                f"object-src 'none'; "
+                f"base-uri 'self'; "
+                f"form-action 'self'; "
+                f"frame-ancestors 'none'; "
+                f"block-all-mixed-content; "
+                f"upgrade-insecure-requests"
+            )
+        else:
+            # Fallback without nonce (less secure, for backwards compatibility)
+            return (
+                "default-src 'self'; "
+                "script-src 'self' https://www.gstatic.com https://identitytoolkit.googleapis.com; "
+                "style-src 'self' https://fonts.googleapis.com; "
+                "img-src 'self' data: https:; "
+                "font-src 'self' data: https://fonts.gstatic.com; "
+                "connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com wss://*.railway.app https://*.railway.app; "
+                "object-src 'none'; "
+                "base-uri 'self'; "
+                "form-action 'self'; "
+                "frame-ancestors 'none'"
+            )
 
     async def dispatch(
         self, request: Request, call_next: Callable
@@ -134,8 +158,13 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             response.headers["Strict-Transport-Security"] = self._build_hsts_header()
 
         # Content-Security-Policy: Prevents XSS and injection attacks
-        csp = self.csp_policy if self.csp_policy else self._get_default_csp()
-        response.headers["Content-Security-Policy"] = csp
+        # Check if CSP nonce is available from CSPNonceMiddleware
+        nonce = getattr(request.state, 'csp_nonce', None)
+        csp = self.csp_policy if self.csp_policy else self._get_default_csp(nonce)
+
+        # Only set CSP if not already set by CSPNonceMiddleware
+        if "Content-Security-Policy" not in response.headers:
+            response.headers["Content-Security-Policy"] = csp
 
         # Permissions-Policy: Controls browser features
         if self.permissions_policy:

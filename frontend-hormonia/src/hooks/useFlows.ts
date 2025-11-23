@@ -1,21 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { useToast } from '@/components/ui/use-toast'
+import { getErrorMessage } from '@/lib/type-guards'
+import { FlowState, PaginatedResponse } from '@/lib/api-client/types'
 
-export interface FlowData {
-  id: string
-  patient_id: string
-  patient_name: string
-  flow_type: string
-  current_day: number
-  status: 'active' | 'paused' | 'completed' | 'cancelled'
-  enrollment_date: string
-  last_message_sent?: string
-  monthly_cycle?: number
-  state_data?: Record<string, any>
-  created_at: string
-  updated_at: string
-}
+export type FlowData = FlowState
 
 export interface FlowsParams {
   patient_id?: string
@@ -35,7 +24,7 @@ export interface FlowStats {
 }
 
 export function useFlows(params: FlowsParams = {}) {
-  return useQuery({
+  return useQuery<PaginatedResponse<FlowState>>({
     queryKey: ['flows', params],
     queryFn: () => apiClient.flows.list(params),
     refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
@@ -64,10 +53,10 @@ export function usePauseFlow() {
         description: 'O fluxo foi pausado com sucesso.',
       })
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Erro ao pausar fluxo',
-        description: error.data?.message || 'Ocorreu um erro ao pausar o fluxo.',
+        description: getErrorMessage(error) || 'Ocorreu um erro ao pausar o fluxo.',
         variant: 'destructive',
       })
     },
@@ -88,10 +77,10 @@ export function useResumeFlow() {
         description: 'O fluxo foi retomado com sucesso.',
       })
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Erro ao retomar fluxo',
-        description: error.data?.message || 'Ocorreu um erro ao retomar o fluxo.',
+        description: getErrorMessage(error) || 'Ocorreu um erro ao retomar o fluxo.',
         variant: 'destructive',
       })
     },
@@ -113,10 +102,10 @@ export function useStartFlow() {
         description: 'O fluxo foi iniciado com sucesso.',
       })
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Erro ao iniciar fluxo',
-        description: error.data?.message || 'Ocorreu um erro ao iniciar o fluxo.',
+        description: getErrorMessage(error) || 'Ocorreu um erro ao iniciar o fluxo.',
         variant: 'destructive',
       })
     },

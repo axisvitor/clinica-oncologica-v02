@@ -1,6 +1,6 @@
 import React from 'react'
 import { Search, User, LogOut, Settings, Menu } from 'lucide-react'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/app/providers/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { TaskHealthIndicator } from '../monitoring/TaskHealthIndicator'
 import { NotificationCenter } from './NotificationCenter'
 import { Breadcrumb } from './Breadcrumb'
 
@@ -62,6 +63,9 @@ export function Header({ onMenuClick }: HeaderProps) {
 
         {/* Right side */}
         <div className="flex items-center space-x-2 md:space-x-4">
+          {/* System Health */}
+          <TaskHealthIndicator />
+
           {/* Notifications */}
           <NotificationCenter />
 

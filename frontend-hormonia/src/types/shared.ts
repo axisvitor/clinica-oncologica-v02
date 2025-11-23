@@ -191,7 +191,7 @@ export interface SoftDeletableEntity extends BaseEntity {
 /**
  * API response wrapper
  */
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   message?: string;
@@ -220,7 +220,7 @@ export interface ApiErrorResponse {
   error: string;
   message: string;
   status_code?: number;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
   timestamp?: string;
 }
 

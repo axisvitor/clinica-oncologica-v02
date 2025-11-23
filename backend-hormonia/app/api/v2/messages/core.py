@@ -30,10 +30,10 @@ from app.database import get_db
 from app.models.message import Message, MessageStatus, MessageType, MessageDirection
 from app.models.patient import Patient
 from app.models.user import UserRole
-from app.services.message import MessageService
+from app.domain.messaging.core import MessageService
 from app.domain.messaging.delivery import MessageSender
 from app.services.unified_whatsapp_service import MessagingMode
-from app.services.patient import PatientService
+from app.repositories.patient import PatientRepository
 from app.schemas.v2.messages import (
     MessageV2Response,
     MessageV2List,
@@ -287,8 +287,8 @@ async def send_message(
         )
 
     # Verify patient exists
-    patient_service = PatientService(db)
-    patient = patient_service.get_patient(patient_uuid)
+    patient_repo = PatientRepository(db)
+    patient = patient_repo.get_by_id(patient_uuid)
     if not patient:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

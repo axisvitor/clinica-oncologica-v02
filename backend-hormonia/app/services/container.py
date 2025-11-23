@@ -3,7 +3,7 @@ Thread-safe service container with request-scoped dependencies.
 Replaces the problematic ServiceProvider with proper dependency injection.
 """
 from typing import Dict, Any, Optional, Callable
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 from functools import lru_cache
 import logging
 from contextlib import contextmanager
@@ -25,7 +25,7 @@ class ServiceContainer:
     4. Thread-safe service instantiation
     """
 
-    def __init__(self, db: Session, redis_client=None):
+    def __init__(self, db: Any, redis_client=None):
         """Initialize container with request-scoped dependencies."""
         self._db = db
         self._redis_client = redis_client
@@ -79,30 +79,25 @@ class ServiceContainer:
             )
         return self._services_cache['auth_service']
 
-    def get_patient_service(self):
-        """Get PatientService with fresh dependencies."""
-        if 'patient_service' not in self._services_cache:
-            from app.services.patient import PatientService, PatientIntegrityService
-
-            # Create integrity service first
-            integrity_service = PatientIntegrityService(
-                db=self._db,
-                patient_repository=self.get_patient_repository()
-            )
-
-            self._services_cache['patient_service'] = PatientService(
-                db=self._db,
-                patient_repository=self.get_patient_repository(),
-                integrity_service=integrity_service,
-                flow_engine=self.get_flow_engine()
-            )
-        return self._services_cache['patient_service']
-
     def get_flow_engine(self):
         """Get FlowEngine with fresh database session."""
         if 'flow_engine' not in self._services_cache:
-            from app.services.flow_engine_v2 import FlowEngineV2  # New thread-safe version
-            self._services_cache['flow_engine'] = FlowEngineV2(self._db)
+            from app.services.enhanced_flow_engine import EnhancedFlowEngine
+            from app.services.platform_synchronization import PlatformSynchronizationService
+            from app.services.template_loader import EnhancedTemplateLoader
+            from app.services.unified_cache import UnifiedCacheService
+            
+            # Instantiate dependencies
+            platform_sync = PlatformSynchronizationService(self._db)
+            template_loader = EnhancedTemplateLoader()
+            template_cache = UnifiedCacheService()
+            
+            self._services_cache['flow_engine'] = EnhancedFlowEngine(
+                db=self._db,
+                platform_sync=platform_sync,
+                template_loader=template_loader,
+                template_cache=template_cache
+            )
         return self._services_cache['flow_engine']
 
     def get_quiz_service(self):
@@ -119,25 +114,28 @@ class ServiceContainer:
     def get_message_service(self):
         """Get MessageService with fresh dependencies."""
         if 'message_service' not in self._services_cache:
-            from app.services.message import MessageService
+            from app.domain.messaging.core import MessageService
             self._services_cache['message_service'] = MessageService(self._db)
         return self._services_cache['message_service']
 
     def get_flow_integration_service(self):
         """Get consolidated FlowIntegrationService."""
         if 'flow_integration_service' not in self._services_cache:
-            from app.services.flow_integration_v2 import FlowIntegrationServiceV2  # Consolidated version
-            self._services_cache['flow_integration_service'] = FlowIntegrationServiceV2(
+            from app.domain.flows.core import FlowEngineIntegrationService
+            
+            # Inject the properly configured flow engine
+            flow_engine = self.get_flow_engine()
+            
+            self._services_cache['flow_integration_service'] = FlowEngineIntegrationService(
                 db=self._db,
-                flow_engine=self.get_flow_engine(),
-                message_service=self.get_message_service()
+                enhanced_flow_engine=flow_engine
             )
         return self._services_cache['flow_integration_service']
 
     def get_monthly_quiz_service(self):
         """Get MonthlyQuizService with fresh dependencies."""
         if 'monthly_quiz_service' not in self._services_cache:
-            from app.services.monthly_quiz_service import MonthlyQuizService
+            from app.domain.quizzes import MonthlyQuizService
             self._services_cache['monthly_quiz_service'] = MonthlyQuizService(self._db)
         return self._services_cache['monthly_quiz_service']
 
@@ -153,7 +151,7 @@ class ServiceContainer:
 
 # Request-scoped container factory
 def get_service_container(
-    db: Session = None,  # Will be injected by FastAPI dependency
+    db: Any = None,  # Will be injected by FastAPI dependency
     redis_client=None   # Will be injected by FastAPI dependency
 ) -> ServiceContainer:
     """

@@ -22,7 +22,7 @@ from app.schemas.flow import (
     FlowHistoryResponse,
     FlowHistoryItem
 )
-from app.services.flow import FlowEngineIntegrationService
+from app.domain.flows.core import FlowService
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +33,10 @@ class FlowManagementService:
     def __init__(
         self,
         flow_repo: FlowStateRepository,
-        flow_engine: FlowEngineIntegrationService
+        db # Assuming 'db' is passed in or accessible here, as it's used in FlowService(db)
     ):
         self.flow_repo = flow_repo
-        self.flow_engine = flow_engine
+        self.flow_service = FlowService(db)
     
     async def get_patient_flow_state(self, patient_id: UUID) -> FlowStateResponse:
         """

@@ -83,7 +83,7 @@ interface DLQMessage {
   created_at: string;
   last_retry_at?: string;
   resolved_at?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 interface DLQStats {

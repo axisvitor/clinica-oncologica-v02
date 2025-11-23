@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 
 function Label({
   className,
+  children,
   ...props
 }: React.ComponentProps<typeof LabelPrimitive.Root>) {
   return (
@@ -17,7 +18,9 @@ function Label({
         className,
       )}
       {...props}
-    />
+    >
+      {children}
+    </LabelPrimitive.Root>
   )
 }
 

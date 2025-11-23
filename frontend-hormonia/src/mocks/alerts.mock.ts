@@ -12,7 +12,7 @@ export interface MockAlert {
   created_at: string
   acknowledged_at?: string
   resolved_at?: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 export const MOCK_ALERTS: MockAlert[] = [

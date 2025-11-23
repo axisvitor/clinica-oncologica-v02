@@ -1,53 +1,69 @@
 # Dependencies
-node_modules/
+node_modules
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 pnpm-debug.log*
 
-# Build outputs
-.next/
-out/
-dist/
-build/
+# Build output
+.next
+out
+build
+dist
 
 # Testing
-coverage/
-.nyc_output/
-cypress/videos/
-cypress/screenshots/
+coverage
+test-results
 
 # IDE
-.vscode/
-.idea/
+.vscode
+.idea
 *.swp
 *.swo
-*~
+
+# Environment
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+!.env.example
+
+# Logs
+*.log
+logs
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Environment
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
 # Git
-.git/
-.github/
+.git
 .gitignore
 
 # Docker
-docker-compose*.yml
 Dockerfile*
+docker-compose*.yml
 .dockerignore
 
 # Documentation
 *.md
-README*
+!README.md
 
-# Next.js cache
-.next/cache/
+# Misc
+.cache
+.temp
+tmp
+
+# TypeScript
+*.tsbuildinfo
+
+# ESLint
+.eslintcache
+
+# Next.js
+.next/
+.cache/
+
+# Backup
+*.bak
+*.backup

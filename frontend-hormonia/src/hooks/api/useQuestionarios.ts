@@ -5,7 +5,7 @@ interface QuizTemplate {
   id: string
   name: string
   version: string
-  questions: any[]
+  questions: unknown[]
   is_active: boolean
   created_at: string
   updated_at: string
@@ -27,7 +27,7 @@ interface UseQuestionariosOptions {
 }
 
 interface QuestionariosResponse {
-  data: QuizTemplate[]
+  items: QuizTemplate[]
   total: number
   page: number
   size: number
@@ -76,7 +76,7 @@ export function useQuestionarios(options?: UseQuestionariosOptions): UseQueryRes
       if (type !== 'all') {
         filtered = filtered.filter((t: any) => {
           const templateType = t.name.toLowerCase().includes('medical') ||
-                             t.name.toLowerCase().includes('oncolog') ? 'medical' : 'wellness'
+            t.name.toLowerCase().includes('oncolog') ? 'medical' : 'wellness'
           return templateType === type
         })
       }
@@ -134,7 +134,7 @@ export function useQuestionarios(options?: UseQuestionariosOptions): UseQueryRes
       )
 
       return {
-        data: templatesWithAnalytics,
+        items: templatesWithAnalytics,
         total,
         page,
         size

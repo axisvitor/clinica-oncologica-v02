@@ -6,53 +6,133 @@ Main router for API v2 endpoints.
 import os
 import logging
 from fastapi import APIRouter
-from .patients_crud import router as patients_crud_router
-from .patients_import import router as patients_import_router
-from .patients_flow import router as patients_flow_router
-from .patients_integrity import router as patients_integrity_router
-from .appointments import router as appointments_router
-from .treatments import router as treatments_router
-from .medications import router as medications_router
-from .quiz import router as quiz_router
-from .analytics import router as analytics_router
-from .enhanced_analytics import router as enhanced_analytics_router
-from .auth import router as auth_router
-from .flows import router as flows_router
-from .messages import router as messages_router
-from .enhanced_messages import router as enhanced_messages_router
-from .reports import router as reports_router
-from .admin import router as admin_router
-from .webhooks import router as webhooks_router
-from .ai import router as ai_router
-from .enhanced_monitoring import router as enhanced_monitoring_router
-from .enhanced_quiz import router as enhanced_quiz_router
-from .enhanced_reports import router as enhanced_reports_router
-from .alerts import router as alerts_router
-from .flow_templates import router as flow_templates_router
-from .quiz_templates import router as quiz_templates_router
-from .template_versions import router as template_versions_router
-from .template_admin import router as template_admin_router
-from .ab_testing import router as ab_testing_router
-from .platform_sync import router as platform_sync_router
-from .tasks import router as tasks_router
-from .upload import router as upload_router
-from .localization import router as localization_router
-from .dashboard import router as dashboard_router
-from .physicians import router as physicians_router
-from .admin_extensions import router as admin_extensions_router
-from .docs import router as docs_router
-from .roles import router as roles_router
-from .system import router as system_router
-from .performance import router as performance_router
-from .health import router as health_router
-from .quiz_responses import router as quiz_responses_router
-from .quiz_alerts import router as quiz_alerts_router
-from .monthly_quiz_management import router as monthly_quiz_management_router
-from .monthly_quiz_operations import router as monthly_quiz_operations_router
-from .debug import router as debug_router
+from .routers.patients import router as patients_crud_router
+from .routers.auth import router as auth_router
+from .routers.users import router as users_router
+from .routers.notifications import router as notifications_router
+from .routers.patients_import import router as patients_import_router
+from .routers.patients_flow import router as patients_flow_router
+from .routers.patients_integrity import router as patients_integrity_router
+from .routers.appointments import router as appointments_router
+from .routers.treatments import router as treatments_router
+from .routers.medications import router as medications_router
+from .routers.quiz_sessions import router as quiz_router
+from .routers.analytics import router as analytics_router
+from .routers.enhanced_analytics import router as enhanced_analytics_router
+from .routers.flows import router as flows_router
+from .routers.messages import router as messages_router
+from .routers.enhanced_messages import router as enhanced_messages_router
+from .routers.reports import router as reports_router
+from .routers.admin import router as admin_router
+from .routers.webhooks import router as webhooks_router
+from .routers.ai import router as ai_router
+from .routers.enhanced_monitoring import router as enhanced_monitoring_router
+from .routers.enhanced_quiz import router as enhanced_quiz_router
+from .routers.enhanced_reports import router as enhanced_reports_router
+from .routers.alerts import router as alerts_router
+from .routers.flow_templates import router as flow_templates_router
+from .routers.quiz_templates import router as quiz_templates_router
+from .routers.template_versions import router as template_versions_router
+from .routers.template_admin import router as template_admin_router
+from .routers.ab_testing import router as ab_testing_router
+from .routers.platform_sync import router as platform_sync_router
+from .routers.tasks import router as tasks_router
+from .routers.upload import router as upload_router
+from .routers.localization import router as localization_router
+from .routers.dashboard import router as dashboard_router
+from .routers.physicians import router as physicians_router
+from .routers.admin_extensions import router as admin_extensions_router
+from .routers.docs import router as docs_router
+from .routers.roles import router as roles_router
+from .routers.system import router as system_router
+from .routers.performance import router as performance_router
+from .routers.health import router as health_router
+from .routers.quiz_responses import router as quiz_responses_router
+from .routers.quiz_alerts import router as quiz_alerts_router
+from .routers.monthly_quiz_management import router as monthly_quiz_management_router
+from .routers.monthly_quiz_operations import router as monthly_quiz_operations_router
+from .routers.debug import router as debug_router
+from .routers.session import router as session_router
 
 logger = logging.getLogger(__name__)
 api_v2_router = APIRouter(prefix="/api/v2", tags=["v2"])
+
+
+# ============================================================================
+# CSRF Token Backward Compatibility Endpoint
+# ============================================================================
+# Frontend currently calls /api/v2/csrf-token instead of /api/v2/auth/csrf-token
+# This compatibility route will be removed once frontend is updated
+from fastapi import Request, HTTPException, status
+from app.utils.rate_limiter import limiter
+
+
+@api_v2_router.get(
+    "/csrf-token",
+    summary="Get CSRF token (Compatibility Alias)",
+    description="""
+    **DEPRECATED**: Legacy endpoint for CSRF token retrieval.
+
+    This endpoint provides backward compatibility for frontend applications
+    that call `/api/v2/csrf-token` instead of `/api/v2/auth/csrf-token`.
+
+    **Recommended**: Update your frontend to use `/api/v2/auth/csrf-token` instead.
+
+    This alias will be removed in a future version.
+    """,
+    tags=["auth-v2", "security", "deprecated"],
+    deprecated=True
+)
+@limiter.limit("100/minute")
+async def get_csrf_token_compat(request: Request):
+    """
+    Backward compatibility alias for CSRF token endpoint.
+
+    This endpoint delegates to the main CSRF token generation logic.
+    It exists solely for backward compatibility with frontend code that calls
+    /api/v2/csrf-token instead of /api/v2/auth/csrf-token.
+
+    **Deprecation Notice**: This endpoint is deprecated and will be removed
+    in a future version. Please update your code to use /api/v2/auth/csrf-token.
+
+    Returns:
+        dict: CSRF token and expiration information
+    """
+    from app.core.csrf_middleware import CSRFMiddleware
+    from app.config import settings
+
+    logger.warning(
+        "CSRF token accessed via deprecated compatibility endpoint /api/v2/csrf-token",
+        extra={
+            "client_ip": request.client.host if request.client else "unknown",
+            "user_agent": request.headers.get("user-agent", "unknown"),
+            "migration_note": "Frontend should be updated to use /api/v2/auth/csrf-token"
+        }
+    )
+
+    if not settings.CSRF_SECRET_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="CSRF protection is not configured on this server"
+        )
+
+    # Create a temporary middleware instance to generate token
+    csrf = CSRFMiddleware(
+        app=None,  # Not needed for token generation
+        secret_key=settings.CSRF_SECRET_KEY,
+        token_expiry=3600
+    )
+
+    token = csrf._generate_token()
+
+    return {
+        "csrf_token": token,
+        "expires_in": 3600,
+        "header_name": "X-CSRF-Token",
+        "usage": "Include this token in X-CSRF-Token header for POST/PUT/DELETE/PATCH requests",
+        "deprecation_notice": "Please use /api/v2/auth/csrf-token instead. This endpoint will be removed in a future version."
+    }
+
 
 # Include sub-routers
 # Phase 1: Core Clinical Modules - Patients (Refactored into 4 focused modules - Sprint 1)
@@ -68,7 +148,12 @@ api_v2_router.include_router(medications_router, prefix="/medications", tags=["m
 api_v2_router.include_router(quiz_router, prefix="/quiz", tags=["quiz-v2"])
 api_v2_router.include_router(analytics_router, prefix="/analytics", tags=["analytics-v2"])
 api_v2_router.include_router(enhanced_analytics_router, prefix="/enhanced-analytics", tags=["enhanced-analytics-v2"])
+# Auth & Users (Decomposed)
 api_v2_router.include_router(auth_router, prefix="/auth", tags=["auth-v2"])
+api_v2_router.include_router(users_router, prefix="/auth", tags=["users-v2"]) # Legacy path support for /me, /preferences
+api_v2_router.include_router(session_router, prefix="/session", tags=["session-v2-compat"]) # Session backward compatibility wrapper
+api_v2_router.include_router(notifications_router, prefix="/notifications", tags=["notifications-v2"])
+api_v2_router.include_router(notifications_router, prefix="/auth/notifications", tags=["notifications-v2-legacy"]) # Legacy path
 api_v2_router.include_router(flows_router, prefix="/flows", tags=["flows-v2"])
 api_v2_router.include_router(messages_router, prefix="/messages", tags=["messages-v2"])
 api_v2_router.include_router(enhanced_messages_router, prefix="/enhanced-messages", tags=["enhanced-messages-v2"])
@@ -113,6 +198,12 @@ api_v2_router.include_router(quiz_responses_router, prefix="/quiz-extensions", t
 api_v2_router.include_router(quiz_alerts_router, prefix="/quiz-extensions", tags=["quiz-alerts-v2"])
 api_v2_router.include_router(monthly_quiz_management_router, prefix="/quiz-extensions", tags=["monthly-quiz-v2"])
 api_v2_router.include_router(monthly_quiz_operations_router, prefix="/quiz-extensions", tags=["monthly-quiz-ops-v2"])
+
+# Monthly Quiz Public Access - Alias for Frontend Compatibility
+# Frontend expects /monthly-quiz-public/*, so we register the operations router again with this prefix
+api_v2_router.include_router(monthly_quiz_operations_router, prefix="/monthly-quiz-public", tags=["monthly-quiz-public-v2"])
+# Frontend also expects /monthly-quiz/* for some operations (mapped to quiz-extensions)
+api_v2_router.include_router(monthly_quiz_operations_router, prefix="/monthly-quiz", tags=["monthly-quiz-compat-v2"])
 
 # Phase 10: Complete V2 Migration - Critical Clinical Modules Added
 # ✅ Appointments, Treatments, and Medications modules now implemented

@@ -1,8 +1,10 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
+import { CreateUserRequest, UpdateUserRequest } from '@/lib/api-client/types'
 import { AdminUser, AdminDashboardStats, AdminUserActivity } from '@/types/admin'
 import { useToast } from '@/components/ui/use-toast'
+import { getErrorMessage, isErrorWithMessage } from '@/lib/utils/type-guards';
 
 interface UseUserAdminOptions {
   /** Enable real-time updates via WebSocket */
@@ -33,13 +35,76 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
   const queryClient = useQueryClient()
 
   // WebSocket for real-time updates
-  // TODO: Implement WebSocket endpoint /ws/admin/users on backend
-  // For now, using polling-based updates via refetchInterval
-  const isConnected = false
-  const sendMessage = useCallback((_message: any) => {
-    // Placeholder until backend WebSocket endpoint is implemented
-    // This function accepts a message parameter but does nothing with it
-  }, [])
+  // WebSocket endpoint /ws/admin/users implemented on backend
+  const [wsConnection, setWsConnection] = useState<WebSocket | null>(null)
+  const [isConnected, setIsConnected] = useState(false)
+
+  // Initialize WebSocket connection for real-time updates
+  useEffect(() => {
+    if (!realTimeUpdates) return
+
+    const connectWebSocket = () => {
+      try {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+        const wsUrl = `${protocol}//${window.location.host}/ws/admin/users`
+
+        const ws = new WebSocket(wsUrl)
+
+        ws.onopen = () => {
+          setIsConnected(true)
+          setWsConnection(ws)
+        }
+
+        ws.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data)
+
+            // Handle different message types
+            if (message.type === 'user_created' || message.type === 'user_updated' || message.type === 'user_deleted') {
+              // Invalidate queries to refresh data
+              queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+              queryClient.invalidateQueries({ queryKey: ['admin-stats'] })
+            }
+          } catch (error) {
+            console.error('Error parsing WebSocket message:', error)
+          }
+        }
+
+        ws.onerror = (error) => {
+          console.error('WebSocket error:', error)
+          setIsConnected(false)
+        }
+
+        ws.onclose = () => {
+          setIsConnected(false)
+          setWsConnection(null)
+
+          // Attempt to reconnect after 5 seconds
+          setTimeout(connectWebSocket, 5000)
+        }
+
+        return ws
+      } catch (error) {
+        console.error('Failed to create WebSocket connection:', error)
+        setIsConnected(false)
+        return null
+      }
+    }
+
+    const ws = connectWebSocket()
+
+    return () => {
+      if (ws) {
+        ws.close()
+      }
+    }
+  }, [realTimeUpdates, queryClient])
+
+  const sendMessage = useCallback((message: any) => {
+    if (wsConnection && isConnected && wsConnection.readyState === WebSocket.OPEN) {
+      wsConnection.send(JSON.stringify(message))
+    }
+  }, [wsConnection, isConnected])
 
   // State for filters and pagination
   const [filters, setFilters] = useState<UserFilters>({
@@ -101,7 +166,7 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
 
   // Create user mutation
   const createUserMutation = useMutation({
-    mutationFn: (userData: Partial<AdminUser>) => apiClient.adminUsers.create(userData),
+    mutationFn: (userData: Partial<AdminUser>) => apiClient.adminUsers.create(userData as CreateUserRequest),
     onSuccess: (newUser) => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
       queryClient.invalidateQueries({ queryKey: ['admin-stats'] })
@@ -119,10 +184,10 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
         })
       }
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Erro ao criar usuário',
-        description: error.data?.message || 'Ocorreu um erro inesperado.',
+        description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
         variant: 'destructive'
       })
     }
@@ -131,7 +196,7 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
   // Update user mutation
   const updateUserMutation = useMutation({
     mutationFn: ({ id, userData }: { id: string; userData: Partial<AdminUser> }) =>
-      apiClient.adminUsers.update(id, userData),
+      apiClient.adminUsers.update(id, userData as UpdateUserRequest),
     onSuccess: (updatedUser, variables) => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
       queryClient.invalidateQueries({ queryKey: ['admin-user', variables.id] })
@@ -150,10 +215,10 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
         })
       }
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Erro ao atualizar usuário',
-        description: error.data?.message || 'Ocorreu um erro inesperado.',
+        description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
         variant: 'destructive'
       })
     }
@@ -179,10 +244,10 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
         })
       }
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Erro ao excluir usuário',
-        description: error.data?.message || 'Ocorreu um erro inesperado.',
+        description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
         variant: 'destructive'
       })
     }
@@ -217,10 +282,11 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
         })
       }
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro inesperado.';
       toast({
         title: 'Erro na ativação em lote',
-        description: error.message || 'Ocorreu um erro inesperado.',
+        description: errorMessage,
         variant: 'destructive'
       })
     }
@@ -255,10 +321,11 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
         })
       }
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro inesperado.';
       toast({
         title: 'Erro na desativação em lote',
-        description: error.message || 'Ocorreu um erro inesperado.',
+        description: errorMessage,
         variant: 'destructive'
       })
     }
@@ -278,10 +345,10 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
         description: 'Nota: Backend ainda não persiste permissões. Implementação pendente.',
       })
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Erro ao atualizar permissões',
-        description: error.data?.message || 'Ocorreu um erro inesperado.',
+        description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
         variant: 'destructive'
       })
     }
@@ -308,10 +375,10 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
         description: `Nova senha temporária: ${response.temporary_password}`,
       })
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Erro ao redefinir senha',
-        description: error.data?.message || 'Ocorreu um erro inesperado.',
+        description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
         variant: 'destructive'
       })
     }

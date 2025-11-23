@@ -22,10 +22,83 @@
 import { ApiClientCore } from "./core";
 import { createAuthApi } from "./auth";
 import { createPatientsApi } from "./patients";
+import { createAppointmentsApi } from "./appointments";
+import { createTreatmentsApi } from "./treatments";
+import { createMedicationsApi } from "./medications";
 import { createMonthlyQuizApi } from "./monthly-quiz";
 import { createAnalyticsApi } from "./analytics";
+import { createAdminApi } from "./admin";
+import { createDashboardApi } from "./dashboard";
+import { createTasksApi, TasksApi } from "./tasks";
+import { createHiveMindApi } from "./hive-mind";
 import { createLogger } from "../logger";
 import { API_BASE_URL } from "../../config";
+import type {
+  Message,
+  MessageListFilters,
+  SendMessageRequest,
+  BulkMessageRequest,
+  BulkMessageResponse,
+  ConversationResponse,
+  FlowTemplate,
+  FlowState,
+  FlowListFilters,
+  CreateFlowTemplateRequest,
+  UpdateFlowTemplateRequest,
+  FlowAdvanceRequest,
+  FlowPauseRequest,
+  FlowProcessResponseRequest,
+  FlowAnalytics,
+  Alert,
+  AlertListFilters,
+  CreateAlertRequest,
+  UpdateAlertRequest,
+  UnreadCountResponse,
+  Report,
+  ReportListFilters,
+  GenerateReportRequest,
+  ScheduleReportRequest,
+  ScheduledReport,
+  AdminUser,
+  AdminUserListFilters,
+  CreateUserRequest,
+  UpdateUserRequest,
+  ResetPasswordRequest,
+  UserActivityEntry,
+  UserActivityFilters,
+  Role,
+  CreateRoleRequest,
+  AuditLogEntry,
+  AuditLogFilters,
+  SystemSettings,
+  SystemHealth,
+  SystemMetrics,
+  SystemStats,
+  AIChatRequest,
+  AIChatResponse,
+  AIAnalysisRequest,
+  AIAnalysisResponse,
+  AIGenerateResponseRequest,
+  AIGenerateResponseResponse,
+  SentimentAnalysisRequest,
+  SentimentAnalysisResponse,
+  AIInsights,
+  AIRecommendations,
+  QuizTemplateResponse,
+  QuizSessionStartRequest,
+  QuizSession,
+  QuizSubmitRequest,
+  QuizSessionListFilters,
+  QuizSessionResponses,
+  QuizSessionAnalysis,
+  PatientQuizResponses,
+  NotificationListResponse,
+  RiskAssessmentRequest,
+  RiskAssessmentsResponse,
+  PaginatedResponse,
+  MessageResponse,
+  ResponseResult,
+} from './types';
 
 const logger = createLogger("ApiClient");
 
@@ -36,8 +109,24 @@ export { ApiError } from "./core";
 // Re-export domain types
 export type * from "./auth";
 export type * from "./patients";
+export type * from "./appointments";
+export type * from "./treatments";
+export type {
+  Medication,
+  MedicationCreate,
+  MedicationUpdate,
+  MedicationFilters,
+  MedicationStats,
+  MedicationRoute,
+  MedicationSchedule,
+  MedicationsApi
+} from "./medications";
 export type * from "./monthly-quiz";
 export type * from "./analytics";
+export type * from "./admin";
+export type * from "./dashboard";
+export type * from "./tasks";
+export type * from "./hive-mind";
 
 /**
  * Main API Client class
@@ -47,8 +136,14 @@ export class ApiClient extends ApiClientCore {
   // Domain modules
   public readonly auth: ReturnType<typeof createAuthApi>;
   public readonly patients: ReturnType<typeof createPatientsApi>;
+  public readonly appointments: ReturnType<typeof createAppointmentsApi>;
+  public readonly treatments: ReturnType<typeof createTreatmentsApi>;
+  public readonly medications: ReturnType<typeof createMedicationsApi>;
   public readonly monthlyQuiz: ReturnType<typeof createMonthlyQuizApi>;
   public readonly analytics: ReturnType<typeof createAnalyticsApi>;
+  public readonly adminV2: ReturnType<typeof createAdminApi>;
+  public readonly dashboard: ReturnType<typeof createDashboardApi>;
+  public readonly tasks: TasksApi;
 
   // Additional namespaces (lightweight inline implementations)
   public readonly messages: MessagesApi;
@@ -62,6 +157,7 @@ export class ApiClient extends ApiClientCore {
   public readonly quizzes: QuizTemplatesApi;
   public readonly notifications: NotificationsApi;
   public readonly physician: PhysicianApi;
+  public readonly hiveMind: ReturnType<typeof createHiveMindApi>;
 
   constructor(baseURL: string) {
     super(baseURL);
@@ -69,8 +165,14 @@ export class ApiClient extends ApiClientCore {
     // Initialize domain modules
     this.auth = createAuthApi(this);
     this.patients = createPatientsApi(this);
+    this.appointments = createAppointmentsApi(this);
+    this.treatments = createTreatmentsApi(this);
+    this.medications = createMedicationsApi(this);
     this.monthlyQuiz = createMonthlyQuizApi(this);
     this.analytics = createAnalyticsApi(this);
+    this.adminV2 = createAdminApi(this);
+    this.dashboard = createDashboardApi(this);
+    this.tasks = createTasksApi(this);
 
     // Initialize inline modules (simpler domains)
     this.messages = this.createMessagesApi();
@@ -84,6 +186,7 @@ export class ApiClient extends ApiClientCore {
     this.quizzes = this.createQuizTemplatesApi();
     this.notifications = this.createNotificationsApi();
     this.physician = this.createPhysicianApi();
+    this.hiveMind = createHiveMindApi(this);
 
     logger.log("API Client initialized with modular architecture");
   }
@@ -97,15 +200,15 @@ export class ApiClient extends ApiClientCore {
       list: async (options: MessagesListOptions = {}) => {
         const { page, size, cursor, limit, ...filters } = options;
         const effLimit = limit ?? size ?? 20;
-        const params: Record<string, any> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...filters };
-        const res: any = await this.get("/api/v2/messages", params);
+        const params: Record<string, string | number | boolean> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...filters };
+        const res = await this.get<any>("/api/v2/messages", params);
         const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
-        return { items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
+        return { data: items, items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
       },
 
       get: (messageId: string) => this.get(`/api/v2/messages/${messageId}`),
 
-      send: (data: any) => this.post("/api/v2/messages", data),
+      send: (data: SendMessageRequest) => this.post("/api/v2/messages", data),
 
       markAsRead: (messageId: string) => this.patch(`/api/v2/messages/${messageId}/read`),
 
@@ -128,14 +231,14 @@ export class ApiClient extends ApiClientCore {
    */
   private createFlowsApi(): FlowsApi {
     return {
-      // Template Operations (V2: /api/v2/flows/templates)
-      list: (options: Record<string, any> = {}) => this.get("/api/v2/flows/templates", options),
+      // Flow Instances (V2: /api/v2/flows)
+      list: (options?: FlowListFilters) => this.get("/api/v2/flows", options as Record<string, string | number | boolean>),
 
       get: (flowId: string) => this.get(`/api/v2/flows/templates/${flowId}`),
 
-      create: (data: any) => this.post("/api/v2/flows/templates", data),
+      create: (data: CreateFlowTemplateRequest) => this.post<FlowTemplate>("/api/v2/flows/templates", data),
 
-      update: (flowId: string, data: any) => this.put(`/api/v2/flows/templates/${flowId}`, data),
+      update: (flowId: string, data: UpdateFlowTemplateRequest) => this.put<FlowTemplate>(`/api/v2/flows/templates/${flowId}`, data),
 
       delete: (flowId: string) => this.delete(`/api/v2/flows/templates/${flowId}`),
 
@@ -153,6 +256,10 @@ export class ApiClient extends ApiClientCore {
 
       // History endpoint replaces executions
       getExecutions: (flowId: string) => this.get(`/api/v2/flows/${flowId}/history`),
+
+      processResponse: (flowId: string, response: any) =>
+        this.post<ResponseResult>(`/api/v2/flows/${flowId}/response`, response),
+
 
       // Flow State Operations (V2: /api/v2/flows/{patient_id}/state)
       getState: (patientId: string) => this.get(`/api/v2/flows/${patientId}/state`),
@@ -179,23 +286,12 @@ export class ApiClient extends ApiClientCore {
       resume: (patientId: string) =>
         this.post(`/api/v2/flows/${patientId}/resume`),
 
-      // processResponse migrated to V2
-      processResponse: (
-        patientId: string,
-        responseText: string,
-        metadata?: Record<string, any>,
-      ) => this.post(`/api/v2/flows/${patientId}/process-response`, {
-        response_text: responseText,
-        day: metadata?.['day'] || 1,
-        flow_type: metadata?.['flow_type'] || 'default'
-      }),
-
       getAnalytics: () => this.get("/api/v2/flows/analytics"),
 
       // Templates management
       getTemplates: () => this.get("/api/v2/flows/templates"),
-      createTemplate: (template: any) => this.post("/api/v2/flows/templates", template),
-      updateTemplate: (templateId: string, data: any) =>
+      createTemplate: (template: CreateFlowTemplateRequest) => this.post("/api/v2/flows/templates", template),
+      updateTemplate: (templateId: string, data: UpdateFlowTemplateRequest) =>
         this.put(`/api/v2/flows/templates/${templateId}`, data),
       deleteTemplate: (templateId: string) => this.delete(`/api/v2/flows/templates/${templateId}`),
     };
@@ -210,17 +306,17 @@ export class ApiClient extends ApiClientCore {
       list: async (options: AlertsListOptions = {}) => {
         const { page, size, cursor, limit, ...filters } = options;
         const effLimit = limit ?? size ?? 20;
-        const params: Record<string, any> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...filters };
-        const res: any = await this.get("/api/v2/alerts", params);
+        const params: Record<string, string | number | boolean> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...filters };
+        const res = await this.get<any>("/api/v2/alerts", params);
         const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
-        return { items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
+        return { data: items, items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
       },
 
       get: (alertId: string) => this.get(`/api/v2/alerts/${alertId}`),
 
-      create: (data: any) => this.post("/api/v2/alerts", data),
+      create: (data: CreateAlertRequest) => this.post<Alert>("/api/v2/alerts", data),
 
-      update: (alertId: string, data: any) => this.patch(`/api/v2/alerts/${alertId}`, data),
+      update: (alertId: string, data: UpdateAlertRequest) => this.patch<Alert>(`/api/v2/alerts/${alertId}`, data),
 
       delete: (alertId: string) => this.delete(`/api/v2/alerts/${alertId}`),
 
@@ -244,13 +340,13 @@ export class ApiClient extends ApiClientCore {
       list: async (options: ReportsListOptions = {}) => {
         const { page, size, cursor, limit, ...filters } = options;
         const effLimit = limit ?? size ?? 20;
-        const params: Record<string, any> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...filters };
-        const res: any = await this.get("/api/v2/reports", params);
+        const params: Record<string, string | number | boolean> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...filters };
+        const res = await this.get<any>("/api/v2/reports", params);
         const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
-        return { items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
+        return { data: items, items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
       },
 
-      generate: (patientId: string, reportType: string, config?: Record<string, any>) =>
+      generate: (patientId: string, reportType: string, config?: Record<string, unknown>) =>
         this.post("/api/v2/reports/generate", {
           patient_id: patientId,
           report_type: reportType,
@@ -299,7 +395,7 @@ export class ApiClient extends ApiClientCore {
       users: {
         list: async (page = 1, size = 20) => {
           const params: Record<string, string | number | boolean> = { limit: size };
-          const res: any = await this.get("/api/v2/admin/users", params);
+          const res = await this.get<any>("/api/v2/admin/users", params);
           return Array.isArray(res?.data) ? res.data : (res?.items ?? []);
         },
 
@@ -369,7 +465,8 @@ export class ApiClient extends ApiClientCore {
 
         getMetrics: () => this.get("/api/v2/admin/system/metrics"),
 
-        systemStats: () => this.get("/api/v2/admin/system/stats"),
+        // Use the correct endpoint name from backend
+        systemStats: () => this.get("/api/v2/admin/system-stats"),
 
         clearCache: () => this.post("/api/v2/admin/system/clear-cache"),
 
@@ -408,8 +505,11 @@ export class ApiClient extends ApiClientCore {
         return this.get(`/api/v2/admin/users/${userId}/activity`, { page, size, ...filters });
       },
 
-      resetPassword: (userId: string, payload: { new_password: string; force_change: boolean }) =>
-        this.post(`/api/v2/admin/users/${userId}/reset-password`, payload),
+      resetPassword: (userId: string, payload: ResetPasswordRequest) =>
+        this.post(`/api/v2/admin/users/${userId}/reset-password`, {
+          new_password: payload.new_password,
+          force_change: payload.force_change ?? false
+        }),
 
       unlock: (userId: string) => this.post(`/api/v2/admin/users/${userId}/unlock`),
 
@@ -427,7 +527,7 @@ export class ApiClient extends ApiClientCore {
       analyze: (data: any, analysisType: string) =>
         this.post("/api/v2/ai/analyze", { data, analysis_type: analysisType }),
 
-      generateResponse: (patientId: string, messageHistory: any[], intent?: string) =>
+      generateResponse: (patientId: string, messageHistory: unknown[], intent?: string) =>
         this.post("/api/v2/ai/generate-response", {
           patient_id: patientId,
           message_history: messageHistory,
@@ -463,51 +563,19 @@ export class ApiClient extends ApiClientCore {
           patient_id: patientId,
           quiz_template_id: quizTemplateId,
         }),
-
-      // Get session by ID (V2)
-      getSession: (sessionId: string) => this.get(`/api/v2/quiz/${sessionId}`),
-
-      // Submit response - migrated to V2
-      submitResponse: (
-        sessionId: string,
-        questionId: string,
-        answer: string,
-        responseMetadata?: Record<string, any>,
-      ) => {
-        const payload: Record<string, any> = {
-          question_id: questionId,
-          answer,
-        };
-        if (responseMetadata) {
-          payload["response_metadata"] = responseMetadata;
-        }
-        return this.post(`/api/v2/quiz/${sessionId}/submit`, payload);
-      },
-
       // List sessions (V2) with cursor pagination; keep backward-compatible shape
-      sessions: async (filters: Record<string, any> = {}) => {
-        const { page, size, limit, cursor, ...rest} = filters || {}
-        const effLimit = limit ?? size ?? 20
-        const params: Record<string, any> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...rest }
-        const res: any = await this.get("/api/v2/quiz", params)
-        const items = Array.isArray(res?.data) ? res.data : (res?.items ?? [])
-        const total = res?.total ?? 0
-        const has_more = res?.has_more ?? false
-        const next_cursor = res?.next_cursor ?? null
-        return { items, total, has_more, next_cursor }
-      },
-
-      // Patient responses - migrated to V2 with cursor pagination
-      getPatientResponses: async (
-        patientId: string,
-        options: Record<string, any> = {},
-      ) => {
-        const { page, size, limit, cursor, ...rest } = options || {};
+      sessions: async (options?: QuizSessionListFilters) => {
+        const { page, size, limit, cursor, patient_id, ...rest } = options || {};
         const effLimit = limit ?? size ?? 20;
-        const params: Record<string, any> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...rest };
-        const res: any = await this.get(`/api/v2/quiz/patients/${patientId}/quiz-responses`, params);
+        const params: Record<string, string | number | boolean> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...rest };
+
+        const endpoint = patient_id
+          ? `/api/v2/quiz/patients/${patient_id}/quiz-responses`
+          : `/api/v2/quiz/sessions`;
+
+        const res: any = await this.get(endpoint, params);
         const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
-        return { items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
+        return { data: items, items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
       },
 
       // Session responses - migrated to V2
@@ -517,6 +585,27 @@ export class ApiClient extends ApiClientCore {
       // Session analysis - migrated to V2
       getSessionAnalysis: (sessionId: string) =>
         this.get(`/api/v2/quiz/${sessionId}/analysis`),
+
+      // Missing methods implementation
+      getSession: (sessionId: string) =>
+        this.get(`/api/v2/quiz/sessions/${sessionId}`),
+
+      submitResponse: (sessionId: string, questionId: string, answer: string | string[], responseMetadata?: Record<string, unknown>) =>
+        this.post(`/api/v2/quiz/sessions/${sessionId}/responses`, {
+          question_id: questionId,
+          answer,
+          metadata: responseMetadata
+        }),
+
+      getPatientResponses: async (patientId: string, options?: Record<string, unknown>): Promise<PatientQuizResponses> => {
+        const res: any = await this.get(`/api/v2/quiz/patients/${patientId}/responses`, options as any);
+        const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
+        return {
+          patient_id: patientId,
+          sessions: items,
+          total: res?.total ?? 0
+        };
+      }
     };
   }
 
@@ -529,10 +618,10 @@ export class ApiClient extends ApiClientCore {
       listTemplates: () => this.quiz.templates(),
 
       // Template CRUD migrated to V2
-      createTemplate: (template: any) => this.post("/api/v2/templates/quiz", template),
+      createTemplate: (template: CreateQuizTemplateRequest) => this.post("/api/v2/templates/quiz", template as unknown as CreateFlowTemplateRequest),
       create: (template: any) => this.post("/api/v2/templates/quiz", template),
 
-      updateTemplate: (templateId: string, data: any) =>
+      updateTemplate: (templateId: string, data: UpdateFlowTemplateRequest) =>
         this.put(`/api/v2/templates/quiz/${templateId}`, data),
 
       deleteTemplate: (templateId: string) =>
@@ -546,7 +635,7 @@ export class ApiClient extends ApiClientCore {
 
   private createNotificationsApi(): NotificationsApi {
     return {
-      list: () => this.get("/api/v2/auth/notifications"),
+      list: () => this.get("/api/v2/notifications"),
     };
   }
 
@@ -575,204 +664,272 @@ export class ApiClient extends ApiClientCore {
 }
 
 // Type definitions for inline APIs
-interface MessagesListOptions {
+interface MessagesListOptions extends MessageListFilters {
   page?: number;
   size?: number;
-  [key: string]: any;
+  cursor?: string;
+  limit?: number;
 }
 
 interface MessagesApi {
-  list: (options?: MessagesListOptions) => Promise<any>;
-  get: (messageId: string) => Promise<any>;
-  send: (data: any) => Promise<any>;
-  markAsRead: (messageId: string) => Promise<any>;
-  delete: (messageId: string) => Promise<any>;
-  getConversation: (patientId: string) => Promise<any>;
-  sendBulk: (data: { patient_ids: string[]; content: string }) => Promise<any>;
-  retry: (messageId: string) => Promise<any>;
+  list: (options?: MessagesListOptions) => Promise<PaginatedResponse<Message>>;
+  get: (messageId: string) => Promise<Message>;
+  send: (data: SendMessageRequest) => Promise<Message>;
+  markAsRead: (messageId: string) => Promise<MessageResponse>;
+  delete: (messageId: string) => Promise<MessageResponse>;
+  getConversation: (patientId: string) => Promise<ConversationResponse>;
+  sendBulk: (data: BulkMessageRequest) => Promise<BulkMessageResponse>;
+  retry: (messageId: string) => Promise<Message>;
 }
 
 interface FlowsApi {
-  list: (options?: Record<string, any>) => Promise<any>;
-  get: (flowId: string) => Promise<any>;
-  create: (data: any) => Promise<any>;
-  update: (flowId: string, data: any) => Promise<any>;
-  delete: (flowId: string) => Promise<any>;
-  activate: (flowId: string) => Promise<any>;
-  deactivate: (flowId: string) => Promise<any>;
-  execute: (flowId: string, data?: any) => Promise<any>;
-  getExecutions: (flowId: string) => Promise<any>;
-  getState: (patientId: string) => Promise<any>;
-  start: (patientId: string, flowType: string) => Promise<any>;
-  advance: (patientId: string, day?: number) => Promise<any>;
-  pause: (patientId: string) => Promise<any>;
-  resume: (patientId: string) => Promise<any>;
-  processResponse: (patientId: string, responseText: string, metadata?: Record<string, any>) => Promise<any>;
-  getAnalytics: () => Promise<any>;
-  getTemplates: () => Promise<any>;
-  createTemplate: (template: any) => Promise<any>;
-  updateTemplate: (templateId: string, data: any) => Promise<any>;
-  deleteTemplate: (templateId: string) => Promise<any>;
+  list: (options?: FlowListFilters) => Promise<PaginatedResponse<FlowState>>;
+  get: (flowId: string) => Promise<FlowTemplate>;
+  create: (data: CreateFlowTemplateRequest) => Promise<FlowTemplate>;
+  update: (flowId: string, data: UpdateFlowTemplateRequest) => Promise<FlowTemplate>;
+  delete: (flowId: string) => Promise<MessageResponse>;
+  activate: (flowId: string) => Promise<FlowTemplate>;
+  deactivate: (flowId: string) => Promise<FlowTemplate>;
+  execute: (flowId: string, data?: FlowAdvanceRequest) => Promise<FlowState>;
+  getExecutions: (flowId: string) => Promise<Array<Record<string, unknown>>>;
+  getState: (patientId: string) => Promise<FlowState>;
+  start: (patientId: string, flowType: string) => Promise<FlowState>;
+  advance: (patientId: string, day?: number) => Promise<FlowState>;
+  pause: (patientId: string) => Promise<FlowState>;
+  resume: (patientId: string) => Promise<FlowState>;
+  processResponse: (patientId: string, responseText: string, metadata?: Record<string, unknown>) => Promise<ResponseResult>;
+  getAnalytics: () => Promise<FlowAnalytics>;
+  getTemplates: () => Promise<FlowTemplate[]>;
+  createTemplate: (template: CreateFlowTemplateRequest) => Promise<FlowTemplate>;
+  updateTemplate: (templateId: string, data: UpdateFlowTemplateRequest) => Promise<FlowTemplate>;
+  deleteTemplate: (templateId: string) => Promise<MessageResponse>;
 }
 
-interface AlertsListOptions {
+interface AlertsListOptions extends AlertListFilters {
   page?: number;
   size?: number;
-  [key: string]: any;
+  cursor?: string;
+  limit?: number;
 }
 
 interface AlertsApi {
-  list: (options?: AlertsListOptions) => Promise<any>;
-  get: (alertId: string) => Promise<any>;
-  create: (data: any) => Promise<any>;
-  update: (alertId: string, data: any) => Promise<any>;
-  delete: (alertId: string) => Promise<any>;
-  markAsRead: (alertId: string) => Promise<any>;
-  markAllAsRead: () => Promise<any>;
-  getUnreadCount: () => Promise<any>;
-  acknowledge: (alertId: string) => Promise<any>;
-  resolve: (alertId: string) => Promise<any>;
+  list: (options?: AlertsListOptions) => Promise<PaginatedResponse<Alert>>;
+  get: (alertId: string) => Promise<Alert>;
+  create: (data: CreateAlertRequest) => Promise<Alert>;
+  update: (alertId: string, data: UpdateAlertRequest) => Promise<Alert>;
+  delete: (alertId: string) => Promise<MessageResponse>;
+  markAsRead: (alertId: string) => Promise<MessageResponse>;
+  markAllAsRead: () => Promise<MessageResponse>;
+  getUnreadCount: () => Promise<UnreadCountResponse>;
+  acknowledge: (alertId: string) => Promise<MessageResponse>;
+  resolve: (alertId: string) => Promise<MessageResponse>;
 }
 
-interface ReportsListOptions {
+interface ReportsListOptions extends ReportListFilters {
   page?: number;
   size?: number;
-  [key: string]: any;
+  cursor?: string;
+  limit?: number;
 }
 
 interface ReportsApi {
-  list: (options?: ReportsListOptions) => Promise<any>;
-  generate: (patientId: string, reportType: string, config?: Record<string, any>) => Promise<any>;
+  list: (options?: ReportsListOptions) => Promise<PaginatedResponse<Report>>;
+  generate: (patientId: string, reportType: string, config?: Record<string, unknown>) => Promise<Report>;
   download: (reportId: string, format?: "pdf" | "excel" | "csv") => Promise<Blob>;
-  delete: (reportId: string) => Promise<any>;
-  schedule: (data: {
-    report_type: string;
-    frequency: "daily" | "weekly" | "monthly";
-    recipients: string[];
-    parameters?: any;
-  }) => Promise<any>;
-  getScheduled: () => Promise<any>;
+  delete: (reportId: string) => Promise<MessageResponse>;
+  schedule: (data: ScheduleReportRequest) => Promise<ScheduledReport>;
+  getScheduled: () => Promise<ScheduledReport[]>;
 }
 
 interface AdminApi {
   users: {
-    list: (page?: number, size?: number) => Promise<any>;
-    get: (userId: string) => Promise<any>;
-    create: (data: any) => Promise<any>;
-    update: (userId: string, data: any) => Promise<any>;
-    delete: (userId: string) => Promise<any>;
-    resetPassword: (userId: string) => Promise<any>;
-    toggleStatus: (userId: string) => Promise<any>;
+    list: (page?: number, size?: number) => Promise<AdminUser[]>;
+    get: (userId: string) => Promise<AdminUser>;
+    create: (data: CreateUserRequest) => Promise<AdminUser>;
+    update: (userId: string, data: UpdateUserRequest) => Promise<AdminUser>;
+    delete: (userId: string) => Promise<MessageResponse>;
+    resetPassword: (userId: string, payload?: ResetPasswordRequest) => Promise<MessageResponse>;
+    toggleStatus: (userId: string) => Promise<MessageResponse>;
   };
   roles: {
-    list: () => Promise<any>;
-    create: (data: any) => Promise<any>;
-    update: (roleId: string, data: any) => Promise<any>;
-    delete: (roleId: string) => Promise<any>;
+    list: () => Promise<Role[]>;
+    create: (data: CreateRoleRequest) => Promise<Role>;
+    update: (roleId: string, data: Partial<CreateRoleRequest>) => Promise<Role>;
+    delete: (roleId: string) => Promise<MessageResponse>;
   };
   audit: {
-    list: (page?: number, size?: number, filters?: any) => Promise<any>;
-    get: (auditId: string) => Promise<any>;
-    export: (filters?: any) => Promise<Blob>;
+    list: (page?: number, size?: number, filters?: AuditLogFilters) => Promise<PaginatedResponse<AuditLogEntry>>;
+    get: (auditId: string) => Promise<AuditLogEntry>;
+    export: (filters?: AuditLogFilters) => Promise<Blob>;
   };
   settings: {
-    get: () => Promise<any>;
-    update: (data: any) => Promise<any>;
-    reset: () => Promise<any>;
+    get: () => Promise<SystemSettings>;
+    update: (data: Partial<SystemSettings>) => Promise<SystemSettings>;
+    reset: () => Promise<MessageResponse>;
   };
   system: {
-    getHealth: () => Promise<any>;
-    getMetrics: () => Promise<any>;
-    systemStats: () => Promise<any>;
-    clearCache: () => Promise<any>;
-    runMaintenance: () => Promise<any>;
+    getHealth: () => Promise<SystemHealth>;
+    getMetrics: () => Promise<SystemMetrics>;
+    systemStats: () => Promise<SystemStats>;
+    clearCache: () => Promise<MessageResponse>;
+    runMaintenance: () => Promise<MessageResponse>;
   };
 }
 
-interface AdminUsersListOptions {
+interface AdminUsersListOptions extends AdminUserListFilters {
   page?: number;
   size?: number;
-  search?: string;
-  role?: string;
-  status?: string;
-  [key: string]: any;
 }
 
-interface AdminUserActivityOptions {
+interface AdminUserActivityOptions extends UserActivityFilters {
   page?: number;
   size?: number;
-  [key: string]: any;
 }
 
 interface AdminUsersApi {
-  list: (options?: AdminUsersListOptions) => Promise<any>;
-  get: (userId: string) => Promise<any>;
-  create: (data: any) => Promise<any>;
-  update: (userId: string, data: any) => Promise<any>;
-  delete: (userId: string) => Promise<any>;
-  activate: (userId: string) => Promise<any>;
-  deactivate: (userId: string) => Promise<any>;
-  updatePermissions: (userId: string, permissions: string[]) => Promise<any>;
-  updateRole: (userId: string, role: string) => Promise<any>;
-  getActivity: (userId: string, options?: AdminUserActivityOptions) => Promise<any>;
-  resetPassword: (userId: string, payload: { new_password: string; force_change: boolean }) => Promise<any>;
-  unlock: (userId: string) => Promise<any>;
-  enable2FA: (userId: string) => Promise<any>;
-  disable2FA: (userId: string) => Promise<any>;
+  list: (options?: AdminUsersListOptions) => Promise<PaginatedResponse<AdminUser>>;
+  get: (userId: string) => Promise<AdminUser>;
+  create: (data: CreateUserRequest) => Promise<AdminUser>;
+  update: (userId: string, data: UpdateUserRequest) => Promise<AdminUser>;
+  delete: (userId: string) => Promise<MessageResponse>;
+  activate: (userId: string) => Promise<MessageResponse>;
+  deactivate: (userId: string) => Promise<MessageResponse>;
+  updatePermissions: (userId: string, permissions: string[]) => Promise<MessageResponse>;
+  updateRole: (userId: string, role: string) => Promise<MessageResponse>;
+  getActivity: (userId: string, options?: AdminUserActivityOptions) => Promise<PaginatedResponse<UserActivityEntry>>;
+  resetPassword: (userId: string, payload: ResetPasswordRequest) => Promise<MessageResponse>;
+  unlock: (userId: string) => Promise<MessageResponse>;
+  enable2FA: (userId: string) => Promise<MessageResponse>;
+  disable2FA: (userId: string) => Promise<MessageResponse>;
 }
 
 interface AiApi {
-  chat: (message: string, context?: any) => Promise<any>;
-  analyze: (data: any, analysisType: string) => Promise<any>;
-  generateResponse: (patientId: string, messageHistory: any[], intent?: string) => Promise<any>;
-  sentiment: (text: string) => Promise<any>;
-  insights: (patientId: string, timeframe?: string) => Promise<any>;
-  recommendations: (patientId: string) => Promise<any>;
+  chat: (message: string, context?: Record<string, unknown>) => Promise<AIChatResponse>;
+  analyze: (data: unknown, analysisType: string) => Promise<AIAnalysisResponse>;
+  generateResponse: (patientId: string, messageHistory: Array<{ role: string; content: string }>, intent?: string) => Promise<AIGenerateResponseResponse>;
+  sentiment: (text: string) => Promise<SentimentAnalysisResponse>;
+  insights: (patientId: string, timeframe?: string) => Promise<AIInsights>;
+  recommendations: (patientId: string) => Promise<AIRecommendations>;
 }
 
 interface QuizApi {
-  templates: () => Promise<any>;
-  start: (patientId: string, quizTemplateId: string) => Promise<any>;
-  getSession: (sessionId: string) => Promise<any>;
+  templates: () => Promise<QuizTemplateResponse>;
+  start: (patientId: string, quizTemplateId: string) => Promise<QuizSession>;
+  getSession: (sessionId: string) => Promise<QuizSession>;
   submitResponse: (
     sessionId: string,
     questionId: string,
-    answer: string,
-    responseMetadata?: Record<string, any>,
-  ) => Promise<any>;
-  sessions: (filters?: Record<string, any>) => Promise<any>;
-  getPatientResponses: (patientId: string, options?: Record<string, any>) => Promise<any>;
-  getSessionResponses: (sessionId: string) => Promise<any>;
-  getSessionAnalysis: (sessionId: string) => Promise<any>;
+    answer: string | string[],
+    responseMetadata?: Record<string, unknown>,
+  ) => Promise<MessageResponse>;
+  sessions: (filters?: QuizSessionListFilters) => Promise<PaginatedResponse<QuizSession>>;
+  getPatientResponses: (patientId: string, options?: Record<string, unknown>) => Promise<PatientQuizResponses>;
+  getSessionResponses: (sessionId: string) => Promise<QuizSessionResponses>;
+  getSessionAnalysis: (sessionId: string) => Promise<QuizSessionAnalysis>;
 }
 
 interface QuizTemplatesApi {
-  list: () => Promise<any>;
-  listTemplates: () => Promise<any>;
-  createTemplate: (template: any) => Promise<any>;
-  create: (template: any) => Promise<any>;
-  updateTemplate: (templateId: string, data: any) => Promise<any>;
-  deleteTemplate: (templateId: string) => Promise<any>;
-  getTemplateAnalytics: (templateId: string) => Promise<any>;
+  list: () => Promise<QuizTemplateResponse>;
+  listTemplates: () => Promise<QuizTemplateResponse>;
+  createTemplate: (template: CreateQuizTemplateRequest) => Promise<QuizTemplate>;
+  create: (template: CreateQuizTemplateRequest) => Promise<QuizTemplate>;
+  updateTemplate: (templateId: string, data: UpdateQuizTemplateRequest) => Promise<QuizTemplate>;
+  deleteTemplate: (templateId: string) => Promise<MessageResponse>;
+  getTemplateAnalytics: (templateId: string) => Promise<QuizTemplateAnalytics>;
+}
+
+interface CreateQuizTemplateRequest {
+  name: string;
+  description?: string;
+  questions: Array<{
+    question_text: string;
+    question_type: string;
+    options?: string[];
+    required?: boolean;
+  }>;
+}
+
+interface UpdateQuizTemplateRequest extends Partial<CreateQuizTemplateRequest> {
+  is_active?: boolean;
+}
+
+interface QuizTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  questions_count: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface QuizTemplateAnalytics {
+  template_id: string;
+  total_sessions: number;
+  completed_sessions: number;
+  completion_rate: number;
+  average_score?: number;
 }
 
 interface NotificationsApi {
-  list: () => Promise<any>;
+  list: () => Promise<NotificationListResponse>;
 }
 
 interface PhysicianApi {
-  riskAssessments: (patientId?: string, daysLookback?: number) => Promise<any>;
+  riskAssessments: (patientId?: string, daysLookback?: number) => Promise<RiskAssessmentsResponse>;
 }
 
-// Create singleton instance
-const getApiUrl = () => {
-  return (
-    API_BASE_URL ||
-    import.meta.env["VITE_API_URL"] ||
-    "https://clinica-oncologica-v02-production.up.railway.app"
-  );
+/**
+ * Get API URL with proper environment variable resolution
+ *
+ * Priority order:
+ * 1. Runtime config API_BASE_URL (loaded async from config.ts)
+ * 2. VITE_API_BASE_URL environment variable (base domain)
+ * 3. VITE_API_URL environment variable (full API URL)
+ * 4. Auto-detect from window location in production
+ * 5. Localhost fallback for development
+ */
+const getApiUrl = (): string => {
+  // 1. Check runtime config (may be empty on initial load)
+  if (API_BASE_URL && API_BASE_URL.length > 0) {
+    logger.debug('Using API_BASE_URL from runtime config:', API_BASE_URL);
+    return API_BASE_URL;
+  }
+
+  // 2. Check VITE_API_BASE_URL (preferred for base domain)
+  if (import.meta.env["VITE_API_BASE_URL"]) {
+    const baseUrl = import.meta.env["VITE_API_BASE_URL"];
+    logger.debug('Using VITE_API_BASE_URL:', baseUrl);
+    return baseUrl;
+  }
+
+  // 3. Check VITE_API_URL (full URL with /api/v2)
+  if (import.meta.env["VITE_API_URL"]) {
+    const apiUrl = import.meta.env["VITE_API_URL"];
+    // Extract base URL by removing /api/v2 suffix
+    const baseUrl = apiUrl.replace(/\/api\/v2$/, '');
+    logger.debug('Using VITE_API_URL (extracted base):', baseUrl);
+    return baseUrl;
+  }
+
+  // 4. Auto-detect in production based on window location
+  if (typeof window !== 'undefined') {
+    const { protocol, hostname } = window.location;
+
+    // Production environments (Railway, custom domains)
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      const detectedUrl = `${protocol}//${hostname}`;
+      logger.debug('Auto-detected API URL from window location:', detectedUrl);
+      return detectedUrl;
+    }
+  }
+
+  // 5. Development fallback
+  logger.debug('Using localhost fallback for development');
+  return import.meta.env.VITE_API_BASE_URL || (import.meta.env.VITE_API_URL || "http://localhost:8000");
 };
 
+// Create singleton instance
 export const apiClient = new ApiClient(getApiUrl());
 
 // Default export

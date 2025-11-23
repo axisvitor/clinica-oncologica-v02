@@ -434,7 +434,7 @@ class FirebaseTokenVerifyResponse(BaseModel):
     """Response after verifying Firebase token"""
 
     valid: bool
-    user: Optional[UserV2Response] = None
+    # user: Optional[UserV2Response] = None
     session_id: Optional[str] = None
     message: Optional[str] = None
 

@@ -5,16 +5,19 @@ Focuses only on AI/ML operations: message generation, response processing, and c
 """
 import logging
 from typing import List, Optional, Any, Dict
-from datetime import datetime
-from sqlalchemy.orm import Session
+from datetime import datetime, timezone
+# from sqlalchemy.orm import
 from uuid import UUID
 
-from app.services.flow_core import FlowCore, FlowType
-from app.services.template_loader import MessageTemplate
+from app.services.flow_core import FlowCore
+from app.services.flow.types import FlowType
+from app.services.template_loader import MessageTemplate, EnhancedTemplateLoader
 from app.models.patient import Patient
 from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion
 from app.integrations.gemini_client import GeminiClient, get_gemini_client
 from app.services.conversation_memory import ConversationMemory, get_conversation_memory
+from app.services.platform_synchronization import PlatformSynchronizationService
+from app.services.unified_cache import UnifiedCacheService
 from app.exceptions import NotFoundError
 from app.utils.db_retry import with_db_retry
 
@@ -39,7 +42,7 @@ class FlowContext:
         self.conversation_history = conversation_history or []
         self.communication_preferences = communication_preferences or {}
         self.medical_context = medical_context or {}
-        self.timestamp = datetime.utcnow()
+        self.timestamp = datetime.now(timezone.utc)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert context to dictionary."""
@@ -58,7 +61,7 @@ class FlowContext:
     def _calculate_treatment_day(self) -> int:
         """Calculate treatment day based on enrollment date."""
         if hasattr(self.patient, 'treatment_start_date') and self.patient.treatment_start_date:
-            delta = datetime.utcnow().date() - self.patient.treatment_start_date
+            delta = datetime.now(timezone.utc).date() - self.patient.treatment_start_date
             return delta.days + 1
         return 1
 
@@ -78,9 +81,12 @@ class EnhancedFlowEngine(FlowCore):
     """
 
     def __init__(self,
-                 db: Session,
+                 db: Any,
                  gemini_client: Optional[GeminiClient] = None,
-                 conversation_memory: Optional[ConversationMemory] = None):
+                 conversation_memory: Optional[ConversationMemory] = None,
+                 platform_sync: Optional[PlatformSynchronizationService] = None,
+                 template_loader: Optional[EnhancedTemplateLoader] = None,
+                 template_cache: Optional[UnifiedCacheService] = None):
         """
         Initialize FlowEngine with AI services.
 
@@ -88,9 +94,12 @@ class EnhancedFlowEngine(FlowCore):
             db: Database session
             gemini_client: Gemini AI client (optional)
             conversation_memory: Conversation memory system (optional)
+            platform_sync: Platform synchronization service (optional)
+            template_loader: Template loader service (optional)
+            template_cache: Template cache service (optional)
         """
         # Initialize shared functionality from FlowCore
-        super().__init__(db)
+        super().__init__(db, platform_sync, template_loader, template_cache)
 
         # Initialize AI/ML specific services
         self.gemini_client = gemini_client or get_gemini_client()
@@ -262,6 +271,174 @@ class EnhancedFlowEngine(FlowCore):
     # AI RESPONSE PROCESSING (FlowEngine specific - only AI/ML operations)
     # =============================================================================
 
+    def _calculate_engagement_score(self, sentiment_analysis: Dict[str, Any], response_text: str) -> float:
+        """
+        Calculate engagement score based on sentiment and response characteristics.
+        
+        Score range: 0.0 to 1.0
+        Base: 0.5
+        """
+        score = 0.5
+        
+        # Sentiment impact
+        sentiment = sentiment_analysis.get("sentiment", "neutral")
+        if sentiment == "positive":
+            score += 0.2
+        elif sentiment == "negative":
+            score -= 0.1
+            
+        # Length impact
+        length = len(response_text)
+        if length > 50:
+            score += 0.1
+        elif length > 10:
+            score += 0.05
+            
+        # Emotional indicators impact
+        indicators = sentiment_analysis.get("emotional_indicators", [])
+        score += min(len(indicators) * 0.05, 0.2)
+        
+        return max(0.0, min(1.0, score))
+
+    def _get_few_shot_examples(self, intent: str) -> List[Dict[str, str]]:
+        """Get few-shot examples based on intent."""
+        # Placeholder for example management service
+        examples = {
+            "greeting": [
+                {"input": "Olá [nome]", "output": "Oi [nome], que bom falar com você! Como está se sentindo?"},
+                {"input": "Bom dia [nome]", "output": "Bom dia, [nome]! Espero que seu dia esteja sendo tranquilo."}
+            ],
+            "check_in": [
+                {"input": "Como você está?", "output": "Me conta, como você está se sentindo hoje? Alguma novidade?"},
+                {"input": "Sentiu algum efeito colateral?", "output": "Você notou algo diferente no seu corpo ou humor desde nossa última conversa?"}
+            ]
+        }
+        return examples.get(intent, [])
+
+    @with_db_retry(max_retries=3)
+    async def generate_flow_message(self,
+                                  patient_id: UUID,
+                                  day: Optional[int] = None,
+                                  message_template: Optional[MessageTemplate] = None) -> str:
+        """
+        Generate personalized flow message using AI and database templates.
+
+        Args:
+            patient_id: Patient UUID
+            day: Specific day to generate message for (optional)
+            message_template: Message template to personalize (optional, will load from DB if not provided)
+
+        Returns:
+            Personalized message text
+        """
+        try:
+            # Get patient and flow context
+            patient = self.patient_repo.get(patient_id)
+            if not patient:
+                raise NotFoundError(f"Patient {patient_id} not found")
+
+            flow_state = self.flow_state_repo.get_active_flow(patient_id)
+            if not flow_state:
+                raise NotFoundError(f"No active flow for patient {patient_id}")
+
+            # Determine current day if not provided
+            if day is None:
+                day = await self.calculate_patient_day(patient_id)
+
+            # Get flow type from state
+            flow_type_str = self._get_flow_type_from_state(flow_state)
+
+            # Load message template from database if not provided
+            if message_template is None:
+                try:
+                    flow_type = FlowType(flow_type_str)
+                except ValueError:
+                    # If flow_type_str doesn't match enum, use a default
+                    flow_type = FlowType.INITIAL_15_DAYS
+                message_template = await self.get_message_template_for_day(flow_type, day)
+                if not message_template:
+                    # Fallback to simple message
+                    return f"Olá {patient.name}, como você está hoje? (Dia {day})"
+
+            # Build flow context
+            conversation_history = await self._get_conversation_history(patient_id)
+            communication_preferences = await self.conversation_memory.get_communication_preferences(patient_id)
+
+            flow_context = FlowContext(
+                patient=patient,
+                flow_state=flow_state,
+                current_day=day,
+                flow_type=flow_type_str,  # Pass the resolved flow type
+                conversation_history=conversation_history,
+                communication_preferences=communication_preferences,
+                medical_context={"treatment_type": getattr(patient, 'treatment_type', 'hormone_therapy')}
+            )
+
+            # Check for repetition before generating
+            repetition_check = await self.conversation_memory.check_message_repetition(
+                patient_id, message_template.base_content
+            )
+            
+            # Get few-shot examples based on intent
+            intent = getattr(message_template, 'intent', 'check_in')
+            few_shot_examples = self._get_few_shot_examples(intent)
+
+            # Generate personalized message
+            if repetition_check["recommendation"] in ["regenerate", "modify"]:
+                # Use AI to create variation
+                if hasattr(message_template, 'variations') and message_template.variations:
+                    # Use one of the pre-defined variations
+                    import random
+                    base_content = random.choice(message_template.variations)
+                else:
+                    base_content = message_template.base_content
+
+                personalized_message = await self.gemini_client.generate_varied_question(
+                    base_content,
+                    conversation_history[-5:],  # Last 5 messages
+                    flow_context.to_dict(),
+                    few_shot_examples=few_shot_examples
+                )
+            else:
+                # Use AI to humanize the template
+                personalized_message = await self.gemini_client.humanize_flow_message(
+                    template=message_template.base_content,
+                    patient_name=patient.name,
+                    patient_context=flow_context.to_dict(),
+                    conversation_history=conversation_history,
+                    personalization_hints=getattr(message_template, 'personalization_hints', []),
+                    few_shot_examples=few_shot_examples
+                )
+
+            # Enforce small variation for quiz invitations to reduce repetition
+            if intent in self.QUIZ_INVITE_INTENTS:
+                try:
+                    tone_hint = self._tone_for_time_of_day()
+                    varied = await self.gemini_client.generate_varied_question(
+                        personalized_message or message_template.base_content,
+                        conversation_history[-5:],
+                        {**flow_context.to_dict(), "tone_hint": tone_hint, "variation_target": "quiz_invite"},
+                        few_shot_examples=few_shot_examples
+                    )
+                    if varied:
+                        personalized_message = varied
+                except Exception as _:
+                    # Keep original personalized_message on any AI variation failure
+                    pass
+
+            # Store message pattern for future anti-repetition
+            await self.conversation_memory.store_message_pattern(patient_id, personalized_message)
+
+            logger.info(f"Generated personalized message for patient {patient_id}, day {day}")
+            return personalized_message
+
+        except Exception as e:
+            logger.error(f"Failed to generate flow message: {e}")
+            # Fallback to basic template personalization
+            if message_template and hasattr(message_template, 'base_content'):
+                return message_template.base_content.replace("[nome]", patient.name if patient else "")
+            return f"Olá {patient.name if patient else ''}, como você está hoje?"
+
     @with_db_retry(max_retries=3)
     async def process_patient_response(self,
                                      patient_id: UUID,
@@ -296,6 +473,10 @@ class EnhancedFlowEngine(FlowCore):
             sentiment_analysis = await self.gemini_client.analyze_response_sentiment(
                 response_text, patient_context
             )
+            
+            # Calculate engagement score and update memory
+            engagement_score = self._calculate_engagement_score(sentiment_analysis, response_text)
+            await self.conversation_memory.update_last_pattern_engagement(patient_id, engagement_score)
 
             # Store response pattern
             await self.conversation_memory.store_message_pattern(patient_id, response_text)
@@ -314,7 +495,8 @@ class EnhancedFlowEngine(FlowCore):
                 flow_state.state_data["last_response"] = {
                     "timestamp": datetime.utcnow().isoformat(),
                     "sentiment": sentiment_analysis,
-                    "text_length": len(response_text)
+                    "text_length": len(response_text),
+                    "engagement_score": engagement_score
                 }
                 self.db.commit()
 
@@ -322,6 +504,7 @@ class EnhancedFlowEngine(FlowCore):
                 "status": "processed",
                 "patient_id": str(patient_id),
                 "sentiment_analysis": sentiment_analysis,
+                "engagement_score": engagement_score,
                 "follow_up_message": follow_up_message,
                 "requires_attention": sentiment_analysis.get("requires_attention", False),
                 "medical_concerns": sentiment_analysis.get("medical_concerns", False)
@@ -414,7 +597,7 @@ class EnhancedFlowEngine(FlowCore):
 _enhanced_flow_engine: Optional[EnhancedFlowEngine] = None
 
 
-def get_enhanced_flow_engine(db: Session) -> EnhancedFlowEngine:
+def get_enhanced_flow_engine(db: Any) -> EnhancedFlowEngine:
     """
     Get enhanced flow engine instance.
 
@@ -424,15 +607,6 @@ def get_enhanced_flow_engine(db: Session) -> EnhancedFlowEngine:
     Returns:
         EnhancedFlowEngine instance
     """
-    # If QW-021 consolidated flows are enabled, return adapter for compatibility
-    try:
-        from app.services.flow.config import get_flow_config  # local import to avoid cycles
-        if get_flow_config().is_consolidated_enabled():
-            from app.services.flow.adapter import FlowManagerAdapter  # local import
-            return FlowManagerAdapter(db, show_warnings=False)
-    except Exception:  # fallback to legacy engine on any issue
-        pass
-
     return EnhancedFlowEngine(db)
 
 

@@ -5,7 +5,7 @@ Retry helpers used by FlowManager and FlowEngine.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Awaitable, Type, Tuple
+from typing import Any, Callable, Awaitable, Type, Tuple
 import asyncio
 import logging
 

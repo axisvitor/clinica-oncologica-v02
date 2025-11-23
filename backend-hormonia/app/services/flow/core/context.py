@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional, Tuple
 from uuid import UUID
 import logging
 
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 from pydantic import ValidationError
 
 from app.repositories.flow import FlowStateRepository
@@ -39,7 +39,7 @@ class FlowContextRepository:
     for quick lookups inside the FlowManager lifecycle.
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         self._memory_store: Dict[UUID, FlowContext] = {}
         self._db_repo = FlowStateRepository(db)
 

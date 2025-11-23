@@ -9,10 +9,10 @@ from typing import Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime, timedelta
 
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 
 from app.domain.messaging.core import MessageFactory, MessageTemplate
-from app.services.monthly_quiz_service import MonthlyQuizService
+from app.domain.quizzes import MonthlyQuizService
 from app.domain.messaging.delivery import MessageSender  # For backward compatibility
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
 from app.schemas.monthly_quiz import MonthlyQuizLinkCreate, DeliveryMethod
@@ -26,7 +26,7 @@ class MonthlyQuizMessageIntegration:
     Coordinates MonthlyQuizService with MessageFactory using UnifiedWhatsAppService.
     """
 
-    def __init__(self, db: Session, use_unified_service: bool = True):
+    def __init__(self, db: Any, use_unified_service: bool = True):
         self.db = db
         self.monthly_quiz_service = MonthlyQuizService(db)
         self.message_factory = MessageFactory(db)
@@ -94,6 +94,9 @@ class MonthlyQuizMessageIntegration:
 
         # Send message with quiz-specific context
         send_result = None
+        max_retries = 3
+        retry_delay = 2
+
         if send_immediately:
             # Add quiz-specific context for unified service
             quiz_context = {
@@ -103,12 +106,29 @@ class MonthlyQuizMessageIntegration:
                 'retry_policy': 'quiz_link'
             }
 
-            if hasattr(self.message_sender, 'send_flow_message'):
-                # Use flow message method if available (UnifiedWhatsAppService or MessageSender)
-                send_result = await self.message_sender.send_flow_message(message, quiz_context)
-            else:
-                # Fallback to regular send_message
-                send_result = await self.message_sender.send_message(message)
+            for attempt in range(max_retries):
+                try:
+                    if hasattr(self.message_sender, 'send_flow_message'):
+                        # Use flow message method if available (UnifiedWhatsAppService or MessageSender)
+                        send_result = await self.message_sender.send_flow_message(message, quiz_context)
+                    else:
+                        # Fallback to regular send_message
+                        send_result = await self.message_sender.send_message(message)
+                    
+                    if send_result:
+                        break
+                    
+                    # If returned False, retry
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(retry_delay * (attempt + 1))
+                        
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        # Log error on final attempt but don't crash the whole flow, 
+                        # just return the result as is (likely None or False)
+                        print(f"Failed to send quiz link after {max_retries} attempts: {e}")
+                    else:
+                        await asyncio.sleep(retry_delay * (attempt + 1))
 
         return {
             "quiz_session_id": str(quiz_link.id),

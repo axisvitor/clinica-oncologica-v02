@@ -1661,62 +1661,112 @@ class TestPasswordManagement:
 class TestFirebaseAndHealth:
     """Test suite for Firebase integration and health check endpoints"""
 
-    def test_firebase_verify_valid_token(self, client: TestClient):
+    def test_firebase_verify_valid_token(self, client: TestClient, mock_redis):
         """Test verifying valid Firebase token"""
         payload = {"id_token": "valid_firebase_token_123"}
+        
+        # Mock Firebase service
+        with patch('app.api.v2.routers.auth._firebase_service') as mock_service:
+            mock_service.verify_token = AsyncMock(return_value={
+                "uid": "firebase_uid_123",
+                "email": "test@example.com",
+                "name": "Test User",
+                "picture": "http://example.com/pic.jpg"
+            })
+            
+            with patch('app.api.v2.routers.auth.get_redis_client', return_value=mock_redis):
+                mock_redis.setex = AsyncMock(return_value=True)
+                
+                response = client.post(
+                    "/api/v2/auth/firebase/verify",
+                    json=payload
+                )
 
-        response = client.post(
-            "/api/v2/auth/firebase/verify",
-            json=payload
-        )
-
-        # Not implemented yet
-        assert response.status_code == 501
+                assert response.status_code == 200
+                data = response.json()
+                assert data["valid"] is True
+                assert "session_id" in data
+                assert "user" in data
+                assert data["user"]["email"] == "test@example.com"
 
     def test_firebase_verify_invalid_token(self, client: TestClient):
         """Test verifying invalid Firebase token"""
         payload = {"id_token": "invalid_token"}
 
-        response = client.post(
-            "/api/v2/auth/firebase/verify",
-            json=payload
-        )
+        with patch('app.api.v2.routers.auth._firebase_service') as mock_service:
+            mock_service.verify_token = AsyncMock(side_effect=Exception("Invalid token"))
+            
+            response = client.post(
+                "/api/v2/auth/firebase/verify",
+                json=payload
+            )
 
-        assert response.status_code == 501
+            assert response.status_code == 401
+            assert "valid" in response.json()
+            assert response.json()["valid"] is False
 
     def test_firebase_verify_expired_token(self, client: TestClient):
         """Test verifying expired Firebase token"""
         payload = {"id_token": "expired_token"}
 
-        response = client.post(
-            "/api/v2/auth/firebase/verify",
-            json=payload
-        )
+        with patch('app.api.v2.routers.auth._firebase_service') as mock_service:
+            mock_service.verify_token = AsyncMock(side_effect=Exception("Token expired"))
 
-        assert response.status_code == 501
+            response = client.post(
+                "/api/v2/auth/firebase/verify",
+                json=payload
+            )
 
-    def test_firebase_verify_creates_session(self, client: TestClient):
+            assert response.status_code == 401
+
+    def test_firebase_verify_creates_session(self, client: TestClient, mock_redis):
         """Test that Firebase verification creates a session"""
         payload = {"id_token": "valid_token"}
 
-        response = client.post(
-            "/api/v2/auth/firebase/verify",
-            json=payload
-        )
+        with patch('app.api.v2.routers.auth._firebase_service') as mock_service:
+            mock_service.verify_token = AsyncMock(return_value={
+                "uid": "firebase_uid_session",
+                "email": "session@example.com"
+            })
+            
+            with patch('app.api.v2.routers.auth.get_redis_client', return_value=mock_redis):
+                mock_redis.setex = AsyncMock(return_value=True)
 
-        # Not implemented
-        assert response.status_code == 501
+                response = client.post(
+                    "/api/v2/auth/firebase/verify",
+                    json=payload
+                )
 
-    def test_firebase_verify_updates_user(self, client: TestClient):
+                assert response.status_code == 200
+                data = response.json()
+                assert "session_id" in data
+                # Verify Redis was called to store session
+                assert mock_redis.setex.called
+
+    def test_firebase_verify_updates_user(self, client: TestClient, mock_redis):
         """Test that Firebase verification updates user data"""
         payload = {"id_token": "valid_token"}
 
-        response = client.post(
-            "/api/v2/auth/firebase/verify",
-            json=payload
-        )
+        with patch('app.api.v2.routers.auth._firebase_service') as mock_service:
+            mock_service.verify_token = AsyncMock(return_value={
+                "uid": "firebase_uid_update",
+                "email": "update@example.com",
+                "name": "Updated Name",
+                "picture": "http://new.pic"
+            })
+            
+            with patch('app.api.v2.routers.auth.get_redis_client', return_value=mock_redis):
+                mock_redis.setex = AsyncMock(return_value=True)
 
-        assert response.status_code == 501
+                response = client.post(
+                    "/api/v2/auth/firebase/verify",
+                    json=payload
+                )
+
+                assert response.status_code == 200
+                data = response.json()
+                assert data["user"]["full_name"] == "Updated Name"
+                assert data["user"]["photo_url"] == "http://new.pic"
 
     def test_health_check_all_healthy(
         self,

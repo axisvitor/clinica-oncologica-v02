@@ -1,9 +1,9 @@
 from typing import Optional, Dict, Any
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from uuid import UUID
 import re
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, field_validator
 
 from app.models.patient import FlowState
 
@@ -59,11 +59,78 @@ class PatientBase(BaseModel):
     )
     doctor_notes: Optional[str] = Field(None, description="Doctor's notes about the patient")
 
+    # Clinical information (optional - backward compatible)
+    allergies: Optional[list[str]] = Field(None, description="Known allergies (e.g., medications, foods)")
+    current_medications: Optional[list[str]] = Field(None, description="Current medications")
+    comorbidities: Optional[list[str]] = Field(None, description="Comorbidities (e.g., diabetes, hypertension)")
+    blood_type: Optional[str] = Field(None, pattern="^(A|B|AB|O)[+-]$", description="Blood type (A+, A-, B+, B-, AB+, AB-, O+, O-)")
+    emergency_contact_name: Optional[str] = Field(None, max_length=200, description="Emergency contact name")
+    emergency_contact_phone: Optional[str] = Field(None, description="Emergency contact phone")
+    timezone: str = Field("America/Sao_Paulo", description="Patient timezone (e.g., America/Sao_Paulo)")
+
+    @validator('email')
+    def validate_email_format(cls, v):
+        if v:
+            # Basic email validation
+            email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+            if not re.match(email_regex, v):
+                raise ValueError('Invalid email format')
+        return v
+
     @validator('phone')
     def validate_phone(cls, v):
         # Basic phone validation - can be enhanced
         if not v.startswith('+'):
             raise ValueError('Phone number must start with country code (+)')
+        return v
+
+    @validator('emergency_contact_phone')
+    def validate_emergency_phone(cls, v):
+        if v and not v.startswith('+'):
+            raise ValueError('Emergency contact phone must start with country code (+)')
+        return v
+
+    @validator('birth_date')
+    def validate_min_age(cls, v: Optional[date]) -> Optional[date]:
+        """
+        Validate patient is at least 18 years old.
+
+        Reference: LOW-004 - birth_date Minimum Age Validation
+
+        Raises:
+            ValueError: If patient is under 18 or over 120 years old
+        """
+        if v is None:
+            return v
+
+        today = date.today()
+
+        # Calculate minimum allowed birth date (18 years ago)
+        # Using 365.25 to account for leap years
+        min_date = today - timedelta(days=int(18 * 365.25))
+
+        if v > min_date:
+            age_years = (today - v).days / 365.25
+            raise ValueError(
+                f"Patient must be at least 18 years old. "
+                f"Birth date {v.isoformat()} indicates age of {age_years:.1f} years."
+            )
+
+        # Also validate not impossibly old (120 years)
+        max_date = today - timedelta(days=int(120 * 365.25))
+        if v < max_date:
+            age_years = (today - v).days / 365.25
+            raise ValueError(
+                f"Birth date {v.isoformat()} seems invalid "
+                f"(indicates age of {age_years:.1f} years, over 120 years old)."
+            )
+
+        # Validate not in the future
+        if v > today:
+            raise ValueError(
+                f"Birth date {v.isoformat()} cannot be in the future."
+            )
+
         return v
 
     @validator('treatment_phase', pre=True)
@@ -92,6 +159,28 @@ class PatientCreate(PatientBase):
         description="Additional patient metadata"
     )
 
+    @validator('metadata')
+    def validate_metadata_schema(cls, v: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """
+        Validate metadata against JSON schema.
+
+        Reference: LOW-007 - JSONB Schema Validation
+
+        Raises:
+            ValueError: If metadata doesn't conform to schema
+        """
+        if v is None:
+            return v
+
+        # Import here to avoid circular dependency
+        from app.utils.jsonb_validator import validate_patient_metadata
+
+        try:
+            return validate_patient_metadata(v)
+        except Exception as e:
+            # Re-raise as ValueError for Pydantic
+            raise ValueError(f"Invalid metadata schema: {str(e)}")
+
 
 class PatientUpdate(BaseModel):
     """Schema for updating a patient"""
@@ -113,13 +202,69 @@ class PatientUpdate(BaseModel):
     )
     doctor_notes: Optional[str] = None
 
+    # Clinical information (optional - backward compatible)
+    allergies: Optional[list[str]] = None
+    current_medications: Optional[list[str]] = None
+    comorbidities: Optional[list[str]] = None
+    blood_type: Optional[str] = Field(None, pattern="^(A|B|AB|O)[+-]$")
+    emergency_contact_name: Optional[str] = Field(None, max_length=200)
+    emergency_contact_phone: Optional[str] = None
+    timezone: Optional[str] = None
+
     # Additional metadata
     metadata: Optional[Dict[str, Any]] = None
+
+    @validator('email')
+    def validate_email_format(cls, v):
+        if v:
+            email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+            if not re.match(email_regex, v):
+                raise ValueError('Invalid email format')
+        return v
+
+    @validator('emergency_contact_phone')
+    def validate_emergency_phone(cls, v):
+        if v and not v.startswith('+'):
+            raise ValueError('Emergency contact phone must start with country code (+)')
+        return v
 
     @validator('phone')
     def validate_phone(cls, v):
         if v and not v.startswith('+'):
             raise ValueError('Phone number must start with country code (+)')
+        return v
+
+    @validator('birth_date')
+    def validate_min_age(cls, v: Optional[date]) -> Optional[date]:
+        """
+        Validate patient is at least 18 years old.
+
+        Reference: LOW-004 - birth_date Minimum Age Validation
+        """
+        if v is None:
+            return v
+
+        today = date.today()
+        min_date = today - timedelta(days=int(18 * 365.25))
+
+        if v > min_date:
+            age_years = (today - v).days / 365.25
+            raise ValueError(
+                f"Patient must be at least 18 years old. "
+                f"Birth date {v.isoformat()} indicates age of {age_years:.1f} years."
+            )
+
+        max_date = today - timedelta(days=int(120 * 365.25))
+        if v < max_date:
+            age_years = (today - v).days / 365.25
+            raise ValueError(
+                f"Birth date {v.isoformat()} seems invalid "
+                f"(indicates age of {age_years:.1f} years, over 120 years old)."
+            )
+
+        if v > today:
+            raise ValueError(f"Birth date {v.isoformat()} cannot be in the future.")
+
         return v
 
     @validator('cpf')
@@ -131,6 +276,23 @@ class PatientUpdate(BaseModel):
         if v:
             v = re.sub(r'\D', '', v)
         return v
+
+    @validator('metadata')
+    def validate_metadata_schema(cls, v: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """
+        Validate metadata against JSON schema.
+
+        Reference: LOW-007 - JSONB Schema Validation
+        """
+        if v is None:
+            return v
+
+        from app.utils.jsonb_validator import validate_patient_metadata
+
+        try:
+            return validate_patient_metadata(v)
+        except Exception as e:
+            raise ValueError(f"Invalid metadata schema: {str(e)}")
 
 
 class PatientResponse(PatientBase):

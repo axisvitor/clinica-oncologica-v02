@@ -1,0 +1,210 @@
+{
+  "dashboard": {
+    "title": "Security Monitoring Dashboard",
+    "tags": ["security", "authentication", "threats"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 0,
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "title": "Failed Authentication Attempts",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(auth_failed_total[5m])",
+            "legendFormat": "{{method}} - {{reason}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Failures/sec"}
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [10], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "frequency": "1m",
+          "handler": 1,
+          "name": "High Failed Auth Rate",
+          "noDataState": "no_data",
+          "notifications": []
+        }
+      },
+      {
+        "title": "Unauthorized Access Attempts",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(unauthorized_access_total[5m])",
+            "legendFormat": "{{endpoint}} - {{role}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Attempts/sec"}
+        ]
+      },
+      {
+        "title": "SQL Injection Attempts",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 8, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "sum(rate(sql_injection_attempts_total[5m]))",
+            "legendFormat": "SQL Injection/sec"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 0.1, "color": "red"}
+              ]
+            },
+            "unit": "ops"
+          }
+        }
+      },
+      {
+        "title": "CSRF Failures",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 8, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "sum(rate(csrf_failures_total[5m]))",
+            "legendFormat": "CSRF Failures/sec"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 5, "color": "yellow"},
+                {"value": 10, "color": "red"}
+              ]
+            },
+            "unit": "ops"
+          }
+        }
+      },
+      {
+        "title": "Webhook Signature Failures",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 8, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "sum(rate(webhook_signature_failures_total[5m]))",
+            "legendFormat": "Signature Failures/sec"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 5, "color": "yellow"},
+                {"value": 10, "color": "red"}
+              ]
+            },
+            "unit": "ops"
+          }
+        }
+      },
+      {
+        "title": "Rate Limit Hits",
+        "type": "graph",
+        "gridPos": {"x": 18, "y": 8, "w": 6, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(rate_limit_hits_total[5m])",
+            "legendFormat": "{{endpoint}} - {{tier}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Hits/sec"}
+        ]
+      },
+      {
+        "title": "Security Events by Type",
+        "type": "piechart",
+        "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum by (__name__) (rate({__name__=~\"(auth_failed_total|unauthorized_access_total|sql_injection_attempts_total|csrf_failures_total|webhook_signature_failures_total)\"}[5m]))",
+            "legendFormat": "{{__name__}}"
+          }
+        ]
+      },
+      {
+        "title": "Failed Auth by Method",
+        "type": "table",
+        "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum by (method, reason) (rate(auth_failed_total[1h]))",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {"Time": true},
+              "indexByName": {},
+              "renameByName": {
+                "method": "Auth Method",
+                "reason": "Failure Reason",
+                "Value": "Rate (per hour)"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "title": "Top Unauthorized Endpoints",
+        "type": "table",
+        "gridPos": {"x": 0, "y": 24, "w": 24, "h": 8},
+        "targets": [
+          {
+            "expr": "topk(10, sum by (endpoint, role, required_role) (rate(unauthorized_access_total[1h])))",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {"Time": true},
+              "indexByName": {},
+              "renameByName": {
+                "endpoint": "Endpoint",
+                "role": "User Role",
+                "required_role": "Required Role",
+                "Value": "Attempts (per hour)"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

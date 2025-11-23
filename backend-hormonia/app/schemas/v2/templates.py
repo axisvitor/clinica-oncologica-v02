@@ -515,7 +515,7 @@ class TemplateVersionRollbackRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "reason": "Reverting to stable version due to issues in v3",
+                "reason": "Reverting to previous stable version due to issues",
                 "set_as_active": True
             }
         }

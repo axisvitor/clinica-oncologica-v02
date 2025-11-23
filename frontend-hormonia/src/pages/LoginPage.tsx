@@ -11,7 +11,7 @@ import {
   CircleAlert as AlertCircle,
   KeyRound,
 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/app/providers/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,7 +23,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { LoadingSpinner } from '../components/ui/loading-spinner';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { isProduction } from '@/lib/runtime-config';
 import { useConfig } from '@/lib/config-initializer';
 import { useAuthSubmit } from '@/hooks/use-auth-submit';

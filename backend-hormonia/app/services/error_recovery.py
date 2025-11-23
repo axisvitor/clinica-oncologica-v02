@@ -8,7 +8,7 @@ from typing import Optional, Any, List, Callable, Awaitable
 from uuid import UUID
 import json
 
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import
 from redis import Redis
 
 from app.exceptions.flow_exceptions import (
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 class ErrorRecoveryService:
     """Service for handling flow operation errors and recovery."""
     
-    def __init__(self, db: Session, redis: Redis, flow_repository: FlowStateRepository,
+    def __init__(self, db: Any, redis: Redis, flow_repository: FlowStateRepository,
                  message_sender: MessageSender):
         self.db = db
         self.redis = redis
