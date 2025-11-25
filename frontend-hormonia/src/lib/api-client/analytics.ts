@@ -1,6 +1,9 @@
 import type { AnalyticsPeriod } from '@/types/api-wave2'
 import type { ActivityItem, Alert } from '@/types/api'
 import { ApiClientCore } from './core'
+import { createLogger } from '@/utils/logger'
+
+const logger = createLogger('AnalyticsApi')
 
 export interface DashboardMetrics {
   total_patients: number
@@ -352,7 +355,7 @@ export function createEnhancedAnalyticsIntegration(client: ApiClientCore) {
         )
         return response.data
       } catch (error) {
-        console.warn('Enhanced insights not available:', error)
+        logger.warn('Enhanced insights not available')
         return []
       }
     },
@@ -380,7 +383,7 @@ export function createEnhancedAnalyticsIntegration(client: ApiClientCore) {
         )
         return response.data
       } catch (error) {
-        console.warn('Enhanced metrics not available:', error)
+        logger.warn('Enhanced metrics not available')
         return {}
       }
     },

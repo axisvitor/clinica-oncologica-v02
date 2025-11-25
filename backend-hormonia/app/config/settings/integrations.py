@@ -81,7 +81,7 @@ class IntegrationsSettings(BaseAppSettings):
         default=None, description="Google Gemini API key"
     )
     GEMINI_MODEL: str = Field(
-        default="gemini-2.0-flash-exp", description="Gemini model to use"
+        default="gemini-2.5-flash-latest", description="Gemini model to use"
     )
     GEMINI_TEMPERATURE: float = Field(
         default=0.7, description="Gemini generation temperature"

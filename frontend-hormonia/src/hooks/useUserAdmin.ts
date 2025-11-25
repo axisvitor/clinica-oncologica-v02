@@ -1,6 +1,9 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
+import { createLogger } from '@/utils/logger'
+
+const logger = createLogger('useUserAdmin')
 import { CreateUserRequest, UpdateUserRequest } from '@/lib/api-client/types'
 import { AdminUser, AdminDashboardStats, AdminUserActivity } from '@/types/admin'
 import { useToast } from '@/components/ui/use-toast'
@@ -66,12 +69,12 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
               queryClient.invalidateQueries({ queryKey: ['admin-stats'] })
             }
           } catch (error) {
-            console.error('Error parsing WebSocket message:', error)
+            logger.error('Error parsing WebSocket message', error instanceof Error ? error : undefined)
           }
         }
 
-        ws.onerror = (error) => {
-          console.error('WebSocket error:', error)
+        ws.onerror = () => {
+          logger.error('WebSocket connection error')
           setIsConnected(false)
         }
 
@@ -85,7 +88,7 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
 
         return ws
       } catch (error) {
-        console.error('Failed to create WebSocket connection:', error)
+        logger.error('Failed to create WebSocket connection', error instanceof Error ? error : undefined)
         setIsConnected(false)
         return null
       }

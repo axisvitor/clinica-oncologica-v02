@@ -246,7 +246,7 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-[600px] max-h-[90vh] overflow-y-auto px-4 sm:px-6">
         <DialogHeader>
           <DialogTitle>Editar Usuário</DialogTitle>
           <DialogDescription>
@@ -255,7 +255,7 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
         </DialogHeader>
 
         <Tabs defaultValue="basic" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-0">
             <TabsTrigger value="basic">Informações Básicas</TabsTrigger>
             <TabsTrigger value="security">Segurança</TabsTrigger>
             <TabsTrigger value="activity">Atividade</TabsTrigger>
@@ -526,29 +526,32 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
             </TabsContent>
 
             <DialogFooter className="mt-6">
-              <div className="flex justify-between w-full">
+              <div className="flex flex-col sm:flex-row justify-between w-full gap-2 sm:gap-0">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={resetForm}
                   disabled={!hasChanges || updateUserMutation.isPending}
+                  className="w-full sm:w-auto"
                 >
                   <RotateCcw className="h-4 w-4 mr-2" />
                   Reverter
                 </Button>
 
-                <div className="flex gap-2">
+                <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-2">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => onOpenChange(false)}
                     disabled={updateUserMutation.isPending}
+                    className="w-full sm:w-auto"
                   >
                     Cancelar
                   </Button>
                   <Button
                     type="submit"
                     disabled={!hasChanges || updateUserMutation.isPending}
+                    className="w-full sm:w-auto"
                   >
                     {updateUserMutation.isPending ? (
                       <>

@@ -4,7 +4,10 @@
  */
 
 import React, { useState } from 'react';
+import { createLogger } from '@/utils/logger';
 import { useEnhancedAnalytics, usePredictions } from '@/hooks/useEnhancedAnalytics';
+
+const logger = createLogger('EnhancedAnalyticsDashboard');
 import { TrendAnalysisChart } from '@/features/analytics/TrendAnalysisChart';
 import { AIPredictionsPanel } from '@/features/analytics/AIPredictionsPanel';
 import {
@@ -41,7 +44,7 @@ export const EnhancedAnalyticsDashboard: React.FC = () => {
     try {
       await exportDashboard(format);
     } catch (error) {
-      console.error('Export failed:', error);
+      logger.error('Export failed', error instanceof Error ? error : undefined);
     }
   };
 
@@ -61,7 +64,7 @@ export const EnhancedAnalyticsDashboard: React.FC = () => {
       // Report generated successfully
       setShowReportBuilder(false);
     } catch (error) {
-      console.error('Report generation failed:', error);
+      logger.error('Report generation failed', error instanceof Error ? error : undefined);
     }
   };
 

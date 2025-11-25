@@ -1,0 +1,161 @@
+{
+  "analysis_date": "2025-11-25",
+  "analyzer": "coder-agent",
+  "anti_patterns": {
+    "component_size": {
+      "severity": "high",
+      "total_large_files": 24,
+      "files_over_500_lines": [
+        {
+          "file": "features/admin/__tests__/UserListPage.test.tsx",
+          "lines": 777,
+          "type": "test",
+          "action": "acceptable_for_tests"
+        },
+        {
+          "file": "features/admin/RoleAssignmentModal.tsx",
+          "lines": 719,
+          "type": "component",
+          "action": "split_required",
+          "recommendation": "Split into RoleSelect, PermissionGroups, PermissionCheckbox components"
+        },
+        {
+          "file": "features/whatsapp/WhatsAppIntegrationHub.tsx",
+          "lines": 663,
+          "type": "component",
+          "action": "split_required",
+          "recommendation": "Split into InstanceManager, MessageSender, QueueMonitor, MessageStats"
+        },
+        {
+          "file": "pages/TemplateManagementPage.tsx",
+          "lines": 660,
+          "type": "page",
+          "action": "split_required",
+          "recommendation": "Extract TemplateList, TemplateEditor, TemplatePreview"
+        },
+        {
+          "file": "features/admin/AuditLogViewer.tsx",
+          "lines": 639,
+          "type": "component",
+          "action": "split_recommended"
+        }
+      ],
+      "impact": "Reduced maintainability, difficult testing, high cognitive load",
+      "target": "Maximum 400 lines per component"
+    },
+    "type_safety_violations": {
+      "severity": "medium",
+      "any_usage": {
+        "total": 68,
+        "examples": [
+          {
+            "file": "WhatsAppIntegrationHub.tsx",
+            "line": 88,
+            "code": "const { data: queueStats } = useQuery<any>({",
+            "fix": "Define QueueStats interface"
+          },
+          {
+            "file": "WhatsAppIntegrationHub.tsx",
+            "line": 130,
+            "code": "mutationFn: (messageData: any) =>",
+            "fix": "Create MessageData interface"
+          }
+        ],
+        "pattern": "API response types not properly defined",
+        "recommendation": "Create interface for all API responses"
+      }
+    },
+    "production_logging": {
+      "severity": "medium",
+      "console_logs": 60,
+      "affected_files": [
+        "lib/logger.ts - 11 occurrences",
+        "lib/api-client/enhanced-analytics.ts - 9 occurrences",
+        "hooks/useEnhancedAnalytics.ts - 3 occurrences",
+        "hooks/useUserAdmin.ts - 3 occurrences",
+        "hooks/useMetricsWebSocket.ts - 1 occurrence"
+      ],
+      "impact": "Performance overhead, security risks (data leakage)",
+      "solution_exists": "Logger utility already implemented",
+      "recommendation": "Replace all console.log with createLogger utility, ensure production builds strip logs"
+    },
+    "missing_key_props": {
+      "severity": "none",
+      "status": "no_issues_found",
+      "note": "All list renders properly use key props"
+    },
+    "inline_functions": {
+      "severity": "low",
+      "status": "minimal_occurrences",
+      "note": "Most event handlers properly memoized with useCallback"
+    },
+    "prop_drilling": {
+      "severity": "low_to_medium",
+      "affected_features": [
+        "admin features",
+        "some nested modal components"
+      ],
+      "recommendation": "Use Context API or component composition for deeply nested props",
+      "current_mitigation": "Custom hooks reduce prop drilling in many cases"
+    },
+    "memory_leaks": {
+      "severity": "none",
+      "useEffect_cleanup": "properly_implemented",
+      "examples_of_good_cleanup": [
+        "lib/react-optimizations.tsx - Performance monitoring cleanup",
+        "Most WebSocket hooks have proper cleanup"
+      ]
+    },
+    "unnecessary_rerenders": {
+      "severity": "low",
+      "memo_usage": "30 components memoized",
+      "callback_usage": "82 occurrences",
+      "status": "well_optimized",
+      "potential_improvements": [
+        "Audit components not using memo that render frequently",
+        "Consider React.useDeferredValue for heavy lists"
+      ]
+    }
+  },
+  "positive_patterns": {
+    "no_key_prop_issues": true,
+    "proper_cleanup_functions": true,
+    "good_memoization": true,
+    "custom_hooks_for_logic_reuse": true,
+    "proper_error_boundaries": true
+  },
+  "critical_actions": [
+    {
+      "priority": 1,
+      "action": "Split RoleAssignmentModal.tsx (719 lines)",
+      "estimated_effort": "4-6 hours",
+      "impact": "High - Improves maintainability"
+    },
+    {
+      "priority": 2,
+      "action": "Split WhatsAppIntegrationHub.tsx (663 lines)",
+      "estimated_effort": "6-8 hours",
+      "impact": "High - Improves testability"
+    },
+    {
+      "priority": 3,
+      "action": "Replace 68 'any' types with proper interfaces",
+      "estimated_effort": "8-12 hours",
+      "impact": "High - Improves type safety"
+    },
+    {
+      "priority": 4,
+      "action": "Replace console.log with logger utility",
+      "estimated_effort": "2-3 hours",
+      "impact": "Medium - Improves production performance"
+    }
+  ],
+  "summary": {
+    "total_anti_patterns": 4,
+    "critical_severity": 1,
+    "high_severity": 0,
+    "medium_severity": 2,
+    "low_severity": 1,
+    "overall_health": "good_with_improvements_needed"
+  }
+}

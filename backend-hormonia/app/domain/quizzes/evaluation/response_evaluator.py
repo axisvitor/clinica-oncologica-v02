@@ -17,7 +17,7 @@ from app.config.quiz_alert_rules import QUIZ_ALERT_RULES, AlertSeverity, QuizAle
 from app.repositories.alert import AlertRepository
 from app.models.alert import Alert, AlertStatus, AlertSeverity as ModelAlertSeverity
 from app.exceptions import ValidationError, DatabaseError
-from app.services.audit_service import AuditService
+from app.services.audit import AuditService
 
 logger = logging.getLogger(__name__)
 

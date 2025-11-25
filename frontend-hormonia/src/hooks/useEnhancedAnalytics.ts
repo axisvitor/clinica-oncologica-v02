@@ -4,6 +4,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('useEnhancedAnalytics');
 import {
   EnhancedDashboard,
   Prediction,
@@ -50,7 +53,7 @@ export function useEnhancedAnalytics(
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to fetch dashboard');
       setError(error);
-      console.error('Error fetching dashboard:', error);
+      logger.error('Error fetching dashboard', error);
     } finally {
       setLoading(false);
     }
@@ -207,7 +210,7 @@ export function usePredictions(options: UsePredictionsOptions = {}): UsePredicti
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to fetch predictions');
       setError(error);
-      console.error('Error fetching predictions:', error);
+      logger.error('Error fetching predictions', error);
     } finally {
       setLoading(false);
     }
@@ -286,7 +289,7 @@ export function useTrends(options: UseTrendsOptions): UseTrendsReturn {
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to fetch trend data');
       setError(error);
-      console.error('Error fetching trend data:', error);
+      logger.error('Error fetching trend data', error);
     } finally {
       setLoading(false);
     }

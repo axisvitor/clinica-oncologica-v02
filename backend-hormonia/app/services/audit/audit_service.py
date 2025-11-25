@@ -291,7 +291,7 @@ class AuditService:
         query = query.order_by(AuditLog.created_at.desc()).limit(limit)
 
         result = await self.db.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_data_modifications(
         self,
@@ -334,7 +334,7 @@ class AuditService:
         query = query.order_by(AuditLog.created_at.desc()).limit(limit)
 
         result = await self.db.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_user_activity(
         self,
@@ -365,7 +365,7 @@ class AuditService:
         query = query.order_by(AuditLog.created_at.desc()).limit(limit)
 
         result = await self.db.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_anomalous_events(
         self,
@@ -401,7 +401,7 @@ class AuditService:
         query = query.order_by(AuditLog.anomaly_score.desc(), AuditLog.created_at.desc()).limit(limit)
 
         result = await self.db.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_compliance_statistics(
         self,

@@ -50,7 +50,7 @@ export function FlowsPage() {
         </Alert>
       )}
 
-      <FlowsStats stats={statsData} isLoading={statsLoading} />
+      <FlowsStats stats={statsData || undefined} isLoading={statsLoading} />
 
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -62,7 +62,7 @@ export function FlowsPage() {
         </div>
 
         <FlowsTable
-          flows={flowsData?.items || []}
+          flows={flowsData || []}
           isLoading={flowsLoading}
         />
       </div>

@@ -3,6 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiClient } from "@/lib/api-client";
+import { createLogger } from "@/utils/logger";
+
+const logger = createLogger('AgentSwarm');
 import { AgentStatus } from "@/lib/api-client/hive-mind";
 import { Bot, CheckCircle, XCircle } from "lucide-react";
 
@@ -18,7 +21,7 @@ export function AgentSwarm() {
                 setAgents(data.agents);
             } catch (err) {
                 setError("Failed to fetch agents");
-                console.error(err);
+                logger.error('Failed to fetch agents', err instanceof Error ? err : undefined);
             } finally {
                 setLoading(false);
             }

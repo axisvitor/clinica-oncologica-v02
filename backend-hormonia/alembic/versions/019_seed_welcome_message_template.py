@@ -1,6 +1,6 @@
 """seed_welcome_message_template
 
-Revision ID: 019_seed_welcome_message
+Revision ID: 019_seed_welcome_message_template
 Revises: 018_seed_flow_templates
 Create Date: 2025-11-22 21:45:00.000000
 
@@ -13,7 +13,7 @@ import uuid
 from datetime import datetime
 
 # revision identifiers, used by Alembic.
-revision = '019_seed_welcome_message'
+revision = '019_seed_welcome_message_template'
 down_revision = '27ee28e62ff8'
 branch_labels = None
 depends_on = None

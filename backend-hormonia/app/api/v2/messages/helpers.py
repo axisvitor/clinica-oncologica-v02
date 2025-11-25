@@ -152,7 +152,7 @@ def _serialize_message(message: Message, include_patient: bool = False) -> dict:
     return data
 
 
-def _create_cursor(last_item: Any, cursor_fields: List[str] = None) -> str:
+def _create_cursor(last_item: Any, cursor_fields: Optional[List[str]] = None) -> str:  # type: ignore[assignment]
     """Create base64-encoded cursor."""
     if cursor_fields is None:
         cursor_fields = ["id", "created_at"]
@@ -165,7 +165,7 @@ def _create_cursor(last_item: Any, cursor_fields: List[str] = None) -> str:
         elif isinstance(value, datetime):
             cursor_data[field] = value.isoformat()
         else:
-            cursor_data[field] = value
+            cursor_data[field] = value  # type: ignore[assignment]
 
     cursor_json = json.dumps(cursor_data)
     return base64.b64encode(cursor_json.encode("utf-8")).decode("utf-8")

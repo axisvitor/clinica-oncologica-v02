@@ -14,7 +14,7 @@ from uuid import UUID
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.dependencies.auth_dependencies import get_current_user
-from app.services.audit_service import AuditService
+from app.services.audit import AuditService
 
 logger = logging.getLogger(__name__)
 security = HTTPBearer()

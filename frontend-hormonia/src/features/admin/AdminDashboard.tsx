@@ -175,9 +175,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ children }) => {
     return (
       <div className="min-h-screen bg-gray-50">
         <AdminNavigationMenu />
-        <main className="ml-64 p-6">
-          <AdminSessionManager />
-          <Outlet />
+        <main className="lg:ml-64 p-6">
+          <div className="max-w-[1600px] mx-auto w-full">
+            <AdminSessionManager />
+            <Outlet />
+          </div>
         </main>
       </div>
     )
@@ -187,10 +189,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ children }) => {
     <div className="min-h-screen bg-gray-50">
       <AdminNavigationMenu />
 
-      <main className="ml-64 p-6">
-        <AdminSessionManager />
+      <main className="lg:ml-64 p-6">
+        <div className="max-w-[1600px] mx-auto w-full">
+          <AdminSessionManager />
 
-        <div className="space-y-6">
+          <div className="space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
@@ -498,6 +501,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ children }) => {
               <AdminUserActivityMonitor />
             </TabsContent>
           </Tabs>
+          </div>
         </div>
       </main>
     </div>

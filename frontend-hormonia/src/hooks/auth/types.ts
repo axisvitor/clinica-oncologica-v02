@@ -5,9 +5,10 @@ export type User = ApiUser
 export type AuthTokens = ApiAuthTokens
 export type LoginResponse = ApiLoginResponse
 
+/** @deprecated Legacy interface - Supabase no longer used. Use AuthState instead. */
 export interface SupabaseAuthData {
-  user: any | null  // Removed Supabase dependency
-  session: any | null  // Removed Supabase dependency
+  user: Record<string, unknown> | null  // Legacy - system uses Amazon RDS
+  session: Record<string, unknown> | null  // Legacy - system uses Amazon RDS
   loading: boolean
 }
 
@@ -47,7 +48,7 @@ export type AuthEventType = 'SIGNED_IN' | 'SIGNED_OUT' | 'TOKEN_REFRESHED' | 'SE
 
 export interface AuthEvent {
   type: AuthEventType
-  data?: any
+  data?: Record<string, unknown>
   error?: AuthError
 }
 

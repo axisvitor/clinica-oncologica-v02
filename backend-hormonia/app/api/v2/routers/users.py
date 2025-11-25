@@ -33,7 +33,8 @@ CACHE_TTL_PREFERENCES = 600
 async def _get_redis_client():
     try:
         return await get_async_redis_client()
-    except:
+    except Exception as redis_err:
+        logger.debug(f"Redis client unavailable (non-critical): {redis_err}")
         return None
 
 def _extract_user_id(current_user) -> str:
@@ -96,12 +97,13 @@ async def get_current_user_profile(
                 user_data = json.loads(cached)
                 if fields: user_data = apply_field_selection(user_data, fields)
                 return user_data
-        except: pass
+        except Exception as cache_err:
+            logger.debug(f"Cache read failed (non-critical): {cache_err}")
 
     try:
         user_uuid = UUID(user_id)
-    except:
-        raise HTTPException(status_code=400)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid user ID format")
 
     user = db.query(User).options(
         joinedload(User.patients),
@@ -117,7 +119,8 @@ async def get_current_user_profile(
     if redis:
         try:
             await redis.setex(cache_key, CACHE_TTL_USER_PROFILE, json.dumps(user_data, default=str))
-        except: pass
+        except Exception as cache_err:
+            logger.debug(f"Cache write failed (non-critical): {cache_err}")
 
     if fields:
         user_data = apply_field_selection(user_data, fields)
@@ -139,7 +142,8 @@ async def get_preferences(
         try:
             cached = await redis.get(cache_key)
             if cached: return json.loads(cached)
-        except: pass
+        except Exception as cache_err:
+            logger.debug(f"Cache read failed (non-critical): {cache_err}")
 
     user = db.query(User).filter(User.id == UUID(user_id)).first()
     if not user: raise HTTPException(status_code=404)
@@ -154,7 +158,8 @@ async def get_preferences(
     if redis:
         try:
             await redis.setex(cache_key, CACHE_TTL_PREFERENCES, json.dumps(resp, default=str))
-        except: pass
+        except Exception as cache_err:
+            logger.debug(f"Cache write failed (non-critical): {cache_err}")
 
     return resp
 

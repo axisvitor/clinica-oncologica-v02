@@ -18,6 +18,7 @@ import { QuizLinkStatus } from '@/features/quiz/QuizLinkStatus'
 import { SendQuizLinkModal } from '@/features/quiz/SendQuizLinkModal'
 import { AIChatInterface } from '@/features/ai/AIChatInterface'
 import { AIAnalyticsDashboard } from '@/features/ai/AIAnalyticsDashboard'
+import { PatientAISummary } from '@/features/ai/PatientAISummary'
 import { QuizResponseViewer } from '@/features/patients/QuizResponseViewer'
 import { QuizResponseTimeline } from '@/features/patients/QuizResponseTimeline'
 import { useMonthlyQuizAdmin } from '@/hooks/useMonthlyQuizAdmin'
@@ -135,6 +136,7 @@ export function PatientDetailPage() {
           <TabsTrigger value="quiz-responses">Respostas de Quiz</TabsTrigger>
           {FEATURES.AI_CHAT && (hasRole('doctor') || hasRole('admin')) && (
             <>
+              <TabsTrigger value="ai-summary">Resumo IA</TabsTrigger>
               <TabsTrigger value="ai-insights">Insights de IA</TabsTrigger>
               <TabsTrigger value="ai-chat">Chat IA</TabsTrigger>
             </>
@@ -205,12 +207,19 @@ export function PatientDetailPage() {
         </TabsContent>
 
         {FEATURES.AI_CHAT && (hasRole('doctor') || hasRole('admin')) && (
-          <PatientAIAnalysis
-            patientId={id || ''}
-            patientName={patient.name}
-            aiInsightsData={aiInsightsData}
-            aiRecommendations={aiRecommendations}
-          />
+          <>
+            <TabsContent value="ai-summary" className="space-y-6">
+              {id && patient && (
+                <PatientAISummary patientId={id} patientName={patient.name} />
+              )}
+            </TabsContent>
+            <PatientAIAnalysis
+              patientId={id || ''}
+              patientName={patient.name}
+              aiInsightsData={aiInsightsData}
+              aiRecommendations={aiRecommendations}
+            />
+          </>
         )}
 
         <TabsContent value="messages" className="space-y-6">

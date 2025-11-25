@@ -3,7 +3,7 @@ from datetime import date, datetime
 from uuid import UUID
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Header
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -174,11 +174,24 @@ async def create_patient(
     patient_data: PatientV2Create,
     db = Depends(get_db),
     current_user = Depends(get_current_user_from_session),
+    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
 ):
-    # ... Logic extracted from old controller ...
-    # Note: Ideally we move the heavy validation logic to PatientService entirely.
-    # For now, we keep the flow similar but orchestrated cleaner.
-    
+    # QW-006: Idempotency key support for duplicate request prevention
+    # If an idempotency key is provided, check if a patient was already created with this key
+    if x_idempotency_key:
+        from app.core.redis_client import get_redis_client
+        redis = get_redis_client()
+        if redis:
+            try:
+                cache_key = f"idempotency:patient:create:{x_idempotency_key}"
+                cached_result = redis.get(cache_key)
+                if cached_result:
+                    import json
+                    logger.info(f"Idempotency key {x_idempotency_key} already processed, returning cached result")
+                    return json.loads(cached_result)
+            except Exception as redis_err:
+                logger.debug(f"Idempotency cache check failed (non-critical): {redis_err}")
+
     try:
         doctor_uuid = UUID(patient_data.doctor_id)
     except ValueError:
@@ -226,7 +239,21 @@ async def create_patient(
             doctor_id=doctor_uuid,
             current_user=current_user,
         )
-        return _serialize_patient(created)
+        result = _serialize_patient(created)
+
+        # QW-006: Store result with idempotency key (TTL: 24 hours)
+        if x_idempotency_key:
+            from app.core.redis_client import get_redis_client
+            redis = get_redis_client()
+            if redis:
+                try:
+                    import json
+                    cache_key = f"idempotency:patient:create:{x_idempotency_key}"
+                    redis.setex(cache_key, 86400, json.dumps(result, default=str))
+                except Exception as redis_err:
+                    logger.debug(f"Idempotency cache store failed (non-critical): {redis_err}")
+
+        return result
         
     except Exception as e:
         # Catch ValidationError or others

@@ -82,7 +82,7 @@ export async function loadConfig() {
           DEBUG_MODE: runtimeConfig.VITE_DEBUG_MODE === 'true',
 
           // Security Settings
-          SESSION_TIMEOUT: parseInt(runtimeConfig.VITE_SESSION_TIMEOUT || '3600000', 10),
+          SESSION_TIMEOUT: parseInt(runtimeConfig.VITE_SESSION_TIMEOUT || '28800000', 10),
           TOKEN_REFRESH_THRESHOLD: parseInt(runtimeConfig.VITE_TOKEN_REFRESH_THRESHOLD || '300000', 10),
 
           // File upload settings
@@ -123,7 +123,7 @@ export let SENTRY_DSN = '';
 export let ANALYTICS_TRACKING_ID = '';
 export let ENVIRONMENT = '';
 export let DEBUG_MODE = false;
-export let SESSION_TIMEOUT = 3600000;
+export let SESSION_TIMEOUT = 28800000;
 export let TOKEN_REFRESH_THRESHOLD = 300000;
 
 // Update exports when config is loaded
@@ -143,7 +143,7 @@ const STATIC_SENTRY_DSN = import.meta.env['VITE_SENTRY_DSN'];
 const STATIC_ANALYTICS_TRACKING_ID = import.meta.env['VITE_ANALYTICS_TRACKING_ID'];
 const STATIC_ENVIRONMENT = import.meta.env['VITE_ENVIRONMENT'] || 'development';
 const STATIC_DEBUG_MODE = import.meta.env['VITE_DEBUG_MODE'] === 'true';
-const STATIC_SESSION_TIMEOUT = parseInt(import.meta.env['VITE_SESSION_TIMEOUT'] || '3600000', 10);
+const STATIC_SESSION_TIMEOUT = parseInt(import.meta.env['VITE_SESSION_TIMEOUT'] || '28800000', 10);
 const STATIC_TOKEN_REFRESH_THRESHOLD = parseInt(import.meta.env['VITE_TOKEN_REFRESH_THRESHOLD'] || '300000', 10);
 
 // AI Feature Flag Statics

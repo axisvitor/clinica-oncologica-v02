@@ -1,44 +1,43 @@
-from typing import Any
 """
-HIPAA Audit Services Module - Phase 3 Sprint 1
+Audit Services Module - LGPD and HIPAA Compliance
 
-This module provides comprehensive HIPAA-compliant audit logging:
-- AuditService: High-level audit logging with tamper-proof integrity
+This module provides comprehensive audit logging:
+- AuditService (from service.py): Legacy LGPD-compliant audit service with quiz and AI methods
+  - Composed from BaseAuditService, QuizAuditMixin, AIAuditMixin, AuditReportsMixin
+  - Synchronous API for backward compatibility
+- AuditService from audit_service.py: HIPAA-compliant async audit service
+  - Tamper-proof integrity controls
+  - PHI access tracking
+  - Async/await API
 - AuditRepository: Database operations for audit logs
 - AuditEventContext: Structured context for audit events
 
-Example Usage:
-    from app.services.audit import AuditService, AuditEventContext
-    from app.models.audit_log import AuditEventType
+Usage:
+    # Legacy LGPD service (synchronous)
+    from app.services.audit import AuditService as LegacyAuditService
+    audit = LegacyAuditService(db)
+    audit.log_link_created(...)
 
-    # Create audit service
-    audit_service = AuditService(db)
-
-    # Log PHI access
-    await audit_service.log_event(
-        event_type=AuditEventType.PHI_PATIENT_VIEW,
-        event_category="PHI_ACCESS",
-        context=AuditEventContext(
-            user_id=user.id,
-            resource_type="PATIENT",
-            resource_id=patient.id,
-            ip_address=request.client.host,
-            status="SUCCESS"
-        )
-    )
-
-    # Verify integrity
-    integrity_result = await audit_service.verify_integrity()
-    if integrity_result['has_tampering']:
-        # Alert security team!
-        pass
+    # HIPAA async service
+    from app.services.audit.audit_service import AuditService, AuditEventContext
+    audit = AuditService(db)
+    await audit.log_event(...)
 """
 
-from app.services.audit.audit_service import AuditService, AuditEventContext
+# Legacy LGPD-compliant service (synchronous, mixin-based)
+from app.services.audit.service import AuditService
+
+# HIPAA async service and utilities
+from app.services.audit.audit_service import AuditService as AsyncAuditService
+from app.services.audit.audit_service import AuditEventContext
 from app.services.audit.audit_repository import AuditRepository
 
 __all__ = [
+    # Legacy sync service (default export for backward compatibility)
     "AuditService",
+
+    # HIPAA async service
+    "AsyncAuditService",
     "AuditEventContext",
     "AuditRepository",
 ]

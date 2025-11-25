@@ -91,13 +91,14 @@ const AUTH_ERROR_PATTERNS = {
 /**
  * Analyzes an error and categorizes it for better handling
  */
-export function categorizeError(error: any): AuthErrorType {
+export function categorizeError(error: unknown): AuthErrorType {
   if (!error) return AuthErrorType.UNKNOWN_ERROR
 
+  const errorObj = error as Record<string, unknown> | null | undefined
   const errorMessage = typeof error === 'string' ? error :
-    error.message || error.error_description || error.error || ''
+    (errorObj?.['message'] as string) || (errorObj?.['error_description'] as string) || (errorObj?.['error'] as string) || ''
 
-  const statusCode = error.status || error.statusCode || error.code
+  const statusCode = (errorObj?.['status'] as number) || (errorObj?.['statusCode'] as number) || (errorObj?.['code'] as number)
 
   // Check for RLS violations first
   if (statusCode === 403 || RLS_ERROR_PATTERNS.some(pattern => pattern.test(errorMessage))) {
@@ -132,7 +133,7 @@ export function categorizeError(error: any): AuthErrorType {
 /**
  * Converts a technical error into a user-friendly message
  */
-export function createUserFriendlyError(error: any, context?: string): UserFriendlyError {
+export function createUserFriendlyError(error: unknown, context?: string): UserFriendlyError {
   const errorType = categorizeError(error)
   const contextSuffix = context ? ` when ${context}` : ''
 
@@ -297,14 +298,14 @@ export function createUserFriendlyError(error: any, context?: string): UserFrien
 /**
  * Checks if an error is related to RLS (Row Level Security)
  */
-export function isRLSError(error: any): boolean {
+export function isRLSError(error: unknown): boolean {
   return categorizeError(error) === AuthErrorType.RLS_VIOLATION
 }
 
 /**
  * Checks if an error is retryable
  */
-export function isRetryableError(error: any): boolean {
+export function isRetryableError(error: unknown): boolean {
   const errorType = categorizeError(error)
   return [
     AuthErrorType.NETWORK_ERROR,
@@ -316,7 +317,7 @@ export function isRetryableError(error: any): boolean {
 /**
  * Checks if an error requires authentication
  */
-export function requiresAuthentication(error: any): boolean {
+export function requiresAuthentication(error: unknown): boolean {
   const errorType = categorizeError(error)
   return [
     AuthErrorType.AUTHENTICATION_REQUIRED,
@@ -356,7 +357,7 @@ export class SupabaseErrorHandler {
   /**
    * Handle and emit an error
    */
-  handleError(error: any, context?: string): UserFriendlyError {
+  handleError(error: unknown, context?: string): UserFriendlyError {
     const userFriendlyError = createUserFriendlyError(error, context)
 
     // Emit to listeners
@@ -404,7 +405,7 @@ export class SupabaseErrorHandler {
 export class SupabaseOperationError extends Error {
   constructor(
     public userFriendlyError: UserFriendlyError,
-    public originalError: any
+    public originalError: unknown
   ) {
     super(userFriendlyError.message)
     this.name = 'SupabaseOperationError'

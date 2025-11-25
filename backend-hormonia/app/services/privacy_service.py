@@ -19,7 +19,7 @@ from sqlalchemy import Column, String, DateTime, JSON, Boolean, Text
 from app.database import Base
 from app.models.patient import Patient
 from app.models.quiz import QuizSession, QuizResponse
-from app.services.audit_service import AuditService
+from app.services.audit import AuditService
 from app.exceptions import ValidationError, NotFoundError
 
 logger = logging.getLogger(__name__)

@@ -306,8 +306,10 @@ async def list_template_versions(
                 detail="Template not found"
             )
 
-        # Get all versions for this kind
-        versions = db.query(FlowTemplateVersion).filter(
+        # Get all versions for this kind (with eager loading to prevent N+1)
+        versions = db.query(FlowTemplateVersion).options(
+            joinedload(FlowTemplateVersion.kind)
+        ).filter(
             FlowTemplateVersion.kind_id == template.kind_id
         ).order_by(desc(FlowTemplateVersion.version_number)).all()
 

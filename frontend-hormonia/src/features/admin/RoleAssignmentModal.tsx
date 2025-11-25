@@ -517,7 +517,7 @@ export function RoleAssignmentModal({ open, onOpenChange, user }: RoleAssignment
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-[800px] max-h-[90vh] overflow-y-auto px-4 sm:px-6">
         <DialogHeader>
           <DialogTitle>Gerenciar Função e Permissões</DialogTitle>
           <DialogDescription>
@@ -526,7 +526,7 @@ export function RoleAssignmentModal({ open, onOpenChange, user }: RoleAssignment
         </DialogHeader>
 
         <Tabs defaultValue="role" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-0">
             <TabsTrigger value="role">Função</TabsTrigger>
             <TabsTrigger value="permissions">Permissões Detalhadas</TabsTrigger>
           </TabsList>
@@ -686,11 +686,12 @@ export function RoleAssignmentModal({ open, onOpenChange, user }: RoleAssignment
           </TabsContent>
         </Tabs>
 
-        <DialogFooter>
+        <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-0">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={updateRoleMutation.isPending || updatePermissionsMutation.isPending}
+            className="w-full sm:w-auto"
           >
             Cancelar
           </Button>
@@ -699,6 +700,7 @@ export function RoleAssignmentModal({ open, onOpenChange, user }: RoleAssignment
             disabled={
               !hasChanges || updateRoleMutation.isPending || updatePermissionsMutation.isPending
             }
+            className="w-full sm:w-auto"
           >
             {updateRoleMutation.isPending || updatePermissionsMutation.isPending ? (
               <>

@@ -254,7 +254,7 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-[600px] max-h-[90vh] overflow-y-auto px-4 sm:px-6">
         <DialogHeader>
           <DialogTitle>Criar Novo Usuário</DialogTitle>
           <DialogDescription>
@@ -469,18 +469,20 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
           </div>
 
           {/* Submit */}
-          <DialogFooter>
+          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-0">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={createUserMutation.isPending}
+              className="w-full sm:w-auto"
             >
               Cancelar
             </Button>
             <Button
               type="submit"
               disabled={createUserMutation.isPending}
+              className="w-full sm:w-auto"
             >
               {createUserMutation.isPending ? (
                 <>

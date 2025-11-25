@@ -25,7 +25,7 @@ from sqlalchemy import and_, or_, func, desc
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.models.audit_log import AuditLog
-from app.services.audit_service import AuditService
+from app.services.audit import AuditService
 from app.utils.cache import cache
 from app.utils.rate_limiter import limiter
 from app.dependencies.auth_dependencies import get_redis_cache, get_permissions_for_role

@@ -62,6 +62,9 @@ from app.models.system_health import (
 # Upload tracking for quota management (P2-3)
 from app.models.upload import Upload
 
+# AI-generated patient summaries
+from app.models.patient_summary import PatientSummary
+
 __all__ = [
     # Base
     "BaseModel",
@@ -167,4 +170,7 @@ __all__ = [
     "WebhookEndpoint",
     "WebhookDelivery",
     "WebhookLog",
+
+    # AI Patient Summaries
+    "PatientSummary",
 ]

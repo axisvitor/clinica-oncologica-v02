@@ -60,13 +60,13 @@ const APP_CONFIG = {
 
 export interface WebSocketMessage {
   event: string
-  data: any
+  data: Record<string, unknown>
   timestamp?: string
   patient_id?: string
   session_id?: string
 }
 
-export type WebSocketEventHandler = (data: any) => void
+export type WebSocketEventHandler<T = unknown> = (data: T) => void
 
 // Backend protocol structures
 interface BackendMessage {
@@ -331,7 +331,7 @@ class WebSocketManager {
     }
   }
 
-  private emit(event: string, data: any) {
+  private emit(event: string, data: Record<string, unknown>) {
     const handlers = this.eventHandlers.get(event)
     if (handlers) {
       handlers.forEach(handler => {
@@ -348,7 +348,7 @@ class WebSocketManager {
    * Send message using backend protocol
    * Converts frontend event format to backend { type, data } format
    */
-  send(event: string, data: any) {
+  send(event: string, data: Record<string, unknown>) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       // Map frontend event to backend type
       const backendType = PROTOCOL_MAP[event] || event

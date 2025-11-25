@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 # MessageTask is now imported from app.tasks.base
 
 
-from app.services.unified_whatsapp_service import get_whatsapp_service, MessageType, MessagePriority
+from app.services.whatsapp_unified import get_whatsapp_service, MessageType, MessagePriority
 
 @celery_app.task(bind=True, base=MessageTask, name="send_scheduled_message")
 def send_scheduled_message(self, message_id: str) -> dict[str, Any]:

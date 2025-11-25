@@ -31,7 +31,7 @@ from app.schemas.monthly_quiz import (
     QuizLinkStatus, DeliveryMethod, BulkQuizLinkCreate, BulkQuizLinkResponse
 )
 from app.schemas.quiz import QuizSessionCreate
-from app.services.audit_service import AuditService
+from app.services.audit import AuditService
 from app.monitoring.business_metrics import BusinessMetricsCollector
 import logging
 

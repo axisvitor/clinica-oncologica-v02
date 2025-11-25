@@ -4,6 +4,9 @@
  */
 
 import axios, { AxiosInstance } from 'axios';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('EnhancedAnalytics');
 import {
   EnhancedDashboard,
   Prediction,
@@ -68,7 +71,7 @@ export class EnhancedAnalyticsApi {
 
       return response.data.data;
     } catch (error) {
-      console.error('Error fetching enhanced dashboard:', error);
+      logger.error('Error fetching enhanced dashboard', error instanceof Error ? error : undefined);
       throw this.handleError(error);
     }
   }
@@ -98,7 +101,7 @@ export class EnhancedAnalyticsApi {
 
       return response.data.data;
     } catch (error) {
-      console.error('Error fetching predictions:', error);
+      logger.error('Error fetching predictions', error instanceof Error ? error : undefined);
       throw this.handleError(error);
     }
   }
@@ -122,7 +125,7 @@ export class EnhancedAnalyticsApi {
 
       return response.data.data;
     } catch (error) {
-      console.error('Error fetching trends:', error);
+      logger.error('Error fetching trends', error instanceof Error ? error : undefined);
       throw this.handleError(error);
     }
   }
@@ -140,7 +143,7 @@ export class EnhancedAnalyticsApi {
 
       return response.data.data;
     } catch (error) {
-      console.error('Error generating custom report:', error);
+      logger.error('Error generating custom report', error instanceof Error ? error : undefined);
       throw this.handleError(error);
     }
   }
@@ -157,7 +160,7 @@ export class EnhancedAnalyticsApi {
 
       return response.data;
     } catch (error) {
-      console.error('Error downloading report:', error);
+      logger.error('Error downloading report', error instanceof Error ? error : undefined);
       throw this.handleError(error);
     }
   }
@@ -175,7 +178,7 @@ export class EnhancedAnalyticsApi {
 
       return response.data.data;
     } catch (error) {
-      console.error('Error fetching available metrics:', error);
+      logger.error('Error fetching available metrics', error instanceof Error ? error : undefined);
       throw this.handleError(error);
     }
   }
@@ -187,7 +190,7 @@ export class EnhancedAnalyticsApi {
     try {
       await this.client.post(`/alerts/${alertId}/acknowledge`);
     } catch (error) {
-      console.error('Error acknowledging alert:', error);
+      logger.error('Error acknowledging alert', error instanceof Error ? error : undefined);
       throw this.handleError(error);
     }
   }
@@ -208,7 +211,7 @@ export class EnhancedAnalyticsApi {
 
       return response.data;
     } catch (error) {
-      console.error('Error exporting dashboard:', error);
+      logger.error('Error exporting dashboard', error instanceof Error ? error : undefined);
       throw this.handleError(error);
     }
   }
@@ -228,7 +231,7 @@ export class EnhancedAnalyticsApi {
 
       return response.data.data;
     } catch (error) {
-      console.error('Error refreshing predictions:', error);
+      logger.error('Error refreshing predictions', error instanceof Error ? error : undefined);
       throw this.handleError(error);
     }
   }

@@ -1,6 +1,24 @@
 """
 Patient Creation Service with Race Condition Protection - HIGH-003 Implementation
 
+DEPRECATION WARNING (QW-011):
+This module is DEPRECATED in favor of:
+    app/domain/patient/onboarding/creation_service.py (CreationService)
+
+The domain-based CreationService is now the canonical implementation used by
+the OnboardingCoordinator. This service is maintained for backwards compatibility
+and will be removed in a future version.
+
+Migration:
+    # Instead of:
+    from app.services.patient.creation_service import PatientCreationService
+    service = PatientCreationService(db)
+
+    # Use:
+    from app.domain.patient.onboarding.creation_service import CreationService
+    # Or preferably use the OnboardingCoordinator factory:
+    from app.services.patient.onboarding_factory import get_onboarding_coordinator
+
 This service handles patient creation with proper race condition handling
 using database-level constraints instead of check-then-act pattern.
 
@@ -13,6 +31,7 @@ Performance Impact:
 - Maintains data integrity under concurrent load
 - No performance degradation
 """
+import warnings
 import logging
 from typing import Any, Optional
 from uuid import UUID
@@ -32,6 +51,10 @@ class PatientCreationService:
     """
     Safe patient creation service with race condition protection.
 
+    .. deprecated::
+        Use `app.domain.patient.onboarding.creation_service.CreationService` instead.
+        This class is maintained for backwards compatibility only.
+
     Strategy:
     - Use database unique constraints as source of truth
     - Try-except pattern instead of check-then-act
@@ -45,6 +68,12 @@ class PatientCreationService:
 
     def __init__(self, db: Any):
         """Initialize creation service."""
+        warnings.warn(
+            "PatientCreationService is deprecated. "
+            "Use app.domain.patient.onboarding.creation_service.CreationService instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self.db = db
 
     def create_patient_safe(

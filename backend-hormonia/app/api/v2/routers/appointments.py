@@ -93,7 +93,8 @@ async def list_appointments(
     try:
         cached = await redis_cache.get(cache_key)
         if cached: return json.loads(cached)
-    except: pass
+    except Exception as cache_err:
+        logger.debug(f"Cache read failed (non-critical): {cache_err}")
 
     query = db.query(Appointment)
     if include:
@@ -122,19 +123,19 @@ async def list_appointments(
 
     if patient_id:
         try: filters.append(Appointment.patient_id == UUID(patient_id))
-        except: raise HTTPException(status_code=400)
+        except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid patient_id UUID format")
 
     if practitioner_id:
         try: filters.append(Appointment.practitioner_id == UUID(practitioner_id))
-        except: raise HTTPException(status_code=400)
+        except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid practitioner_id UUID format")
 
     if status_filter:
         try: filters.append(Appointment.status == AppointmentStatus(status_filter.strip().lower()).value)
-        except: raise HTTPException(status_code=400)
+        except (ValueError, KeyError): raise HTTPException(status_code=400, detail=f"Invalid status: {status_filter}")
 
     if appointment_type:
         try: filters.append(Appointment.appointment_type == AppointmentType(appointment_type.strip().lower()).value)
-        except: raise HTTPException(status_code=400)
+        except (ValueError, KeyError): raise HTTPException(status_code=400, detail=f"Invalid appointment_type: {appointment_type}")
 
     if date_from: filters.append(func.date(Appointment.scheduled_at) >= date_from)
     if date_to: filters.append(func.date(Appointment.scheduled_at) <= date_to)
@@ -172,7 +173,8 @@ async def list_appointments(
     result = {"data": resp_data, "next_cursor": next_cursor, "has_more": has_more, "total": total}
     
     try: await redis_cache.set(cache_key, json.dumps(result, default=str), ttl=120)
-    except: pass
+    except Exception as cache_err:
+        logger.debug(f"Cache write failed (non-critical): {cache_err}")
 
     return result
 
@@ -186,7 +188,7 @@ async def check_conflicts(
     current_user = Depends(get_current_user_from_session),
 ):
     try: practitioner_uuid = UUID(practitioner_id)
-    except: raise HTTPException(status_code=400)
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid practitioner_id UUID format")
 
     end_time = scheduled_at + timedelta(minutes=duration_minutes)
     
@@ -196,7 +198,8 @@ async def check_conflicts(
     exclude_uuid = None
     if exclude_appointment_id:
         try: exclude_uuid = UUID(exclude_appointment_id)
-        except: pass
+        except (ValueError, TypeError):
+            logger.debug(f"Invalid exclude_appointment_id, ignoring: {exclude_appointment_id}")
         
     conflicts_list = repo.find_conflicts(practitioner_uuid, scheduled_at, end_time, exclude_uuid)
 
@@ -220,7 +223,7 @@ async def get_appointment(
     redis_cache = Depends(get_redis_cache),
 ):
     try: aid = UUID(appointment_id)
-    except: raise HTTPException(status_code=400)
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid appointment_id UUID format")
 
     query = db.query(Appointment)
     if include:
@@ -260,7 +263,7 @@ async def create_appointment(
     try:
         pid = UUID(appointment_data.patient_id)
         prid = UUID(appointment_data.practitioner_id) if appointment_data.practitioner_id else None
-    except: raise HTTPException(status_code=400, detail="Invalid UUID")
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid patient_id or practitioner_id UUID format")
 
     # RBAC
     role_enum, user_id = _extract_user_context(current_user)
@@ -291,7 +294,8 @@ async def create_appointment(
         raise HTTPException(status_code=500, detail="Failed to create appointment")
     
     try: await redis_cache.delete("appointments:list:*")
-    except: pass
+    except Exception as cache_err:
+        logger.debug(f"Cache invalidation failed (non-critical): {cache_err}")
 
     return _serialize_appointment(new_appt)
 
@@ -304,7 +308,7 @@ async def update_appointment(
     redis_cache = Depends(get_redis_cache),
 ):
     try: aid = UUID(appointment_id)
-    except: raise HTTPException(status_code=400, detail="Invalid UUID")
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid appointment_id UUID format")
 
     # Initialize Service
     from app.services.appointment_service import AppointmentService
@@ -327,7 +331,8 @@ async def update_appointment(
         raise HTTPException(status_code=500, detail="Failed to update appointment")
 
     try: await redis_cache.delete(f"appointment:{appointment_id}:*"); await redis_cache.delete("appointments:list:*")
-    except: pass
+    except Exception as cache_err:
+        logger.debug(f"Cache invalidation failed (non-critical): {cache_err}")
 
     return _serialize_appointment(updated_appt)
 
@@ -338,7 +343,7 @@ async def cancel_appointment(
     current_user = Depends(get_current_user_from_session),
 ):
     try: aid = UUID(appointment_id)
-    except: raise HTTPException(status_code=400)
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid appointment_id UUID format")
     appt = db.query(Appointment).get(aid)
     if not appt: raise HTTPException(status_code=404)
     _ensure_appointment_access(current_user, appt)
@@ -356,7 +361,7 @@ async def complete_appointment(
     current_user = Depends(get_current_user_from_session),
 ):
     try: aid = UUID(appointment_id)
-    except: raise HTTPException(status_code=400)
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid appointment_id UUID format")
     appt = db.query(Appointment).get(aid)
     if not appt: raise HTTPException(status_code=404)
     _ensure_appointment_access(current_user, appt)
@@ -374,7 +379,7 @@ async def delete_appointment(
     current_user = Depends(get_current_user_from_session),
 ):
     try: aid = UUID(appointment_id)
-    except: raise HTTPException(status_code=400)
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid appointment_id UUID format")
     appt = db.query(Appointment).get(aid)
     if not appt: raise HTTPException(status_code=404)
     _ensure_appointment_access(current_user, appt)

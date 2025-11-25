@@ -65,7 +65,7 @@ export function ImportStatusModal({
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && !isProcessing && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+      <DialogContent className="w-[95vw] max-w-2xl max-h-[80vh] flex flex-col px-4 sm:px-6">
         <DialogHeader>
           <DialogTitle>
             {validating && 'Validando arquivo...'}
@@ -105,7 +105,7 @@ export function ImportStatusModal({
           {validationResult && !importing && (
             <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
               {/* Summary */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-secondary p-3 rounded-lg">
                   <p className="text-sm font-medium">Total de linhas</p>
                   <p className="text-2xl font-bold">{validationResult.totalRows}</p>
@@ -255,25 +255,26 @@ export function ImportStatusModal({
         </div>
 
         {/* Actions */}
-        <div className="flex justify-between pt-4 border-t">
+        <div className="flex flex-col sm:flex-row justify-between gap-2 sm:gap-0 pt-4 border-t">
           <div>
             {hasImportErrors && onDownloadErrors && (
-              <Button variant="outline" onClick={onDownloadErrors} size="sm">
+              <Button variant="outline" onClick={onDownloadErrors} size="sm" className="w-full sm:w-auto">
                 <Download className="h-4 w-4 mr-2" />
                 Baixar erros
               </Button>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col-reverse sm:flex-row gap-2">
             <Button
               variant="outline"
               onClick={onClose}
               disabled={isProcessing}
+              className="w-full sm:w-auto"
             >
               {importResult ? 'Fechar' : 'Cancelar'}
             </Button>
             {validationResult && validationResult.valid && !importResult && onProceed && (
-              <Button onClick={onProceed} disabled={isProcessing}>
+              <Button onClick={onProceed} disabled={isProcessing} className="w-full sm:w-auto">
                 {importing ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />

@@ -18,14 +18,13 @@ from sqlalchemy.orm import Session
 
 from app.agents.base import BaseAgent, MessagePriority
 from app.services.response_processor import (
-    ResponseProcessor, 
+    ResponseProcessor,
     ResponseProcessorConfig,
     InboundMessage,
     InteractiveResponse,
     ResponseType,
-    MessageType,
-    # Assuming ResponseAnalysis might be in services, if not I will define it below as a Pydantic model or similar
 )
+from app.models.message import MessageType
 from app.repositories.patient import PatientRepository
 
 # Re-export for agent package

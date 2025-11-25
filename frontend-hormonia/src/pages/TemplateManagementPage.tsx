@@ -34,6 +34,20 @@ import {
 } from '@/components/ui/dialog';
 import { logger } from '@/lib/logger';
 
+// Import FlowDesign type from flow-designer
+import type { FlowDesign, FlowNode, FlowConnection } from '@/lib/types/flow-designer';
+
+// Template list params type
+interface TemplateListParams {
+  page: number;
+  size: number;
+  is_active?: boolean;
+  is_draft?: boolean;
+}
+
+// Filter type
+type TemplateFilter = 'all' | 'active' | 'draft';
+
 // Loading skeleton for template cards
 const TemplateCardSkeleton = memo(() => (
   <Card>
@@ -83,7 +97,7 @@ function TemplateManagementPage() {
   const [flowTemplates, setFlowTemplates] = useState<FlowTemplate[]>([]);
   const [quizTemplates, setQuizTemplates] = useState<QuizTemplate[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'draft'>('all');
+  const [activeFilter, setActiveFilter] = useState<TemplateFilter>('all');
   const [showFlowDesigner, setShowFlowDesigner] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<FlowTemplate | null>(null);
 
@@ -106,7 +120,7 @@ function TemplateManagementPage() {
   const loadFlowTemplates = useCallback(async () => {
     try {
       setFlowError(null)
-      const params: any = { page: flowPage, size: 10 };
+      const params: TemplateListParams = { page: flowPage, size: 10 };
 
       if (activeFilter === 'active') params.is_active = true;
       if (activeFilter === 'draft') params.is_draft = true;
@@ -130,7 +144,7 @@ function TemplateManagementPage() {
   const loadQuizTemplates = useCallback(async () => {
     try {
       setQuizError(null)
-      const params: any = { page: quizPage, size: 10 };
+      const params: TemplateListParams = { page: quizPage, size: 10 };
 
       if (activeFilter === 'active') params.is_active = true;
 
@@ -173,10 +187,11 @@ function TemplateManagementPage() {
   const VALID_MESSAGE_TYPES = ['text', 'image', 'audio', 'video', 'document'];
 
   // Handle Flow Designer save
-  const handleFlowSave = async (design: any) => {
+  const handleFlowSave = async (design: FlowDesign) => {
     // Convert FlowDesign to API format as array of FlowTemplateStep
-    const steps: FlowTemplateStep[] = design.nodes.map((node: any, index: number): FlowTemplateStep => {
+    const steps: FlowTemplateStep[] = design.nodes.map((node: FlowNode, index: number): FlowTemplateStep => {
       const messageType = node.type || 'text';
+      const config = node.data.config || {};
 
       // Validate message type
       if (!VALID_MESSAGE_TYPES.includes(messageType)) {
@@ -186,21 +201,24 @@ function TemplateManagementPage() {
       return {
         step_number: index + 1,
         intent: node.data.label || 'unknown',
-        ai_instructions: node.data.aiInstructions || '',
+        ai_instructions: (config['aiInstructions'] as string) || '',
         message_type: VALID_MESSAGE_TYPES.includes(messageType) ? messageType : 'text',
-        base_content: node.data.content || '',
-        personalization_hints: node.data.personalizationHints || [],
+        base_content: (config['content'] as string) || node.data.description || '',
+        personalization_hints: (config['personalizationHints'] as string[]) || [],
       };
     });
 
+    // Extract values from metadata with fallbacks
+    const flowCategory = design.metadata?.category || 'custom_flow';
+
     const templateData: FlowTemplateCreate = {
-      kind_key: design.metadata?.flowType || 'custom_flow',
-      display_name: design.metadata?.name || 'Novo Flow',
-      description: design.metadata?.description || '',
+      kind_key: flowCategory,
+      display_name: design.name || 'Novo Flow',
+      description: design.description || '',
       version_number: flowVersionNumber,
       steps,
       metadata: {
-        flow_type: design.metadata?.flowType || 'custom_flow',
+        flow_type: flowCategory,
         humanization_level: 'high',
         version: `${flowVersionNumber}.0.0`,
       },
@@ -212,8 +230,8 @@ function TemplateManagementPage() {
       // Update existing - include status fields
       const updated = await updateFlowTemplate(editingTemplate.id, {
         steps,
-        template_name: design.metadata?.name,
-        description: design.metadata?.description,
+        template_name: design.name,
+        description: design.description,
         is_active: flowIsActive,
         is_draft: flowIsDraft,
       });
@@ -317,7 +335,7 @@ function TemplateManagementPage() {
                 className="pl-10"
               />
             </div>
-            <Select value={activeFilter} onValueChange={(v: any) => setActiveFilter(v)}>
+            <Select value={activeFilter} onValueChange={(v: TemplateFilter) => setActiveFilter(v)}>
               <SelectTrigger className="w-[180px]">
                 <Filter className="h-4 w-4 mr-2" />
                 <SelectValue />
@@ -596,7 +614,7 @@ function TemplateManagementPage() {
 
           <div className="h-[65vh] p-6">
             <FlowDesigner
-              initialDesign={editingTemplate ? convertTemplateToDesign(editingTemplate) : undefined}
+              initialDesign={editingTemplate ? convertTemplateToDesign(editingTemplate) as FlowDesign : undefined}
               onSave={handleFlowSave}
               className="h-full"
             />
@@ -608,48 +626,54 @@ function TemplateManagementPage() {
 }
 
 // Helper function to convert template to FlowDesign format
-function convertTemplateToDesign(template: FlowTemplate): any {
+function convertTemplateToDesign(template: FlowTemplate): Partial<FlowDesign> {
   // Handle both array and dict formats for steps
-  let stepsArray: unknown[] = [];
+  let stepsArray: FlowTemplateStep[] = [];
 
   if (Array.isArray(template.steps)) {
     stepsArray = template.steps;
   } else if (template.steps && typeof template.steps === 'object') {
     // Convert dict to array
-    stepsArray = Object.values(template.steps);
+    stepsArray = Object.values(template.steps) as FlowTemplateStep[];
   }
 
-  const nodes = stepsArray.map((step: any, index) => ({
+  const nodes: FlowNode[] = stepsArray.map((step: FlowTemplateStep, index: number) => ({
     id: `node-${index}`,
-    type: step.message_type || 'text',
+    type: (step.message_type || 'message') as import('@/lib/types/flow-designer').FlowNodeType,
     position: { x: 100 + index * 250, y: 100 },
     data: {
       label: step.intent || 'Message',
-      content: step.base_content || '',
-      aiInstructions: step.ai_instructions || '',
-      personalizationHints: step.personalization_hints || [],
+      description: step.base_content || '',
+      config: {
+        content: step.base_content || '',
+        aiInstructions: step.ai_instructions || '',
+        personalizationHints: step.personalization_hints || [],
+      },
     },
   }));
 
-  const connections = nodes.slice(0, -1).map((node, index) => ({
+  const connections: FlowConnection[] = nodes.slice(0, -1).map((node, index) => ({
     id: `conn-${index}`,
     source: node.id,
     target: nodes[index + 1]?.id || '',
-    type: 'default',
   }));
 
   return {
     id: template.id,
     name: template.template_name,
-    description: template.description,
+    description: template.description || '',
+    version: String(template.version_number || 1),
     nodes,
     connections,
+    variables: [],
     metadata: {
-      name: template.template_name,
-      flowType: template.kind_key,
-      description: template.description,
-      version: String(template.version_number),
+      author: 'system',
+      tags: [template.kind_key],
+      category: template.kind_key,
+      complexity_level: 'simple',
     },
+    created_at: template.created_at || new Date().toISOString(),
+    updated_at: template.updated_at || new Date().toISOString(),
   };
 }
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, memo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -27,12 +27,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Pagination } from '@/components/ui/pagination'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { PermissionGuard } from './PermissionGuard'
+import { List } from 'react-window'
+import AutoSizer from 'react-virtualized-auto-sizer'
+import { cn } from '@/lib/utils'
 
 interface AuditLogFilters {
   search: string
@@ -53,6 +54,187 @@ interface AuditLogViewerProps {
   compact?: boolean
   maxHeight?: string
 }
+
+interface RowData {
+  items: AuditLogEntry[]
+  compact: boolean
+  gridCols: string
+}
+
+const getActionIcon = (action: string) => {
+  switch (action.toLowerCase()) {
+    case 'login': return <CheckCircle className="h-4 w-4 text-green-600" />
+    case 'logout': return <XCircle className="h-4 w-4 text-gray-600" />
+    case 'failed_login': return <AlertTriangle className="h-4 w-4 text-red-600" />
+    case 'create_user':
+    case 'create_patient': return <User className="h-4 w-4 text-green-600" />
+    case 'update_user':
+    case 'update_patient': return <FileText className="h-4 w-4 text-blue-600" />
+    case 'delete_user':
+    case 'delete_patient': return <AlertTriangle className="h-4 w-4 text-red-600" />
+    case 'view_patient':
+    case 'access_data': return <Eye className="h-4 w-4 text-gray-600" />
+    case 'permission_change':
+    case 'role_change': return <Shield className="h-4 w-4 text-purple-600" />
+    default: return <Info className="h-4 w-4 text-blue-600" />
+  }
+}
+
+const getSeverityLevel = (action: string) => {
+  switch (action.toLowerCase()) {
+    case 'failed_login':
+    case 'delete_user':
+    case 'delete_patient':
+    case 'permission_change': return 'high'
+    case 'create_user':
+    case 'create_patient':
+    case 'update_user':
+    case 'update_patient':
+    case 'role_change': return 'medium'
+    default: return 'low'
+  }
+}
+
+const getSeverityBadge = (severity: string) => {
+  switch (severity) {
+    case 'high': return <Badge variant="destructive">Alto</Badge>
+    case 'medium': return <Badge variant="default">Médio</Badge>
+    default: return <Badge variant="secondary">Baixo</Badge>
+  }
+}
+
+const formatRelativeTime = (timestamp: string) => {
+  try {
+    return formatDistanceToNow(new Date(timestamp), { addSuffix: true, locale: ptBR })
+  } catch {
+    return 'Data inválida'
+  }
+}
+
+const formatFullTime = (timestamp: string) => {
+  try {
+    return new Date(timestamp).toLocaleString('pt-BR')
+  } catch {
+    return 'Data inválida'
+  }
+}
+
+const getActionDescription = (log: AuditLogEntry) => {
+  switch (log.action.toLowerCase()) {
+    case 'login': return 'Realizou login no sistema'
+    case 'logout': return 'Realizou logout do sistema'
+    case 'failed_login': return 'Tentativa de login falhada'
+    case 'create_user': return 'Criou um novo usuário'
+    case 'create_patient': return 'Criou um novo paciente'
+    case 'update_user': return 'Atualizou informações de usuário'
+    case 'update_patient': return 'Atualizou informações de paciente'
+    case 'delete_user': return 'Excluiu um usuário'
+    case 'delete_patient': return 'Excluiu um paciente'
+    case 'view_patient': return 'Visualizou dados de paciente'
+    case 'permission_change': return 'Alterou permissões de usuário'
+    case 'role_change': return 'Alterou função de usuário'
+    default: return log.action.replace('_', ' ')
+  }
+}
+
+const AuditLogRow = memo(({ style, index, items, compact, gridCols }: any) => {
+  const log = items[index]
+
+  return (
+    <div
+      style={style}
+      className={cn(
+        "grid items-center gap-4 px-4 py-2 border-b hover:bg-muted/50 transition-colors text-sm",
+        gridCols
+      )}
+    >
+      <div className="flex items-center gap-2 min-w-0">
+        {getActionIcon(log.action)}
+        <span className="font-medium truncate">{getActionDescription(log)}</span>
+      </div>
+      <div className="flex items-center gap-2 min-w-0">
+        <User className="h-4 w-4 text-gray-500 flex-shrink-0" />
+        <span className="text-sm truncate">{log.user_email}</span>
+      </div>
+      <div className="min-w-0 space-y-1">
+        <p className="font-medium truncate">{log.resource}</p>
+        {log.resource_id && (
+          <p className="text-xs text-gray-500 truncate">{log.resource_id}</p>
+        )}
+      </div>
+      <div>{getSeverityBadge(getSeverityLevel(log.action))}</div>
+      <div className="min-w-0 space-y-1">
+        <p className="text-sm truncate" title={formatFullTime(log.timestamp)}>
+          {formatRelativeTime(log.timestamp)}
+        </p>
+        <p className="text-xs text-gray-500 truncate">
+          {formatFullTime(log.timestamp)}
+        </p>
+      </div>
+      <div className="min-w-0">
+        <span className="text-sm font-mono truncate block">{log.ip_address}</span>
+      </div>
+      {!compact && (
+        <div className="min-w-0">
+          {log.details && Object.keys(log.details).length > 0 && (
+            <details>
+              <summary className="text-xs text-blue-600 cursor-pointer">
+                Ver detalhes
+              </summary>
+              <div className="mt-2 p-2 bg-gray-50 rounded text-xs overflow-x-auto">
+                <pre>{JSON.stringify(log.details, null, 2)}</pre>
+              </div>
+            </details>
+          )}
+        </div>
+      )}
+    </div>
+  )
+})
+
+const AuditLogTimelineItem = memo(({ style, index, items }: any) => {
+  const log = items[index]
+
+  return (
+    <div style={style} className="px-4 py-2">
+      <div className="flex items-start space-x-3 p-4 border rounded-lg h-full">
+        <div className="mt-1 flex-shrink-0">
+          {getActionIcon(log.action)}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <p className="text-sm font-medium truncate">{getActionDescription(log)}</p>
+              {getSeverityBadge(getSeverityLevel(log.action))}
+            </div>
+            <p className="text-xs text-gray-500 flex-shrink-0" title={formatFullTime(log.timestamp)}>
+              {formatRelativeTime(log.timestamp)}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-4 text-xs text-gray-600">
+            <span className="flex items-center gap-1">
+              <User className="h-3 w-3" />
+              {log.user_email}
+            </span>
+            <span>{log.resource}</span>
+            {log.resource_id && <span>ID: {log.resource_id}</span>}
+            <span>IP: {log.ip_address}</span>
+          </div>
+          {log.details && Object.keys(log.details).length > 0 && (
+            <details className="mt-2">
+              <summary className="text-xs text-blue-600 cursor-pointer">
+                Ver detalhes
+              </summary>
+              <div className="mt-1 p-2 bg-gray-50 rounded text-xs overflow-x-auto">
+                <pre>{JSON.stringify(log.details, null, 2)}</pre>
+              </div>
+            </details>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+})
 
 export function AuditLogViewer({
   userId,
@@ -149,7 +331,7 @@ export function AuditLogViewer({
           if (filters.userId && log.user_id !== filters.userId) return false
           if (filters.search) {
             const searchLower = filters.search.toLowerCase()
-            const matchesSearch =
+            const matchesSearch = 
               log.action.toLowerCase().includes(searchLower) ||
               log.resource.toLowerCase().includes(searchLower) ||
               log.user_email.toLowerCase().includes(searchLower) ||
@@ -168,113 +350,6 @@ export function AuditLogViewer({
     },
     refetchInterval: 30000 // Refresh every 30 seconds
   })
-
-  const getActionIcon = (action: string) => {
-    switch (action.toLowerCase()) {
-      case 'login':
-        return <CheckCircle className="h-4 w-4 text-green-600" />
-      case 'logout':
-        return <XCircle className="h-4 w-4 text-gray-600" />
-      case 'failed_login':
-        return <AlertTriangle className="h-4 w-4 text-red-600" />
-      case 'create_user':
-      case 'create_patient':
-        return <User className="h-4 w-4 text-green-600" />
-      case 'update_user':
-      case 'update_patient':
-        return <FileText className="h-4 w-4 text-blue-600" />
-      case 'delete_user':
-      case 'delete_patient':
-        return <AlertTriangle className="h-4 w-4 text-red-600" />
-      case 'view_patient':
-      case 'access_data':
-        return <Eye className="h-4 w-4 text-gray-600" />
-      case 'permission_change':
-      case 'role_change':
-        return <Shield className="h-4 w-4 text-purple-600" />
-      default:
-        return <Info className="h-4 w-4 text-blue-600" />
-    }
-  }
-
-  const getSeverityLevel = (action: string) => {
-    switch (action.toLowerCase()) {
-      case 'failed_login':
-      case 'delete_user':
-      case 'delete_patient':
-      case 'permission_change':
-        return 'high'
-      case 'create_user':
-      case 'create_patient':
-      case 'update_user':
-      case 'update_patient':
-      case 'role_change':
-        return 'medium'
-      default:
-        return 'low'
-    }
-  }
-
-  const getSeverityBadge = (severity: string) => {
-    switch (severity) {
-      case 'high':
-        return <Badge variant="destructive">Alto</Badge>
-      case 'medium':
-        return <Badge variant="default">Médio</Badge>
-      default:
-        return <Badge variant="secondary">Baixo</Badge>
-    }
-  }
-
-  const formatRelativeTime = (timestamp: string) => {
-    try {
-      return formatDistanceToNow(new Date(timestamp), {
-        addSuffix: true,
-        locale: ptBR
-      })
-    } catch {
-      return 'Data inválida'
-    }
-  }
-
-  const formatFullTime = (timestamp: string) => {
-    try {
-      return new Date(timestamp).toLocaleString('pt-BR')
-    } catch {
-      return 'Data inválida'
-    }
-  }
-
-  const getActionDescription = (log: AuditLogEntry) => {
-    switch (log.action.toLowerCase()) {
-      case 'login':
-        return 'Realizou login no sistema'
-      case 'logout':
-        return 'Realizou logout do sistema'
-      case 'failed_login':
-        return 'Tentativa de login falhada'
-      case 'create_user':
-        return 'Criou um novo usuário'
-      case 'create_patient':
-        return 'Criou um novo paciente'
-      case 'update_user':
-        return 'Atualizou informações de usuário'
-      case 'update_patient':
-        return 'Atualizou informações de paciente'
-      case 'delete_user':
-        return 'Excluiu um usuário'
-      case 'delete_patient':
-        return 'Excluiu um paciente'
-      case 'view_patient':
-        return 'Visualizou dados de paciente'
-      case 'permission_change':
-        return 'Alterou permissões de usuário'
-      case 'role_change':
-        return 'Alterou função de usuário'
-      default:
-        return log.action.replace('_', ' ')
-    }
-  }
 
   const exportLogs = () => {
     if (!auditLogs?.items) return
@@ -320,6 +395,16 @@ export function AuditLogViewer({
         </CardContent>
       </Card>
     )
+  }
+
+  const gridCols = compact
+    ? "grid-cols-[1.5fr_1.5fr_1fr_0.8fr_1.2fr_0.8fr]"
+    : "grid-cols-[1.5fr_1.5fr_1fr_0.8fr_1.2fr_0.8fr_1fr]"
+
+  const itemData: RowData = {
+    items: auditLogs?.items || [],
+    compact,
+    gridCols
   }
 
   return (
@@ -498,139 +583,63 @@ export function AuditLogViewer({
           </div>
         </CardHeader>
         <CardContent>
-          {viewMode === 'table' ? (
-            <div className="space-y-4">
-              <ScrollArea style={{ height: maxHeight }}>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Ação</TableHead>
-                      <TableHead>Usuário</TableHead>
-                      <TableHead>Recurso</TableHead>
-                      <TableHead>Severidade</TableHead>
-                      <TableHead>Data/Hora</TableHead>
-                      <TableHead>IP</TableHead>
-                      {!compact && <TableHead>Detalhes</TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {auditLogs?.items.map((log) => (
-                      <TableRow key={log.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {getActionIcon(log.action)}
-                            <span className="font-medium">{getActionDescription(log)}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-gray-500" />
-                            <span className="text-sm">{log.user_email}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <p className="font-medium">{log.resource}</p>
-                            {log.resource_id && (
-                              <p className="text-xs text-gray-500">{log.resource_id}</p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {getSeverityBadge(getSeverityLevel(log.action))}
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <p className="text-sm" title={formatFullTime(log.timestamp)}>
-                              {formatRelativeTime(log.timestamp)}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {formatFullTime(log.timestamp)}
-                            </p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm font-mono">{log.ip_address}</span>
-                        </TableCell>
-                        {!compact && (
-                          <TableCell>
-                            {log.details && Object.keys(log.details).length > 0 && (
-                              <details>
-                                <summary className="text-xs text-blue-600 cursor-pointer">
-                                  Ver detalhes
-                                </summary>
-                                <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
-                                  <pre>{JSON.stringify(log.details, null, 2)}</pre>
-                                </div>
-                              </details>
-                            )}
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
-
-              {auditLogs && auditLogs.pages > 1 && (
-                <Pagination
-                  currentPage={auditLogs.page}
-                  totalPages={auditLogs.pages}
-                  onPageChange={(page) => setFilters(prev => ({ ...prev, page }))}
-                />
-              )}
-            </div>
-          ) : (
-            <ScrollArea style={{ height: maxHeight }}>
-              <div className="space-y-4">
-                {auditLogs?.items.map((log) => (
-                  <div key={log.id} className="flex items-start space-x-3 p-4 border rounded-lg">
-                    <div className="mt-1">
-                      {getActionIcon(log.action)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium">{getActionDescription(log)}</p>
-                          {getSeverityBadge(getSeverityLevel(log.action))}
-                        </div>
-                        <p className="text-xs text-gray-500" title={formatFullTime(log.timestamp)}>
-                          {formatRelativeTime(log.timestamp)}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-4 text-xs text-gray-600">
-                        <span className="flex items-center gap-1">
-                          <User className="h-3 w-3" />
-                          {log.user_email}
-                        </span>
-                        <span>{log.resource}</span>
-                        {log.resource_id && <span>ID: {log.resource_id}</span>}
-                        <span>IP: {log.ip_address}</span>
-                      </div>
-                      {log.details && Object.keys(log.details).length > 0 && (
-                        <details className="mt-2">
-                          <summary className="text-xs text-blue-600 cursor-pointer">
-                            Ver detalhes
-                          </summary>
-                          <div className="mt-1 p-2 bg-gray-50 rounded text-xs">
-                            <pre>{JSON.stringify(log.details, null, 2)}</pre>
-                          </div>
-                        </details>
+          <div style={{ height: maxHeight, minHeight: 400 }} className="flex flex-col">
+            {viewMode === 'table' ? (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <div className={cn("grid bg-muted/50 font-medium text-sm border-b p-2", gridCols)}>
+                  <div className="px-2">Ação</div>
+                  <div className="px-2">Usuário</div>
+                  <div className="px-2">Recurso</div>
+                  <div className="px-2">Severidade</div>
+                  <div className="px-2">Data/Hora</div>
+                  <div className="px-2">IP</div>
+                  {!compact && <div className="px-2">Detalhes</div>}
+                </div>
+                <div className="flex-1">
+                   <AutoSizer>
+                      {({ height, width }) => (
+                        <List
+                          style={{ height, width }}
+                          rowCount={auditLogs?.items.length || 0}
+                          rowHeight={compact ? 50 : 60}
+                          rowProps={itemData}
+                          rowComponent={AuditLogRow as any}
+                        />
                       )}
-                    </div>
-                  </div>
-                ))}
+                   </AutoSizer>
+                </div>
               </div>
-            </ScrollArea>
-          )}
+            ) : (
+               <div className="flex-1">
+                  <AutoSizer>
+                    {({ height, width }) => (
+                      <List
+                        style={{ height, width }}
+                        rowCount={auditLogs?.items.length || 0}
+                        rowHeight={120}
+                        rowProps={itemData}
+                        rowComponent={AuditLogTimelineItem as any}
+                      />
+                    )}
+                  </AutoSizer>
+               </div>
+            )}
+            
+            {(!auditLogs?.items || auditLogs.items.length === 0) && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-white bg-opacity-80 z-10">
+                <FileText className="h-12 w-12 text-gray-400 mb-4" />
+                <p className="text-gray-500">Nenhum log de auditoria encontrado</p>
+              </div>
+            )}
+          </div>
 
-          {(!auditLogs?.items || auditLogs.items.length === 0) && (
-            <div className="text-center py-8">
-              <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-              <p className="text-gray-500">Nenhum log de auditoria encontrado</p>
-              <p className="text-sm text-gray-400 mt-1">
-                Tente ajustar os filtros ou verificar novamente mais tarde
-              </p>
+          {auditLogs && auditLogs.pages > 1 && (
+            <div className="mt-4">
+              <Pagination
+                currentPage={auditLogs.page}
+                totalPages={auditLogs.pages}
+                onPageChange={(page) => setFilters(prev => ({ ...prev, page }))}
+              />
             </div>
           )}
         </CardContent>

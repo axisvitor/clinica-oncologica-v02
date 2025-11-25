@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Activity, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('TaskHealthIndicator');
 import { QueueStatusV2 } from '@/lib/api-client/types';
 import {
     Popover,
@@ -25,7 +28,7 @@ export function TaskHealthIndicator() {
             setLastUpdated(new Date());
             setError(null);
         } catch (err) {
-            console.error('Failed to fetch queue status:', err);
+            logger.error('Failed to fetch queue status', err instanceof Error ? err : undefined);
             setError('Failed to fetch status');
         } finally {
             setLoading(false);

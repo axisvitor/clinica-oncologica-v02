@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiClient } from "@/lib/api-client";
+import { createLogger } from "@/utils/logger";
+
+const logger = createLogger('SystemHealth');
 import { SystemHealthOverview } from "@/lib/api-client/hive-mind";
 import { Activity, AlertTriangle, CheckCircle, Server } from "lucide-react";
 
@@ -17,7 +20,7 @@ export function SystemHealth() {
                 setHealth(data);
             } catch (err) {
                 setError("Failed to fetch system health");
-                console.error(err);
+                logger.error('Failed to fetch system health', err instanceof Error ? err : undefined);
             } finally {
                 setLoading(false);
             }

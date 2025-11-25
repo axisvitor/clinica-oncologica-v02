@@ -63,6 +63,8 @@ import type {
   AdminUserListFilters,
   CreateUserRequest,
   UpdateUserRequest,
+  CreateAdminUserRequest,
+  UpdateAdminUserRequest,
   ResetPasswordRequest,
   UserActivityEntry,
   UserActivityFilters,
@@ -84,6 +86,7 @@ import type {
   SentimentAnalysisResponse,
   AIInsights,
   AIRecommendations,
+  QuizTemplate,
   QuizTemplateResponse,
   QuizSessionStartRequest,
   QuizSession,
@@ -95,6 +98,7 @@ import type {
   NotificationListResponse,
   RiskAssessmentRequest,
   RiskAssessmentsResponse,
+  PhysicianRiskAssessmentsResponse,
   PaginatedResponse,
   MessageResponse,
   ResponseResult,
@@ -201,7 +205,7 @@ export class ApiClient extends ApiClientCore {
         const { page, size, cursor, limit, ...filters } = options;
         const effLimit = limit ?? size ?? 20;
         const params: Record<string, string | number | boolean> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...filters };
-        const res = await this.get<any>("/api/v2/messages", params);
+        const res = await this.get<PaginatedResponse<Message>>("/api/v2/messages", params);
         const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
         return { data: items, items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
       },
@@ -251,14 +255,17 @@ export class ApiClient extends ApiClientCore {
         this.put(`/api/v2/flows/templates/${flowId}`, { is_active: false }),
 
       // Execute not directly available in V2 - use advance instead
-      execute: (flowId: string, data?: any) =>
+      execute: (flowId: string, data?: FlowAdvanceRequest) =>
         this.post(`/api/v2/flows/${flowId}/advance`, data),
 
       // History endpoint replaces executions
       getExecutions: (flowId: string) => this.get(`/api/v2/flows/${flowId}/history`),
 
-      processResponse: (flowId: string, response: any) =>
-        this.post<ResponseResult>(`/api/v2/flows/${flowId}/response`, response),
+      processResponse: (patientId: string, responseText: string, metadata?: Record<string, unknown>) =>
+        this.post<ResponseResult>(`/api/v2/flows/${patientId}/response`, {
+          response_text: responseText,
+          metadata
+        }),
 
 
       // Flow State Operations (V2: /api/v2/flows/{patient_id}/state)
@@ -307,7 +314,7 @@ export class ApiClient extends ApiClientCore {
         const { page, size, cursor, limit, ...filters } = options;
         const effLimit = limit ?? size ?? 20;
         const params: Record<string, string | number | boolean> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...filters };
-        const res = await this.get<any>("/api/v2/alerts", params);
+        const res = await this.get<PaginatedResponse<Alert>>("/api/v2/alerts", params);
         const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
         return { data: items, items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
       },
@@ -341,7 +348,7 @@ export class ApiClient extends ApiClientCore {
         const { page, size, cursor, limit, ...filters } = options;
         const effLimit = limit ?? size ?? 20;
         const params: Record<string, string | number | boolean> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...filters };
-        const res = await this.get<any>("/api/v2/reports", params);
+        const res = await this.get<PaginatedResponse<Report>>("/api/v2/reports", params);
         const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
         return { data: items, items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
       },
@@ -374,15 +381,10 @@ export class ApiClient extends ApiClientCore {
 
       delete: (reportId: string) => this.delete(`/api/v2/reports/${reportId}`),
 
-      schedule: (data: {
-        report_type: string;
-        frequency: "daily" | "weekly" | "monthly";
-        recipients: string[];
-        parameters?: any;
-      }) => this.post("/api/v2/reports/schedule", data),
+      schedule: (data: ScheduleReportRequest) => this.post<ScheduledReport>("/api/v2/reports/schedule", data),
 
       // getScheduled not in V2 (use list with filter)
-      getScheduled: () => this.get("/api/v2/reports/scheduled"),
+      getScheduled: () => this.get<ScheduledReport[]>("/api/v2/reports/scheduled"),
     };
   }
 
@@ -395,19 +397,19 @@ export class ApiClient extends ApiClientCore {
       users: {
         list: async (page = 1, size = 20) => {
           const params: Record<string, string | number | boolean> = { limit: size };
-          const res = await this.get<any>("/api/v2/admin/users", params);
+          const res = await this.get<PaginatedResponse<AdminUser>>("/api/v2/admin/users", params);
           return Array.isArray(res?.data) ? res.data : (res?.items ?? []);
         },
 
-        get: (userId: string) => this.get(`/api/v2/admin/users/${userId}`),
+        get: (userId: string) => this.get<AdminUser>(`/api/v2/admin/users/${userId}`),
 
-        create: (data: any) => this.post("/api/v2/admin/users", data),
+        create: (data: CreateAdminUserRequest) => this.post<AdminUser>("/api/v2/admin/users", data),
 
-        update: (userId: string, data: any) => this.put(`/api/v2/admin/users/${userId}`, data),
+        update: (userId: string, data: UpdateAdminUserRequest) => this.put<AdminUser>(`/api/v2/admin/users/${userId}`, data),
 
         delete: (userId: string) => this.delete(`/api/v2/admin/users/${userId}`),
 
-        resetPassword: (userId: string, payload?: any) =>
+        resetPassword: (userId: string, payload?: ResetPasswordRequest) =>
           this.post(`/api/v2/admin/users/${userId}/reset-password`, payload ?? {}),
 
         // toggleStatus replaced with activate/deactivate in V2
@@ -416,23 +418,23 @@ export class ApiClient extends ApiClientCore {
 
       // roles/audit/settings remain on V1 (not in V2 user management)
       roles: {
-        list: () => this.get("/api/v2/admin/roles"),
+        list: () => this.get<Role[]>("/api/v2/admin/roles"),
 
-        create: (data: any) => this.post("/api/v2/admin/roles", data),
+        create: (data: CreateRoleRequest) => this.post<Role>("/api/v2/admin/roles", data),
 
-        update: (roleId: string, data: any) => this.put(`/api/v2/admin/roles/${roleId}`, data),
+        update: (roleId: string, data: Partial<CreateRoleRequest>) => this.put<Role>(`/api/v2/admin/roles/${roleId}`, data),
 
         delete: (roleId: string) => this.delete(`/api/v2/admin/roles/${roleId}`),
       },
 
       audit: {
-        list: (page = 1, size = 20, filters?: any) =>
-          this.get("/api/v2/admin/audit", { page, size, ...filters }),
+        list: (page = 1, size = 20, filters?: AuditLogFilters) =>
+          this.get<PaginatedResponse<AuditLogEntry>>("/api/v2/admin/audit", { page, size, ...filters }),
 
-        get: (auditId: string) => this.get(`/api/v2/admin/audit/${auditId}`),
+        get: (auditId: string) => this.get<AuditLogEntry>(`/api/v2/admin/audit/${auditId}`),
 
-        export: async (filters?: any) => {
-          const queryParams = new URLSearchParams(filters as any);
+        export: async (filters?: AuditLogFilters) => {
+          const queryParams = new URLSearchParams(filters as Record<string, string>);
           const response = await fetch(
             `${this.getBaseURL()}/api/v2/admin/audit/export?${queryParams}`,
             {
@@ -453,24 +455,24 @@ export class ApiClient extends ApiClientCore {
       },
 
       settings: {
-        get: () => this.get("/api/v2/admin/settings"),
+        get: () => this.get<SystemSettings>("/api/v2/admin/settings"),
 
-        update: (data: any) => this.put("/api/v2/admin/settings", data),
+        update: (data: Partial<SystemSettings>) => this.put<SystemSettings>("/api/v2/admin/settings", data),
 
         reset: () => this.post("/api/v2/admin/settings/reset"),
       },
 
       system: {
-        getHealth: () => this.get("/api/v2/admin/system/health"),
+        getHealth: () => this.get<SystemHealth>("/api/v2/admin/system/health"),
 
-        getMetrics: () => this.get("/api/v2/admin/system/metrics"),
+        getMetrics: () => this.get<SystemMetrics>("/api/v2/admin/system/metrics"),
 
         // Use the correct endpoint name from backend
-        systemStats: () => this.get("/api/v2/admin/system-stats"),
+        systemStats: () => this.get<SystemStats>("/api/v2/admin/system-stats"),
 
-        clearCache: () => this.post("/api/v2/admin/system/clear-cache"),
+        clearCache: () => this.post<MessageResponse>("/api/v2/admin/system/clear-cache"),
 
-        runMaintenance: () => this.post("/api/v2/admin/system/maintenance"),
+        runMaintenance: () => this.post<MessageResponse>("/api/v2/admin/system/maintenance"),
       },
     };
   }
@@ -479,16 +481,16 @@ export class ApiClient extends ApiClientCore {
     return {
       list: (options: AdminUsersListOptions = {}) => {
         const { page = 1, size = 20, ...filters } = options;
-        return this.get("/api/v2/admin/users", { page, size, ...filters });
+        return this.get<PaginatedResponse<AdminUser>>("/api/v2/admin/users", { page, size, ...filters });
       },
 
-      get: (userId: string) => this.get(`/api/v2/admin/users/${userId}`),
+      get: (userId: string) => this.get<AdminUser>(`/api/v2/admin/users/${userId}`),
 
-      create: (data: any) => this.post("/api/v2/admin/users", data),
+      create: (data: CreateAdminUserRequest) => this.post<AdminUser>("/api/v2/admin/users", data),
 
-      update: (userId: string, data: any) => this.put(`/api/v2/admin/users/${userId}`, data),
+      update: (userId: string, data: UpdateAdminUserRequest) => this.put<AdminUser>(`/api/v2/admin/users/${userId}`, data),
 
-      delete: (userId: string) => this.delete(`/api/v2/admin/users/${userId}`),
+      delete: (userId: string) => this.delete<MessageResponse>(`/api/v2/admin/users/${userId}`),
 
       activate: (userId: string) => this.post(`/api/v2/admin/users/${userId}/activate`),
 
@@ -521,26 +523,58 @@ export class ApiClient extends ApiClientCore {
 
   private createAiApi(): AiApi {
     return {
-      chat: (message: string, context?: any) =>
-        this.post("/api/v2/ai/chat", { message, context }),
+      chat: (message: string, context?: Record<string, unknown>) =>
+        this.post<AIChatResponse>("/api/v2/ai/chat", { message, context }),
 
-      analyze: (data: any, analysisType: string) =>
-        this.post("/api/v2/ai/analyze", { data, analysis_type: analysisType }),
+      analyze: (data: unknown, analysisType: string) =>
+        this.post<AIAnalysisResponse>("/api/v2/ai/analyze", { data, analysis_type: analysisType }),
 
-      generateResponse: (patientId: string, messageHistory: unknown[], intent?: string) =>
-        this.post("/api/v2/ai/generate-response", {
+      generateResponse: (patientId: string, messageHistory: Array<{ role: string; content: string }>, intent?: string) =>
+        this.post<AIGenerateResponseResponse>("/api/v2/ai/generate-response", {
           patient_id: patientId,
           message_history: messageHistory,
           intent,
         }),
 
-      sentiment: (text: string) => this.post("/api/v2/ai/sentiment", { text }),
+      sentiment: (text: string) => this.post<SentimentAnalysisResponse>("/api/v2/ai/sentiment", { text }),
 
       insights: (patientId: string, timeframe?: string) =>
-        this.get(`/api/v2/ai/insights/${patientId}`, timeframe ? { timeframe } : undefined),
+        this.get<AIInsights>(`/api/v2/ai/insights/${patientId}`, timeframe ? { timeframe } : undefined),
 
       recommendations: (patientId: string) =>
-        this.get(`/api/v2/ai/recommendations/${patientId}`),
+        this.get<AIRecommendations>(`/api/v2/ai/recommendations/${patientId}`),
+
+      // Patient Summary API
+      generateSummary: (request: import('@/lib/types/patient-summary').GenerateSummaryRequest) =>
+        this.post<import('@/lib/types/patient-summary').PatientSummaryResponse>('/api/v2/ai/summary', request),
+
+      getSummaries: (patientId: string, limit = 10, offset = 0) =>
+        this.get<import('@/lib/types/patient-summary').PatientSummaryListResponse>(
+          `/api/v2/ai/summary/patient/${patientId}`,
+          { limit, offset }
+        ),
+
+      getSummary: (summaryId: string) =>
+        this.get<import('@/lib/types/patient-summary').PatientSummaryResponse>(`/api/v2/ai/summary/${summaryId}`),
+
+      exportSummaryPdf: async (summaryId: string): Promise<Blob> => {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        const token = this.getAuthToken();
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+        const response = await fetch(`${this.getBaseURL()}/api/v2/ai/summary/${summaryId}/pdf`, {
+          method: 'GET',
+          headers,
+          credentials: 'include',
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to export PDF: ${response.statusText}`);
+        }
+        return response.blob();
+      },
     };
   }
 
@@ -552,9 +586,9 @@ export class ApiClient extends ApiClientCore {
   private createQuizApi(): QuizApi {
     return {
       // Templates migrated to V2
-      templates: async () => {
-        const res: any = await this.get("/api/v2/templates/quiz")
-        return Array.isArray(res) ? { items: res } : res
+      templates: async (): Promise<QuizTemplateResponse> => {
+        const res = await this.get<unknown>("/api/v2/templates/quiz")
+        return Array.isArray(res) ? { items: res as QuizTemplate[] } : res as QuizTemplateResponse
       },
 
       // Create a new quiz session (V2)
@@ -573,7 +607,7 @@ export class ApiClient extends ApiClientCore {
           ? `/api/v2/quiz/patients/${patient_id}/quiz-responses`
           : `/api/v2/quiz/sessions`;
 
-        const res: any = await this.get(endpoint, params);
+        const res = await this.get<PaginatedResponse<QuizSession>>(endpoint, params);
         const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
         return { data: items, items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
       },
@@ -598,7 +632,7 @@ export class ApiClient extends ApiClientCore {
         }),
 
       getPatientResponses: async (patientId: string, options?: Record<string, unknown>): Promise<PatientQuizResponses> => {
-        const res: any = await this.get(`/api/v2/quiz/patients/${patientId}/responses`, options as any);
+        const res = await this.get<PaginatedResponse<QuizSession>>(`/api/v2/quiz/patients/${patientId}/responses`, options as Record<string, string | number | boolean>);
         const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
         return {
           patient_id: patientId,
@@ -618,8 +652,8 @@ export class ApiClient extends ApiClientCore {
       listTemplates: () => this.quiz.templates(),
 
       // Template CRUD migrated to V2
-      createTemplate: (template: CreateQuizTemplateRequest) => this.post("/api/v2/templates/quiz", template as unknown as CreateFlowTemplateRequest),
-      create: (template: any) => this.post("/api/v2/templates/quiz", template),
+      createTemplate: (template: CreateQuizTemplateRequest) => this.post<QuizTemplate>("/api/v2/templates/quiz", template as unknown as CreateFlowTemplateRequest),
+      create: (template: CreateQuizTemplateRequest) => this.post<QuizTemplate>("/api/v2/templates/quiz", template),
 
       updateTemplate: (templateId: string, data: UpdateFlowTemplateRequest) =>
         this.put(`/api/v2/templates/quiz/${templateId}`, data),
@@ -649,7 +683,7 @@ export class ApiClient extends ApiClientCore {
         if (daysLookback) {
           params["days_lookback"] = daysLookback;
         }
-        return this.get("/api/v2/physician/risk-assessments", params);
+        return this.get<PhysicianRiskAssessmentsResponse>("/api/v2/physician/risk-assessments", params);
       },
     };
   }
@@ -810,6 +844,11 @@ interface AiApi {
   sentiment: (text: string) => Promise<SentimentAnalysisResponse>;
   insights: (patientId: string, timeframe?: string) => Promise<AIInsights>;
   recommendations: (patientId: string) => Promise<AIRecommendations>;
+  // Patient Summary API
+  generateSummary: (request: import('@/lib/types/patient-summary').GenerateSummaryRequest) => Promise<import('@/lib/types/patient-summary').PatientSummaryResponse>;
+  getSummaries: (patientId: string, limit?: number, offset?: number) => Promise<import('@/lib/types/patient-summary').PatientSummaryListResponse>;
+  getSummary: (summaryId: string) => Promise<import('@/lib/types/patient-summary').PatientSummaryResponse>;
+  exportSummaryPdf: (summaryId: string) => Promise<Blob>;
 }
 
 interface QuizApi {
@@ -853,15 +892,7 @@ interface UpdateQuizTemplateRequest extends Partial<CreateQuizTemplateRequest> {
   is_active?: boolean;
 }
 
-interface QuizTemplate {
-  id: string;
-  name: string;
-  description?: string;
-  questions_count: number;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
+// QuizTemplate type imported from types.ts
 
 interface QuizTemplateAnalytics {
   template_id: string;
@@ -876,7 +907,7 @@ interface NotificationsApi {
 }
 
 interface PhysicianApi {
-  riskAssessments: (patientId?: string, daysLookback?: number) => Promise<RiskAssessmentsResponse>;
+  riskAssessments: (patientId?: string, daysLookback?: number) => Promise<PhysicianRiskAssessmentsResponse>;
 }
 
 /**

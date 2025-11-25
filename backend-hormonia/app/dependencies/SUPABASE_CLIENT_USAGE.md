@@ -1,90 +1,113 @@
-# Supabase Client Usage Documentation
+# Database Client Usage Documentation
 
-**Purpose:** DATA LAYER ONLY (Not Authentication)
-**Status:** Active for database access
-**Last Updated:** 2025-10-01
-
----
-
-## ⚠️ Critical Clarification
-
-**Supabase in this project is used ONLY for:**
-- ✅ PostgreSQL database access
-- ✅ Real-time subscriptions (if enabled)
-- ✅ Data layer operations
-
-**Supabase is NOT used for:**
-- ❌ Authentication (Firebase handles this)
-- ❌ Token validation (Firebase Admin SDK)
-- ❌ User management (Firebase Auth)
+**Purpose:** DATA LAYER via SQLAlchemy + Amazon RDS PostgreSQL
+**Status:** MIGRATED from Supabase to Amazon RDS (2025-10)
+**Last Updated:** 2025-11-25
 
 ---
 
-## 📁 Exposed Dependencies
+## Architecture Overview
 
-### `get_supabase_client()`
+**Current Database Stack:**
+- **Database:** Amazon RDS PostgreSQL 14+ (sa-east-1 region)
+- **ORM:** SQLAlchemy 2.0+ with async support
+- **Migrations:** Alembic (22 migrations: 001-021)
+- **Authentication:** Firebase Admin SDK (NOT database auth)
+- **Cache:** Redis Cloud (required)
 
-**Location:** `app/dependencies/service_dependencies.py:18`
+---
 
-**Purpose:** Provides Supabase Python client for database operations
+## Migration History
 
-**Usage Pattern:**
+### Supabase (DEPRECATED - Pre October 2025)
+The project originally used Supabase for:
+- PostgreSQL database access
+- Real-time subscriptions (if enabled)
+
+### Amazon RDS (CURRENT - October 2025+)
+Migrated to Amazon RDS for:
+- Better performance and control
+- Regional compliance (sa-east-1 - Brazil)
+- Custom PostgreSQL configuration
+- Direct SQLAlchemy integration
+
+---
+
+## Database Access Pattern
+
+### Current Implementation (SQLAlchemy)
+
 ```python
-from app.dependencies import get_supabase_client
+from app.dependencies import get_db
+from sqlalchemy.orm import Session
 
 @router.get("/data")
-async def get_data(supabase: Client = Depends(get_supabase_client)):
-    # Use for DATABASE queries ONLY
-    result = supabase.table("users").select("*").execute()
-    return result.data
+async def get_data(db: Session = Depends(get_db)):
+    # Use SQLAlchemy ORM
+    result = db.query(Patient).filter(Patient.is_active == True).all()
+    return result
 ```
 
-**Important Notes:**
-- Uses `SUPABASE_SERVICE_ROLE_KEY` (bypasses RLS)
-- Backend handles authorization via Firebase tokens
-- RLS policies exist but are bypassed for performance
-- Authorization logic is in `dependencies_secure_v2.py`
+### Thread-Safe Service Provider (Recommended)
+
+```python
+from app.dependencies import get_thread_safe_service_provider
+from app.services import ServiceProvider
+
+@router.get("/patients")
+async def get_patients(services: ServiceProvider = Depends(get_thread_safe_service_provider)):
+    # Services use isolated per-request sessions
+    return await services.patient_service.list_all()
+```
 
 ---
 
-## 🔄 Authentication Flow (Correct)
+## Authentication Flow (Correct)
 
 ```
-┌──────────┐      ┌──────────┐      ┌──────────┐      ┌──────────┐
-│ Frontend │      │ Firebase │      │ Backend  │      │ Supabase │
-│ (React)  │──1──>│   Auth   │──2──>│   API    │──3──>│    DB    │
-└──────────┘      └──────────┘      └──────────┘      └──────────┘
++----------+      +----------+      +----------+      +------------+
+| Frontend |      | Firebase |      | Backend  |      | Amazon RDS |
+| (React)  |--1-->|   Auth   |--2-->|   API    |--3-->| PostgreSQL |
++----------+      +----------+      +----------+      +------------+
 ```
 
 1. **Frontend** authenticates via Firebase
-2. **Backend** validates Firebase token (not Supabase token)
-3. **Backend** queries Supabase database with SERVICE_ROLE_KEY
+2. **Backend** validates Firebase token (Firebase Admin SDK)
+3. **Backend** queries PostgreSQL via SQLAlchemy
 
 ---
 
-## 🚫 What NOT to Use
+## Removed Dependencies
 
-### DO NOT use Supabase Auth methods:
+### DO NOT use these (Supabase remnants):
 
 ```python
-# ❌ WRONG - DO NOT DO THIS
-supabase.auth.sign_in_with_password(...)
-supabase.auth.sign_up(...)
-supabase.auth.get_user(token)
+# REMOVED - Do not import or use
+# get_supabase_client - REMOVED (migrated to AWS RDS PostgreSQL)
+# supabase.table(...) - Use SQLAlchemy instead
+# supabase.auth.* - Use Firebase dependencies
+```
 
-# ✅ CORRECT - Use Firebase instead
-from app.dependencies.auth_dependencies import _firebase_service
-user_data = await _firebase_service.verify_token(token)
+### CORRECT - Use these instead:
+
+```python
+# Database access
+from app.dependencies import get_db, get_thread_safe_service_provider
+
+# Authentication
+from app.dependencies import get_current_user, get_admin_user, get_doctor_user
 ```
 
 ---
 
-## 📦 Dependency Exports
+## Dependency Exports
 
 ### From `app/dependencies/__init__.py`
 
-**Supabase-related exports:**
-- `get_supabase_client` - DATABASE ACCESS ONLY
+**Database-related exports:**
+- `get_db` - SQLAlchemy session (per-request)
+- `get_database` - Alias for get_db
+- `get_thread_safe_service_provider` - Service provider with isolated session
 
 **Firebase-related exports:**
 - `get_current_user` - Uses Firebase token validation
@@ -94,14 +117,16 @@ user_data = await _firebase_service.verify_token(token)
 
 ---
 
-## 🔧 Configuration
+## Configuration
 
 ### Backend Environment Variables
 
-**Supabase (Database):**
+**Database (Amazon RDS):**
 ```env
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+DATABASE_URL=postgresql://user:password@rds-instance.sa-east-1.rds.amazonaws.com:5432/hormonia
+DATABASE_ECHO=false
+DATABASE_POOL_SIZE=20
+DATABASE_MAX_OVERFLOW=10
 ```
 
 **Firebase (Authentication):**
@@ -111,43 +136,41 @@ FIREBASE_ADMIN_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\n...
 FIREBASE_ADMIN_CLIENT_EMAIL=firebase-adminsdk-xxxxx@...
 ```
 
+**Redis (Cache):**
+```env
+REDIS_URL=redis://your-redis-cloud-instance:6379
+```
+
 ---
 
-## 🎯 Migration Status
+## Architecture Summary
 
-**Completed:**
-- ✅ Firebase Admin SDK integrated
-- ✅ Token validation via Firebase
-- ✅ Supabase used only for database
-- ✅ All auth endpoints updated
-
-**Architecture:**
 ```
-Authentication: Firebase (PRIMARY)
-Database: Supabase PostgreSQL (DATA ONLY)
+Authentication: Firebase Admin SDK (PRIMARY)
+Database: Amazon RDS PostgreSQL (SQLAlchemy ORM)
 Cache: Redis Cloud (REQUIRED)
+Migrations: Alembic (22 versions)
 ```
 
 ---
 
-## 📚 Related Documentation
+## Related Documentation
 
-- [AUTH_MIGRATION.md](../../../../docs/AUTH_MIGRATION.md) - Complete Firebase migration guide
-- [FIREBASE_SECURITY.md](../../docs/FIREBASE_SECURITY.md) - Firebase security best practices
-- [dependencies_secure_v2.py](../dependencies_secure_v2.py) - Firebase token validation implementation
+- [database/README.md](../../docs/database/README.md) - Database schema documentation
+- [database/reference/SCHEMA_DOCUMENTATION.md](../../docs/database/reference/SCHEMA_DOCUMENTATION.md) - Table reference
+- [SERVICE_DI_REFACTOR.md](../../docs/deployment/SERVICE_DI_REFACTOR.md) - Dependency injection refactor
 
 ---
 
-## ✅ Summary
+## Summary
 
-**Key Takeaway:** `get_supabase_client` is safe to use for **database operations only**. All authentication goes through Firebase.
+**Key Takeaway:** All database access uses SQLAlchemy + Amazon RDS. Supabase client has been completely removed. Authentication uses Firebase Admin SDK.
 
 **If you need:**
-- Authentication → Use Firebase dependencies (`get_current_user`)
-- Database access → Use `get_supabase_client`
-- Real-time subscriptions → Use Supabase client (data layer)
+- Authentication -> Use Firebase dependencies (`get_current_user`)
+- Database access -> Use `get_db()` or `get_thread_safe_service_provider()`
+- Cache -> Use Redis via ServiceProvider
 
 ---
 
-🤖 Generated with Claude Code
-Co-Authored-By: Claude <noreply@anthropic.com>
+Generated: 2025-11-25

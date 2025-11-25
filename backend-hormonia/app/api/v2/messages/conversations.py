@@ -177,26 +177,62 @@ async def list_conversations(
     if has_more and patients:
         next_cursor = _create_cursor(patients[-1], cursor_fields=["id"])
 
-    # Build conversation responses
+    # Build conversation responses using batch queries instead of N+1 pattern
+    patient_ids = [p.id for p in patients]
+
+    # Batch query: Get unread counts for all patients at once
+    unread_subquery = db.query(
+        Message.patient_id,
+        func.count(Message.id).label("unread_count")
+    ).filter(
+        Message.patient_id.in_(patient_ids),
+        Message.direction == MessageDirection.INBOUND,
+        Message.read_at.is_(None)
+    ).group_by(Message.patient_id).subquery()
+
+    unread_map = {
+        row.patient_id: row.unread_count
+        for row in db.query(unread_subquery).all()
+    }
+
+    # Batch query: Get last message timestamp for all patients
+    last_msg_subquery = db.query(
+        Message.patient_id,
+        func.max(Message.created_at).label("last_message_at")
+    ).filter(
+        Message.patient_id.in_(patient_ids)
+    ).group_by(Message.patient_id).subquery()
+
+    last_msg_map = {
+        row.patient_id: row.last_message_at
+        for row in db.query(last_msg_subquery).all()
+    }
+
+    # Batch query: Get recent messages for all patients (using window function approach)
+    from sqlalchemy import over
+    from sqlalchemy.sql import text
+
+    # Get latest 10 messages per patient using a single query with row_number
+    recent_messages = db.query(Message).filter(
+        Message.patient_id.in_(patient_ids)
+    ).order_by(Message.patient_id, Message.created_at.desc()).all()
+
+    # Group messages by patient (keep only first 10 per patient)
+    messages_by_patient = {}
+    for msg in recent_messages:
+        if msg.patient_id not in messages_by_patient:
+            messages_by_patient[msg.patient_id] = []
+        if len(messages_by_patient[msg.patient_id]) < 10:
+            messages_by_patient[msg.patient_id].append(msg)
+
+    # Build responses
     conversations = []
-    total_unread = 0
+    total_unread = sum(unread_map.values())
 
     for patient in patients:
-        # Get latest messages
-        messages = db.query(Message).filter(
-            Message.patient_id == patient.id
-        ).order_by(Message.created_at.desc()).limit(10).all()
-
-        # Count unread (inbound messages not read)
-        unread_count = db.query(func.count(Message.id)).filter(
-            Message.patient_id == patient.id,
-            Message.direction == MessageDirection.INBOUND,
-            Message.read_at.is_(None)
-        ).scalar()
-
-        total_unread += unread_count
-
-        last_message_at = messages[0].created_at if messages else None
+        unread_count = unread_map.get(patient.id, 0)
+        last_message_at = last_msg_map.get(patient.id)
+        patient_messages = messages_by_patient.get(patient.id, [])
 
         conversations.append({
             "patient_id": str(patient.id),
@@ -205,7 +241,7 @@ async def list_conversations(
                 "name": patient.name,
                 "phone": patient.phone,
             },
-            "messages": [_serialize_message(msg) for msg in messages],
+            "messages": [_serialize_message(msg) for msg in patient_messages],
             "unread_count": unread_count,
             "last_message_at": last_message_at.isoformat() if last_message_at else None,
             "messaging_mode": "conversational",
@@ -409,7 +445,7 @@ async def process_inbound_message(
     }
     msg_type = type_map.get(inbound_data.type, MessageType.TEXT)
 
-    message = message_service.create_inbound_message(
+    message = message_service.create_inbound_message(  # type: ignore[attr-defined]
         patient_id=patient.id,
         content=inbound_data.content,
         whatsapp_id=inbound_data.whatsapp_id,

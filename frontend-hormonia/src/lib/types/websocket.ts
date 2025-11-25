@@ -252,7 +252,7 @@ export interface UseWebSocketReturn {
   joinRoom: (patientId: string) => Promise<boolean>;
   leaveRoom: (patientId: string) => Promise<boolean>;
   subscribe: <T = unknown>(event: WebSocketEventType, handler: WebSocketEventHandler<T>) => () => void;
-  emit: (event: WebSocketEventType, data: any) => void;
+  emit: (event: WebSocketEventType, data: Record<string, unknown>) => void;
   stats: WebSocketStats;
   error: WebSocketError | null;
 }

@@ -1,0 +1,115 @@
+{
+  "analysis_date": "2025-11-25",
+  "analyzer": "coder-agent",
+  "typescript_metrics": {
+    "type_definitions": {
+      "interfaces": 202,
+      "type_aliases": 66,
+      "total": 268,
+      "quality_score": 8.5
+    },
+    "type_safety": {
+      "any_usage": {
+        "total_occurrences": 68,
+        "status": "needs_improvement",
+        "affected_files": [
+          "WhatsAppIntegrationHub.tsx - 17 occurrences",
+          "lib/__tests__/firebase-client-initialization.test.ts - 8 occurrences",
+          "utils/monthlyQuizStatusMapper.test.ts - 5 occurrences",
+          "app/providers/ProductionProvider.tsx - 4 occurrences",
+          "app/providers/MedicoAuthContext.test.tsx - 4 occurrences"
+        ],
+        "recommendation": "Replace with proper types or 'unknown' with type guards"
+      },
+      "type_suppressions": {
+        "ts_ignore": 1,
+        "ts_nocheck": 1,
+        "total": 2,
+        "status": "acceptable",
+        "files": [
+          "monitoring/sentry.ts",
+          "lib/test-utils.ts"
+        ]
+      }
+    },
+    "generic_usage": {
+      "quality": "good",
+      "examples": [
+        "ApiResponse<T>",
+        "PaginatedResponse<T>",
+        "UseOptimizedQueryOptions<TData, TError>",
+        "EntityId type alias"
+      ],
+      "proper_constraints": true
+    },
+    "type_inference": {
+      "balance": "well_balanced",
+      "public_apis": "explicit_types",
+      "internal_logic": "type_inference",
+      "quality_score": 8.0
+    },
+    "api_type_definitions": {
+      "file": "lib/api-client/types.ts",
+      "lines": 960,
+      "quality": "excellent",
+      "patterns": [
+        "Generic response wrappers",
+        "Paginated response support",
+        "Error response structure",
+        "Base filters and search",
+        "Time-based filters"
+      ],
+      "example_interfaces": [
+        "ApiResponse<T>",
+        "PaginatedResponse<T>",
+        "ApiErrorResponse",
+        "BaseFilters",
+        "SearchFilters",
+        "TimeRangeFilters"
+      ]
+    }
+  },
+  "issues_found": {
+    "critical": [
+      {
+        "issue": "68 'any' type usages",
+        "severity": "high",
+        "impact": "Reduced type safety, potential runtime errors",
+        "recommendation": "Create proper interfaces for all API responses and replace any with unknown + type guards"
+      }
+    ],
+    "moderate": [
+      {
+        "issue": "Some inline type assertions",
+        "severity": "medium",
+        "impact": "Reduced code clarity",
+        "recommendation": "Extract complex types to separate definitions"
+      }
+    ]
+  },
+  "strengths": {
+    "comprehensive_type_library": "960-line types.ts file",
+    "generic_usage": "Proper generic constraints",
+    "domain_models": "Well-defined domain interfaces",
+    "backward_compatibility": "Types support API evolution"
+  },
+  "recommendations": {
+    "immediate": [
+      "Audit and replace 'any' types with proper interfaces",
+      "Create type definitions for WhatsApp API responses",
+      "Add type guards for error handling",
+      "Document complex generic types"
+    ],
+    "short_term": [
+      "Setup ESLint rule to prevent 'any' usage",
+      "Create branded types for IDs (UserId, PatientId)",
+      "Add runtime validation with Zod or similar",
+      "Generate types from OpenAPI spec if available"
+    ],
+    "long_term": [
+      "Consider stricter TypeScript config",
+      "Implement discriminated unions for state machines",
+      "Add exhaustiveness checking for switch statements"
+    ]
+  }
+}

@@ -1,5 +1,7 @@
 """
 WhatsApp webhook handlers for Evolution API integration.
+
+SECURITY: Rate limiting added to prevent webhook flooding (HIGH-001)
 """
 import json
 import logging
@@ -15,6 +17,7 @@ from ..models.message import (
 )
 from ..services.message_service import WhatsAppMessageService
 from app.database import get_db
+from app.utils.rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +25,7 @@ router = APIRouter(prefix="/webhooks/whatsapp", tags=["WhatsApp Webhooks"])
 
 
 @router.post("/evolution/{instance_name}")
+@limiter.limit("500/minute")  # SECURITY: Rate limit to prevent webhook flooding (HIGH-001)
 async def evolution_webhook(
     instance_name: str,
     request: Request,
@@ -30,13 +34,22 @@ async def evolution_webhook(
 ):
     """
     Handle Evolution API webhooks for WhatsApp events.
+
+    Rate limited: 500 requests per minute per IP to prevent DDoS/spam attacks.
     """
     try:
         # Get raw payload
         payload = await request.json()
 
-        # Log incoming webhook
-        logger.info(f"Received webhook for instance {instance_name}: {payload.get('event', 'unknown')}")
+        # Log incoming webhook with structured data
+        logger.info(
+            f"Received webhook for instance {instance_name}",
+            extra={
+                "instance_name": instance_name,
+                "event_type": payload.get('event', 'unknown'),
+                "has_data": bool(payload.get('data')),
+            }
+        )
 
         # Validate webhook payload
         webhook_data = WebhookPayload(
@@ -56,7 +69,15 @@ async def evolution_webhook(
         return {"status": "received", "timestamp": datetime.utcnow()}
 
     except Exception as e:
-        logger.error(f"Error processing webhook for instance {instance_name}: {e}")
+        logger.error(
+            f"Error processing webhook for instance {instance_name}",
+            exc_info=True,
+            extra={
+                "instance_name": instance_name,
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+            }
+        )
         raise HTTPException(status_code=400, detail=f"Webhook processing error: {str(e)}")
 
 
@@ -86,7 +107,15 @@ async def process_webhook_event(webhook_data: WebhookPayload, background_tasks: 
             logger.info(f"Unhandled webhook event: {event}")
 
     except Exception as e:
-        logger.error(f"Error in webhook event processing: {e}")
+        logger.error(
+            f"Error in webhook event processing",
+            exc_info=True,
+            extra={
+                "event_type": event,
+                "instance_name": instance_name,
+                "error_type": type(e).__name__,
+            }
+        )
 
 
 async def handle_message_upsert(instance_name: str, data: Dict[str, Any], background_tasks: BackgroundTasks, db: AsyncSession):
@@ -233,8 +262,8 @@ async def _trigger_flow_response_async(patient_id: str, content: str):
             logger.error(f"Error in background flow thread for patient {patient_id}: {e}", exc_info=True)
             try:
                 loop.close()
-            except:
-                pass
+            except Exception as close_err:
+                logger.debug(f"Event loop close error (non-critical): {close_err}")
 
     # Run in executor to avoid blocking the main event loop with sync DB calls
     try:

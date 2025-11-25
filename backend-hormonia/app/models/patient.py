@@ -71,7 +71,13 @@ class Patient(BaseModel):
 
     # Brazilian healthcare specific fields (now in dedicated columns after migration)
     # Migration: add_dedicated_patient_columns
-    cpf = Column(String(11), nullable=True)
+    # LGPD Compliance: CPF encryption fields
+    # - cpf: DEPRECATED - Legacy plaintext column (kept for rollback)
+    # - cpf_encrypted: AES-256 encrypted CPF value
+    # - cpf_hash: SHA-256 searchable hash for queries
+    cpf = Column(String(11), nullable=True)  # DEPRECATED: Legacy plaintext
+    cpf_encrypted = Column(Text, nullable=True)  # Encrypted CPF
+    cpf_hash = Column(String(64), nullable=True, index=True)  # Searchable hash
     diagnosis = Column(Text, nullable=True, index=True)
     treatment_phase = Column(String(100), nullable=True, index=True)
     doctor_notes = Column(Text, nullable=True)
@@ -125,6 +131,7 @@ class Patient(BaseModel):
     notifications = relationship("Notification", back_populates="related_patient", lazy="select", passive_deletes=True)
     consents = relationship("Consent", back_populates="patient", foreign_keys="[Consent.patient_id]", lazy="select", passive_deletes=True)
     analytics = relationship("FlowAnalytics", back_populates="patient", lazy="select", passive_deletes=True)
+    summaries = relationship("PatientSummary", back_populates="patient", lazy="select", passive_deletes=True)
 
     # Constraints and indexes to match DB uniques
     # After migration 009: Composite unique constraints scoped to doctor_id
@@ -202,7 +209,78 @@ class Patient(BaseModel):
         except Exception as e:
             raise ValueError(f"Invalid metadata schema: {str(e)}")
 
-    # NOTE: cpf, diagnosis, treatment_phase, doctor_notes are now dedicated columns
+    # =========================================================================
+    # CPF ENCRYPTION PROPERTIES (LGPD Compliance)
+    # =========================================================================
+
+    @property
+    def cpf_decrypted(self) -> Optional[str]:
+        """
+        Get decrypted CPF value.
+
+        Returns decrypted CPF if encrypted, otherwise returns plaintext CPF
+        for backward compatibility during migration period.
+
+        Returns:
+            Decrypted CPF (11 digits) or None
+        """
+        if self.cpf_encrypted:
+            from app.services.cpf_encryption_service import get_cpf_encryption_service
+            service = get_cpf_encryption_service()
+            return service.decrypt_cpf(self.cpf_encrypted)
+        elif self.cpf:
+            # Backward compatibility: return plaintext if not encrypted yet
+            return self.cpf
+        return None
+
+    def set_cpf(self, cpf_value: Optional[str]) -> None:
+        """
+        Set CPF with automatic encryption.
+
+        Encrypts the CPF and generates searchable hash.
+        Legacy plaintext column is set to None for security.
+
+        Args:
+            cpf_value: CPF to encrypt (with or without formatting)
+        """
+        if not cpf_value:
+            self.cpf_encrypted = None
+            self.cpf_hash = None
+            self.cpf = None
+            return
+
+        from app.services.cpf_encryption_service import get_cpf_encryption_service
+        service = get_cpf_encryption_service()
+
+        # Encrypt and hash
+        encrypted_cpf, cpf_hash = service.encrypt_cpf(cpf_value)
+
+        # Store encrypted values
+        self.cpf_encrypted = encrypted_cpf
+        self.cpf_hash = cpf_hash
+
+        # Clear legacy plaintext column for security
+        self.cpf = None
+
+    def get_cpf_display(self, mask: bool = False) -> Optional[str]:
+        """
+        Get formatted CPF for display.
+
+        Args:
+            mask: If True, mask most digits (***.***.789-**)
+
+        Returns:
+            Formatted CPF string
+        """
+        cpf_value = self.cpf_decrypted
+        if not cpf_value:
+            return None
+
+        from app.services.cpf_encryption_service import get_cpf_encryption_service
+        service = get_cpf_encryption_service()
+        return service.format_cpf_for_display(cpf_value, mask=mask)
+
+    # NOTE: diagnosis, treatment_phase, doctor_notes are dedicated columns
     # No property accessors needed - they are direct column attributes
 
     @property

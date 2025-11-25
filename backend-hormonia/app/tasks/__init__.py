@@ -49,7 +49,9 @@ from app.tasks.quiz_flow import (
     check_quiz_triggers_task,
     cleanup_expired_quiz_sessions_task,
     send_quiz_progress_update_task,
-    generate_quiz_report_task
+    generate_quiz_report_task,
+    send_quiz_link_reminder_task,
+    monitor_quiz_links_task
 )
 
 # Flow tasks
@@ -66,6 +68,13 @@ from app.tasks.flows import (
 from app.tasks.reports import (
     generate_patient_report,
     generate_scheduled_reports
+)
+
+# Follow-up tasks (QW-005)
+from app.tasks.follow_up import (
+    execute_pending_follow_ups,
+    process_escalation_alerts,
+    cleanup_old_contexts
 )
 
 __all__ = [
@@ -138,5 +147,10 @@ __all__ = [
     
     # Report tasks
     "generate_patient_report",
-    "generate_scheduled_reports"
+    "generate_scheduled_reports",
+
+    # Follow-up tasks (QW-005)
+    "execute_pending_follow_ups",
+    "process_escalation_alerts",
+    "cleanup_old_contexts"
 ]

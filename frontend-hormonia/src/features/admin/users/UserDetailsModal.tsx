@@ -152,7 +152,7 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto px-4 sm:px-6">
         <DialogHeader>
           <DialogTitle>Detalhes do Usuário</DialogTitle>
           <DialogDescription>
@@ -161,7 +161,7 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
         </DialogHeader>
 
         <Tabs defaultValue="details" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-0">
             <TabsTrigger value="details">Detalhes</TabsTrigger>
             <TabsTrigger value="security">Segurança</TabsTrigger>
             <TabsTrigger value="activity">Atividade</TabsTrigger>
@@ -264,7 +264,7 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
                 </div>
               </div>
 
-              <DialogFooter>
+              <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-0">
                 {isEditing ? (
                   <>
                     <Button
@@ -275,10 +275,11 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
                         reset()
                       }}
                       disabled={updateMutation.isPending}
+                      className="w-full sm:w-auto"
                     >
                       Cancelar
                     </Button>
-                    <Button type="submit" disabled={updateMutation.isPending}>
+                    <Button type="submit" disabled={updateMutation.isPending} className="w-full sm:w-auto">
                       {updateMutation.isPending && (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       )}
@@ -286,7 +287,7 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
                     </Button>
                   </>
                 ) : (
-                  <Button type="button" onClick={() => setIsEditing(true)}>
+                  <Button type="button" onClick={() => setIsEditing(true)} className="w-full sm:w-auto">
                     Editar
                   </Button>
                 )}
@@ -296,7 +297,7 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
 
           {/* Security Tab */}
           <TabsContent value="security" className="space-y-4 mt-4">
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto max-h-[60vh] sm:max-h-[70vh]">
               <div className="grid gap-4">
                 <div className="flex items-center justify-between p-4 border rounded-lg">
                   <div className="flex items-center gap-3">

@@ -36,6 +36,9 @@ from app.utils.rate_limiter import limiter
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+# WhatsApp message length limit (QW-004)
+MAX_WHATSAPP_MESSAGE_LENGTH = 4096
+
 CACHE_TTL_LIST = 300
 CACHE_TTL_SINGLE = 600
 
@@ -120,7 +123,8 @@ async def list_messages(
         try:
             cached = await redis_cache.get(cache_key)
             if cached: return MessageV2List(**json.loads(cached))
-        except: pass
+        except Exception as cache_err:
+            logger.debug(f"Cache read failed (non-critical): {cache_err}")
 
         cursor_data = None
         if cursor:
@@ -146,7 +150,7 @@ async def list_messages(
         
         if patient_id:
             try: filters["patient_id"] = UUID(patient_id)
-            except: raise HTTPException(status_code=400, detail="Invalid patient_id")
+            except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid patient_id UUID format")
             
         if direction:
             if direction.lower() == "inbound": filters["direction"] = MessageDirection.INBOUND
@@ -171,7 +175,8 @@ async def list_messages(
         
         response = MessageV2List(data=data, next_cursor=next_cursor, has_more=has_more, total=total)
         try: await redis_cache.set(cache_key, json.dumps(response.dict(), default=str), ttl=CACHE_TTL_LIST)
-        except: pass
+        except Exception as cache_err:
+            logger.debug(f"Cache write failed (non-critical): {cache_err}")
         return response
     except HTTPException: raise
     except Exception as e:
@@ -189,13 +194,14 @@ async def get_message(
     redis_cache = Depends(get_redis_cache),
 ):
     try: mid = UUID(id)
-    except: raise HTTPException(status_code=400)
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid message ID UUID format")
 
     cache_key = _generate_cache_key("message_single", id=id, include=include)
     try:
         cached = await redis_cache.get(cache_key)
         if cached: return MessageV2Response(**json.loads(cached))
-    except: pass
+    except Exception as cache_err:
+        logger.debug(f"Cache read failed (non-critical): {cache_err}")
 
     query = db.query(Message).filter(Message.id == mid)
     include_patient = False
@@ -210,7 +216,8 @@ async def get_message(
     response = MessageV2Response(**data)
     
     try: await redis_cache.set(cache_key, json.dumps(response.dict(), default=str), ttl=CACHE_TTL_SINGLE)
-    except: pass
+    except Exception as cache_err:
+        logger.debug(f"Cache write failed (non-critical): {cache_err}")
     return response
 
 @router.post("", response_model=MessageV2Response, status_code=201)
@@ -224,7 +231,14 @@ async def send_message(
     redis_cache = Depends(get_redis_cache),
 ):
     try: pid = UUID(message_data.patient_id)
-    except: raise HTTPException(status_code=400)
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid patient_id UUID format")
+
+    # QW-004: Validate message length for WhatsApp
+    if message_data.content and len(message_data.content) > MAX_WHATSAPP_MESSAGE_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Message content exceeds maximum length of {MAX_WHATSAPP_MESSAGE_LENGTH} characters"
+        )
 
     repo = PatientRepository(db)
     patient = repo.get_by_id(pid)
@@ -248,7 +262,8 @@ async def send_message(
         background_tasks.add_task(sender.send_message, message)
 
     try: await redis_cache.delete_pattern("v2:messages_list:*")
-    except: pass
+    except Exception as cache_err:
+        logger.debug(f"Cache invalidation failed (non-critical): {cache_err}")
 
     data = _serialize_message(message, include_patient=True)
     return MessageV2Response(**data)
@@ -263,7 +278,7 @@ async def mark_message_as_read(
     redis_cache = Depends(get_redis_cache),
 ):
     try: mid = UUID(id)
-    except: raise HTTPException(status_code=400)
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid message ID UUID format")
 
     service = MessageService(db)
     msg = service.get_message(mid)
@@ -276,8 +291,9 @@ async def mark_message_as_read(
     updated = service.update_message(mid, MessageUpdate(status=MessageStatus.READ, read_at=datetime.utcnow()))
     
     try: await redis_cache.delete_pattern("v2:messages_list:*")
-    except: pass
-    
+    except Exception as cache_err:
+        logger.debug(f"Cache invalidation failed (non-critical): {cache_err}")
+
     data = _serialize_message(updated)
     return MessageV2Response(**data)
 
@@ -291,20 +307,21 @@ async def delete_message(
     redis_cache = Depends(get_redis_cache),
 ):
     try: mid = UUID(id)
-    except: raise HTTPException(status_code=400)
-    
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid message ID UUID format")
+
     service = MessageService(db)
     msg = service.get_message(mid)
     if not msg: raise HTTPException(status_code=404)
-    
+
     if msg.status not in [MessageStatus.PENDING, MessageStatus.SCHEDULED]:
         raise HTTPException(status_code=400, detail="Cannot delete sent message")
         
     from app.schemas.message import MessageUpdate
     service.update_message(mid, MessageUpdate(status=MessageStatus.CANCELLED))
-    
+
     try: await redis_cache.delete_pattern("v2:messages_list:*")
-    except: pass
+    except Exception as cache_err:
+        logger.debug(f"Cache invalidation failed (non-critical): {cache_err}")
     return None
 
 @router.get("/conversations/{patient_id}", response_model=MessageV2List)
@@ -319,14 +336,15 @@ async def get_patient_conversation(
     redis_cache = Depends(get_redis_cache),
 ):
     try: pid = UUID(patient_id)
-    except: raise HTTPException(status_code=400, detail="Invalid UUID")
-    
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid patient_id UUID format")
+
     cache_key = _generate_cache_key("conversation", pid=patient_id, cursor=cursor, limit=limit)
     try:
         cached = await redis_cache.get(cache_key)
         if cached: return MessageV2List(**json.loads(cached))
-    except: pass
-    
+    except Exception as cache_err:
+        logger.debug(f"Cache read failed (non-critical): {cache_err}")
+
     cursor_data = None
     if cursor:
         try: cursor_data = CursorEncoder.decode(cursor)
@@ -350,9 +368,10 @@ async def get_patient_conversation(
         
     data = [_serialize_message(m, include_patient=True) for m in messages]
     response = MessageV2List(data=data, next_cursor=next_cursor, has_more=has_more, total=None)
-    
+
     try: await redis_cache.set(cache_key, json.dumps(response.dict(), default=str), ttl=CACHE_TTL_LIST)
-    except: pass
+    except Exception as cache_err:
+        logger.debug(f"Cache write failed (non-critical): {cache_err}")
     return response
 
 @router.post("/bulk", response_model=BulkMessageV2Response, status_code=201)

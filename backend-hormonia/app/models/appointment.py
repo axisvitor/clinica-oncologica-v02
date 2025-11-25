@@ -78,4 +78,4 @@ class Appointment(BaseModel):
     # location relationship will be added when Location model is implemented
 
     def __repr__(self) -> str:
-        return f"<Appointment(id={self.id}, patient_id={self.patient_id}, type={self.appointment_type}, status={self.status}, start={self.scheduled_start})>"
+        return f"<Appointment(id={self.id}, patient_id={self.patient_id}, type={self.appointment_type}, status={self.status}, start={self.scheduled_at})>"

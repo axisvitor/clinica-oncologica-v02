@@ -381,10 +381,25 @@ export interface FlowAnalytics {
 // ALERTS API TYPES
 // ============================================================================
 
+/**
+ * Alert severity levels
+ */
+export type AlertSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+/**
+ * Alert type enum
+ */
+export enum AlertType {
+  INFO = 'info',
+  WARNING = 'warning',
+  ERROR = 'error',
+  CRITICAL = 'critical'
+}
+
 export interface Alert {
   id: string;
   type: string;
-  severity: 'low' | 'medium' | 'high' | 'critical';
+  severity: AlertSeverity;
   title: string;
   message: string;
   patient_id?: string;
@@ -402,7 +417,7 @@ export interface Alert {
 
 export interface AlertListFilters extends SearchFilters {
   type?: string;
-  severity?: Alert['severity'];
+  severity?: AlertSeverity;
   status?: Alert['status'];
   patient_id?: string;
   created_after?: string;
@@ -411,7 +426,7 @@ export interface AlertListFilters extends SearchFilters {
 
 export interface CreateAlertRequest {
   type: string;
-  severity: Alert['severity'];
+  severity: AlertSeverity;
   title: string;
   message: string;
   patient_id?: string;
@@ -813,8 +828,26 @@ export interface RiskAssessmentRequest {
   days_lookback?: number;
 }
 
+export interface RiskFactor {
+  name: string;
+  value: number;
+  weight: number;
+  description?: string;
+}
+
+export interface RiskAssessment {
+  id: string;
+  patient_id: string;
+  risk_level: 'low' | 'medium' | 'high' | 'critical';
+  risk_score: number;
+  factors: RiskFactor[];
+  recommendations: string[];
+  assessed_at: string;
+  assessed_by?: string;
+}
+
 export interface RiskAssessmentsResponse {
-  assessments: any[];
+  assessments: RiskAssessment[];
 }
 
 // ============================================================================
@@ -941,7 +974,7 @@ export interface RiskAssessmentRequest {
   days_lookback?: number;
 }
 
-export interface RiskAssessment {
+export interface PhysicianRiskAssessment {
   patient_id: string;
   patient_name?: string;
   risk_level: 'low' | 'medium' | 'high' | 'critical';
@@ -950,11 +983,28 @@ export interface RiskAssessment {
   recommended_actions: string[];
 }
 
-export interface RiskAssessmentsResponse {
+export interface PhysicianRiskAssessmentsResponse {
   success: boolean;
   risk_level_filter: string;
-  risk_assessments: RiskAssessment[];
+  risk_assessments: PhysicianRiskAssessment[];
   total_patients: number;
   generated_at: string;
   lookback_days: number;
+}
+
+// Admin user types
+export interface CreateAdminUserRequest {
+  email: string;
+  full_name: string;
+  role: string;
+  permissions?: string[];
+  password?: string;
+}
+
+export interface UpdateAdminUserRequest {
+  email?: string;
+  full_name?: string;
+  role?: string;
+  permissions?: string[];
+  is_active?: boolean;
 }
