@@ -73,13 +73,21 @@ class MessageGenerator:
                 )
                 return personalized_content
 
-            # Fallback to legacy generation if template not found
-            return await self._generate_legacy_message(context)
+            # Template not found - this should not happen in production
+            # All templates MUST be in the database (see template_loader.py)
+            self.logger.critical(
+                f"TEMPLATE_MISSING: No template found for flow_type={flow_type}, day={context.current_day}. "
+                f"Patient: {context.patient_data.name if context.patient_data else 'unknown'}. "
+                "Please ensure all templates are loaded in the database."
+            )
+            raise ValueError(f"Missing template: flow_type={flow_type}, day={context.current_day}")
 
+        except ValueError:
+            # Re-raise template missing errors
+            raise
         except Exception as e:
             self.logger.error(f"Error generating daily message: {e}")
-            # Fallback to legacy generation
-            return await self._generate_legacy_message(context)
+            raise
 
     def _determine_flow_type(self, current_day: int) -> str:
         """Determine appropriate flow type based on current day."""
@@ -226,57 +234,6 @@ class MessageGenerator:
             content += " Lembre-se: pode me procurar sempre que precisar, ok?"
 
         return content
-
-    async def _generate_legacy_message(self, context: FlowContext) -> Dict[str, Any]:
-        """Generate message using legacy approach (fallback)."""
-        if not context.patient_data:
-            return None
-
-        try:
-            # Base message template based on day
-            if context.current_day <= 7:
-                # Welcome phase
-                base_template = f"Bom dia, {context.patient_data.name}! Como você está se sentindo hoje? Lembre-se de que estou aqui para acompanhar sua jornada. 💜"
-            elif context.current_day <= 21:
-                # Adaptation phase
-                base_template = f"Olá {context.patient_data.name}! Espero que você esteja bem hoje. Como tem sido sua experiência com o tratamento?"
-            elif context.current_day <= 45:
-                # Stabilization phase
-                base_template = f"Oi {context.patient_data.name}! Continuamos juntas nessa jornada. Como você se sente hoje?"
-            else:
-                # Maintenance phase
-                base_template = f"Olá {context.patient_data.name}! Que bom te ouvir novamente. Como tem passado?"
-
-            # Personalize based on mood indicators and patterns
-            if context.mood_indicators.get("trend", 0) < -0.5:
-                # Recent mood decline
-                personalization = " Notei que você pode estar passando por um momento mais difícil. Gostaria de conversar sobre isso?"
-                base_template += personalization
-            elif context.mood_indicators.get("trend", 0) > 0.5:
-                # Mood improvement
-                personalization = " Fico feliz em perceber que você parece estar se sentindo melhor! 😊"
-                base_template += personalization
-
-            # Add contextual elements based on knowledge graph
-            if context.knowledge_context.get("patterns"):
-                recent_patterns = context.knowledge_context["patterns"]
-                for pattern in recent_patterns[-2:]:  # Last 2 patterns
-                    if pattern.get("pattern_type") == "recurring_symptom":
-                        symptom_note = f" Se algum sintoma estiver incomodando, não hesite em me contar."
-                        if symptom_note not in base_template:
-                            base_template += symptom_note
-                        break
-
-            return {
-                "content": base_template,
-                "personalization_level": "high" if len(base_template) > 150 else "standard",
-                "generated_at": datetime.utcnow().isoformat(),
-                "source": "legacy"
-            }
-
-        except Exception as e:
-            self.logger.error(f"Error generating legacy message: {e}")
-            return None
 
     def get_loaded_templates(self) -> Dict[str, str]:
         """Get information about loaded templates."""

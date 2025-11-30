@@ -656,32 +656,6 @@ class WhatsAppHelper:
                 pass
 
 
-# Backward compatibility functions
-async def send_whatsapp_message(
-    to: str,
-    message: str,
-    message_service: Optional["WhatsAppMessageService"] = None,
-    **kwargs
-) -> str:
-    """
-    Backward compatible function for sending WhatsApp messages.
-
-    This function maintains compatibility with existing code while
-    providing access to the new WhatsApp helper features.
-    """
-    if message_service:
-        # Use existing message service for backward compatibility
-        helper = WhatsAppHelper(message_service=message_service)
-    else:
-        # Use mock mode if no service provided
-        helper = WhatsAppHelper(mock_mode=True)
-
-    try:
-        return await helper.send_text(to, message, **kwargs)
-    finally:
-        await helper.close()
-
-
 # Factory function for easy initialization
 def create_whatsapp_helper(
     message_service: Optional["WhatsAppMessageService"] = None,
