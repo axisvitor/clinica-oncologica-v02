@@ -91,7 +91,7 @@ export interface FlowTemplate {
 }
 
 export interface QuizQuestionOption {
-  text: string;
+  text?: string;
   value?: string | number | boolean;
   score?: number;
 }

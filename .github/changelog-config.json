@@ -1,0 +1,56 @@
+{
+  "categories": [
+    {
+      "title": "## 🚀 Features",
+      "labels": ["feat", "feature", "enhancement"]
+    },
+    {
+      "title": "## 🐛 Bug Fixes",
+      "labels": ["fix", "bugfix", "bug"]
+    },
+    {
+      "title": "## 🔒 Security",
+      "labels": ["security", "vulnerability"]
+    },
+    {
+      "title": "## 📚 Documentation",
+      "labels": ["docs", "documentation"]
+    },
+    {
+      "title": "## ⚡ Performance",
+      "labels": ["perf", "performance"]
+    },
+    {
+      "title": "## 🔧 Maintenance",
+      "labels": ["chore", "maintenance", "refactor"]
+    },
+    {
+      "title": "## 🧪 Tests",
+      "labels": ["test", "testing"]
+    },
+    {
+      "title": "## 🏗️ Build & CI",
+      "labels": ["build", "ci", "cd"]
+    },
+    {
+      "title": "## ⚠️ Breaking Changes",
+      "labels": ["breaking-change", "breaking"]
+    }
+  ],
+  "ignore_labels": [
+    "skip-changelog",
+    "duplicate",
+    "invalid",
+    "wontfix"
+  ],
+  "sort": "ASC",
+  "template": "${{CHANGELOG}}\n\n**Full Changelog**: ${{RELEASE_DIFF}}",
+  "pr_template": "- ${{TITLE}} (#${{NUMBER}})",
+  "empty_template": "- No changes",
+  "label_extractor": [
+    {
+      "pattern": "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\\(.+\\))?:",
+      "target": "$1"
+    }
+  ]
+}

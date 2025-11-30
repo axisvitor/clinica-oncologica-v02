@@ -62,7 +62,7 @@ def upgrade() -> None:
 
     try:
         # Import encryption service
-        from app.services.cpf_encryption_service import get_cpf_encryption_service
+        from app.services.encryption import get_cpf_encryption_service
 
         service = get_cpf_encryption_service()
 

@@ -14,7 +14,7 @@ from app.models.ab_experiment import (
     ABExperiment, ABExperimentResult, ABExperimentMetric, ABVariantAssignment,
     ExperimentStatus, VariantType
 )
-from app.services.encryption_service import EncryptionService
+from app.services.encryption import UnifiedEncryptionService as EncryptionService
 
 from .statistics import StatisticalAnalyzer
 from .analyzers import (

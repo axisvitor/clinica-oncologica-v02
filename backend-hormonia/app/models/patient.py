@@ -247,7 +247,7 @@ class Patient(BaseModel):
             Decrypted CPF (11 digits) or None
         """
         if self.cpf_encrypted:
-            from app.services.cpf_encryption_service import get_cpf_encryption_service
+            from app.services.encryption import get_cpf_encryption_service
             service = get_cpf_encryption_service()
             return service.decrypt_cpf(self.cpf_encrypted)
         return None
@@ -266,7 +266,7 @@ class Patient(BaseModel):
             self.cpf_hash = None
             return
 
-        from app.services.cpf_encryption_service import get_cpf_encryption_service
+        from app.services.encryption import get_cpf_encryption_service
         service = get_cpf_encryption_service()
 
         # Encrypt and hash
@@ -293,7 +293,7 @@ class Patient(BaseModel):
         if not cpf_value:
             return None
 
-        from app.services.cpf_encryption_service import get_cpf_encryption_service
+        from app.services.encryption import get_cpf_encryption_service
         service = get_cpf_encryption_service()
         return service.format_cpf_for_display(cpf_value, mask=mask)
 
@@ -312,7 +312,7 @@ class Patient(BaseModel):
             Decrypted email or None
         """
         if self.email_encrypted:
-            from app.services.lgpd_encryption_service import get_lgpd_encryption_service
+            from app.services.encryption import get_lgpd_encryption_service
             service = get_lgpd_encryption_service()
             return service.decrypt_email(self.email_encrypted)
         return self.email  # Fallback to plaintext for backward compatibility
@@ -332,7 +332,7 @@ class Patient(BaseModel):
             self.email = None
             return
 
-        from app.services.lgpd_encryption_service import get_lgpd_encryption_service
+        from app.services.encryption import get_lgpd_encryption_service
         service = get_lgpd_encryption_service()
 
         # Encrypt and hash
@@ -356,7 +356,7 @@ class Patient(BaseModel):
             Decrypted phone or None
         """
         if self.phone_encrypted:
-            from app.services.lgpd_encryption_service import get_lgpd_encryption_service
+            from app.services.encryption import get_lgpd_encryption_service
             service = get_lgpd_encryption_service()
             return service.decrypt_phone(self.phone_encrypted)
         return self.phone  # Fallback to plaintext for backward compatibility
@@ -376,7 +376,7 @@ class Patient(BaseModel):
             self.phone = None
             return
 
-        from app.services.lgpd_encryption_service import get_lgpd_encryption_service
+        from app.services.encryption import get_lgpd_encryption_service
         service = get_lgpd_encryption_service()
 
         # Encrypt and hash

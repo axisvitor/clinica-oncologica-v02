@@ -31,7 +31,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = '027_consolidate_duplicates'
-down_revision = '025'
+down_revision = '026_placeholder_reserved'
 branch_labels = None
 depends_on = None
 

@@ -8,7 +8,7 @@ import os
 # Mock environment before imports
 os.environ.setdefault('ENCRYPTION_KEY', 'test_key_32_characters_exactly!')
 
-from app.services.encryption_service import EncryptionService
+from app.services.encryption import UnifiedEncryptionService as EncryptionService
 
 
 class TestCPFEncryption:
@@ -200,7 +200,7 @@ class TestPatientDataEncryption:
     async def test_patient_searchable_by_hash(self):
         """Test patient can be found by CPF hash."""
         from app.repositories.patient import PatientRepository
-        from app.services.encryption_service import EncryptionService
+        from app.services.encryption import UnifiedEncryptionService as EncryptionService
         from unittest.mock import AsyncMock
 
         mock_db = AsyncMock()
@@ -227,7 +227,7 @@ class TestPatientDataEncryption:
     @pytest.mark.asyncio
     async def test_patient_data_decryption_on_read(self):
         """Test patient data is decrypted when read."""
-        from app.services.encryption_service import EncryptionService
+        from app.services.encryption import UnifiedEncryptionService as EncryptionService
 
         encryption = EncryptionService()
 

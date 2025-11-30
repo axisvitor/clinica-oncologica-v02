@@ -58,14 +58,12 @@ def check_services():
     print_section("Checking Services")
 
     try:
-        from app.services.lgpd_encryption_service import (
-            LGPDEncryptionService,
+        from app.services.encryption import (
             get_lgpd_encryption_service
         )
-        print("✅ LGPDEncryptionService imported successfully")
-
-        # Test service initialization
+        # Get the service to check it's available
         service = get_lgpd_encryption_service()
+        print("✅ LGPDEncryptionService imported successfully")
         print(f"✅ Service initialized: {type(service).__name__}")
 
         # Test methods exist

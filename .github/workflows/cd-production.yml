@@ -1,0 +1,520 @@
+name: Deploy to Production
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      skip_approval:
+        description: 'Skip manual approval'
+        required: false
+        default: false
+        type: boolean
+
+# Prevent concurrent production deployments
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: '3.13'
+  NODE_VERSION: '18'
+  REGISTRY: ghcr.io
+  IMAGE_NAME_BACKEND: ${{ github.repository }}/backend
+  IMAGE_NAME_FRONTEND: ${{ github.repository }}/frontend
+
+jobs:
+  # Manual approval required
+  approval:
+    name: Production Deployment Approval
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment:
+      name: production-approval
+    if: ${{ github.event.inputs.skip_approval != 'true' }}
+
+    steps:
+      - name: Wait for approval
+        run: |
+          echo "✋ Production deployment requires manual approval"
+          echo "📋 Release: ${{ github.event.release.tag_name }}"
+          echo "👤 Triggered by: ${{ github.actor }}"
+
+  # Pre-deployment validation
+  pre-deployment-checks:
+    name: Pre-Deployment Validation
+    runs-on: ubuntu-latest
+    needs: [approval]
+    if: always() && (needs.approval.result == 'success' || needs.approval.result == 'skipped')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Validate version tag
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid version tag format: $TAG"
+            echo "Expected format: v1.0.0"
+            exit 1
+          fi
+          echo "✅ Valid version tag: $TAG"
+
+      - name: Check CI status
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if CI passed on this commit
+          SHA="${{ github.sha }}"
+          gh api repos/${{ github.repository }}/commits/$SHA/check-runs \
+            --jq '.check_runs[] | select(.name | contains("CI")) | .conclusion' \
+            | grep -q "success" || exit 1
+
+  # Build and Push Production Images
+  build-and-push-prod:
+    name: Build Production Images
+    runs-on: ubuntu-latest
+    needs: [pre-deployment-checks]
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      backend-image: ${{ steps.meta-backend.outputs.tags }}
+      frontend-image: ${{ steps.meta-frontend.outputs.tags }}
+      version: ${{ steps.extract-version.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Extract version
+        id: extract-version
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Backend Production Image
+      - name: Extract backend metadata
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+            type=raw,value=production
+
+      - name: Build and push backend production image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend-hormonia
+          file: ./backend-hormonia/Dockerfile
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            PYTHON_VERSION=3.13
+            ENVIRONMENT=production
+            VERSION=${{ steps.extract-version.outputs.version }}
+
+      # Frontend Production Image
+      - name: Extract frontend metadata
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+            type=raw,value=production
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend-hormonia/package-lock.json
+
+      - name: Build frontend production bundle
+        working-directory: frontend-hormonia
+        env:
+          NODE_ENV: production
+          VITE_ENV: production
+          VITE_VERSION: ${{ steps.extract-version.outputs.version }}
+        run: |
+          npm ci --prefer-offline
+          npm run build:prod
+
+      - name: Build and push frontend production image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend-hormonia
+          file: ./frontend-hormonia/Dockerfile
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Deploy Backend to Production
+  deploy-backend-production:
+    name: Deploy Backend to Production
+    runs-on: ubuntu-latest
+    needs: [build-and-push-prod]
+    timeout-minutes: 20
+    environment:
+      name: production-backend
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Create deployment backup point
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
+        run: |
+          echo "📸 Creating backup snapshot before deployment"
+          railway variables --service backend-production > backup-vars.txt
+
+      - name: Deploy to Railway Production
+        id: deploy
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
+        run: |
+          cd backend-hormonia
+          railway up --service backend-production --detach
+          echo "url=$(railway domain --service backend-production)" >> $GITHUB_OUTPUT
+
+      - name: Wait for deployment stabilization
+        run: sleep 60
+
+      - name: Verify deployment health
+        id: health-check
+        run: |
+          URL="${{ steps.deploy.outputs.url }}"
+          for i in {1..20}; do
+            if curl -sf "${URL}/api/health" > /dev/null; then
+              echo "✅ Backend production is healthy"
+              exit 0
+            fi
+            echo "⏳ Waiting for backend health... attempt $i/20"
+            sleep 15
+          done
+          echo "❌ Backend health check failed"
+          exit 1
+
+      - name: Upload backup on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-backup-${{ github.run_id }}
+          path: backup-vars.txt
+          retention-days: 30
+
+  # Deploy Frontend to Production
+  deploy-frontend-production:
+    name: Deploy Frontend to Production
+    runs-on: ubuntu-latest
+    needs: [build-and-push-prod, deploy-backend-production]
+    timeout-minutes: 20
+    environment:
+      name: production-frontend
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel Environment
+        working-directory: frontend-hormonia
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: vercel pull --yes --environment=production --token=$VERCEL_TOKEN
+
+      - name: Build Production Project
+        working-directory: frontend-hormonia
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: vercel build --prod --token=$VERCEL_TOKEN
+
+      - name: Deploy to Vercel Production
+        id: deploy
+        working-directory: frontend-hormonia
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          URL=$(vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN)
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "Deployed to production: $URL"
+
+  # Production Smoke Tests
+  production-smoke-tests:
+    name: Production Smoke Tests
+    runs-on: ubuntu-latest
+    needs: [deploy-backend-production, deploy-frontend-production]
+    timeout-minutes: 15
+
+    steps:
+      - name: Critical endpoints health check
+        run: |
+          BACKEND_URL="${{ needs.deploy-backend-production.outputs.url }}"
+
+          echo "🔍 Testing critical endpoints..."
+
+          # Health endpoint
+          curl -f "$BACKEND_URL/api/health" || exit 1
+
+          # API v2 health
+          curl -f "$BACKEND_URL/api/v2/health" || exit 1
+
+          # Docs available
+          curl -f "$BACKEND_URL/docs" || exit 1
+
+          echo "✅ All critical endpoints responding"
+
+      - name: Frontend availability
+        run: |
+          FRONTEND_URL="${{ needs.deploy-frontend-production.outputs.url }}"
+
+          # Check frontend loads
+          curl -f "$FRONTEND_URL" || exit 1
+
+          # Check static assets
+          curl -f "$FRONTEND_URL/assets/" || true
+
+          echo "✅ Frontend is accessible"
+
+      - name: Database connectivity test
+        run: |
+          BACKEND_URL="${{ needs.deploy-backend-production.outputs.url }}"
+
+          # Test database through API
+          RESPONSE=$(curl -s "$BACKEND_URL/api/v2/health/database")
+
+          if echo "$RESPONSE" | grep -q "healthy"; then
+            echo "✅ Database connection verified"
+          else
+            echo "❌ Database connection issue"
+            exit 1
+          fi
+
+  # Rollback capability
+  prepare-rollback:
+    name: Prepare Rollback Point
+    runs-on: ubuntu-latest
+    needs: [deploy-backend-production, deploy-frontend-production]
+    if: always()
+
+    steps:
+      - name: Save deployment metadata
+        run: |
+          cat > rollback-info.json << EOF
+          {
+            "version": "${{ needs.build-and-push-prod.outputs.version }}",
+            "backend_image": "${{ needs.build-and-push-prod.outputs.backend-image }}",
+            "frontend_image": "${{ needs.build-and-push-prod.outputs.frontend-image }}",
+            "deployment_time": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "commit_sha": "${{ github.sha }}",
+            "release_tag": "${{ github.event.release.tag_name }}"
+          }
+          EOF
+
+      - name: Upload rollback metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: rollback-metadata-${{ github.run_id }}
+          path: rollback-info.json
+          retention-days: 90
+
+  # Auto-rollback on failure
+  auto-rollback:
+    name: Auto Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: [deploy-backend-production, deploy-frontend-production, production-smoke-tests]
+    if: failure()
+    environment:
+      name: production-rollback
+
+    steps:
+      - name: Trigger rollback alert
+        run: |
+          echo "🚨 PRODUCTION DEPLOYMENT FAILED"
+          echo "Smoke tests or deployment failed"
+          echo "Manual intervention may be required"
+
+      - name: Download previous deployment metadata
+        uses: actions/download-artifact@v4
+        with:
+          pattern: rollback-metadata-*
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Notify DevOps team
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_CRITICAL }}
+        run: |
+          curl -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "text": "🚨 CRITICAL: Production deployment failed",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🚨 Production Deployment Failed"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Action Required:* Manual rollback may be necessary\n*Release:* ${{ github.event.release.tag_name }}\n*Workflow:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+                  }
+                }
+              ]
+            }'
+
+  # Post-deployment monitoring
+  post-deployment-monitoring:
+    name: Post-Deployment Monitoring
+    runs-on: ubuntu-latest
+    needs: [production-smoke-tests]
+    timeout-minutes: 30
+
+    steps:
+      - name: Monitor for 15 minutes
+        run: |
+          BACKEND_URL="${{ needs.deploy-backend-production.outputs.url }}"
+
+          for i in {1..30}; do
+            echo "🔍 Health check #$i (minute $(($i/2)))"
+
+            if ! curl -sf "$BACKEND_URL/api/health" > /dev/null; then
+              echo "❌ Health check failed at minute $(($i/2))"
+              exit 1
+            fi
+
+            sleep 30
+          done
+
+          echo "✅ Monitoring complete - deployment stable"
+
+  # Success notification
+  deployment-success:
+    name: Deployment Success Notification
+    runs-on: ubuntu-latest
+    needs: [post-deployment-monitoring]
+
+    steps:
+      - name: Send success notification
+        uses: slackapi/slack-github-action@v1.25.0
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        with:
+          payload: |
+            {
+              "text": "🎉 Production Deployment Successful",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🎉 Production Deployment Successful"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Version:*\n${{ github.event.release.tag_name }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Environment:*\nProduction"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Deployed by:*\n${{ github.actor }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Status:*\n✅ All systems operational"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Release Notes:*\n${{ github.event.release.body }}"
+                  }
+                }
+              ]
+            }
+
+      - name: Create deployment summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          # 🎉 Production Deployment Successful
+
+          ## Deployment Details
+          - **Version**: ${{ github.event.release.tag_name }}
+          - **Environment**: Production
+          - **Deployed by**: @${{ github.actor }}
+          - **Deployment time**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+          ## Status
+          - ✅ Backend deployed and healthy
+          - ✅ Frontend deployed and accessible
+          - ✅ Smoke tests passed
+          - ✅ Post-deployment monitoring completed
+
+          ## URLs
+          - **Backend**: ${{ needs.deploy-backend-production.outputs.url }}
+          - **Frontend**: ${{ needs.deploy-frontend-production.outputs.url }}
+
+          ## Monitoring
+          All systems operational. Continue monitoring in production dashboards.
+          EOF

@@ -9,7 +9,7 @@ Tests the CPFEncryptionService for LGPD compliance functionality:
 """
 
 import pytest
-from app.services.cpf_encryption_service import CPFEncryptionService, get_cpf_encryption_service
+from app.services.encryption import get_cpf_encryption_service
 
 
 class TestCPFEncryptionService:

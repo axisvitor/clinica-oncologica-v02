@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useUserAdmin } from '../useUserAdmin'
+import { useUserAdmin } from '../admin'
 import type { ReactNode } from 'react'
 
 // Mock WebSocket

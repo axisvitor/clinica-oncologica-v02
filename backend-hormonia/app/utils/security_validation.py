@@ -1,19 +1,32 @@
 """
-Security Validation Utilities
+Security Key Validation Utilities
 
-This module provides validation functions for security-critical configuration values
-such as CSRF secrets, JWT secrets, and other cryptographic keys.
+Provides entropy validation and strength analysis for cryptographic keys
+to prevent weak/placeholder keys in production environments.
 
-Includes Shannon entropy calculation for cryptographic strength validation.
+Security Issues Addressed:
+- AUTH-001: Placeholder key detection (Severity 9.5/10)
+- SECRET-002: Secret masking for logs (Severity 8.0/10)
 
 Usage:
-    from app.utils.security_validation import validate_csrf_secret, calculate_entropy
+    from app.utils.security_validation import (
+        validate_secret_entropy,
+        validate_key_strength,
+        mask_secret_for_logging
+    )
 
-    try:
-        validate_csrf_secret(csrf_secret)
-    except ValueError as e:
-        logger.error(f"CSRF secret validation failed: {e}")
-        raise
+    # Validate key entropy
+    if not validate_secret_entropy(key, min_bits=128):
+        raise ValueError("Key has insufficient entropy")
+
+    # Get detailed analysis
+    result = validate_key_strength(key, environment="production")
+    if not result.is_valid:
+        print(f"Issues: {result.issues}")
+        print(f"Recommendations: {result.recommendations}")
+
+    # Safe logging
+    logger.info(f"Key: {mask_secret_for_logging(key)}")
 """
 
 import secrets
@@ -21,53 +34,112 @@ import re
 import math
 import logging
 from collections import Counter
-from typing import Optional
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
 
+class KeyStrengthResult(BaseModel):
+    """
+    Result of key strength analysis.
+
+    Attributes:
+        entropy_bits: Calculated Shannon entropy in bits
+        is_valid: Whether key meets minimum security requirements
+        issues: List of security issues detected
+        recommendations: Suggested improvements
+        strength_level: Categorization (weak/medium/strong/very_strong)
+    """
+    entropy_bits: float = Field(..., description="Shannon entropy in bits")
+    is_valid: bool = Field(..., description="Meets minimum requirements")
+    issues: List[str] = Field(default_factory=list, description="Security issues")
+    recommendations: List[str] = Field(default_factory=list, description="Improvements")
+    strength_level: str = Field(..., description="weak/medium/strong/very_strong")
+    key_length: int = Field(..., description="Length of key in characters")
+    has_placeholder: bool = Field(default=False, description="Contains placeholder text")
+
+
+# Minimum entropy requirements (in bits)
+MIN_ENTROPY_PRODUCTION = 128  # ~19 random alphanumeric chars
+MIN_ENTROPY_DEVELOPMENT = 64  # ~10 random alphanumeric chars
+MIN_KEY_LENGTH = 32  # Minimum characters
+
+# Common placeholder patterns
+PLACEHOLDER_PATTERNS = [
+    r"change[\s_-]?this",
+    r"your[\s_-]?secret",
+    r"your[\s_-]?key",
+    r"replace[\s_-]?me",
+    r"todo",
+    r"xxx+",
+    r"example",
+    r"test[\s_-]?key",
+    r"default",
+    r"password",
+    r"secret[\s_-]?key",
+    r"(abc|123)+",
+]
+
+
+def calculate_shannon_entropy(data: str) -> float:
+    """
+    Calculate Shannon entropy in bits (total entropy, not per character).
+
+    Shannon entropy measures the randomness/unpredictability of data.
+    Higher values indicate more randomness and stronger keys.
+
+    Formula: H(X) = -Σ P(xi) * log2(P(xi)) * length
+
+    Args:
+        data: String to analyze
+
+    Returns:
+        Entropy in bits (0 to ~8 * len(data) for perfectly random data)
+
+    Example:
+        >>> calculate_shannon_entropy("aaaaa")  # Low entropy
+        0.0
+        >>> calculate_shannon_entropy("abcde")  # Higher entropy
+        ~11.6 bits
+        >>> calculate_shannon_entropy(secrets.token_urlsafe(32))
+        ~250+ bits (strong)
+    """
+    if not data:
+        return 0.0
+
+    # Count character frequencies
+    counter = Counter(data)
+    length = len(data)
+
+    # Calculate Shannon entropy (per character)
+    entropy_per_char = 0.0
+    for count in counter.values():
+        probability = count / length
+        if probability > 0:
+            entropy_per_char -= probability * math.log2(probability)
+
+    # Return total entropy (bits per char * length)
+    return entropy_per_char * length
+
+
 def calculate_entropy(data: str) -> float:
     """
-    Calculate Shannon entropy of a string to measure randomness.
+    Calculate Shannon entropy per character (backward compatibility).
 
-    Shannon entropy measures the unpredictability/randomness of data.
-    Higher entropy indicates more secure secrets with better randomness.
+    This function maintains backward compatibility with existing code
+    that expects entropy per character rather than total bits.
 
     Args:
         data: String to calculate entropy for
 
     Returns:
-        float: Entropy in bits per character (0.0 to ~8.0 for byte strings)
+        float: Entropy in bits per character (0.0 to ~8.0)
 
-    Examples:
-        >>> calculate_entropy("aaaaaaaaaa")  # All same char
-        0.0
-        >>> calculate_entropy("abcdefghij")  # Low entropy
-        3.321...
-        >>> calculate_entropy("aB3$xY9@zK")  # High entropy with mixed chars
-        ~4.5
-        >>> calculate_entropy(secrets.token_urlsafe(32))  # Excellent entropy
-        ~5.9
-
-    Entropy Thresholds:
-        - 0.0-3.0: REJECTED (predictable patterns)
-        - 3.0-4.0: REJECTED (insufficient randomness)
-        - 4.0-5.0: ACCEPTABLE (minimum for secrets)
-        - 5.0+: EXCELLENT (cryptographically strong)
-
-    Maximum Theoretical Entropy by Character Set:
-        - Lowercase only: ~4.7 bits/char
-        - Alphanumeric: ~5.95 bits/char
-        - URL-safe base64: ~6.0 bits/char
-
-    Algorithm:
-        Shannon Entropy = -Σ(P(x) * log2(P(x)))
-        where P(x) is the probability of character x appearing
-
-    Security Note:
-        This function is used to validate that secrets have sufficient
-        randomness to resist brute-force and pattern-based attacks.
-        Minimum recommended entropy for production secrets: 4.0 bits/char
+    Note:
+        For new code, use calculate_shannon_entropy() for total bits
+        or validate_key_strength() for comprehensive analysis.
     """
     if not data:
         return 0.0
@@ -76,13 +148,309 @@ def calculate_entropy(data: str) -> float:
     counter = Counter(data)
     length = len(data)
 
-    # Calculate Shannon entropy
+    # Calculate Shannon entropy per character
     entropy = -sum(
         (count / length) * math.log2(count / length)
         for count in counter.values()
     )
 
     return entropy
+
+
+def contains_placeholder(key: str) -> bool:
+    """
+    Check if key contains common placeholder patterns.
+
+    Args:
+        key: Key to check
+
+    Returns:
+        True if placeholder detected
+    """
+    key_lower = key.lower()
+
+    for pattern in PLACEHOLDER_PATTERNS:
+        if re.search(pattern, key_lower):
+            return True
+
+    return False
+
+
+def analyze_character_distribution(key: str) -> dict:
+    """
+    Analyze character type distribution in key.
+
+    Args:
+        key: Key to analyze
+
+    Returns:
+        Dict with character type counts
+    """
+    return {
+        "lowercase": sum(1 for c in key if c.islower()),
+        "uppercase": sum(1 for c in key if c.isupper()),
+        "digits": sum(1 for c in key if c.isdigit()),
+        "special": sum(1 for c in key if not c.isalnum()),
+        "total": len(key),
+    }
+
+
+def validate_secret_entropy(
+    secret: str,
+    min_bits: int = MIN_ENTROPY_PRODUCTION,
+    allow_placeholder_in_dev: bool = False,
+) -> bool:
+    """
+    Validate that secret key has minimum entropy.
+
+    This is the primary validation function for security keys.
+
+    Args:
+        secret: Secret key to validate
+        min_bits: Minimum required entropy in bits
+        allow_placeholder_in_dev: If True, allow placeholders (dev mode only)
+
+    Returns:
+        True if secret meets minimum entropy requirement
+
+    Raises:
+        ValueError: If secret is empty or None
+
+    Security Issue: AUTH-001
+    """
+    if not secret:
+        raise ValueError("Secret cannot be empty")
+
+    # Check for placeholders (unless explicitly allowed in dev)
+    if not allow_placeholder_in_dev and contains_placeholder(secret):
+        return False
+
+    # Calculate and validate entropy
+    entropy = calculate_shannon_entropy(secret)
+    return entropy >= min_bits
+
+
+def validate_key_strength(
+    key: str,
+    min_entropy: int = MIN_ENTROPY_PRODUCTION,
+    environment: str = "production",
+) -> KeyStrengthResult:
+    """
+    Comprehensive analysis of key strength.
+
+    Performs multiple checks:
+    - Shannon entropy calculation
+    - Placeholder detection
+    - Character distribution
+    - Length requirements
+    - Pattern detection
+
+    Args:
+        key: Key to analyze
+        min_entropy: Minimum required entropy in bits
+        environment: "production" or "development"
+
+    Returns:
+        KeyStrengthResult with detailed analysis
+
+    Example:
+        >>> result = validate_key_strength("CHANGE_THIS")
+        >>> print(result.is_valid)
+        False
+        >>> print(result.issues)
+        ['Contains placeholder text', ...]
+
+    Security Issue: AUTH-001
+    """
+    issues: List[str] = []
+    recommendations: List[str] = []
+
+    # Basic validation
+    if not key:
+        return KeyStrengthResult(
+            entropy_bits=0.0,
+            is_valid=False,
+            issues=["Key is empty"],
+            recommendations=["Generate a random key using secrets.token_urlsafe(32)"],
+            strength_level="none",
+            key_length=0,
+        )
+
+    key_length = len(key)
+    entropy_bits = calculate_shannon_entropy(key)
+    has_placeholder = contains_placeholder(key)
+    char_dist = analyze_character_distribution(key)
+
+    # Check for placeholder text
+    if has_placeholder:
+        issues.append("Contains placeholder text that must be replaced")
+        recommendations.append("Replace placeholder with cryptographically random key")
+
+    # Check minimum length
+    if key_length < MIN_KEY_LENGTH:
+        issues.append(f"Key too short: {key_length} chars (minimum: {MIN_KEY_LENGTH})")
+        recommendations.append(f"Use at least {MIN_KEY_LENGTH} characters")
+
+    # Check entropy
+    if entropy_bits < min_entropy:
+        issues.append(
+            f"Insufficient entropy: {entropy_bits:.1f} bits (minimum: {min_entropy})"
+        )
+        recommendations.append(
+            f"Key needs {min_entropy - entropy_bits:.0f} more bits of entropy"
+        )
+
+    # Check character diversity
+    char_types_used = sum(
+        1 for count in [
+            char_dist["lowercase"],
+            char_dist["uppercase"],
+            char_dist["digits"],
+            char_dist["special"],
+        ]
+        if count > 0
+    )
+
+    if char_types_used < 3:
+        issues.append(f"Low character diversity: only {char_types_used} types used")
+        recommendations.append("Use mix of uppercase, lowercase, digits, and special chars")
+
+    # Check for repeated patterns
+    if re.search(r"(.{3,})\1{2,}", key):
+        issues.append("Contains repeated patterns")
+        recommendations.append("Avoid repeated character sequences")
+
+    # Check for sequential characters
+    if re.search(r"(abc|bcd|cde|123|234|345|678|789)", key.lower()):
+        issues.append("Contains sequential characters")
+        recommendations.append("Avoid sequential patterns (abc, 123, etc.)")
+
+    # Determine strength level
+    if has_placeholder or entropy_bits < MIN_ENTROPY_DEVELOPMENT:
+        strength_level = "weak"
+    elif entropy_bits < MIN_ENTROPY_PRODUCTION:
+        strength_level = "medium"
+    elif entropy_bits < MIN_ENTROPY_PRODUCTION * 1.5:
+        strength_level = "strong"
+    else:
+        strength_level = "very_strong"
+
+    # Overall validation
+    is_valid = (
+        not has_placeholder
+        and entropy_bits >= min_entropy
+        and key_length >= MIN_KEY_LENGTH
+        and len(issues) == 0
+    )
+
+    # Environment-specific recommendations
+    if environment == "production" and not is_valid:
+        recommendations.insert(
+            0,
+            "CRITICAL: Generate production key with: "
+            "python -c 'import secrets; print(secrets.token_urlsafe(32))'",
+        )
+
+    return KeyStrengthResult(
+        entropy_bits=entropy_bits,
+        is_valid=is_valid,
+        issues=issues,
+        recommendations=recommendations,
+        strength_level=strength_level,
+        key_length=key_length,
+        has_placeholder=has_placeholder,
+    )
+
+
+def mask_secret_for_logging(secret: str, visible_chars: int = 4) -> str:
+    """
+    Mask secret for safe logging.
+
+    Shows only first/last few characters, masks the rest with asterisks.
+    Never logs full secrets.
+
+    Args:
+        secret: Secret to mask
+        visible_chars: Number of chars to show at start/end
+
+    Returns:
+        Masked string like "abc***xyz"
+
+    Security Issue: SECRET-002
+    """
+    if not secret:
+        return "[EMPTY]"
+
+    if len(secret) <= visible_chars * 2:
+        # Too short to mask safely
+        return "*" * len(secret)
+
+    start = secret[:visible_chars]
+    end = secret[-visible_chars:]
+    masked_length = len(secret) - (visible_chars * 2)
+
+    return f"{start}{'*' * min(masked_length, 20)}{end}"
+
+
+def generate_secure_key(length: int = 32) -> str:
+    """
+    Generate cryptographically secure random key.
+
+    Uses secrets module for CSPRNG (Cryptographically Secure PRNG).
+
+    Args:
+        length: Desired length in characters (default: 32)
+
+    Returns:
+        URL-safe base64 encoded random key
+
+    Example:
+        >>> key = generate_secure_key(32)
+        >>> result = validate_key_strength(key)
+        >>> assert result.is_valid
+    """
+    return secrets.token_urlsafe(length)
+
+
+def validate_all_secrets(secrets_dict: dict, environment: str = "production") -> dict:
+    """
+    Validate multiple secrets at once.
+
+    Args:
+        secrets_dict: Dict of {name: secret_value}
+        environment: "production" or "development"
+
+    Returns:
+        Dict of {name: KeyStrengthResult}
+    """
+    min_entropy = (
+        MIN_ENTROPY_PRODUCTION if environment == "production"
+        else MIN_ENTROPY_DEVELOPMENT
+    )
+
+    results = {}
+    for name, secret in secrets_dict.items():
+        results[name] = validate_key_strength(
+            secret,
+            min_entropy=min_entropy,
+            environment=environment,
+        )
+
+    return results
+
+
+def is_production_ready(key: str) -> bool:
+    """
+    Quick check if key is production-ready.
+
+    Args:
+        key: Key to validate
+
+    Returns:
+        True if meets production requirements
+    """
+    result = validate_key_strength(key, MIN_ENTROPY_PRODUCTION, "production")
+    return result.is_valid
 
 
 def validate_csrf_secret(csrf_secret: Optional[str], log_validation: bool = True) -> None:
@@ -449,6 +817,16 @@ def generate_hmac_signature(
 
 
 __all__ = [
+    # New comprehensive API (AUTH-001 fix)
+    'KeyStrengthResult',
+    'calculate_shannon_entropy',
+    'validate_secret_entropy',
+    'validate_key_strength',
+    'mask_secret_for_logging',
+    'generate_secure_key',
+    'validate_all_secrets',
+    'is_production_ready',
+    # Legacy API (backward compatibility)
     'calculate_entropy',
     'validate_csrf_secret',
     'validate_secret_key',

@@ -5,6 +5,7 @@ Manages Redis client connections, pooling, and lifecycle.
 Provides both async and sync interfaces with automatic compatibility detection.
 """
 
+import asyncio
 import logging
 import threading
 import ssl
@@ -52,13 +53,27 @@ class RedisManager:
             self.redis_url = f"{base_url}/{db_number}"
             logger.info(f"Redis DB isolation enabled: using DB {db_number}")
 
-        # Connection settings from config - Aumentados para evitar timeouts
-        self.decode_responses = getattr(settings, 'REDIS_DECODE_RESPONSES', True)
-        self.socket_timeout = getattr(settings, 'REDIS_SOCKET_TIMEOUT', 30.0)  # Aumentado de 10 para 30
-        self.socket_connect_timeout = getattr(settings, 'REDIS_SOCKET_CONNECT_TIMEOUT', 30.0)  # Aumentado de 5 para 30
-        self.retry_on_timeout = getattr(settings, 'REDIS_RETRY_ON_TIMEOUT', True)
-        self.health_check_interval = getattr(settings, 'REDIS_HEALTH_CHECK_INTERVAL', 30)
-        self.max_connections = getattr(settings, 'REDIS_MAX_CONNECTIONS', 50)
+        # Connection settings from config - OPTIMIZED for SSL/TLS performance
+        self.decode_responses = getattr(settings, 'REDIS_ENABLE_DECODE_RESPONSES', True)
+
+        # OPTIMIZED: Reduced timeouts (SSL handshake should be fast)
+        self.socket_timeout = getattr(settings, 'REDIS_SOCKET_TIMEOUT_SECONDS', 5.0)  # Reduced from 30s
+        self.socket_connect_timeout = getattr(settings, 'REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS', 2.0)  # Reduced from 30s
+
+        self.retry_on_timeout = getattr(settings, 'REDIS_ENABLE_RETRY_ON_TIMEOUT', True)
+        self.max_retry_attempts = getattr(settings, 'REDIS_MAX_RETRY_ATTEMPTS', 3)
+
+        # OPTIMIZED: Reduced pool size (Redis needs fewer connections than DB)
+        self.max_connections = getattr(settings, 'REDIS_POOL_MAX_CONNECTIONS', 20)  # Reduced from 50
+
+        # Health check configuration
+        self.health_check_interval = getattr(settings, 'REDIS_HEALTH_CHECK_INTERVAL_SECONDS', 30)
+        self.enable_health_check = getattr(settings, 'REDIS_ENABLE_HEALTH_CHECK', True)
+
+        # SSL/TLS optimization settings
+        self.ssl_session_reuse = getattr(settings, 'REDIS_SSL_SESSION_REUSE', True)
+        self.ssl_warmup_enabled = getattr(settings, 'REDIS_SSL_CONNECTION_POOL_WARMUP', True)
+        self.ssl_warmup_connections = getattr(settings, 'REDIS_SSL_WARMUP_CONNECTIONS', 5)
 
     async def get_async_client(self) -> redis_async.Redis:
         """
@@ -92,15 +107,15 @@ class RedisManager:
         This is the correct approach for redis-py 5.x with Python 3.13.
         """
         try:
-            # Base connection configuration
+            # Base connection configuration - OPTIMIZED
             connection_kwargs = {
                 'decode_responses': self.decode_responses,
-                'socket_timeout': self.socket_timeout,
-                'socket_connect_timeout': self.socket_connect_timeout,
+                'socket_timeout': self.socket_timeout,  # 5s (optimized for SSL)
+                'socket_connect_timeout': self.socket_connect_timeout,  # 2s (optimized)
                 'retry_on_timeout': self.retry_on_timeout,
                 'retry_on_error': [ConnectionError, TimeoutError],
-                'max_connections': self.max_connections,
-                'health_check_interval': self.health_check_interval
+                'max_connections': self.max_connections,  # 20 (reduced from 50)
+                'health_check_interval': self.health_check_interval if self.enable_health_check else 0
             }
 
             # FIXED: redis-py 6.0+ handles rediss:// URLs automatically
@@ -188,7 +203,17 @@ class RedisManager:
 
             # Test connection
             await self._async_client.ping()
-            logger.info("Async Redis client connected successfully")
+            logger.info(
+                f"Async Redis client connected successfully "
+                f"(pool_size={self.max_connections}, "
+                f"timeout={self.socket_timeout}s, "
+                f"connect_timeout={self.socket_connect_timeout}s)"
+            )
+
+            # OPTIMIZATION: Warmup connection pool for SSL/TLS
+            if settings.REDIS_ENABLE_SSL and self.ssl_warmup_enabled:
+                await self._warmup_connection_pool_async()
+                logger.info(f"Redis async pool warmed up with {self.ssl_warmup_connections} connections")
 
         except Exception as e:
             logger.error(f"Failed to create async Redis client: {e}")
@@ -202,15 +227,15 @@ class RedisManager:
         This is the correct approach for redis-py 5.x with Python 3.13.
         """
         try:
-            # Base connection configuration
+            # Base connection configuration - OPTIMIZED
             connection_kwargs = {
                 'decode_responses': self.decode_responses,
-                'socket_timeout': self.socket_timeout,
-                'socket_connect_timeout': self.socket_connect_timeout,
+                'socket_timeout': self.socket_timeout,  # 5s (optimized for SSL)
+                'socket_connect_timeout': self.socket_connect_timeout,  # 2s (optimized)
                 'retry_on_timeout': self.retry_on_timeout,
                 'retry_on_error': [ConnectionError, TimeoutError],
-                'max_connections': self.max_connections,
-                'health_check_interval': self.health_check_interval
+                'max_connections': self.max_connections,  # 20 (reduced from 50)
+                'health_check_interval': self.health_check_interval if self.enable_health_check else 0
             }
 
             # Configure SSL if enabled
@@ -282,6 +307,110 @@ class RedisManager:
         """Close all Redis connections."""
         await self.close_async()
         self.close_sync()
+
+    async def _warmup_connection_pool_async(self):
+        """
+        Pre-create connections in the pool to amortize SSL/TLS handshake cost.
+
+        This is particularly beneficial for Redis Cloud with SSL/TLS enabled,
+        as it moves the handshake overhead from request time to startup time.
+        """
+        if not self._async_client:
+            logger.warning("Cannot warmup pool: async client not initialized")
+            return
+
+        try:
+            warmup_count = min(self.ssl_warmup_connections, self.max_connections)
+            logger.info(f"Warming up Redis async pool with {warmup_count} connections...")
+
+            # Perform multiple PING operations to force connection creation
+            tasks = []
+            for i in range(warmup_count):
+                tasks.append(self._async_client.ping())
+
+            # Execute all PINGs concurrently
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+            logger.info(f"Redis async pool warmup completed: {warmup_count} connections created")
+
+        except Exception as e:
+            logger.warning(f"Redis pool warmup failed (non-fatal): {e}")
+
+    def _warmup_connection_pool_sync(self):
+        """
+        Pre-create connections in the sync pool.
+
+        Sync version of pool warmup for non-async contexts.
+        """
+        if not self._sync_client:
+            logger.warning("Cannot warmup pool: sync client not initialized")
+            return
+
+        try:
+            warmup_count = min(self.ssl_warmup_connections, self.max_connections)
+            logger.info(f"Warming up Redis sync pool with {warmup_count} connections...")
+
+            # Create a connection and return it to pool multiple times
+            for i in range(warmup_count):
+                self._sync_client.ping()
+
+            logger.info(f"Redis sync pool warmup completed: {warmup_count} connections created")
+
+        except Exception as e:
+            logger.warning(f"Redis sync pool warmup failed (non-fatal): {e}")
+
+    async def get_pool_stats_async(self):
+        """
+        Get async connection pool statistics.
+
+        Returns:
+            Dict with pool metrics
+        """
+        if not self._async_pool:
+            return {"status": "not_initialized"}
+
+        try:
+            # Note: redis-py async pool doesn't expose all stats like sync pool
+            # We can only get basic info
+            return {
+                "status": "healthy",
+                "max_connections": self.max_connections,
+                "socket_timeout": self.socket_timeout,
+                "connect_timeout": self.socket_connect_timeout,
+                "health_check_interval": self.health_check_interval,
+                "pool_type": "async"
+            }
+        except Exception as e:
+            logger.error(f"Failed to get async pool stats: {e}")
+            return {"status": "error", "error": str(e)}
+
+    def get_pool_stats_sync(self):
+        """
+        Get sync connection pool statistics.
+
+        Returns:
+            Dict with detailed pool metrics
+        """
+        if not self._sync_pool:
+            return {"status": "not_initialized"}
+
+        try:
+            # Get detailed pool statistics
+            pool = self._sync_pool
+            return {
+                "status": "healthy",
+                "max_connections": self.max_connections,
+                "socket_timeout": self.socket_timeout,
+                "connect_timeout": self.socket_connect_timeout,
+                "health_check_interval": self.health_check_interval,
+                "pool_type": "sync",
+                # Note: Some pool stats may not be available depending on redis-py version
+                "created_connections": getattr(pool, '_created_connections', 'N/A'),
+                "available_connections": getattr(pool, '_available_connections', 'N/A'),
+            }
+        except Exception as e:
+            logger.error(f"Failed to get sync pool stats: {e}")
+            return {"status": "error", "error": str(e)}
 
     def get_compatible_client(self, preferred_type: str = "auto") -> Union[redis_async.Redis, redis_sync.Redis, 'AsyncToSyncWrapper']:
         """

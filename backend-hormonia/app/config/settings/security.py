@@ -373,7 +373,13 @@ class SecuritySettings(BaseAppSettings):
             )
 
     def validate_production_config(self):
-        """Validate production environment has secure configurations."""
+        """
+        Validate production environment has secure configurations.
+
+        Security Issue: AUTH-001
+        Validates that all security keys have sufficient entropy to prevent
+        weak/placeholder keys in production.
+        """
         if self.APP_ENVIRONMENT.lower() == "production":
             errors = []
 
@@ -403,6 +409,70 @@ class SecuritySettings(BaseAppSettings):
             if not self.SECURITY_ENABLE_SSL_REDIRECT:
                 errors.append(
                     "SECURITY_ENABLE_SSL_REDIRECT must be True in production environment"
+                )
+
+            # ===================================================================
+            # AUTH-001: Validate entropy of security keys (NEW)
+            # ===================================================================
+            try:
+                from app.utils.security_validation import (
+                    validate_all_secrets,
+                    mask_secret_for_logging,
+                )
+
+                import logging
+                logger = logging.getLogger(__name__)
+
+                # Collect all security keys that need validation
+                secrets_to_validate = {}
+
+                if self.SECURITY_SECRET_KEY:
+                    secrets_to_validate["SECURITY_SECRET_KEY"] = self.SECURITY_SECRET_KEY
+
+                if self.AUTH_JWT_SECRET_KEY:
+                    secrets_to_validate["AUTH_JWT_SECRET_KEY"] = self.AUTH_JWT_SECRET_KEY
+                elif self.SECURITY_SECRET_KEY:
+                    # JWT uses SECURITY_SECRET_KEY as fallback
+                    secrets_to_validate["AUTH_JWT_SECRET_KEY (fallback)"] = self.SECURITY_SECRET_KEY
+
+                if self.SECURITY_ENCRYPTION_KEY:
+                    secrets_to_validate["SECURITY_ENCRYPTION_KEY"] = self.SECURITY_ENCRYPTION_KEY
+
+                if self.SECURITY_CSRF_SECRET_KEY:
+                    secrets_to_validate["SECURITY_CSRF_SECRET_KEY"] = self.SECURITY_CSRF_SECRET_KEY
+
+                # Validate all secrets
+                validation_results = validate_all_secrets(secrets_to_validate, environment="production")
+
+                # Check for any invalid keys
+                for key_name, result in validation_results.items():
+                    if not result.is_valid:
+                        masked_key = mask_secret_for_logging(secrets_to_validate[key_name])
+
+                        error_msg = (
+                            f"{key_name} has insufficient entropy:\n"
+                            f"  - Masked value: {masked_key}\n"
+                            f"  - Entropy: {result.entropy_bits:.1f} bits (minimum: 128)\n"
+                            f"  - Strength: {result.strength_level}\n"
+                            f"  - Issues: {', '.join(result.issues)}\n"
+                            f"  - Recommendation: {result.recommendations[0] if result.recommendations else 'Generate secure key'}"
+                        )
+                        errors.append(error_msg)
+                        logger.error(f"❌ {key_name} validation failed: {error_msg}")
+                    else:
+                        # Log successful validation (with masked key)
+                        masked_key = mask_secret_for_logging(secrets_to_validate[key_name])
+                        logger.info(
+                            f"✅ {key_name} validation passed: "
+                            f"entropy={result.entropy_bits:.1f} bits, "
+                            f"strength={result.strength_level}, "
+                            f"masked={masked_key}"
+                        )
+
+            except ImportError as e:
+                errors.append(
+                    f"Could not import security validation module: {e}\n"
+                    "Ensure app.utils.security_validation is available"
                 )
 
             if errors:

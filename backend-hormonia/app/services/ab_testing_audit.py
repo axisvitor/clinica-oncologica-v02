@@ -17,7 +17,7 @@ from sqlalchemy import and_, or_, func, desc
 
 from app.models.ab_experiment import ABExperimentAudit, ABExperiment
 from app.models.user import User
-from app.services.encryption_service import EncryptionService
+from app.services.encryption import UnifiedEncryptionService as EncryptionService
 from app.services.privacy_service import PrivacyService
 
 logger = logging.getLogger(__name__)

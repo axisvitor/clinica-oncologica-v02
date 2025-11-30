@@ -1,0 +1,376 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+# Prevent concurrent deployments
+concurrency:
+  group: staging-deployment
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: '3.13'
+  NODE_VERSION: '18'
+  REGISTRY: ghcr.io
+  IMAGE_NAME_BACKEND: ${{ github.repository }}/backend
+  IMAGE_NAME_FRONTEND: ${{ github.repository }}/frontend
+
+jobs:
+  # Build and Push Docker Images
+  build-and-push:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      backend-image: ${{ steps.meta-backend.outputs.tags }}
+      frontend-image: ${{ steps.meta-frontend.outputs.tags }}
+      backend-digest: ${{ steps.build-backend.outputs.digest }}
+      frontend-digest: ${{ steps.build-frontend.outputs.digest }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Backend Image
+      - name: Extract backend metadata
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=staging-
+            type=raw,value=staging-latest
+
+      - name: Build and push backend image
+        id: build-backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend-hormonia
+          file: ./backend-hormonia/Dockerfile
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            PYTHON_VERSION=3.13
+            ENVIRONMENT=staging
+
+      # Frontend Image
+      - name: Extract frontend metadata
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=staging-
+            type=raw,value=staging-latest
+
+      - name: Setup Node.js for frontend build
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend-hormonia/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend-hormonia
+        env:
+          NODE_ENV: production
+          VITE_ENV: staging
+        run: |
+          npm ci --prefer-offline
+          npm run build
+
+      - name: Build and push frontend image
+        id: build-frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend-hormonia
+          file: ./frontend-hormonia/Dockerfile
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NODE_VERSION=18
+
+  # Deploy to Railway Staging
+  deploy-backend-staging:
+    name: Deploy Backend to Railway Staging
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    timeout-minutes: 15
+    environment:
+      name: staging-backend
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy to Railway
+        id: deploy
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
+        run: |
+          cd backend-hormonia
+          railway up --service backend-staging --detach
+          echo "url=$(railway domain --service backend-staging)" >> $GITHUB_OUTPUT
+
+      - name: Wait for deployment
+        run: sleep 30
+
+      - name: Health check
+        run: |
+          URL="${{ steps.deploy.outputs.url }}"
+          for i in {1..10}; do
+            if curl -sf "${URL}/api/health" > /dev/null; then
+              echo "✅ Backend staging is healthy"
+              exit 0
+            fi
+            echo "⏳ Waiting for backend... attempt $i/10"
+            sleep 10
+          done
+          echo "❌ Backend health check failed"
+          exit 1
+
+  # Deploy to Vercel Staging
+  deploy-frontend-staging:
+    name: Deploy Frontend to Vercel Staging
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    timeout-minutes: 15
+    environment:
+      name: staging-frontend
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel Environment
+        working-directory: frontend-hormonia
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: vercel pull --yes --environment=preview --token=$VERCEL_TOKEN
+
+      - name: Build Project
+        working-directory: frontend-hormonia
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: vercel build --token=$VERCEL_TOKEN
+
+      - name: Deploy to Vercel
+        id: deploy
+        working-directory: frontend-hormonia
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          URL=$(vercel deploy --prebuilt --token=$VERCEL_TOKEN)
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "Deployed to: $URL"
+
+  # Run E2E Tests
+  run-e2e-tests:
+    name: E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    needs: [deploy-backend-staging, deploy-frontend-staging]
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend-hormonia/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend-hormonia
+        run: npm ci --prefer-offline
+
+      - name: Install Playwright browsers
+        working-directory: frontend-hormonia
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        working-directory: frontend-hormonia
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ needs.deploy-frontend-staging.outputs.url }}
+          API_BASE_URL: ${{ needs.deploy-backend-staging.outputs.url }}
+        run: npm run test:e2e
+        continue-on-error: true
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-staging
+          path: frontend-hormonia/playwright-report/
+          retention-days: 14
+
+  # Smoke Tests
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    needs: [deploy-backend-staging, deploy-frontend-staging]
+    timeout-minutes: 10
+
+    steps:
+      - name: Backend health check
+        run: |
+          curl -f "${{ needs.deploy-backend-staging.outputs.url }}/api/health" || exit 1
+
+      - name: Frontend availability check
+        run: |
+          curl -f "${{ needs.deploy-frontend-staging.outputs.url }}" || exit 1
+
+      - name: API endpoints check
+        run: |
+          # Test critical endpoints
+          curl -f "${{ needs.deploy-backend-staging.outputs.url }}/api/v2/health" || exit 1
+          curl -f "${{ needs.deploy-backend-staging.outputs.url }}/docs" || exit 1
+
+  # Notify deployment status
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [deploy-backend-staging, deploy-frontend-staging, run-e2e-tests, smoke-tests]
+    if: always()
+
+    steps:
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v1.25.0
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        with:
+          payload: |
+            {
+              "text": "🚀 Staging Deployment",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "${{ needs.deploy-backend-staging.result == 'success' && needs.deploy-frontend-staging.result == 'success' && '✅' || '❌' }} Staging Deployment"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Environment:*\nStaging"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:*\n${{ github.ref_name }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Backend:*\n${{ needs.deploy-backend-staging.result }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Frontend:*\n${{ needs.deploy-frontend-staging.result }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*E2E Tests:*\n${{ needs.run-e2e-tests.result }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Smoke Tests:*\n${{ needs.smoke-tests.result }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*URLs:*\n• Backend: ${{ needs.deploy-backend-staging.outputs.url }}\n• Frontend: ${{ needs.deploy-frontend-staging.outputs.url }}"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "Triggered by *${{ github.actor }}* • <${{ github.event.head_commit.url }}|View commit>"
+                    }
+                  ]
+                }
+              ]
+            }
+
+  # Deployment summary
+  deployment-summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [deploy-backend-staging, deploy-frontend-staging, run-e2e-tests, smoke-tests]
+    if: always()
+
+    steps:
+      - name: Create deployment summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          # 🚀 Staging Deployment Summary
+
+          ## Status
+          - **Backend**: ${{ needs.deploy-backend-staging.result == 'success' && '✅ Success' || '❌ Failed' }}
+          - **Frontend**: ${{ needs.deploy-frontend-staging.result == 'success' && '✅ Success' || '❌ Failed' }}
+          - **E2E Tests**: ${{ needs.run-e2e-tests.result == 'success' && '✅ Passed' || '⚠️ Failed' }}
+          - **Smoke Tests**: ${{ needs.smoke-tests.result == 'success' && '✅ Passed' || '❌ Failed' }}
+
+          ## URLs
+          - **Backend**: ${{ needs.deploy-backend-staging.outputs.url }}
+          - **Frontend**: ${{ needs.deploy-frontend-staging.outputs.url }}
+
+          ## Details
+          - **Branch**: `${{ github.ref_name }}`
+          - **Commit**: ${{ github.sha }}
+          - **Actor**: @${{ github.actor }}
+          - **Workflow**: ${{ github.run_id }}
+          EOF

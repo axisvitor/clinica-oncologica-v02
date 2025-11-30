@@ -15,7 +15,7 @@ import os
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.services.cpf_encryption_service import get_cpf_encryption_service
+from app.services.encryption import get_cpf_encryption_service
 from app.database import SessionLocal
 from app.models.patient import Patient
 from sqlalchemy import func

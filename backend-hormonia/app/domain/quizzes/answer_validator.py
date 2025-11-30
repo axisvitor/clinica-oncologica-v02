@@ -12,7 +12,7 @@ from uuid import UUID
 
 from app.models.quiz import QuizTemplate
 from app.exceptions import ValidationError, NotFoundError
-from app.services.encryption_service import get_encryption_service
+from app.services.encryption import get_encryption_service
 from app.core.monthly_quiz_config import get_monthly_quiz_config
 from app.schemas.quiz import QuestionType
 import logging

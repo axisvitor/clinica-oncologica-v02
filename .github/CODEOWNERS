@@ -1,0 +1,52 @@
+# CODEOWNERS - Protect critical paths and workflows
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything in the repo
+* @devops-team
+
+# GitHub Actions Workflows - Require DevOps approval
+/.github/workflows/ @devops-team @security-team
+/.github/dependabot.yml @devops-team @security-team
+/.github/CODEOWNERS @devops-team
+
+# Backend code - Require backend team approval
+/backend-hormonia/ @backend-team
+/backend-hormonia/app/core/ @backend-team @senior-backend
+/backend-hormonia/app/api/ @backend-team
+
+# Security-critical backend files
+/backend-hormonia/app/core/security.py @security-team @backend-team
+/backend-hormonia/app/middleware/ @security-team @backend-team
+/backend-hormonia/app/services/phi_encryption_service.py @security-team @compliance-team
+/backend-hormonia/app/services/lgpd_encryption_service.py @security-team @compliance-team
+
+# Database migrations - Require DBA and backend approval
+/backend-hormonia/alembic/versions/ @dba-team @backend-team
+
+# Frontend code - Require frontend team approval
+/frontend-hormonia/ @frontend-team
+/frontend-hormonia/src/features/ @frontend-team
+
+# Infrastructure and deployment
+/backend-hormonia/Dockerfile @devops-team
+/frontend-hormonia/Dockerfile @devops-team
+/backend-hormonia/.env.* @devops-team @security-team
+/frontend-hormonia/.env.* @devops-team @security-team
+
+# Documentation - Anyone can contribute but tech-writers review
+/docs/ @tech-writers
+/backend-hormonia/docs/ @tech-writers @backend-team
+*.md @tech-writers
+
+# Security and compliance documentation
+/backend-hormonia/docs/LGPD_* @compliance-team @security-team
+/backend-hormonia/docs/*SECURITY* @security-team
+
+# Testing - Test team reviews
+/backend-hormonia/tests/ @test-team @backend-team
+/frontend-hormonia/tests/ @test-team @frontend-team
+
+# Configuration files
+package.json @frontend-team @devops-team
+pyproject.toml @backend-team @devops-team
+requirements*.txt @backend-team @security-team

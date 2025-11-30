@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { Plus, Search, Filter, Users, UserCheck, UserX, AlertTriangle } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { useUserAdmin } from '@/hooks/useUserAdmin'
+import { useUserAdmin } from '@/hooks/admin'
 import { useAuth } from '@/app/providers/AuthContext'
 import { AdminUser, AdminUserActivity } from '@/types/admin'
 import { Button } from '@/components/ui/button'
