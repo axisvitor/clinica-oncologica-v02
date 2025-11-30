@@ -23,7 +23,6 @@ import logging
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-# from sqlalchemy.orm import Session,
 from sqlalchemy import asc
 
 from app.database import get_db

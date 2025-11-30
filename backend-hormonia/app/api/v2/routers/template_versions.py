@@ -28,7 +28,6 @@ from app.schemas.v2.templates import (
 from app.utils.rate_limiter import limiter
 
 # TODO: Import shared helpers and constants from templates_shared module once created:
-# from app.api.v2.templates_shared import (
 #     _get_current_user_simple,
 #     _get_cache_key,
 #     _get_cached_result,

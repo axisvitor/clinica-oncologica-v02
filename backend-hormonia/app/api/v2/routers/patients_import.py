@@ -13,7 +13,6 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, UploadFile, File, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-# from sqlalchemy.orm import Session,
 
 from app.database import get_db
 from app.models.patient import Patient, FlowState

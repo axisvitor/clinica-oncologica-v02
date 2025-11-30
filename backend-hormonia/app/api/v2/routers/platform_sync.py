@@ -12,7 +12,6 @@ from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Request, HTTPException, Depends, Query, BackgroundTasks, status
-# from sqlalchemy.orm import Session,
 from sqlalchemy import select, and_, func, desc, or_
 
 from app.database import get_db
