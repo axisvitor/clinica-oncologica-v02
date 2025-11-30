@@ -19,7 +19,6 @@ from uuid import UUID, uuid4
 from datetime import datetime, timedelta
 from enum import Enum
 
-# from sqlalchemy.orm import
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.integrations.evolution import get_evolution_client, EvolutionAPIError

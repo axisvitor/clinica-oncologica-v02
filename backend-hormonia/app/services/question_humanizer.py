@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 import hashlib
 import json
 from uuid import UUID
-# from sqlalchemy.orm import
 from app.services.ai import get_ai_humanizer, PatientContext, get_context_builder, get_ai_service
 from app.core.redis_unified import get_async_redis
 from app.models.patient import Patient

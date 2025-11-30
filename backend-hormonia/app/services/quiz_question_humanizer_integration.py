@@ -11,7 +11,6 @@ from uuid import UUID
 from app.services.question_humanizer import get_question_humanizer
 from app.config import is_ai_humanization_enabled
 from app.models.patient import Patient
-# from sqlalchemy.orm import
 
 logger = logging.getLogger(__name__)
 

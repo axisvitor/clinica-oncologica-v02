@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 from datetime import datetime
 
-# from sqlalchemy.orm import
 
 from app.repositories.alert import AlertRepository
 from app.repositories.patient import PatientRepository

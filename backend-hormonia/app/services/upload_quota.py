@@ -20,7 +20,6 @@ from uuid import UUID
 
 import redis.asyncio as redis
 from sqlalchemy import func
-# from sqlalchemy.orm import
 
 from app.config import settings
 from app.utils.logging import get_logger

@@ -12,13 +12,8 @@ from datetime import datetime, timedelta
 from uuid import UUID
 from enum import Enum
 
-# from sqlalchemy.orm import
 
 # Removed direct imports to avoid circular dependency - now using lazy imports in methods
-# from app.orchestration.swarm_manager import get_swarm_manager, SwarmManager
-# from app.agents.patient.flow_coordinator import FlowCoordinatorAgent
-# from app.agents.communication.quiz_conductor import QuizConductorAgent
-# from app.agents.communication.message_composer import MessageComposerAgent
 from app.agents.base import MessagePriority
 from app.services.enhanced_flow_engine import EnhancedFlowEngine, FlowType
 from app.services.template_loader import EnhancedTemplateLoader

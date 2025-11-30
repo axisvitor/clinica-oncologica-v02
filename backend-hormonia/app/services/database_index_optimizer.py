@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from sqlalchemy import text, inspect
-# from sqlalchemy.orm import
 from sqlalchemy.engine import Engine
 
 from app.core.monitoring_logging import monitoring_logger

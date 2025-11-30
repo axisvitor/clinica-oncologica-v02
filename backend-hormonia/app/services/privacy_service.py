@@ -13,7 +13,6 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from uuid import UUID
-# from sqlalchemy.orm import
 from sqlalchemy import Column, String, DateTime, JSON, Boolean, Text
 
 from app.database import Base

@@ -2,7 +2,6 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime, timedelta
 
-# from sqlalchemy.orm import
 
 from app.repositories.appointment import AppointmentRepository
 from app.models.appointment import Appointment, AppointmentStatus, AppointmentType

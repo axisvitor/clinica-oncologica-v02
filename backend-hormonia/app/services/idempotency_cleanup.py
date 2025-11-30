@@ -8,7 +8,6 @@ Runs periodically to prevent unbounded table growth.
 import logging
 from datetime import datetime
 from typing import Dict, Any
-# from sqlalchemy.orm import
 from sqlalchemy import func
 
 from app.models.webhook_event import WebhookEvent

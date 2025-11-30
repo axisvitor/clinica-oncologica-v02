@@ -5,7 +5,6 @@ Provides real-time metrics for CPU, memory, disk, users, and database.
 import psutil
 import logging
 from datetime import datetime, timedelta
-# from sqlalchemy.orm import
 from sqlalchemy import func, text
 from typing import Dict, Any
 

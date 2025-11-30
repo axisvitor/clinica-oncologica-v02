@@ -8,7 +8,6 @@ from datetime import datetime
 from uuid import UUID
 from abc import ABC, abstractmethod
 
-# from sqlalchemy.orm import
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.domain.messaging.core import MessageFactory

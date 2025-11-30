@@ -12,7 +12,6 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Union
 from uuid import UUID
 
-# from sqlalchemy.orm import
 from sqlalchemy import and_, or_, func, desc
 
 from app.models.ab_experiment import ABExperimentAudit, ABExperiment

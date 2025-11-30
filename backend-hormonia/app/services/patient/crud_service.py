@@ -12,7 +12,6 @@ from datetime import datetime
 from typing import Any, List, Optional
 from uuid import UUID
 
-# from sqlalchemy.orm import
 
 from app.models.patient import Patient, FlowState
 from app.repositories.patient import PatientRepository

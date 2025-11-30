@@ -16,7 +16,6 @@ import hashlib
 import logging
 import re
 
-# from sqlalchemy.orm import
 from sqlalchemy import func, text
 from email_validator import validate_email, EmailNotValidError
 

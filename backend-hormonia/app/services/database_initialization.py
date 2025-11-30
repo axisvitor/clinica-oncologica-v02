@@ -14,7 +14,6 @@ import logging
 from contextlib import asynccontextmanager
 
 from sqlalchemy import text, inspect, MetaData
-# from sqlalchemy.orm import
 from sqlalchemy.engine import Engine
 from alembic import command
 from alembic.config import Config

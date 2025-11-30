@@ -1,6 +1,5 @@
 from typing import Any, Optional
 from concurrent.futures import ThreadPoolExecutor
-# from sqlalchemy.orm import
 
 from app.repositories.patient import PatientRepository
 from app.services.patient.integrity_service import PatientIntegrityService

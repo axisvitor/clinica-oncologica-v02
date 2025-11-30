@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from enum import Enum
 import re
 
-# from sqlalchemy.orm import
 from sqlalchemy import text, func
 
 from app.models.patient import Patient

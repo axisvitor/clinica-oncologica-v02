@@ -9,7 +9,6 @@ from typing import Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime, timedelta
 
-# from sqlalchemy.orm import
 
 from app.domain.messaging.core import MessageFactory, MessageTemplate
 from app.domain.quizzes import MonthlyQuizService

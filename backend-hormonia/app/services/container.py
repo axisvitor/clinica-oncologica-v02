@@ -3,7 +3,6 @@ Thread-safe service container with request-scoped dependencies.
 Replaces the problematic ServiceProvider with proper dependency injection.
 """
 from typing import Dict, Any, Optional, Callable
-# from sqlalchemy.orm import
 from functools import lru_cache
 import logging
 from contextlib import contextmanager

@@ -2,7 +2,6 @@ from typing import Any, List, Optional
 from uuid import UUID
 from datetime import date, datetime
 
-# from sqlalchemy.orm import
 
 from app.repositories.treatment import TreatmentRepository
 from app.models.treatment import Treatment, TreatmentStatus, TreatmentType

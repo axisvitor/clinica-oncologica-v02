@@ -7,7 +7,6 @@ N+1 query patterns with efficient JOIN queries.
 Performance target: < 200ms for 50 patients
 """
 import logging
-# from sqlalchemy.orm import
 from sqlalchemy import func, and_, or_
 from datetime import datetime, timedelta
 from typing import Any, List, Dict, Optional

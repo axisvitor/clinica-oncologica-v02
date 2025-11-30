@@ -12,7 +12,6 @@ Total: 3 files → 1 file
 from typing import List, Optional, Dict, Any, Tuple
 from uuid import UUID
 from datetime import datetime, timedelta
-# from sqlalchemy.orm import
 from sqlalchemy.exc import IntegrityError
 
 from app.models.quiz import QuizTemplate, QuizSession, QuizResponse

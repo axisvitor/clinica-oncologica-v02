@@ -16,7 +16,6 @@ from uuid import UUID
 from datetime import datetime, timedelta
 import json
 from pathlib import Path
-# from sqlalchemy.orm import
 
 from app.models.quiz import QuizTemplate
 from app.repositories.quiz import QuizTemplateRepository

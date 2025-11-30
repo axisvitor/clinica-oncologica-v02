@@ -12,7 +12,6 @@ from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-# from sqlalchemy.orm import
 from sqlalchemy import text
 
 from app.database import get_pool_status, is_pool_healthy

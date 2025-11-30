@@ -10,7 +10,6 @@ SECURITY:
 - Automatic rejection of unauthorized access attempts
 """
 from typing import Optional, Dict, Any, Tuple, List
-# from sqlalchemy.orm import
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime
 import logging

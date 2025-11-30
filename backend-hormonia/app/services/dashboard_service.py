@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException, status
-# from sqlalchemy.orm import
 from sqlalchemy import and_, or_, func, desc, asc, text, case, extract
 
 from app.models.user import User, UserRole

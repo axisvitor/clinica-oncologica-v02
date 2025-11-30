@@ -19,7 +19,6 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from fastapi import WebSocket
-# from sqlalchemy.orm import
 from jose import jwt, JWTError
 
 from app.config import settings

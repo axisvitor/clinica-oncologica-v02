@@ -14,7 +14,6 @@ import json
 
 from sqlalchemy import text, event
 from sqlalchemy.engine import Engine
-# from sqlalchemy.orm import
 
 from app.core.redis_unified import get_sync_redis
 from app.core.monitoring_logging import monitoring_logger

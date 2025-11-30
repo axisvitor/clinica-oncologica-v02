@@ -37,7 +37,6 @@ from typing import Any, Optional
 from uuid import UUID
 from datetime import datetime
 
-# from sqlalchemy.orm import
 from sqlalchemy.exc import IntegrityError
 
 from app.models.patient import Patient

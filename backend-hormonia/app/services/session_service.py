@@ -27,7 +27,6 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from fastapi import HTTPException, status
-# from sqlalchemy.orm import
 import redis.asyncio as redis
 
 from app.config import settings

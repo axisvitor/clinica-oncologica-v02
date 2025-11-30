@@ -12,7 +12,6 @@ from typing import Dict, Optional, Any, List
 from uuid import UUID, uuid4
 from datetime import datetime
 
-# from sqlalchemy.orm import
 
 from app.services.ab_testing_service import ABTestingService
 from app.schemas.v2.ab_testing import (

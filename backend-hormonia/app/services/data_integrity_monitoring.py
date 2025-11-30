@@ -11,7 +11,6 @@ from uuid import UUID
 from dataclasses import dataclass
 from enum import Enum
 
-# from sqlalchemy.orm import
 from sqlalchemy.exc import DatabaseError
 
 from app.services.patient import PatientIntegrityService

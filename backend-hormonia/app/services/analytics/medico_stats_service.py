@@ -8,7 +8,6 @@ Provides comprehensive statistics for doctor's dashboard including:
 - Message engagement metrics
 - Alert counts by severity
 """
-# from sqlalchemy.orm import
 from sqlalchemy import func, and_, case
 from datetime import datetime, timedelta, date, time
 from typing import Dict, Any, Optional

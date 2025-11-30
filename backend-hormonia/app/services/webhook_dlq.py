@@ -24,7 +24,6 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from redis.asyncio import Redis
-# from sqlalchemy.orm import
 
 from app.core.redis_unified import get_async_redis
 from app.config.settings import settings
