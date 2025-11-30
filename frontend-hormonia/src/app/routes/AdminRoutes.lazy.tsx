@@ -113,7 +113,7 @@ const AdminProtectedRoute = lazy(() => {
 // Feature Pages (Medium Priority - load on demand)
 export const TemplateManagementPage = lazy(() => {
   logger.info('Loading TemplateManagementPage...');
-  return import('@/pages/TemplateManagementPage');
+  return import('@/features/templates/TemplateManagementPage');
 });
 
 export const AdminUserActivityMonitor = lazy(() => {
@@ -252,7 +252,7 @@ export const preloadOnHover = (route: string) => {
       import('@/features/admin/AdminDashboard');
       break;
     case 'templates':
-      import('@/pages/TemplateManagementPage');
+      import('@/features/templates/TemplateManagementPage');
       break;
     case 'users':
       // Already inline, no need to preload

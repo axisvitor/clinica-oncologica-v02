@@ -31,7 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Pagination } from '@/components/ui/pagination'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { PermissionGuard } from './PermissionGuard'
-import { List } from 'react-window'
+import { FixedSizeList } from 'react-window'
 import AutoSizer from 'react-virtualized-auto-sizer'
 import { cn } from '@/lib/utils'
 
@@ -598,13 +598,15 @@ export function AuditLogViewer({
                 <div className="flex-1">
                    <AutoSizer>
                       {({ height, width }) => (
-                        <List
-                          style={{ height, width }}
-                          rowCount={auditLogs?.items.length || 0}
-                          rowHeight={compact ? 50 : 60}
-                          rowProps={itemData}
-                          rowComponent={AuditLogRow as any}
-                        />
+                        <FixedSizeList
+                          height={height}
+                          width={width}
+                          itemCount={auditLogs?.items.length || 0}
+                          itemSize={compact ? 50 : 60}
+                          itemData={itemData}
+                        >
+                          {AuditLogRow as any}
+                        </FixedSizeList>
                       )}
                    </AutoSizer>
                 </div>
@@ -613,13 +615,15 @@ export function AuditLogViewer({
                <div className="flex-1">
                   <AutoSizer>
                     {({ height, width }) => (
-                      <List
-                        style={{ height, width }}
-                        rowCount={auditLogs?.items.length || 0}
-                        rowHeight={120}
-                        rowProps={itemData}
-                        rowComponent={AuditLogTimelineItem as any}
-                      />
+                      <FixedSizeList
+                        height={height}
+                        width={width}
+                        itemCount={auditLogs?.items.length || 0}
+                        itemSize={120}
+                        itemData={itemData}
+                      >
+                        {AuditLogTimelineItem as any}
+                      </FixedSizeList>
                     )}
                   </AutoSizer>
                </div>

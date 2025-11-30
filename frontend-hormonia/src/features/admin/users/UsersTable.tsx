@@ -6,7 +6,7 @@ import { MoreHorizontal, Eye, Edit, Trash2, Lock, Unlock, Shield, ShieldOff, Arr
 import { apiClient } from '@/lib/api-client'
 import { AdminUser } from '@/types/admin'
 import { getRoleLabel, getRoleColor } from '@/types/shared'
-import { List } from 'react-window'
+import { FixedSizeList } from 'react-window'
 import AutoSizer from 'react-virtualized-auto-sizer'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -500,13 +500,15 @@ export function UsersTable({
           <div className="flex-1">
             <AutoSizer>
               {({ height, width }) => (
-                <List
-                  style={{ height, width }}
-                  rowCount={users.length}
-                  rowHeight={60}
-                  rowProps={itemData}
-                  rowComponent={UserRow as any}
-                />
+                <FixedSizeList
+                  height={height}
+                  width={width}
+                  itemCount={users.length}
+                  itemSize={60}
+                  itemData={itemData}
+                >
+                  {UserRow as any}
+                </FixedSizeList>
               )}
             </AutoSizer>
           </div>
@@ -516,13 +518,15 @@ export function UsersTable({
         <div className="md:hidden flex-1">
           <AutoSizer>
             {({ height, width }) => (
-              <List
-                style={{ height, width }}
-                rowCount={users.length}
-                rowHeight={350}
-                rowProps={itemData}
-                rowComponent={MobileUserCard as any}
-              />
+              <FixedSizeList
+                height={height}
+                width={width}
+                itemCount={users.length}
+                itemSize={350}
+                itemData={itemData}
+              >
+                {MobileUserCard as any}
+              </FixedSizeList>
             )}
           </AutoSizer>
         </div>
