@@ -4,7 +4,6 @@ from typing import Optional, List, Dict, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status, Request
-# from sqlalchemy.orm import Session,
 
 from app.database import get_db
 from app.models.user import User

@@ -9,7 +9,6 @@ from typing import Any, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Request, Depends, status, Header, BackgroundTasks
-# from sqlalchemy.orm import Session,
 
 from app.database import get_db
 from app.config import settings

@@ -6,7 +6,6 @@ Delegates logic to PerformanceService.
 
 from typing import List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-# from sqlalchemy.orm import Session,
 
 from app.database import get_db
 from app.dependencies.auth_dependencies import get_current_user_from_session

@@ -104,7 +104,7 @@ export function PermissionGuard({
   const {
     user,
     isAuthenticated,
-    isLoading,
+    isInitializing,
     hasPermission,
     hasRole
   } = auth
@@ -114,7 +114,7 @@ export function PermissionGuard({
     [hasPermission, hasRole]
   )
 
-  if (isLoading && !allowUnauthenticated) {
+  if (isInitializing && !allowUnauthenticated) {
     return <>{fallback}</>
   }
 

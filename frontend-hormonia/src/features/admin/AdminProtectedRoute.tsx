@@ -181,11 +181,11 @@ export const AdminProtectedRoute: React.FC<AdminProtectedRouteProps> = ({
   requiresTwoFactor = false,
   fallbackComponent: FallbackComponent
 }) => {
-  const { user, isLoading, isAuthenticated, hasPermission } = useAuth()
+  const { user, isInitializing, isAuthenticated, hasPermission } = useAuth()
   const location = useLocation()
 
   // Show loading while checking authentication
-  if (isLoading) {
+  if (isInitializing) {
     return <LoadingScreen />
   }
 

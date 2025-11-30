@@ -10,10 +10,10 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner'
  * even for unauthenticated users, bypassing the login page.
  */
 export function Landing() {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isInitializing } = useAuth()
 
   // Show loader while checking authentication state
-  if (isLoading) {
+  if (isInitializing) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner size="lg" color="primary" />

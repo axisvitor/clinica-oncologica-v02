@@ -4,7 +4,6 @@ from uuid import UUID
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
-# # from sqlalchemy.orm import Session,
 
 from app.database import get_db
 from app.dependencies.auth_dependencies import (

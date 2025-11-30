@@ -112,7 +112,7 @@ const StatCard = memo<{
 StatCard.displayName = 'StatCard'
 
 const QuickStats = memo(() => {
-  const { user, isLoading: authLoading } = useAuth()
+  const { user, isInitializing: authLoading } = useAuth()
 
   const { data: metrics, isLoading, error } = useQuery<DashboardMetrics>({
     queryKey: ['dashboard-metrics'],

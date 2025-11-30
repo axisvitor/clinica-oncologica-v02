@@ -23,7 +23,7 @@ export interface MedicoAuthContextValue extends MedicoAuthState {
 }
 
 export function useMedicoAuth(): MedicoAuthContextValue {
-  const { user, isLoading, login, logout } = useAuth()
+  const { user, isInitializing, login, logout } = useAuth()
 
   const isAuthenticated = !!user
   const error = null as string | null
@@ -36,7 +36,7 @@ export function useMedicoAuth(): MedicoAuthContextValue {
 
   const state: MedicoAuthState = {
     isAuthenticated,
-    isLoading,
+    isLoading: isInitializing,
     error,
     medico,
   }
@@ -59,7 +59,7 @@ export function useMedicoAuth(): MedicoAuthContextValue {
   return {
     // Individual properties (new API)
     isAuthenticated,
-    isLoading,
+    isLoading: isInitializing, // Map to AuthContext's isInitializing
     error,
     medico,
     signIn,

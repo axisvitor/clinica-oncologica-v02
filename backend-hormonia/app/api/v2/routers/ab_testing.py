@@ -8,7 +8,6 @@ from typing import Any, Optional, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, status
-# from sqlalchemy.orm import Session,
 
 from app.database import get_db
 from app.dependencies.auth_dependencies import get_current_user_from_session

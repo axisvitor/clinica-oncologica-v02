@@ -9,7 +9,6 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, HTTPException, status, BackgroundTasks, Response
-# from sqlalchemy.orm import Session,
 
 from app.database import get_db
 from app.models.user import UserRole

@@ -52,86 +52,9 @@ from .routers.quiz_alerts import router as quiz_alerts_router
 from .routers.monthly_quiz_management import router as monthly_quiz_management_router
 from .routers.monthly_quiz_operations import router as monthly_quiz_operations_router
 from .routers.debug import router as debug_router
-from .routers.session import router as session_router
 
 logger = logging.getLogger(__name__)
 api_v2_router = APIRouter(prefix="/api/v2", tags=["v2"])
-
-
-# ============================================================================
-# CSRF Token Backward Compatibility Endpoint
-# ============================================================================
-# Frontend currently calls /api/v2/csrf-token instead of /api/v2/auth/csrf-token
-# This compatibility route will be removed once frontend is updated
-from fastapi import Request, HTTPException, status
-from app.utils.rate_limiter import limiter
-
-
-@api_v2_router.get(
-    "/csrf-token",
-    summary="Get CSRF token (Compatibility Alias)",
-    description="""
-    **DEPRECATED**: Legacy endpoint for CSRF token retrieval.
-
-    This endpoint provides backward compatibility for frontend applications
-    that call `/api/v2/csrf-token` instead of `/api/v2/auth/csrf-token`.
-
-    **Recommended**: Update your frontend to use `/api/v2/auth/csrf-token` instead.
-
-    This alias will be removed in a future version.
-    """,
-    tags=["auth-v2", "security", "deprecated"],
-    deprecated=True
-)
-@limiter.limit("100/minute")
-async def get_csrf_token_compat(request: Request):
-    """
-    Backward compatibility alias for CSRF token endpoint.
-
-    This endpoint delegates to the main CSRF token generation logic.
-    It exists solely for backward compatibility with frontend code that calls
-    /api/v2/csrf-token instead of /api/v2/auth/csrf-token.
-
-    **Deprecation Notice**: This endpoint is deprecated and will be removed
-    in a future version. Please update your code to use /api/v2/auth/csrf-token.
-
-    Returns:
-        dict: CSRF token and expiration information
-    """
-    from app.core.csrf_middleware import CSRFMiddleware
-    from app.config import settings
-
-    logger.warning(
-        "CSRF token accessed via deprecated compatibility endpoint /api/v2/csrf-token",
-        extra={
-            "client_ip": request.client.host if request.client else "unknown",
-            "user_agent": request.headers.get("user-agent", "unknown"),
-            "migration_note": "Frontend should be updated to use /api/v2/auth/csrf-token"
-        }
-    )
-
-    if not settings.SECURITY_CSRF_SECRET_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="CSRF protection is not configured on this server"
-        )
-
-    # Create a temporary middleware instance to generate token
-    csrf = CSRFMiddleware(
-        app=None,  # Not needed for token generation
-        secret_key=settings.SECURITY_CSRF_SECRET_KEY,
-        token_expiry=3600
-    )
-
-    token = csrf._generate_token()
-
-    return {
-        "csrf_token": token,
-        "expires_in": 3600,
-        "header_name": "X-CSRF-Token",
-        "usage": "Include this token in X-CSRF-Token header for POST/PUT/DELETE/PATCH requests",
-        "deprecation_notice": "Please use /api/v2/auth/csrf-token instead. This endpoint will be removed in a future version."
-    }
 
 
 # Include sub-routers
@@ -151,7 +74,6 @@ api_v2_router.include_router(enhanced_analytics_router, prefix="/enhanced-analyt
 # Auth & Users (Decomposed)
 api_v2_router.include_router(auth_router, prefix="/auth", tags=["auth-v2"])
 api_v2_router.include_router(users_router, prefix="/auth", tags=["users-v2"]) # Legacy path support for /me, /preferences
-api_v2_router.include_router(session_router, prefix="/session", tags=["session-v2-compat"]) # Session backward compatibility wrapper
 api_v2_router.include_router(notifications_router, prefix="/notifications", tags=["notifications-v2"])
 api_v2_router.include_router(notifications_router, prefix="/auth/notifications", tags=["notifications-v2-legacy"]) # Legacy path
 api_v2_router.include_router(flows_router, prefix="/flows", tags=["flows-v2"])

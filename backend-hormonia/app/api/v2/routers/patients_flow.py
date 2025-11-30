@@ -21,7 +21,6 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel
-# from sqlalchemy.orm import Session,
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.database import get_db

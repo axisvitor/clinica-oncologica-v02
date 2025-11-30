@@ -31,7 +31,7 @@ import { getRoleLabel } from "@/types/shared";
 import { Link } from "react-router-dom";
 
 export function DashboardPage() {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isInitializing: authLoading } = useAuth();
   const { permissions, userRole, isAdmin, isDoctor } = useRoleGuard();
 
   // Wait for authentication to be ready before making API calls

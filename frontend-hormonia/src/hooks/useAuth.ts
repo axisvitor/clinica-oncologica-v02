@@ -43,7 +43,8 @@ export function useAuth(options: UseAuthOptions = {}) {
     token: auth.session?.access_token || null,
     refreshToken: null, // Firebase handles refresh internally
     isAuthenticated: auth.isAuthenticated,
-    isLoading: auth.isLoading,
+    isLoading: auth.isInitializing,
+    isInitializing: auth.isInitializing, // Alias for direct access
     error: null,
 
     // Session state (derived from auth state)

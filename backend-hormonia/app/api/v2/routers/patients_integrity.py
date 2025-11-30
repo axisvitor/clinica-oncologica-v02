@@ -16,7 +16,6 @@ from datetime import datetime
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from pydantic import BaseModel, EmailStr
-# from sqlalchemy.orm import Session,
 from sqlalchemy import func
 import logging
 

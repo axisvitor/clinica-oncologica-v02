@@ -17,7 +17,6 @@ interface AuthContextType {
   user: User | null
   session: { access_token: string; session_id?: string } | null
   isAuthenticated: boolean
-  isLoading: boolean // DEPRECATED: Use isInitializing instead
   isInitializing: boolean // Bootstrap/Firebase initialization
   isAuthenticating: boolean // Active login/logout operation
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>
@@ -51,8 +50,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isAuthenticating, setIsAuthenticating] = useState(false) // Active login/logout
 
   const isAuthenticated = !!user
-  // DEPRECATED: Keep for backward compatibility, remove in next major version
-  const isLoading = isInitializing
 
   // Permission and role checking functions
   const hasPermission = useCallback((permission: string): boolean => {
@@ -514,7 +511,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     user,
     session,
     isAuthenticated,
-    isLoading,
     isInitializing,
     isAuthenticating,
     login,
@@ -528,7 +524,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     user,
     session,
     isAuthenticated,
-    isLoading,
     isInitializing,
     isAuthenticating,
     login,

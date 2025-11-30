@@ -1,98 +1,117 @@
 /**
- * DEPRECATED: Use @/lib/validations/admin-schemas.ts instead
+ * User Validation Schemas for Admin User Management
  *
- * This file is kept for backward compatibility but should not be used for new code.
- * The new admin-schemas.ts file matches the backend exactly and supports only
- * the two valid roles: admin and doctor.
+ * These schemas are used by CreateUserModal and UserDetailsModal.
+ * They have different field names than admin-schemas.ts for backward compatibility.
+ *
+ * @see CreateUserModal.tsx
+ * @see UserDetailsModal.tsx
  */
 
 import { z } from 'zod'
 
+// ============================================================================
+// CREATE USER SCHEMA
+// ============================================================================
+
 /**
- * @deprecated Use userCreateSchema from admin-schemas.ts
+ * Schema for creating a new user
+ * Used by CreateUserModal
  */
 export const createUserSchema = z.object({
-  email: z.string()
-    .min(1, 'Email é obrigatório')
-    .email('Email inválido'),
   full_name: z.string()
-    .min(3, 'Nome deve ter pelo menos 3 caracteres')
-    .max(100, 'Nome deve ter no máximo 100 caracteres'),
-  // WARNING: Only 'admin' and 'doctor' are valid in the backend
-  role: z.enum(['admin', 'doctor'], {
-    required_error: 'Função é obrigatória'
-  }),
+    .min(2, 'Nome deve ter pelo menos 2 caracteres')
+    .max(255, 'Nome deve ter no máximo 255 caracteres'),
+  email: z.string()
+    .email('Email inválido')
+    .min(1, 'Email é obrigatório'),
   password: z.string()
     .min(8, 'Senha deve ter pelo menos 8 caracteres')
-    .regex(/[A-Z]/, 'Senha deve conter pelo menos uma letra maiúscula')
-    .regex(/[a-z]/, 'Senha deve conter pelo menos uma letra minúscula')
-    .regex(/[0-9]/, 'Senha deve conter pelo menos um número')
-    .regex(/[^A-Za-z0-9]/, 'Senha deve conter pelo menos um caractere especial'),
+    .max(128, 'Senha deve ter no máximo 128 caracteres')
+    .regex(/[0-9]/, 'Senha deve conter pelo menos um dígito')
+    .regex(/[a-zA-Z]/, 'Senha deve conter pelo menos uma letra'),
   confirm_password: z.string()
-    .min(1, 'Confirmação de senha é obrigatória'),
-  permissions: z.array(z.string()).default([]),
-  is_active: z.boolean().default(true),
-  two_factor_enabled: z.boolean().default(false)
-}).refine((data) => data['password'] === data['confirm_password'], {
+    .min(8, 'Confirmação de senha é obrigatória'),
+  role: z.enum(['admin', 'doctor']).default('doctor'),
+  phone_number: z.string()
+    .max(20, 'Telefone deve ter no máximo 20 caracteres')
+    .optional()
+    .nullable(),
+  permissions: z.array(z.string()).optional().default([]),
+  is_active: z.boolean().optional().default(true),
+  two_factor_enabled: z.boolean().optional().default(false),
+}).refine((data) => data.password === data.confirm_password, {
   message: 'As senhas não coincidem',
-  path: ['confirm_password']
-})
-
-/**
- * @deprecated Use userUpdateSchema from admin-schemas.ts
- */
-export const updateUserSchema = z.object({
-  email: z.string()
-    .min(1, 'Email é obrigatório')
-    .email('Email inválido'),
-  full_name: z.string()
-    .min(3, 'Nome deve ter pelo menos 3 caracteres')
-    .max(100, 'Nome deve ter no máximo 100 caracteres'),
-  // WARNING: Only 'admin' and 'doctor' are valid in the backend
-  role: z.enum(['admin', 'doctor'], {
-    required_error: 'Função é obrigatória'
-  }),
-  permissions: z.array(z.string()).default([]),
-  is_active: z.boolean().default(true),
-  two_factor_enabled: z.boolean().default(false)
-})
-
-/**
- * @deprecated Use passwordChangeSchema from admin-schemas.ts
- */
-export const updatePasswordSchema = z.object({
-  current_password: z.string().min(1, 'Senha atual é obrigatória'),
-  new_password: z.string()
-    .min(8, 'Nova senha deve ter pelo menos 8 caracteres')
-    .regex(/[A-Z]/, 'Nova senha deve conter pelo menos uma letra maiúscula')
-    .regex(/[a-z]/, 'Nova senha deve conter pelo menos uma letra minúscula')
-    .regex(/[0-9]/, 'Nova senha deve conter pelo menos um número')
-    .regex(/[^A-Za-z0-9]/, 'Nova senha deve conter pelo menos um caractere especial'),
-  confirm_new_password: z.string()
-    .min(1, 'Confirmação de senha é obrigatória')
-}).refine((data) => data['new_password'] === data['confirm_new_password'], {
-  message: 'As senhas não coincidem',
-  path: ['confirm_new_password']
-})
-
-/**
- * @deprecated Use permissionsUpdateSchema from admin-schemas.ts
- */
-export const userPermissionsSchema = z.object({
-  permissions: z.array(z.string()).min(1, 'Selecione pelo menos uma permissão')
-})
-
-/**
- * @deprecated Use roleUpdateSchema from admin-schemas.ts
- */
-export const userRoleSchema = z.object({
-  role: z.enum(['admin', 'doctor'], {
-    required_error: 'Função é obrigatória'
-  })
+  path: ['confirm_password'],
 })
 
 export type CreateUserFormData = z.infer<typeof createUserSchema>
+
+// ============================================================================
+// UPDATE USER SCHEMA
+// ============================================================================
+
+/**
+ * Schema for updating an existing user
+ * Used by UserDetailsModal
+ */
+export const updateUserSchema = z.object({
+  full_name: z.string()
+    .min(2, 'Nome deve ter pelo menos 2 caracteres')
+    .max(255, 'Nome deve ter no máximo 255 caracteres')
+    .optional()
+    .nullable(),
+  email: z.string()
+    .email('Email inválido')
+    .optional()
+    .nullable(),
+  role: z.enum(['admin', 'doctor']).optional().nullable(),
+  phone_number: z.string()
+    .max(20, 'Telefone deve ter no máximo 20 caracteres')
+    .optional()
+    .nullable(),
+  permissions: z.array(z.string()).optional().default([]),
+  is_active: z.boolean().optional().nullable(),
+  two_factor_enabled: z.boolean().optional().nullable(),
+})
+
 export type UpdateUserFormData = z.infer<typeof updateUserSchema>
-export type UpdatePasswordFormData = z.infer<typeof updatePasswordSchema>
-export type UserPermissionsFormData = z.infer<typeof userPermissionsSchema>
-export type UserRoleFormData = z.infer<typeof userRoleSchema>
+
+// ============================================================================
+// PASSWORD RESET SCHEMA
+// ============================================================================
+
+/**
+ * Schema for resetting user password
+ */
+export const passwordResetSchema = z.object({
+  new_password: z.string()
+    .min(8, 'Senha deve ter pelo menos 8 caracteres')
+    .max(128, 'Senha deve ter no máximo 128 caracteres')
+    .regex(/[0-9]/, 'Senha deve conter pelo menos um dígito')
+    .regex(/[a-zA-Z]/, 'Senha deve conter pelo menos uma letra'),
+  confirm_password: z.string()
+    .min(8, 'Confirmação de senha é obrigatória'),
+}).refine((data) => data.new_password === data.confirm_password, {
+  message: 'As senhas não coincidem',
+  path: ['confirm_password'],
+})
+
+export type PasswordResetFormData = z.infer<typeof passwordResetSchema>
+
+// ============================================================================
+// USER FILTER SCHEMA
+// ============================================================================
+
+/**
+ * Schema for filtering users list
+ */
+export const userFilterSchema = z.object({
+  search: z.string().optional(),
+  role: z.enum(['admin', 'doctor', 'all']).optional().default('all'),
+  is_active: z.boolean().optional(),
+  page: z.number().optional().default(1),
+  page_size: z.number().optional().default(10),
+})
+
+export type UserFilterFormData = z.infer<typeof userFilterSchema>

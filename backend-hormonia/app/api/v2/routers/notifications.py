@@ -5,7 +5,6 @@ import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-# from sqlalchemy.orm import Session,
 from sqlalchemy import and_, func, or_
 
 from app.database import get_db

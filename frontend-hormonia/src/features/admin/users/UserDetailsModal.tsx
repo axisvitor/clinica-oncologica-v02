@@ -70,7 +70,13 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
   }, [user, reset])
 
   const updateMutation = useMutation({
-    mutationFn: (data: UpdateUserFormData) => apiClient.adminUsers.update(user['id'], data),
+    mutationFn: (data: UpdateUserFormData) => {
+      // Clean null values to undefined for API compatibility
+      const cleanedData = Object.fromEntries(
+        Object.entries(data).map(([key, value]) => [key, value === null ? undefined : value])
+      ) as Parameters<typeof apiClient.adminUsers.update>[1];
+      return apiClient.adminUsers.update(user['id'], cleanedData);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
       toast({
@@ -202,7 +208,7 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
                 <div className="space-y-2">
                   <Label htmlFor="role">Função *</Label>
                   <Select
-                    value={watch('role')}
+                    value={watch('role') ?? undefined}
                     onValueChange={(value: 'doctor' | 'admin') => setValue('role', value)}
                     disabled={!isEditing || updateMutation.isPending}
                   >
@@ -241,7 +247,7 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
                   </div>
                   <Switch
                     id="is_active"
-                    checked={watch('is_active')}
+                    checked={watch('is_active') ?? undefined}
                     onCheckedChange={(checked) => setValue('is_active', checked)}
                     disabled={!isEditing || updateMutation.isPending}
                   />
@@ -257,7 +263,7 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
                   </div>
                   <Switch
                     id="two_factor_enabled"
-                    checked={watch('two_factor_enabled')}
+                    checked={watch('two_factor_enabled') ?? undefined}
                     onCheckedChange={(checked) => setValue('two_factor_enabled', checked)}
                     disabled={!isEditing || updateMutation.isPending}
                   />

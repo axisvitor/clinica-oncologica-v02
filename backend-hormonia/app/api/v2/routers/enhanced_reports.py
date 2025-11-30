@@ -9,7 +9,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks, Request, Response
 from fastapi.responses import StreamingResponse
-# from sqlalchemy.orm import Session,
 
 from app.database import get_db
 from app.models.user import User, UserRole

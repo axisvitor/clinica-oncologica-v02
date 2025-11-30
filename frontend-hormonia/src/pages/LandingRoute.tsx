@@ -15,14 +15,14 @@ const logger = createLogger('LandingRoute')
  * - Redirecting to appropriate dashboard based on user role
  */
 export function LandingRoute() {
-  const { user, isLoading } = useAuth()
+  const { user, isInitializing } = useAuth()
 
   useEffect(() => {
-    logger.log('LandingRoute mounted', { isLoading, hasUser: !!user })
-  }, [isLoading, user])
+    logger.log('LandingRoute mounted', { isInitializing, hasUser: !!user })
+  }, [isInitializing, user])
 
   // Show loading state while auth initializes
-  if (isLoading) {
+  if (isInitializing) {
     logger.log('Auth loading, showing spinner')
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">

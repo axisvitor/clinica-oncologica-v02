@@ -94,23 +94,6 @@ import type {
 export type QuizLinkStatus = ApiQuizLinkStatus
 export type { QuizLinkStatusValue, QuizTemplate, QuizSession }
 
-// Legacy interface for backward compatibility (deprecated)
-interface _QuizLinkStatus {
-  quiz_session_id: string
-  patient_name: string
-  status: QuizLink['status']
-  link: string
-  expires_at: string
-  sent_at?: string
-  accessed_at?: string
-  completed_at?: string
-  last_sent?: string
-  last_response?: string
-  session_id?: string
-  can_resend: boolean
-  can_cancel: boolean
-}
-
 export interface QuizHistoryEntry {
   id: string
   patient_id?: string

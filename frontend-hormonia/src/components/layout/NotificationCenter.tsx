@@ -19,7 +19,7 @@ import type { NotificationListResponse, Notification } from '@/types/notificatio
 
 export function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false)
-  const { user, isLoading: authLoading } = useAuth()
+  const { user, isInitializing: authLoading } = useAuth()
 
   const { data: notificationsData, isLoading } = useQuery<NotificationListResponse>({
     queryKey: ['notifications'],

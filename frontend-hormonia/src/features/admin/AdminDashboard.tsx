@@ -114,7 +114,7 @@ const securityTrendData = [
 const COLORS = ['#10B981', '#F59E0B', '#EF4444', '#3B82F6']
 
 const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ children }) => {
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth()
+  const { user, isAuthenticated, isInitializing: authLoading } = useAuth()
   const location = useLocation()
 
   // FIXED: Use live API instead of mock data
