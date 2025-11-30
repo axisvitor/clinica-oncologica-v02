@@ -5,12 +5,14 @@ Centralized TTL (Time-To-Live) configuration for all caching operations.
 All values are in seconds and can be overridden via environment variables.
 
 Environment variables use the prefix CACHE_ followed by the setting name.
-Example: CACHE_FLOW_TEMPLATE_TTL=7200
+Example: CACHE_FLOW_TEMPLATE_TTL_SECONDS=7200
 
+ENV Variable Naming Convention: CACHE_{CATEGORY}_{ATTRIBUTE}_TTL_SECONDS
 MEDIUM-008: Extracted from hardcoded values throughout the codebase.
 """
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 from typing import Optional
 
 
@@ -19,21 +21,21 @@ class CacheSettings(BaseSettings):
     Cache TTL configuration for all application components.
 
     All TTL values are in seconds and can be overridden via environment variables
-    using the CACHE_ prefix.
+    using the CACHE_ prefix with _TTL_SECONDS suffix.
 
     Examples:
-        CACHE_FLOW_TEMPLATE_TTL=7200
-        CACHE_AUTH_TOKEN_TTL=86400
+        CACHE_FLOW_TEMPLATE_TTL_SECONDS=7200
+        CACHE_AUTH_TOKEN_TTL_SECONDS=86400
     """
 
     # ========================================================================
-    # FLOW & TEMPLATES
+    # FLOW & TEMPLATES - Direct ENV names
     # ========================================================================
 
-    FLOW_TEMPLATE_TTL: int = 3600  # 1 hour
+    CACHE_FLOW_TEMPLATE_TTL_SECONDS: int = Field(default=3600)
     """TTL for cached flow templates"""
 
-    TEMPLATE_CACHE_TTL: int = 3600  # 1 hour
+    CACHE_TEMPLATE_CACHE_TTL_SECONDS: int = Field(default=3600)
     """TTL for general template cache"""
 
     FLOW_STATE_TTL: int = 1800  # 30 minutes
@@ -43,13 +45,13 @@ class CacheSettings(BaseSettings):
     # USER & AUTHENTICATION
     # ========================================================================
 
-    USER_SESSION_TTL: int = 1800  # 30 minutes
+    CACHE_USER_SESSION_TTL_SECONDS: int = Field(default=1800)
     """TTL for user session data"""
 
-    AUTH_TOKEN_TTL: int = 86400  # 24 hours
+    CACHE_AUTH_TOKEN_TTL_SECONDS: int = Field(default=86400)
     """TTL for authentication tokens"""
 
-    REFRESH_TOKEN_TTL: int = 604800  # 7 days
+    CACHE_REFRESH_TOKEN_TTL_SECONDS: int = Field(default=604800)
     """TTL for refresh tokens"""
 
     USER_PROFILE_TTL: int = 1800  # 30 minutes
@@ -59,7 +61,7 @@ class CacheSettings(BaseSettings):
     # PATIENT DATA
     # ========================================================================
 
-    PATIENT_CACHE_TTL: int = 900  # 15 minutes
+    CACHE_PATIENT_CACHE_TTL_SECONDS: int = Field(default=900)
     """TTL for patient data cache"""
 
     PATIENT_LIST_TTL: int = 300  # 5 minutes
@@ -68,17 +70,17 @@ class CacheSettings(BaseSettings):
     PATIENT_DETAIL_TTL: int = 600  # 10 minutes
     """TTL for patient detail cache"""
 
-    DOCTOR_CACHE_TTL: int = 1800  # 30 minutes
+    CACHE_DOCTOR_CACHE_TTL_SECONDS: int = Field(default=1800)
     """TTL for doctor/physician data cache"""
 
     # ========================================================================
     # QUIZ & SESSIONS
     # ========================================================================
 
-    QUIZ_SESSION_TTL: int = 7200  # 2 hours
+    CACHE_QUIZ_SESSION_TTL_SECONDS: int = Field(default=7200)
     """TTL for active quiz sessions"""
 
-    QUIZ_TEMPLATES_TTL: int = 3600  # 1 hour
+    CACHE_QUIZ_TEMPLATES_TTL_SECONDS: int = Field(default=3600)
     """TTL for quiz template cache"""
 
     QUIZ_CACHE_TTL: int = 1800  # 30 minutes
@@ -88,30 +90,30 @@ class CacheSettings(BaseSettings):
     # MESSAGES & COMMUNICATION
     # ========================================================================
 
-    MESSAGE_CACHE_TTL: int = 3600  # 1 hour
+    CACHE_MESSAGE_CACHE_TTL_SECONDS: int = Field(default=3600)
     """TTL for message cache"""
 
-    MESSAGE_STATS_TTL: int = 300  # 5 minutes
+    CACHE_MESSAGE_STATS_TTL_SECONDS: int = Field(default=300)
     """TTL for message statistics"""
 
-    WHATSAPP_METRICS_TTL: int = 604800  # 7 days
+    CACHE_WHATSAPP_METRICS_TTL_SECONDS: int = Field(default=604800)
     """TTL for WhatsApp metrics (long-term)"""
 
     # ========================================================================
     # WEBHOOK & IDEMPOTENCY
     # ========================================================================
 
-    WEBHOOK_IDEMPOTENCY_TTL: int = 3600  # 1 hour
+    CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS: int = Field(default=3600)
     """TTL for webhook idempotency keys"""
 
-    WEBHOOK_CACHE_TTL: int = 300  # 5 minutes
+    CACHE_WEBHOOK_CACHE_TTL_SECONDS: int = Field(default=300)
     """TTL for webhook data cache"""
 
     # ========================================================================
     # RATE LIMITING
     # ========================================================================
 
-    RATE_LIMIT_WINDOW_TTL: int = 60  # 1 minute
+    CACHE_RATE_LIMIT_WINDOW_TTL_SECONDS: int = Field(default=60)
     """TTL for rate limit windows"""
 
     RATE_LIMIT_BUCKET_TTL: int = 3600  # 1 hour
@@ -121,13 +123,13 @@ class CacheSettings(BaseSettings):
     # REPORTS & ANALYTICS
     # ========================================================================
 
-    REPORT_CACHE_TTL: int = 1800  # 30 minutes
+    CACHE_REPORT_CACHE_TTL_SECONDS: int = Field(default=1800)
     """TTL for report data cache"""
 
     REPORT_DATA_TTL: int = 1800  # 30 minutes
     """TTL for report data (alias)"""
 
-    ANALYTICS_CACHE_TTL: int = 300  # 5 minutes
+    CACHE_ANALYTICS_CACHE_TTL_SECONDS: int = Field(default=300)
     """TTL for analytics data cache"""
 
     ANALYTICS_DASHBOARD_TTL: int = 300  # 5 minutes
@@ -147,23 +149,23 @@ class CacheSettings(BaseSettings):
     # DISTRIBUTED SYSTEMS
     # ========================================================================
 
-    DISTRIBUTED_LOCK_TTL: int = 30  # 30 seconds
+    CACHE_DISTRIBUTED_LOCK_TTL_SECONDS: int = Field(default=30)
     """TTL for distributed locks (short-lived)"""
 
-    SAGA_STATE_TTL: int = 3600  # 1 hour
+    CACHE_SAGA_STATE_TTL_SECONDS: int = Field(default=3600)
     """TTL for Saga orchestration state"""
 
-    CIRCUIT_BREAKER_STATE_TTL: int = 300  # 5 minutes
+    CACHE_CIRCUIT_BREAKER_STATE_TTL_SECONDS: int = Field(default=300)
     """TTL for circuit breaker state"""
 
     # ========================================================================
     # MONITORING & METRICS
     # ========================================================================
 
-    SYSTEM_METRICS_TTL: int = 60  # 1 minute
+    CACHE_SYSTEM_METRICS_TTL_SECONDS: int = Field(default=60)
     """TTL for system metrics cache"""
 
-    RESOURCE_MONITOR_TTL: int = 300  # 5 minutes
+    CACHE_RESOURCE_MONITOR_TTL_SECONDS: int = Field(default=300)
     """TTL for resource monitoring data"""
 
     PERFORMANCE_METRICS_TTL: int = 300  # 5 minutes
@@ -176,10 +178,10 @@ class CacheSettings(BaseSettings):
     SESSION_DATA_TTL: int = 1800  # 30 minutes
     """TTL for session data"""
 
-    CONNECTION_STATE_TTL: int = 300  # 5 minutes
+    CACHE_CONNECTION_STATE_TTL_SECONDS: int = Field(default=300)
     """TTL for connection state (WhatsApp, etc.)"""
 
-    QRCODE_TTL: int = 300  # 5 minutes
+    CACHE_QRCODE_TTL_SECONDS: int = Field(default=300)
     """TTL for QR code data"""
 
     # ========================================================================
@@ -206,7 +208,7 @@ class CacheSettings(BaseSettings):
     """TTL for long-lived cache (default)"""
 
     # ========================================================================
-    # REDIS CONNECTION SETTINGS
+    # REDIS CONNECTION SETTINGS (Legacy - kept for compatibility)
     # ========================================================================
 
     REDIS_MAX_CONNECTIONS: int = 50
@@ -219,7 +221,6 @@ class CacheSettings(BaseSettings):
     """Socket connect timeout for Redis (seconds)"""
 
     model_config = SettingsConfigDict(
-        env_prefix="CACHE_",
         case_sensitive=True,
         env_file=".env",
         env_file_encoding="utf-8",
@@ -254,14 +255,14 @@ def get_ttl(key: str, default: int = 300) -> int:
     Get TTL value by key name.
 
     Args:
-        key: Setting key name (e.g., 'FLOW_TEMPLATE_TTL')
+        key: Setting key name (e.g., 'CACHE_FLOW_TEMPLATE_TTL_SECONDS')
         default: Default value if key not found
 
     Returns:
         TTL value in seconds
 
     Example:
-        >>> ttl = get_ttl('PATIENT_CACHE_TTL')
+        >>> ttl = get_ttl('CACHE_PATIENT_CACHE_TTL_SECONDS')
         >>> 900
     """
     settings = get_cache_settings()

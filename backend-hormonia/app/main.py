@@ -12,7 +12,7 @@ from app.core.application_factory import create_application
 from app.config import settings
 
 # Create application instance using factory pattern with appropriate mode
-deployment_mode = "development" if settings.DEBUG else "production"
+deployment_mode = "development" if settings.APP_ENABLE_DEBUG else "production"
 app = create_application(deployment_mode=deployment_mode)
 
 
@@ -30,15 +30,15 @@ async def root_health_check():
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat() + 'Z',
         "version": "2.0.0",
-        "environment": settings.ENVIRONMENT
+        "environment": settings.APP_ENVIRONMENT
     }
 
 
 # Add a simple test endpoint to verify the server is working (debug mode only)
-if settings.DEBUG:
+if settings.APP_ENABLE_DEBUG:
     @app.get("/test", tags=["Debug"])
     async def test_endpoint():
-        return {"message": "Server is working", "debug": settings.DEBUG, "mode": deployment_mode}
+        return {"message": "Server is working", "debug": settings.APP_ENABLE_DEBUG, "mode": deployment_mode}
 
 if __name__ == "__main__":
     import uvicorn
@@ -46,5 +46,5 @@ if __name__ == "__main__":
         "app.main:app",
         host="0.0.0.0",
         port=8000,
-        reload=settings.DEBUG
+        reload=settings.APP_ENABLE_DEBUG
     )

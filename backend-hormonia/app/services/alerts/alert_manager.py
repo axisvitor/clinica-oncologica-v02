@@ -5,6 +5,7 @@ This module provides the main orchestrator for the alert system,
 coordinating alert evaluation, processing, notification, and lifecycle management.
 """
 
+import asyncio
 import logging
 from typing import Dict, Any, List, Optional
 from uuid import UUID
@@ -478,10 +479,140 @@ class AlertManager:
         return False
 
     async def _get_notification_targets(self, alert: Alert) -> List[NotificationTarget]:
-        """Determine notification targets for an alert."""
-        # TODO: Implement actual target resolution logic
-        # For now, return empty list
-        return []
+        """
+        Determine notification targets for an alert based on severity and type.
+
+        Target resolution logic:
+        - INFO/WARNING: Dashboard only (no notification targets)
+        - CRITICAL: Admin users via Email + Dashboard
+        - FATAL: All admin users via Email + WhatsApp + Dashboard
+
+        For patient alerts, also notify the assigned doctor if available.
+
+        Args:
+            alert: Alert to get targets for
+
+        Returns:
+            List of NotificationTarget with user_id and channels
+        """
+        from uuid import uuid4
+
+        targets: List[NotificationTarget] = []
+
+        # Determine channels based on severity
+        if alert.severity == AlertSeverity.INFO:
+            # INFO alerts only go to dashboard (no direct notification)
+            return targets
+
+        elif alert.severity == AlertSeverity.WARNING:
+            # WARNING alerts: Dashboard + Email to system admin
+            channels = [NotificationChannel.EMAIL, NotificationChannel.DASHBOARD]
+
+        elif alert.severity == AlertSeverity.CRITICAL:
+            # CRITICAL alerts: Email + Dashboard + WebSocket
+            channels = [
+                NotificationChannel.EMAIL,
+                NotificationChannel.DASHBOARD,
+                NotificationChannel.WEBSOCKET,
+            ]
+
+        else:  # FATAL
+            # FATAL alerts: All channels including WhatsApp
+            channels = [
+                NotificationChannel.EMAIL,
+                NotificationChannel.WHATSAPP,
+                NotificationChannel.DASHBOARD,
+                NotificationChannel.WEBSOCKET,
+            ]
+
+        # Get notification targets from alert context or config
+        target_user_ids = await self._resolve_target_users(alert)
+
+        for user_id in target_user_ids:
+            targets.append(
+                NotificationTarget(
+                    user_id=user_id,
+                    channels=channels,
+                    metadata={
+                        "alert_id": str(alert.id),
+                        "severity": alert.severity.value,
+                        "rule_type": alert.rule_type.value,
+                    }
+                )
+            )
+
+        logger.info(
+            f"Resolved {len(targets)} notification targets for alert {alert.id}",
+            extra={"severity": alert.severity.value, "channels": [c.value for c in channels]}
+        )
+
+        return targets
+
+    async def _resolve_target_users(self, alert: Alert) -> List[UUID]:
+        """
+        Resolve target user IDs for notification based on alert type.
+
+        For patient alerts: Notify assigned doctor + admin
+        For infrastructure alerts: Notify system admins
+
+        Args:
+            alert: Alert to resolve targets for
+
+        Returns:
+            List of user UUIDs to notify
+        """
+        from uuid import uuid4
+
+        target_user_ids: List[UUID] = []
+
+        # Check if alert context contains specific target users
+        if "notify_user_ids" in alert.context:
+            for uid in alert.context["notify_user_ids"]:
+                try:
+                    target_user_ids.append(UUID(uid) if isinstance(uid, str) else uid)
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid user ID in alert context: {uid}")
+
+        # Check if there's a patient_id and get assigned doctor
+        if "patient_id" in alert.context:
+            patient_id = alert.context["patient_id"]
+            try:
+                # Try to get patient's assigned doctor from repository
+                from app.repositories.patient_repository import PatientRepository
+                from app.dependencies.database import get_db_session
+
+                async for db in get_db_session():
+                    patient_repo = PatientRepository(db)
+                    patient = await patient_repo.get_by_id(UUID(patient_id) if isinstance(patient_id, str) else patient_id)
+                    if patient and hasattr(patient, 'assigned_doctor_id') and patient.assigned_doctor_id:
+                        target_user_ids.append(patient.assigned_doctor_id)
+                    break
+            except Exception as e:
+                logger.warning(f"Could not resolve patient's doctor: {e}")
+
+        # For infrastructure alerts or if no specific targets, notify system admins
+        if not target_user_ids or alert.rule_type in [
+            AlertRuleType.POOL_EXHAUSTION,
+            AlertRuleType.SLOW_QUERY,
+            AlertRuleType.CONNECTION_ERROR,
+            AlertRuleType.QUERY_TIMEOUT,
+            AlertRuleType.HIGH_UTILIZATION,
+            AlertRuleType.UNHEALTHY_CONNECTION,
+        ]:
+            # Get admin user IDs from config or default list
+            admin_ids = self.config.metadata.get("admin_user_ids", [])
+            for admin_id in admin_ids:
+                try:
+                    uid = UUID(admin_id) if isinstance(admin_id, str) else admin_id
+                    if uid not in target_user_ids:
+                        target_user_ids.append(uid)
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid admin user ID in config: {admin_id}")
+
+        # Deduplicate
+        target_user_ids = list(set(target_user_ids))
+
+        return target_user_ids
 
     def _should_escalate(self, alert: Alert) -> bool:
         """Check if alert should be escalated."""
@@ -489,10 +620,187 @@ class AlertManager:
         return alert.severity in [AlertSeverity.CRITICAL, AlertSeverity.FATAL]
 
     async def _schedule_escalation(self, alert: Alert) -> None:
-        """Schedule alert escalation."""
-        logger.info(f"Scheduling escalation for alert {alert.id}")
-        # TODO: Implement escalation scheduling
-        pass
+        """
+        Schedule alert escalation if not acknowledged within threshold.
+
+        Escalation logic:
+        1. Wait for configured escalation delay (default: 1 hour)
+        2. If alert still not acknowledged, escalate
+        3. Increase escalation level
+        4. Send notifications to escalation targets
+        5. Repeat until max_escalation_level reached
+
+        Args:
+            alert: Alert to schedule escalation for
+        """
+        logger.info(
+            f"Scheduling escalation for alert {alert.id}",
+            extra={
+                "severity": alert.severity.value,
+                "current_level": alert.escalation_level,
+                "max_level": self.config.max_escalation_level
+            }
+        )
+
+        # Check if max escalation level reached
+        if alert.escalation_level >= self.config.max_escalation_level:
+            logger.warning(
+                f"Alert {alert.id} reached max escalation level ({self.config.max_escalation_level})"
+            )
+            return
+
+        # Get escalation delay from config or rule config
+        escalation_delay_seconds = self.config.metadata.get(
+            "escalation_delay_seconds",
+            3600  # Default: 1 hour
+        )
+
+        # For critical/fatal alerts, use shorter escalation time
+        if alert.severity == AlertSeverity.FATAL:
+            escalation_delay_seconds = min(escalation_delay_seconds, 900)  # 15 minutes max
+        elif alert.severity == AlertSeverity.CRITICAL:
+            escalation_delay_seconds = min(escalation_delay_seconds, 1800)  # 30 minutes max
+
+        # Schedule the escalation as a background task
+        asyncio.create_task(
+            self._execute_escalation(alert.id, escalation_delay_seconds),
+            name=f"escalation_{alert.id}"
+        )
+
+        logger.info(
+            f"Escalation scheduled for alert {alert.id} in {escalation_delay_seconds} seconds"
+        )
+
+    async def _execute_escalation(self, alert_id: UUID, delay_seconds: int) -> None:
+        """
+        Execute escalation after delay.
+
+        Args:
+            alert_id: ID of alert to escalate
+            delay_seconds: Seconds to wait before escalating
+        """
+        try:
+            # Wait for escalation delay
+            await asyncio.sleep(delay_seconds)
+
+            # Get current alert state
+            try:
+                alert = await self._get_alert(alert_id)
+            except ValueError:
+                logger.info(f"Alert {alert_id} no longer exists, skipping escalation")
+                return
+
+            # Check if alert was acknowledged or resolved
+            if alert.status in [AlertStatus.ACKNOWLEDGED, AlertStatus.RESOLVED, AlertStatus.EXPIRED]:
+                logger.info(
+                    f"Alert {alert_id} already {alert.status.value}, skipping escalation"
+                )
+                return
+
+            # Increment escalation level
+            alert.escalation_level += 1
+            alert.escalated = True
+            alert.metadata["last_escalation_at"] = datetime.now().isoformat()
+
+            logger.warning(
+                f"Escalating alert {alert_id} to level {alert.escalation_level}",
+                extra={
+                    "alert_id": str(alert_id),
+                    "severity": alert.severity.value,
+                    "level": alert.escalation_level
+                }
+            )
+
+            # Get escalation targets (higher level gets more targets)
+            escalation_targets = await self._get_escalation_targets(alert)
+
+            # Dispatch escalation notifications if dispatcher available
+            if self.dispatcher and escalation_targets:
+                # Add escalation flag to alert for notification template
+                alert.metadata["is_escalation"] = True
+                alert.metadata["escalation_level"] = alert.escalation_level
+
+                escalation_result = await self.dispatcher.dispatch(
+                    alert=alert,
+                    targets=escalation_targets,
+                    channels=[NotificationChannel.EMAIL, NotificationChannel.WHATSAPP],
+                )
+
+                logger.info(
+                    f"Escalation notifications sent for alert {alert_id}: "
+                    f"{escalation_result.total_sent} sent, {escalation_result.total_failed} failed"
+                )
+
+            # Update cache
+            self._alert_cache[alert_id] = alert
+
+            # Schedule next escalation if not at max level
+            if alert.escalation_level < self.config.max_escalation_level:
+                await self._schedule_escalation(alert)
+
+        except Exception as e:
+            logger.error(
+                f"Error executing escalation for alert {alert_id}: {e}",
+                exc_info=True
+            )
+
+    async def _get_escalation_targets(self, alert: Alert) -> List[NotificationTarget]:
+        """
+        Get notification targets for escalated alert.
+
+        Higher escalation levels include more senior targets.
+
+        Args:
+            alert: Alert being escalated
+
+        Returns:
+            List of escalation targets
+        """
+        targets: List[NotificationTarget] = []
+
+        # Escalation channels always include Email and WhatsApp for urgency
+        escalation_channels = [
+            NotificationChannel.EMAIL,
+            NotificationChannel.WHATSAPP,
+            NotificationChannel.DASHBOARD,
+        ]
+
+        # Get escalation target user IDs based on level
+        escalation_targets = self.config.metadata.get("escalation_targets", {})
+
+        # Level 1: Team leads
+        # Level 2: Department heads
+        # Level 3: Executive / On-call
+
+        level_key = f"level_{alert.escalation_level}"
+        target_ids = escalation_targets.get(level_key, [])
+
+        # If no specific targets configured, use admin list
+        if not target_ids:
+            target_ids = self.config.metadata.get("admin_user_ids", [])
+
+        for user_id in target_ids:
+            try:
+                uid = UUID(user_id) if isinstance(user_id, str) else user_id
+                targets.append(
+                    NotificationTarget(
+                        user_id=uid,
+                        channels=escalation_channels,
+                        metadata={
+                            "alert_id": str(alert.id),
+                            "escalation_level": alert.escalation_level,
+                            "is_escalation": True,
+                        }
+                    )
+                )
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Invalid escalation target ID: {user_id} - {e}")
+
+        logger.info(
+            f"Resolved {len(targets)} escalation targets for alert {alert.id} level {alert.escalation_level}"
+        )
+
+        return targets
 
     async def _get_alert(self, alert_id: UUID) -> Alert:
         """Get alert by ID."""

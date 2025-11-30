@@ -114,7 +114,7 @@ class MessageWebhookHandler:
                 logger.info(f"Duplicate webhook message detected (DB): {whatsapp_id}")
                 await redis_client.setex(
                     idempotency_key,
-                    cache_settings.WEBHOOK_IDEMPOTENCY_TTL,
+                    cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS,
                     str(existing_message.id)
                 )
                 return str(existing_message.id)
@@ -149,7 +149,7 @@ class MessageWebhookHandler:
             # Cache message_id in Redis
             await redis_client.setex(
                 idempotency_key,
-                cache_settings.WEBHOOK_IDEMPOTENCY_TTL,
+                cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS,
                 str(message.id)
             )
             

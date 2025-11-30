@@ -61,7 +61,7 @@ def create_application(
 
     Args:
         enable_monitoring: Enable monitoring and observability (default: True)
-        enable_debug_endpoints: Enable debug endpoints (default: None - auto-detect from settings.DEBUG)
+        enable_debug_endpoints: Enable debug endpoints (default: None - auto-detect from settings.APP_ENABLE_DEBUG)
         deployment_mode: Deployment mode for configuration (default: "production")
         enable_error_tracking: Enable error tracking with correlation IDs (default: True)
         enable_enhanced_openapi: Enable enhanced OpenAPI with security schemes (default: True)
@@ -71,7 +71,7 @@ def create_application(
     """
     # Auto-detect debug endpoints if not explicitly set
     if enable_debug_endpoints is None:
-        enable_debug_endpoints = settings.DEBUG or deployment_mode == "debug"
+        enable_debug_endpoints = settings.APP_ENABLE_DEBUG or deployment_mode == "debug"
 
     logger.info(f"Creating FastAPI application (mode: {deployment_mode}, debug: {enable_debug_endpoints})")
 
@@ -79,7 +79,7 @@ def create_application(
     setup_sentry()
 
     # Determine documentation visibility based on deployment mode
-    docs_available = deployment_mode != "production" or settings.DEBUG
+    docs_available = deployment_mode != "production" or settings.APP_ENABLE_DEBUG
 
     # Create base FastAPI application with metadata
     app = FastAPI(
@@ -104,7 +104,7 @@ def create_application(
     app.state.error_tracking_enabled = enable_error_tracking
 
     # Configure rate limiter
-    if settings.RATE_LIMIT_ENABLED:
+    if settings.RATE_LIMIT_ENABLE_SERVICE:
         app.state.limiter = limiter
         app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
         logger.info("✓ Rate limiter configured")
@@ -296,7 +296,7 @@ def _setup_static_files(app: FastAPI) -> None:
     """
     try:
         # Create upload directory if it doesn't exist
-        upload_dir = Path(settings.UPLOAD_DIR)
+        upload_dir = Path(settings.UPLOAD_DIRECTORY)
         upload_dir.mkdir(parents=True, exist_ok=True)
 
         # Mount static files directory
@@ -338,7 +338,7 @@ def _setup_global_exception_handler(app: FastAPI) -> None:
 
         # Determine error detail level based on deployment mode
         deployment_mode = getattr(app.state, 'deployment_mode', 'production')
-        include_details = deployment_mode in ['development', 'debug'] or settings.DEBUG
+        include_details = deployment_mode in ['development', 'debug'] or settings.APP_ENABLE_DEBUG
 
         error_response = {
             "error": "internal_server_error",
@@ -415,7 +415,7 @@ def _add_debug_endpoints(app: FastAPI) -> None:
             "REDIS_URL": "***masked***" if os.getenv("REDIS_URL") else "not_set",
             "PYTHONPATH": os.getenv("PYTHONPATH", "not_set"),
             "PWD": os.getenv("PWD", "not_set"),
-            "DEBUG": str(settings.DEBUG),
+            "DEBUG": str(settings.APP_ENABLE_DEBUG),
             "DEPLOYMENT_MODE": getattr(app.state, 'deployment_mode', 'unknown')
         }
         return {

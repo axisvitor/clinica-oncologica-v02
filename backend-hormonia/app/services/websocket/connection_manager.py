@@ -311,7 +311,7 @@ class UnifiedWebSocketConnectionManager:
         try:
             payload = jwt.decode(
                 token,
-                settings.SECRET_KEY,
+                settings.SECURITY_SECRET_KEY,
                 algorithms=["HS256"]
             )
 

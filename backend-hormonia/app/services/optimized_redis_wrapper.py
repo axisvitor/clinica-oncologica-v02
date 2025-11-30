@@ -264,7 +264,7 @@ class OptimizedRedisClient:
             try:
                 self._thread_local.client.close()
                 del self._thread_local.client
-            except:
+            except Exception:
                 pass
 
 # Global instance for singleton pattern

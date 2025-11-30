@@ -89,7 +89,7 @@ async def validate_configuration(
         recommendations = []
 
         # Validate critical settings
-        if not settings.SECRET_KEY or 'CHANGE_THIS' in settings.SECRET_KEY.upper():
+        if not settings.SECURITY_SECRET_KEY or 'CHANGE_THIS' in settings.SECURITY_SECRET_KEY.upper():
             errors.append("SECRET_KEY is not properly configured")
 
         if not settings.DATABASE_URL:
@@ -107,8 +107,8 @@ async def validate_configuration(
             recommendations.append("Configure Firebase for authentication features")
 
         # Check production security settings
-        if settings.ENVIRONMENT.lower() == 'production':
-            if settings.DEBUG:
+        if settings.APP_ENVIRONMENT.lower() == 'production':
+            if settings.APP_ENABLE_DEBUG:
                 errors.append("DEBUG should be False in production")
 
             if not getattr(settings, 'SESSION_COOKIE_SECURE', False):
@@ -120,19 +120,19 @@ async def validate_configuration(
                 recommendations.append("Enable HTTPS redirect for production")
 
         # Check CORS configuration
-        if not getattr(settings, 'ALLOWED_ORIGINS', None) and not settings.FRONTEND_URL:
+        if not getattr(settings, 'ALLOWED_ORIGINS', None) and not settings.CORS_FRONTEND_URL:
             warnings.append("CORS origins not configured")
             recommendations.append("Configure allowed CORS origins")
 
         # Check external service configurations
-        if settings.ENABLE_EVOLUTION and not settings.EVOLUTION_API_KEY:
+        if settings.WHATSAPP_ENABLE_SERVICE and not settings.WHATSAPP_EVOLUTION_API_KEY:
             warnings.append("Evolution API is enabled but API key not configured")
 
-        if settings.AI_HUMANIZATION_ENABLED and not settings.GEMINI_API_KEY:
+        if settings.AI_ENABLE_HUMANIZATION and not settings.AI_GEMINI_API_KEY:
             warnings.append("AI humanization is enabled but Gemini API key not configured")
 
         # Check rate limiting
-        if not settings.RATE_LIMIT_ENABLED and settings.ENVIRONMENT == 'production':
+        if not settings.RATE_LIMIT_ENABLE_SERVICE and settings.APP_ENVIRONMENT == 'production':
             warnings.append("Rate limiting is disabled in production")
             recommendations.append("Enable rate limiting for production security")
 

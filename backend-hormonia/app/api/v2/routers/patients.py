@@ -176,9 +176,16 @@ async def create_patient(
     current_user = Depends(get_current_user_from_session),
     x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
 ):
-    # QW-006: Idempotency key support for duplicate request prevention
-    # If an idempotency key is provided, check if a patient was already created with this key
+    # QW-004: Database-level idempotency key support for duplicate request prevention
+    # Check database first for idempotency (more reliable than Redis cache)
     if x_idempotency_key:
+        repo = PatientRepository(db)
+        existing = repo.get_by_idempotency_key(x_idempotency_key)
+        if existing:
+            logger.info(f"Idempotency key {x_idempotency_key} already processed (DB), returning existing patient")
+            return _serialize_patient(existing)
+
+        # QW-006: Redis cache fallback for fast idempotency checks (secondary layer)
         from app.core.redis_client import get_redis_client
         redis = get_redis_client()
         if redis:
@@ -187,7 +194,7 @@ async def create_patient(
                 cached_result = redis.get(cache_key)
                 if cached_result:
                     import json
-                    logger.info(f"Idempotency key {x_idempotency_key} already processed, returning cached result")
+                    logger.info(f"Idempotency key {x_idempotency_key} found in Redis cache")
                     return json.loads(cached_result)
             except Exception as redis_err:
                 logger.debug(f"Idempotency cache check failed (non-critical): {redis_err}")
@@ -238,10 +245,11 @@ async def create_patient(
             ),
             doctor_id=doctor_uuid,
             current_user=current_user,
+            idempotency_key=x_idempotency_key,  # QW-004: Pass idempotency key to coordinator
         )
         result = _serialize_patient(created)
 
-        # QW-006: Store result with idempotency key (TTL: 24 hours)
+        # QW-006: Store result with idempotency key in Redis (TTL: 24 hours) as secondary cache
         if x_idempotency_key:
             from app.core.redis_client import get_redis_client
             redis = get_redis_client()
@@ -339,8 +347,8 @@ async def delete_patient(
 ):
     try:
         pid = UUID(patient_id)
-    except:
-        raise HTTPException(status_code=400)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid patient_id UUID")
         
     # Initialize CRUD Service
     repo = PatientRepository(db)

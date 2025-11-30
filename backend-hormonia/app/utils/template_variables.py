@@ -119,7 +119,7 @@ class TemplateVariableProcessor:
                 if isinstance(start_date, str):
                     try:
                         start_date = datetime.fromisoformat(start_date)
-                    except:
+                    except (ValueError, TypeError):
                         start_date = None
                 
                 if start_date:

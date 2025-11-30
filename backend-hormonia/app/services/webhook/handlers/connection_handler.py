@@ -146,7 +146,7 @@ class ConnectionWebhookHandler:
             # Store with QR code TTL (QR codes expire quickly)
             await redis_client.setex(
                 qr_key,
-                cache_settings.QRCODE_TTL,
+                cache_settings.CACHE_QRCODE_TTL_SECONDS,
                 str(qr_data)
             )
             

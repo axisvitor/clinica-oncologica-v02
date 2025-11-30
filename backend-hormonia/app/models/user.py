@@ -58,6 +58,10 @@ class User(BaseModel):
     force_change_password = Column(Boolean, default=False, nullable=False)
     last_password_change = Column(DateTime(timezone=True), nullable=True)
 
+    # Granular permissions (RBAC enhancement)
+    # Stores array of permission strings like ["patients:read", "patients:write", "reports:admin"]
+    permissions = Column(JSONB, default=[], nullable=False, server_default='[]')
+
     # Relationships
     patients = relationship("Patient", back_populates="doctor")
     generated_reports = relationship("MedicalReport", back_populates="generated_by_user")

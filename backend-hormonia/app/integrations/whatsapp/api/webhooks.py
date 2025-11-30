@@ -2,6 +2,7 @@
 WhatsApp webhook handlers for Evolution API integration.
 
 SECURITY: Rate limiting added to prevent webhook flooding (HIGH-001)
+SECURITY: Idempotency protection added to prevent duplicate message processing
 """
 import json
 import logging
@@ -10,6 +11,7 @@ from typing import Dict, Any, Optional
 from fastapi import APIRouter, Request, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+import redis.asyncio as redis
 
 from ..models.message import (
     WebhookPayload, MessageStatus, WhatsAppMessage, WhatsAppContact,
@@ -18,14 +20,57 @@ from ..models.message import (
 from ..services.message_service import WhatsAppMessageService
 from app.database import get_db
 from app.utils.rate_limiter import limiter
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/webhooks/whatsapp", tags=["WhatsApp Webhooks"])
 
+# Redis client for idempotency tracking
+_redis_client: Optional[redis.Redis] = None
+
+
+async def get_redis() -> redis.Redis:
+    """Get or create Redis client for idempotency."""
+    global _redis_client
+    if _redis_client is None:
+        _redis_client = redis.from_url(settings.REDIS_URL)
+    return _redis_client
+
+
+async def is_event_processed(event_id: str) -> bool:
+    """
+    Check if webhook event was already processed (idempotency protection).
+
+    Args:
+        event_id: Unique event identifier (e.g., message_id)
+
+    Returns:
+        True if event was already processed, False otherwise
+    """
+    redis_client = await get_redis()
+    key = f"webhook:processed:{event_id}"
+
+    # Check if key exists
+    exists = await redis_client.exists(key)
+    if exists:
+        logger.info(
+            f"Duplicate webhook event detected and ignored: {event_id}",
+            extra={"event_id": event_id, "idempotency": "protected"}
+        )
+        return True
+
+    # Mark as processed with 24h TTL (prevents indefinite growth)
+    await redis_client.setex(key, 86400, "1")
+    return False
+
 
 @router.post("/evolution/{instance_name}")
-@limiter.limit("500/minute")  # SECURITY: Rate limit to prevent webhook flooding (HIGH-001)
+# WA-007 FIX: Rate limit per IP + instance_name combination
+@limiter.limit(
+    "500/minute",
+    key_func=lambda: f"{request.client.host}:{request.path_params.get('instance_name', 'unknown')}"
+)
 async def evolution_webhook(
     instance_name: str,
     request: Request,
@@ -35,7 +80,8 @@ async def evolution_webhook(
     """
     Handle Evolution API webhooks for WhatsApp events.
 
-    Rate limited: 500 requests per minute per IP to prevent DDoS/spam attacks.
+    Rate limited: 500 requests per minute per IP+instance to prevent DDoS/spam attacks.
+    WA-007: Rate limit applied per IP AND instance_name combination
     """
     try:
         # Get raw payload
@@ -119,7 +165,7 @@ async def process_webhook_event(webhook_data: WebhookPayload, background_tasks: 
 
 
 async def handle_message_upsert(instance_name: str, data: Dict[str, Any], background_tasks: BackgroundTasks, db: AsyncSession):
-    """Handle incoming messages."""
+    """Handle incoming messages with idempotency protection."""
     try:
         messages = data if isinstance(data, list) else [data]
 
@@ -135,6 +181,11 @@ async def handle_message_upsert(instance_name: str, data: Dict[str, Any], backgr
             message_id = key.get('id', '')
             chat_id = key.get('remoteJid', '')
             sender_id = key.get('participant') or key.get('remoteJid', '')
+
+            # IDEMPOTENCY: Check if this message was already processed
+            if await is_event_processed(f"message:{message_id}"):
+                logger.debug(f"Skipping duplicate message: {message_id}")
+                continue
 
             # Determine message type and content
             message_type = "text"
@@ -274,7 +325,7 @@ async def _trigger_flow_response_async(patient_id: str, content: str):
 
 
 async def handle_message_update(instance_name: str, data: Dict[str, Any], db: AsyncSession):
-    """Handle message status updates."""
+    """Handle message status updates with idempotency protection."""
     try:
         updates = data if isinstance(data, list) else [data]
 
@@ -286,6 +337,12 @@ async def handle_message_update(instance_name: str, data: Dict[str, Any], db: As
             status_update = update_info.get('status')
 
             if not message_id or not status_update:
+                continue
+
+            # IDEMPOTENCY: Check if this status update was already processed
+            event_id = f"status:{message_id}:{status_update}"
+            if await is_event_processed(event_id):
+                logger.debug(f"Skipping duplicate status update: {event_id}")
                 continue
 
             # Map Evolution API status to our status

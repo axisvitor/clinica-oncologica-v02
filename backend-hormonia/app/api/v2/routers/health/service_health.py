@@ -132,7 +132,7 @@ async def check_external_services() -> List[ExternalServiceHealth]:
     services = []
 
     # Check Evolution API if enabled
-    if hasattr(settings, 'ENABLE_EVOLUTION') and settings.ENABLE_EVOLUTION:
+    if hasattr(settings, 'ENABLE_EVOLUTION') and settings.WHATSAPP_ENABLE_SERVICE:
         try:
             from app.integrations.evolution import get_evolution_client
 

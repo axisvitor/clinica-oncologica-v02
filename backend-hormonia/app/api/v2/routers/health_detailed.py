@@ -279,7 +279,7 @@ async def check_database_constraints(db: AsyncSession) -> Dict[str, Any]:
         try:
             result = await db.execute(duplicate_blocks_query, {"recent_cutoff": recent_cutoff})
             duplicate_blocks = result.scalar() or 0
-        except:
+        except Exception:
             duplicate_blocks = 0  # Audit log might not exist
 
         status = "healthy" if all_present else "unhealthy"

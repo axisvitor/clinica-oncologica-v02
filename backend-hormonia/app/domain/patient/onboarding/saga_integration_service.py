@@ -76,6 +76,7 @@ class SagaIntegrationService:
         patient_data: PatientCreate,
         doctor_id: UUID,
         current_user: Optional["User"] = None,
+        idempotency_key: Optional[str] = None,
     ) -> Patient:
         """
         Execute patient creation via Saga Pattern.
@@ -95,6 +96,7 @@ class SagaIntegrationService:
             patient_data: Patient creation data
             doctor_id: ID of the doctor creating the patient
             current_user: Current authenticated user (optional)
+            idempotency_key: QW-004: Unique key to prevent duplicate requests (optional)
 
         Returns:
             Created Patient object if saga succeeds, None if saga fails
@@ -115,6 +117,7 @@ class SagaIntegrationService:
                 patient_data=patient_data,
                 doctor_id=doctor_id,
                 current_user=current_user,
+                idempotency_key=idempotency_key,  # QW-004: Pass idempotency key to orchestrator
             )
 
             if patient:

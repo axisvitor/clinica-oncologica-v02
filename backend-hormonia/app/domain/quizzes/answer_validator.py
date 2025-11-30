@@ -99,7 +99,7 @@ class AnswerValidator:
             try:
                 # Try to parse JSON string
                 response_value = json.loads(response_value)
-            except:
+            except (json.JSONDecodeError, ValueError):
                 # Single value as list
                 response_value = [self.normalize_other_value(response_value, question)]
         elif isinstance(response_value, list):

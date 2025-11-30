@@ -221,7 +221,7 @@ class ErrorTracker:
             'error_type': error_event.error_type,
             'severity': error_event.severity.value,
             'count': count,
-            'environment': settings.ENVIRONMENT,
+            'environment': settings.APP_ENVIRONMENT,
             'service': 'hormonia-backend'
         }
         

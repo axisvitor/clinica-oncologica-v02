@@ -40,7 +40,8 @@ logger = get_logger(__name__)
 
 # Configuration
 MAX_TIMESTAMP_AGE_SECONDS = 300
-IDEMPOTENCY_WINDOW_HOURS = 24
+# WA-005 FIX: Reduced from 24h to 2h to prevent Redis memory growth
+IDEMPOTENCY_WINDOW_HOURS = 2  # 2 hours is sufficient for retry windows
 REDIS_TTL_WEBHOOK_CONFIG = 600
 REDIS_TTL_WEBHOOK_STATS = 900
 REDIS_TTL_IDEMPOTENCY = 86400
@@ -73,7 +74,7 @@ class WebhookService:
         ).hexdigest()
 
     async def verify_webhook_signature(self, payload: bytes, signature: str, timestamp: str, webhook_id: str) -> Dict[str, Any]:
-        if not settings.EVOLUTION_WEBHOOK_SECRET:
+        if not settings.WHATSAPP_EVOLUTION_WEBHOOK_SECRET:
             raise HTTPException(status_code=401, detail="Webhook authentication not configured")
 
         if timestamp:
@@ -85,28 +86,63 @@ class WebhookService:
             except ValueError:
                 raise HTTPException(status_code=401, detail="Invalid webhook timestamp")
 
-        expected_signature = self._compute_webhook_signature(payload, settings.EVOLUTION_WEBHOOK_SECRET, timestamp)
+        expected_signature = self._compute_webhook_signature(payload, settings.WHATSAPP_EVOLUTION_WEBHOOK_SECRET, timestamp)
         if not hmac.compare_digest(signature, expected_signature):
             raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
         return {"verified": True, "webhook_id": webhook_id, "timestamp": timestamp}
 
     async def check_idempotency(self, webhook_id: Optional[str], event_type: str) -> bool:
-        if not webhook_id: return True
-        
+        """
+        Check if event was already processed (Redis + DB fallback).
+
+        WA-006 FIX: DB fallback ensures idempotency even if Redis is unavailable
+        """
+        if not webhook_id:
+            return True
+
+        # WA-006: Try Redis first (faster)
         redis = await self._get_redis()
         if redis:
-            cache_key = f"webhook:idempotency:{webhook_id}"
-            if await redis.get(cache_key): return False
+            try:
+                cache_key = f"webhook:idempotency:{webhook_id}"
+                if await redis.get(cache_key):
+                    logger.debug(f"Idempotency check (Redis): event {webhook_id} already processed")
+                    return False
+            except Exception as e:
+                logger.warning(f"Redis idempotency check failed, falling back to DB: {e}")
 
-        cutoff_time = datetime.utcnow() - timedelta(hours=IDEMPOTENCY_WINDOW_HOURS)
-        existing = self.db.execute(select(WebhookEvent).where(WebhookEvent.event_id == webhook_id, WebhookEvent.created_at >= cutoff_time)).first()
-        
-        if existing:
-            if redis: await redis.set(cache_key, "1", expire=REDIS_TTL_IDEMPOTENCY)
-            return False
+        # WA-006: DB fallback for reliability
+        try:
+            cutoff_time = datetime.utcnow() - timedelta(hours=IDEMPOTENCY_WINDOW_HOURS)
+            existing = self.db.execute(
+                select(WebhookEvent).where(
+                    WebhookEvent.event_id == webhook_id,
+                    WebhookEvent.created_at >= cutoff_time
+                )
+            ).first()
 
-        if redis: await redis.set(cache_key, "1", expire=REDIS_TTL_IDEMPOTENCY)
+            if existing:
+                logger.debug(f"Idempotency check (DB): event {webhook_id} already processed")
+                # Update Redis cache if available
+                if redis:
+                    try:
+                        await redis.set(cache_key, "1", expire=REDIS_TTL_IDEMPOTENCY)
+                    except Exception as e:
+                        logger.debug(f"Could not update Redis cache: {e}")
+                return False
+        except Exception as e:
+            logger.error(f"DB idempotency check failed: {e}")
+            # Fail open: allow event if both Redis and DB fail
+            return True
+
+        # Event is new - mark as processed
+        if redis:
+            try:
+                await redis.set(cache_key, "1", expire=REDIS_TTL_IDEMPOTENCY)
+            except Exception as e:
+                logger.debug(f"Could not set Redis idempotency key: {e}")
+
         return True
 
     async def list_webhooks(self, pagination: dict, status_filter: Optional[WebhookStatus]) -> WebhookList:

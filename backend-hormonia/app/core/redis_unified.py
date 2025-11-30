@@ -3,7 +3,6 @@ Unified Redis Client - Single Entry Point
 Deprecates multiple client implementations in favor of redis_manager.py
 """
 import logging
-import warnings
 from typing import Optional, Union
 
 from app.core.redis_manager import (
@@ -130,76 +129,7 @@ async def redis_health():
 
 
 # ============================================================================
-# DEPRECATED COMPATIBILITY LAYER
-# ============================================================================
-
-def _deprecation_warning(old_module: str, new_function: str):
-    """Issue deprecation warning"""
-    warnings.warn(
-        f"{old_module} is deprecated. Use 'from app.core.redis_unified import {new_function}' instead.",
-        DeprecationWarning,
-        stacklevel=3
-    )
-
-
-# Legacy imports for backward compatibility
-class LegacyRedisClientFactory:
-    """Deprecated: Use redis_unified instead"""
-
-    def __init__(self):
-        _deprecation_warning('RedisClientFactory', 'get_redis_client')
-        self._manager = get_redis_manager()
-
-    def get_sync_client(self):
-        return self._manager.get_sync_client()
-
-    async def get_async_client(self):
-        return await self._manager.get_async_client()
-
-    def get_compatible_client(self, client_type='auto'):
-        return self._manager.get_compatible_client(client_type)
-
-
-class LegacySimplifiedRedisClient:
-    """Deprecated: Use redis_unified instead"""
-
-    def __init__(self, *args, **kwargs):
-        _deprecation_warning('SimplifiedRedisClient', 'get_redis_client')
-        self._client = get_sync_redis_client()
-
-    def set(self, key, value, ex=None):
-        return self._client.set(key, value, ex=ex)
-
-    def get(self, key):
-        return self._client.get(key)
-
-    def delete(self, key):
-        return self._client.delete(key)
-
-    def exists(self, key):
-        return bool(self._client.exists(key))
-
-
-def get_redis_factory():
-    """Deprecated: Use get_redis_client() instead"""
-    _deprecation_warning('get_redis_factory()', 'get_redis_client')
-    return LegacyRedisClientFactory()
-
-
-def initialize_simple_redis(*args, **kwargs):
-    """Deprecated: Use get_redis_client() instead"""
-    _deprecation_warning('initialize_simple_redis()', 'get_redis_client')
-    return LegacySimplifiedRedisClient()
-
-
-def get_simple_redis():
-    """Deprecated: Use get_redis_client() instead"""
-    _deprecation_warning('get_simple_redis()', 'get_redis_client')
-    return LegacySimplifiedRedisClient()
-
-
-# ============================================================================
-# MIGRATION HELPERS
+# MIGRATION REFERENCE (Legacy code removed 2025-11-26)
 # ============================================================================
 
 def print_migration_guide():

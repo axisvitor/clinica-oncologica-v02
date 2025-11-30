@@ -23,6 +23,20 @@ from app.config.messages import DEFAULT_WELCOME_MESSAGE
 
 logger = logging.getLogger(__name__)
 
+
+class SagaCompensationError(Exception):
+    """
+    Exception raised when saga compensation fails.
+
+    This error indicates that the system failed to properly rollback
+    a saga transaction, which may require manual intervention.
+    """
+    def __init__(self, message: str, original_error: Optional[Exception] = None, saga_id: Optional[UUID] = None):
+        self.message = message
+        self.original_error = original_error
+        self.saga_id = saga_id
+        super().__init__(self.message)
+
 class SagaOrchestrator:
     """
     Saga Orchestrator for Patient Onboarding.
@@ -51,21 +65,23 @@ class SagaOrchestrator:
         self,
         patient_data: PatientCreate,
         doctor_id: UUID,
-        current_user: Any = None
+        current_user: Any = None,
+        idempotency_key: Optional[str] = None
     ) -> Optional[Patient]:
         """
         Execute the patient onboarding saga.
-        
+
         Steps:
         1. Create patient in database
         2. Initialize flow state
         3. Send welcome WhatsApp message
-        
+
         Args:
             patient_data: Patient creation data
             doctor_id: ID of the doctor creating the patient
             current_user: Current user object
-            
+            idempotency_key: QW-004: Unique key to prevent duplicate requests (optional)
+
         Returns:
             Created Patient object if successful, None if failed (and compensated)
         """
@@ -87,7 +103,7 @@ class SagaOrchestrator:
         
         try:
             # --- STEP 1: Create Patient ---
-            patient = await self._step_create_patient(saga, patient_data, doctor_id)
+            patient = await self._step_create_patient(saga, patient_data, doctor_id, idempotency_key)
             if not patient:
                 raise Exception("Failed to create patient")
                 
@@ -189,16 +205,24 @@ class SagaOrchestrator:
             self.db.commit()
             return {"status": "failed", "error": str(e)}
 
-    async def _step_create_patient(self, saga: PatientOnboardingSaga, patient_data: PatientCreate, doctor_id: UUID) -> Patient:
-        """Step 1: Create Patient in DB"""
+    async def _step_create_patient(self, saga: PatientOnboardingSaga, patient_data: PatientCreate, doctor_id: UUID, idempotency_key: Optional[str] = None) -> Patient:
+        """
+        Step 1: Create Patient in DB
+
+        QW-004: Supports idempotency key for duplicate request prevention
+        """
         try:
             patient_dict = patient_data.dict(exclude_unset=True)
             metadata = patient_dict.pop('metadata', {})
-            
+
             # Add doctor_id
             patient_dict['doctor_id'] = doctor_id
             if metadata:
                 patient_dict['patient_data'] = metadata
+
+            # QW-004: Add idempotency key if provided
+            if idempotency_key:
+                patient_dict['idempotency_key'] = idempotency_key
 
             # Save via Repo (expects dict)
             patient = self.patient_repo.create(patient_dict)
@@ -285,12 +309,47 @@ class SagaOrchestrator:
             saga.add_log_entry(4, "send_message", "failed", str(e))
             raise e
 
+    async def _track_compensation_failure(self, saga_id: UUID, step: int, error: Exception):
+        """
+        Track compensation failures for audit and manual recovery.
+
+        QW-002: Proper error tracking for compensation failures
+
+        Args:
+            saga_id: UUID of the saga
+            step: Step number that failed
+            error: Exception that occurred
+        """
+        try:
+            if self.redis:
+                # Store compensation failure in Redis for monitoring
+                failure_key = f"saga:compensation_failure:{saga_id}"
+                failure_data = {
+                    "saga_id": str(saga_id),
+                    "step": step,
+                    "error": str(error),
+                    "error_type": type(error).__name__,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                self.redis.setex(failure_key, 86400 * 7, json.dumps(failure_data))  # 7 days retention
+                logger.warning(f"Compensation failure tracked in Redis: {failure_key}")
+        except Exception as redis_error:
+            logger.error(f"Failed to track compensation failure in Redis: {redis_error}")
+
     async def _compensate_saga(self, saga: PatientOnboardingSaga):
-        """Execute compensation steps in reverse order."""
+        """
+        Execute compensation steps in reverse order.
+
+        QW-002: Enhanced error propagation and tracking for compensation failures.
+        Compensation failures are now properly logged, tracked, and raised to prevent
+        silent failures that could leave the system in an inconsistent state.
+        """
         logger.info(f"Compensating saga {saga.id} from step {saga.current_step}")
         saga.status = SagaStatus.COMPENSATING
         self.db.commit()
-        
+
+        compensation_errors = []
+
         try:
             # Step 3 Compensation: Delete Message (Best Effort)
             if saga.current_step >= 4:
@@ -305,9 +364,12 @@ class SagaOrchestrator:
                     for msg in messages:
                         self.db.delete(msg) # Hard delete or soft delete
                     saga.add_log_entry(4, "compensate_message", "success")
+                    logger.info(f"Saga {saga.id}: Step 4 compensation successful (message cleanup)")
                 except Exception as e:
-                    logger.error(f"Failed to compensate message: {e}")
+                    logger.error(f"Saga {saga.id}: Step 4 compensation failed: {e}", exc_info=True)
                     saga.add_log_entry(4, "compensate_message", "failed", str(e))
+                    compensation_errors.append(("Step 4: Message cleanup", e))
+                    await self._track_compensation_failure(saga.id, 4, e)
 
             # Step 2 Compensation: Deactivate/Delete Flow
             if saga.current_step >= 3:
@@ -315,10 +377,13 @@ class SagaOrchestrator:
                     # Explicitly delete flow states
                     await self.flow_service.delete_flow(saga.patient_id)
                     saga.add_log_entry(3, "compensate_flow", "success")
+                    logger.info(f"Saga {saga.id}: Step 3 compensation successful (flow cleanup)")
                 except Exception as e:
-                    logger.error(f"Failed to compensate flow: {e}")
+                    logger.error(f"Saga {saga.id}: Step 3 compensation failed: {e}", exc_info=True)
                     saga.add_log_entry(3, "compensate_flow", "failed", str(e))
-            
+                    compensation_errors.append(("Step 3: Flow cleanup", e))
+                    await self._track_compensation_failure(saga.id, 3, e)
+
             # Step 1 Compensation: Delete Patient
             if saga.current_step >= 1 and saga.patient_id:
                 try:
@@ -330,13 +395,33 @@ class SagaOrchestrator:
                     # For onboarding failure, maybe soft delete is enough.
                     self.patient_repo.delete(saga.patient_id)
                     saga.add_log_entry(1, "compensate_patient", "success")
+                    logger.info(f"Saga {saga.id}: Step 1 compensation successful (patient deletion)")
                 except Exception as e:
-                    logger.error(f"Failed to compensate patient: {e}")
+                    logger.error(f"Saga {saga.id}: Step 1 compensation failed: {e}", exc_info=True)
                     saga.add_log_entry(1, "compensate_patient", "failed", str(e))
+                    compensation_errors.append(("Step 1: Patient deletion", e))
+                    await self._track_compensation_failure(saga.id, 1, e)
 
             saga.status = SagaStatus.FAILED # End state for now
             self.db.commit()
-            
+
+            # QW-002: Raise compensation errors if any occurred
+            if compensation_errors:
+                error_details = "; ".join([f"{step}: {str(err)}" for step, err in compensation_errors])
+                raise SagaCompensationError(
+                    f"Saga {saga.id} compensation failed with {len(compensation_errors)} error(s): {error_details}",
+                    original_error=compensation_errors[0][1],
+                    saga_id=saga.id
+                )
+
+        except SagaCompensationError:
+            # Re-raise SagaCompensationError to propagate properly
+            raise
         except Exception as e:
-            logger.error(f"Critical error during compensation: {e}")
-            # Leave in COMPENSATING state or FAILED
+            logger.error(f"Critical error during compensation: {e}", exc_info=True)
+            await self._track_compensation_failure(saga.id, 0, e)
+            raise SagaCompensationError(
+                f"Critical compensation error for saga {saga.id}: {str(e)}",
+                original_error=e,
+                saga_id=saga.id
+            )

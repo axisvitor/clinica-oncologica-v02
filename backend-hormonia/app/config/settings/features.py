@@ -1,6 +1,7 @@
 """
 Features configuration module: Application features and business logic settings.
 Includes monthly quiz, flow auto-enrollment, file uploads, and localization.
+ENV Variable Naming Convention: {CATEGORY}_{SUBCATEGORY}_{ATTRIBUTE}_{UNIT}
 """
 
 from pydantic import Field
@@ -13,77 +14,95 @@ class FeaturesSettings(BaseAppSettings):
     """Configuration for application features and business logic."""
 
     # ============================================================================
-    # Alert System Configuration (QW-020)
+    # Monthly Quiz Configuration - Direct ENV names
     # ============================================================================
-    # Note: Legacy alert system archived in legacy/alerts_archive_2025-11-09/
-    # Consolidated alert system is now the only implementation.
-
-    # ============================================================================
-    # Monthly Quiz Configuration
-    # ============================================================================
-    MONTHLY_QUIZ_VIA_LINK: bool = Field(
+    QUIZ_ENABLE_VIA_LINK: bool = Field(
         default=True,
         description="Enable monthly quiz via secure link (True) or WhatsApp conversational (False)",
     )
-    MONTHLY_QUIZ_BASE_URL: str = Field(
+    QUIZ_BASE_URL: str = Field(
         default="http://localhost:3001",
         description="Base URL for monthly quiz access links",
     )
-    MONTHLY_QUIZ_TOKEN_SECRET: str = Field(
+    QUIZ_TOKEN_SECRET: str = Field(
         default="your-monthly-quiz-token-secret-change-this",
-        description="Secret key for generating quiz tokens (should be different from main SECRET_KEY)",
+        description="Secret key for generating quiz tokens (should be different from main SECURITY_SECRET_KEY)",
     )
-    MONTHLY_QUIZ_TOKEN_EXPIRY_HOURS: int = Field(
+    QUIZ_TOKEN_EXPIRY_HOURS: int = Field(
         default=72,
         description="Monthly quiz link expiry time in hours (default: 72 hours = 3 days)",
     )
 
     # ============================================================================
-    # Saga Pattern Configuration
+    # Saga Pattern Configuration - Direct ENV names
     # ============================================================================
-    ENABLE_SAGA_PATTERN: bool = Field(
+    TASK_SAGA_ENABLE_PATTERN: bool = Field(
         default=True,
         description="Enable Saga Pattern for patient onboarding (recommended for production)",
     )
-    SAGA_STEP_MAX_RETRIES: int = Field(
+    TASK_SAGA_STEP_MAX_RETRIES: int = Field(
         default=3,
         description="Maximum number of retries for each saga step before marking as failed",
     )
-    SAGA_RETRY_INITIAL_DELAY_SECONDS: int = Field(
+    TASK_SAGA_RETRY_INITIAL_DELAY_SECONDS: int = Field(
         default=1,
         description="Initial delay in seconds before first retry (exponential backoff)",
     )
-    SAGA_RETRY_MAX_DELAY_SECONDS: int = Field(
+    TASK_SAGA_RETRY_MAX_DELAY_SECONDS: int = Field(
         default=30,
         description="Maximum delay in seconds between retries (exponential backoff cap)",
     )
-    SAGA_GLOBAL_TIMEOUT_SECONDS: int = Field(
+    TASK_SAGA_GLOBAL_TIMEOUT_SECONDS: int = Field(
         default=300,
         description="Global timeout for saga execution in seconds (default: 5 minutes)",
     )
-    SAGA_PERSISTENCE_TTL_SECONDS: int = Field(
+    TASK_SAGA_PERSISTENCE_TTL_SECONDS: int = Field(
         default=604800,
         description="TTL for saga state persistence in Redis (default: 7 days)",
     )
+    TASK_SAGA_MAX_RETRIES: int = Field(
+        default=3,
+        description="Maximum retries for saga operations",
+    )
+    TASK_SAGA_RETRY_DELAY_SECONDS: int = Field(
+        default=60,
+        description="Base delay for saga retries in seconds",
+    )
 
     # ============================================================================
-    # Flow Auto-Enrollment Configuration
+    # Flow Auto-Enrollment Configuration - Direct ENV names
     # ============================================================================
-    ENABLE_AUTO_FLOW_ENROLLMENT: bool = Field(
+    FLOW_ENABLE_AUTO_ENROLLMENT: bool = Field(
         default=True,
         description="Automatically enroll patients in treatment flows after registration",
     )
-    AUTO_FLOW_ENROLLMENT_FALLBACK: bool = Field(
+    FLOW_ENABLE_AUTO_ENROLLMENT_FALLBACK: bool = Field(
         default=True,
         description="Use fallback flow template if specific template not found during auto-enrollment",
     )
 
     # ============================================================================
-    # File Storage Configuration
+    # File Storage Configuration - Direct ENV names
     # ============================================================================
-    UPLOAD_DIR: str = Field(default="uploads", description="Upload directory for files")
-    MAX_FILE_SIZE: int = Field(
-        default=10 * 1024 * 1024, description="Max file size in bytes (10MB)"
+    UPLOAD_DIRECTORY: str = Field(
+        default="uploads",
+        description="Upload directory for files"
+    )
+    UPLOAD_MAX_SIZE_BYTES: int = Field(
+        default=10 * 1024 * 1024,
+        description="Max file size in bytes (10MB)"
+    )
+
+    # ============================================================================
+    # Data Retention Configuration - Direct ENV names
+    # ============================================================================
+    RETENTION_DATA_DAYS: int = Field(
+        default=730,
+        description="Data retention period in days (default: 2 years)"
+    )
+    RETENTION_AUDIT_LOG_DAYS: int = Field(
+        default=365,
+        description="Audit log retention period in days"
     )
 
     # ============================================================================
@@ -95,17 +114,10 @@ class FeaturesSettings(BaseAppSettings):
         description="Supported language locales",
     )
 
-    @field_validator("MONTHLY_QUIZ_BASE_URL")
+    @field_validator("QUIZ_BASE_URL", mode="before")
     @classmethod
-    def validate_quiz_url(cls, v: str, info) -> str:
+    def validate_quiz_url(cls, v: str) -> str:
         """Validate that quiz URL is present if link mode is enabled."""
-        # Note: We can't easily access other fields in field_validator in Pydantic v2 
-        # without using model_validator, but for now we just ensure it's not empty 
-        # if it's provided. The logic to check dependency on MONTHLY_QUIZ_VIA_LINK 
-        # would require a model validator.
-        if v is None or v.strip() == "":
-             # Fallback to localhost if empty, or raise error? 
-             # For safety, let's default to localhost if empty to avoid crashes,
-             # but log a warning ideally.
+        if v is None or (isinstance(v, str) and v.strip() == ""):
              return "http://localhost:3001"
-        return v.rstrip("/")
+        return v.rstrip("/") if isinstance(v, str) else v

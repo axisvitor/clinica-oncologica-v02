@@ -27,37 +27,25 @@ import { useToast } from '@/components/ui/use-toast'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { useAuth } from '@/app/providers/AuthContext'
 import { getErrorMessage } from '@/lib/utils/type-guards'
-
-const normalizePhoneNumber = (value: string) => {
-  if (!value) return value
-  const digits = value.replace(/\D/g, '')
-  if (!digits) return value
-
-  if (value.trim().startsWith('+')) {
-    return `+${digits}`
-  }
-
-  // Default to Brazil country code if none provided
-  if (digits.length === 11) {
-    return `+55${digits}`
-  }
-
-  return `+${digits}`
-}
+import { normalizePhone } from '@/lib/utils/phone'
+import { cpfRefinement, cleanCPF } from '@/lib/utils/cpf'
 
 const createPatientSchema = z.object({
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   phone: z.string()
     .min(10, 'Telefone deve ter pelo menos 10 dígitos')
-    .transform(normalizePhoneNumber)
+    .transform(normalizePhone)
     .refine((value) => /^\+[1-9]\d{9,14}$/.test(value), 'Telefone deve incluir código do país (ex: +5511999999999)'),
-  email: z.string().email('Email inválido').optional().or(z.literal('')),
+  email: z.string().email('Email inválido').optional().nullable(),
   birth_date: z.string().optional(),
   treatment_type: z.string().min(1, 'Selecione um tipo de tratamento'),
   treatment_start_date: z.string().optional(),
   doctor_notes: z.string().optional(),
   timezone: z.string().default('America/Sao_Paulo'),
-  cpf: z.string().optional(),
+  cpf: z.string()
+    .optional()
+    .refine(cpfRefinement, { message: 'CPF inválido' })
+    .transform(val => val ? cleanCPF(val) : undefined),
   diagnosis: z.string().optional(),
   treatment_phase: z.string().optional()
 })

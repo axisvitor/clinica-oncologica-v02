@@ -11,8 +11,34 @@ import { CreateUserModal } from './CreateUserModal'
 import { UserDetailsModal } from './UserDetailsModal'
 import { AdminUser } from '@/types/admin'
 import { createLogger } from '../../../lib/logger'
+import { useToast } from '@/components/ui/use-toast'
 
 const logger = createLogger('UserListPage')
+
+/**
+ * Formats a date value for CSV export
+ */
+function formatDateForExport(value: string | null | undefined): string {
+  if (!value) return 'Nunca'
+  try {
+    return new Date(value).toLocaleString('pt-BR')
+  } catch {
+    return value
+  }
+}
+
+/**
+ * Translates user role to Portuguese
+ */
+function translateRole(role: string): string {
+  const roles: Record<string, string> = {
+    admin: 'Administrador',
+    doctor: 'Médico',
+    nurse: 'Enfermeiro',
+    receptionist: 'Recepcionista'
+  }
+  return roles[role] || role
+}
 
 export function UserListPage() {
   const [currentPage, setCurrentPage] = useState(1)
@@ -22,6 +48,7 @@ export function UserListPage() {
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
   const pageSize = 10
+  const { toast } = useToast()
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['admin-users', currentPage, search, roleFilter, statusFilter],
@@ -55,8 +82,67 @@ export function UserListPage() {
   }
 
   const handleExport = () => {
-    // TODO: Implement export functionality
-    logger.info('Export users data requested')
+    const users = data?.items as AdminUser[] | undefined
+    if (!users || users.length === 0) {
+      toast({
+        title: 'Sem dados para exportar',
+        description: 'Não há usuários disponíveis para exportação.',
+        variant: 'destructive'
+      })
+      return
+    }
+
+    try {
+      // Build CSV content
+      const headers = ['ID', 'Nome', 'Email', 'Função', 'Status', 'Criado em', 'Último login']
+      const rows = users.map(user => [
+        user.id,
+        user.full_name || '',
+        user.email,
+        translateRole(user.role),
+        user.is_active ? 'Ativo' : 'Inativo',
+        formatDateForExport(user.created_at),
+        formatDateForExport(user.last_login)
+      ])
+
+      // Escape CSV values
+      const escapeCSV = (value: string) => {
+        if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+          return `"${value.replace(/"/g, '""')}"`
+        }
+        return value
+      }
+
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => escapeCSV(String(cell))).join(','))
+      ].join('\n')
+
+      // Create and download file
+      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `usuarios_${new Date().toISOString().split('T')[0]}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+
+      logger.info(`Exported ${users.length} users to CSV`)
+      toast({
+        title: 'Exportação concluída',
+        description: `${users.length} usuário(s) exportado(s) com sucesso.`
+      })
+    } catch (error) {
+      logger.error('Export failed:', error)
+      toast({
+        title: 'Erro na exportação',
+        description: 'Não foi possível exportar os dados. Tente novamente.',
+        variant: 'destructive'
+      })
+    }
   }
 
   const handleViewUser = (user: AdminUser) => {

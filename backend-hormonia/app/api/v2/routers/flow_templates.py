@@ -86,7 +86,7 @@ async def list_flow_templates(
                     FlowTemplateVersion.created_at < cursor_created,
                     and_(FlowTemplateVersion.created_at == cursor_created, FlowTemplateVersion.id < cursor_id)
                 ))
-            except:
+            except (json.JSONDecodeError, ValueError, TypeError, KeyError):
                 raise HTTPException(status_code=400, detail="Invalid cursor")
 
         query = query.order_by(desc(FlowTemplateVersion.created_at), desc(FlowTemplateVersion.id))

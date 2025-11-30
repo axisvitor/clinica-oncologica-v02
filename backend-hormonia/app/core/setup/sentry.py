@@ -22,7 +22,7 @@ def setup_sentry() -> None:
     - ENVIRONMENT: Environment name (production, staging, development)
     - SENTRY_TRACES_SAMPLE_RATE: Performance monitoring sample rate (0.0-1.0)
     """
-    sentry_dsn = settings.SENTRY_DSN if hasattr(settings, 'SENTRY_DSN') else None
+    sentry_dsn = settings.MONITORING_SENTRY_DSN if hasattr(settings, 'SENTRY_DSN') else None
 
     if not sentry_dsn:
         logger.info("⚠️  Sentry not configured (SENTRY_DSN not set)")

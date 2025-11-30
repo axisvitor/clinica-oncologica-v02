@@ -32,11 +32,25 @@ async def ai_health_check() -> AIHealthResponse:
             redis_client = await get_redis_cache()
             if redis_client:
                 await redis_client.ping()
-                info = await redis_client.info("stats")
+                stats_info = await redis_client.info("stats")
+                keyspace_info = await redis_client.info("keyspace")
+
+                # Calculate actual hit rate
+                hits = stats_info.get("keyspace_hits", 0)
+                misses = stats_info.get("keyspace_misses", 0)
+                total = hits + misses
+                hit_rate = round(hits / total, 2) if total > 0 else 0.0
+
+                # Get actual key count from keyspace (db0 typically)
+                keys = 0
+                for db_name, db_info in keyspace_info.items():
+                    if db_name.startswith("db") and isinstance(db_info, dict):
+                        keys += db_info.get("keys", 0)
+
                 redis_info = {
                     "status": "operational",
-                    "hit_rate": 0.68,  # Would calculate from actual stats
-                    "keys": 1250,
+                    "hit_rate": hit_rate,
+                    "keys": keys,
                 }
             else:
                 redis_status = "unavailable"
@@ -45,12 +59,18 @@ async def ai_health_check() -> AIHealthResponse:
             redis_status = "error"
             redis_info = {"status": "error", "error": str(e)}
 
-        # Check Gemini API (simulated)
-        gemini_status = "operational"
-        gemini_info = {
-            "status": "operational",
-            "latency_ms": 245,
-        }
+        # Check Gemini API availability
+        gemini_status = "unknown"
+        gemini_info = {"status": "unknown", "reason": "not_tested"}
+        try:
+            from app.config import settings
+            if settings.GEMINI_API_KEY:
+                gemini_status = "configured"
+                gemini_info = {"status": "configured", "enabled": True}
+            else:
+                gemini_info = {"status": "not_configured", "enabled": False}
+        except Exception as e:
+            gemini_info = {"status": "error", "error": str(e)}
 
         # Overall status
         overall_status = "healthy"
@@ -61,14 +81,18 @@ async def ai_health_check() -> AIHealthResponse:
 
         response_time = (datetime.utcnow() - start_time).total_seconds() * 1000
 
+        # Check actual AI service configurations
+        from app.config import settings
+        services = {
+            "humanizer": "operational" if getattr(settings, 'AI_ENABLE_HUMANIZATION', True) else "disabled",
+            "sentiment_analyzer": "operational" if getattr(settings, 'AI_ENABLE_SENTIMENT', True) else "disabled",
+            "insights_generator": "operational" if getattr(settings, 'AI_ENABLE_INSIGHTS', True) else "disabled",
+            "risk_analyzer": "operational" if getattr(settings, 'AI_ENABLE_RISK_ANALYSIS', True) else "disabled",
+        }
+
         return AIHealthResponse(
             status=overall_status,
-            services={
-                "humanizer": "operational",
-                "sentiment_analyzer": "operational",
-                "insights_generator": "operational",
-                "risk_analyzer": "operational",
-            },
+            services=services,
             redis_cache=redis_info,
             gemini_api=gemini_info,
             response_time_ms=response_time,

@@ -180,9 +180,24 @@ export function createPatientsApi(client: ApiClientCore) {
     /**
      * Update patient
      */
-    update: async (patientId: string, data: PatientUpdate): Promise<Patient> => {
+    update: async (patientId: string, data: PatientUpdate, options?: { headers?: Record<string, string> }): Promise<Patient> => {
       // Denormalize frontend data to backend format before sending
       const backendData = denormalizePatient(data as any)
+
+      // If options.headers provided, we need to pass them through request options
+      // Since patch doesn't support options, we'll call request directly
+      if (options?.headers) {
+        const patient = await client.request<BackendPatient>(`/api/v2/patients/${patientId}`, {
+          method: 'PATCH',
+          body: JSON.stringify(backendData),
+          headers: {
+            'Content-Type': 'application/json',
+            ...options.headers
+          }
+        })
+        return normalizePatient(patient)
+      }
+
       const patient = await client.patch<BackendPatient>(`/api/v2/patients/${patientId}`, backendData)
       return normalizePatient(patient)
     },

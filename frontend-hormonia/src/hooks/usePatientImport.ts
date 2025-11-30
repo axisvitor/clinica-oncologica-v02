@@ -10,6 +10,7 @@
 
 import { useState, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { useAuth } from '@/hooks/useAuth';
 import type {
   ImportOptions,
   ValidationResult,
@@ -284,10 +285,21 @@ export function usePatientImport(): UsePatientImportReturn {
 
 /**
  * Hook to check if user has import permissions
+ * Only admins and doctors can import patients
  */
 export function useCanImportPatients(): boolean {
-  // TODO: Implement RBAC check
-  // For now, assume user can import if they can access this hook
-  // Should check for 'admin' or 'doctor' role
-  return true;
+  const { hasAnyRole, isAdmin, isAuthenticated } = useAuth();
+
+  // Not authenticated = no access
+  if (!isAuthenticated) {
+    return false;
+  }
+
+  // Admin always has access
+  if (isAdmin()) {
+    return true;
+  }
+
+  // Check for doctor role
+  return hasAnyRole(['admin', 'doctor', 'physician']);
 }

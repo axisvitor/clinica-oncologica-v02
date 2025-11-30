@@ -99,7 +99,7 @@ async def list_quizzes(
 
     if patient_id:
         try: filters.append(QuizSession.patient_id == UUID(patient_id))
-        except: raise HTTPException(status_code=400)
+        except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid patient_id UUID")
 
     if status_filter:
         filters.append(QuizSession.status == status_filter)
@@ -153,7 +153,7 @@ async def get_quiz(
     include: Optional[List[str]] = Depends(get_eager_load_params),
 ):
     try: qid = UUID(quiz_id)
-    except: raise HTTPException(status_code=400)
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid quiz_id UUID")
 
     query = db.query(QuizSession)
     if include and "patient" in include:
@@ -199,7 +199,7 @@ async def create_quiz(
     try:
         pid = UUID(quiz_data.patient_id)
         tid = UUID(quiz_data.quiz_template_id)
-    except: raise HTTPException(status_code=400)
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid UUID format")
 
     patient = db.query(Patient).get(pid)
     if not patient: raise HTTPException(status_code=404, detail="Patient not found")
@@ -242,7 +242,7 @@ async def update_quiz(
     current_user = Depends(get_current_user_from_session),
 ):
     try: qid = UUID(quiz_id)
-    except: raise HTTPException(status_code=400)
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid quiz_id UUID")
 
     quiz = db.query(QuizSession).get(qid)
     if not quiz: raise HTTPException(status_code=404)
@@ -272,7 +272,7 @@ async def delete_quiz(
     current_user = Depends(get_current_user_from_session),
 ):
     try: qid = UUID(quiz_id)
-    except: raise HTTPException(status_code=400)
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid quiz_id UUID")
 
     quiz = db.query(QuizSession).get(qid)
     if not quiz: raise HTTPException(status_code=404)

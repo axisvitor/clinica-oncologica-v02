@@ -62,7 +62,7 @@ async def _startup(app: FastAPI) -> object:
     logger = get_logger(__name__)
 
     # Configure structured logging with JSON output
-    log_level = 'DEBUG' if settings.DEBUG else 'INFO'
+    log_level = 'DEBUG' if settings.APP_ENABLE_DEBUG else 'INFO'
     configure_structured_logging(log_level=log_level)
     logger.info("Structured logging configured", extra={'log_level': log_level})
 

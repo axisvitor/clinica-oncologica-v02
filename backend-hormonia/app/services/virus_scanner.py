@@ -291,7 +291,7 @@ class VirusScannerService:
             try:
                 subprocess.run(["clamdscan", "--version"], capture_output=True, timeout=5)
                 return True, "ClamAV CLI available (daemon down)"
-            except:
+            except (subprocess.SubprocessError, FileNotFoundError, OSError):
                 pass
 
         return False, "No ClamAV scanner available"

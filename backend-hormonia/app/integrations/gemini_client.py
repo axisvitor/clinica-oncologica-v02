@@ -45,8 +45,8 @@ class GeminiClient:
             api_key: Google AI API key (defaults to settings)
             model: Gemini model name (defaults to settings)
         """
-        self.api_key = api_key or settings.GEMINI_API_KEY
-        self.model_name = model or settings.GEMINI_MODEL
+        self.api_key = api_key or settings.AI_GEMINI_API_KEY
+        self.model_name = model or settings.AI_GEMINI_MODEL
         self.redis_client = get_sync_redis()
 
         if not self.api_key:
@@ -59,10 +59,10 @@ class GeminiClient:
             self.model = ChatGoogleGenerativeAI(
                 model=self.model_name,
                 google_api_key=self.api_key,
-                temperature=settings.GEMINI_TEMPERATURE,
-                max_output_tokens=settings.GEMINI_MAX_OUTPUT_TOKENS,
-                top_p=settings.GEMINI_TOP_P,
-                top_k=settings.GEMINI_TOP_K,
+                temperature=settings.AI_GEMINI_TEMPERATURE,
+                max_output_tokens=settings.AI_GEMINI_MAX_OUTPUT_TOKENS,
+                top_p=settings.AI_GEMINI_TOP_P,
+                top_k=settings.AI_GEMINI_TOP_K,
             )
             logger.info(f"Gemini client initialized with LangChain model: {self.model_name}")
         except Exception as e:
@@ -117,7 +117,7 @@ class GeminiClient:
         if cached_response:
             return cached_response
 
-        max_retries = kwargs.get('max_retries', settings.GEMINI_MAX_RETRIES)
+        max_retries = kwargs.get('max_retries', settings.AI_GEMINI_MAX_RETRIES)
         retry_delay = kwargs.get('retry_delay', 1)
 
         for attempt in range(max_retries):
@@ -128,7 +128,7 @@ class GeminiClient:
                 # Run with timeout
                 response = await asyncio.wait_for(
                     self.model.ainvoke(messages),
-                    timeout=settings.GEMINI_TIMEOUT
+                    timeout=settings.AI_GEMINI_TIMEOUT_SECONDS
                 )
 
                 # Extract text from LangChain response

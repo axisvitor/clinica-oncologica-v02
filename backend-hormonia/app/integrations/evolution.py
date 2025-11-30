@@ -124,8 +124,8 @@ class EvolutionClient:
         self.railway_service = railway_service or getattr(settings, 'RAILWAY_ENVIRONMENT', False)
 
         # URL configuration - prioritize Railway internal service
-        if self.railway_service and hasattr(settings, 'EVOLUTION_RAILWAY_URL'):
-            self.base_url = settings.EVOLUTION_RAILWAY_URL.rstrip('/')
+        if self.railway_service and hasattr(settings, 'WHATSAPP_EVOLUTION_RAILWAY_URL'):
+            self.base_url = settings.WHATSAPP_EVOLUTION_RAILWAY_URL.rstrip('/')
         else:
             self.base_url = (base_url or getattr(settings, 'EVOLUTION_API_URL', 'https://api.evolution.dev')).rstrip('/')
 
@@ -303,7 +303,7 @@ class EvolutionClient:
                 error_data = None
                 try:
                     error_data = response.json()
-                except:
+                except (json.JSONDecodeError, ValueError):
                     pass
 
                 error_msg = f"HTTP {response.status_code}: {response.text[:200]}..."
@@ -659,7 +659,7 @@ class EvolutionClient:
         secret: Optional[str] = None
     ) -> bool:
         """
-        Validate webhook signature for security.
+        Validate webhook signature for security. ALWAYS required in production.
 
         Args:
             payload: Raw webhook payload
@@ -668,21 +668,30 @@ class EvolutionClient:
 
         Returns:
             True if signature is valid
+
+        Raises:
+            ValueError: If webhook secret is not configured in production
         """
         validation_secret = secret or self.webhook_secret or self.api_key
 
         if not validation_secret:
-            logger.warning(
-                "No webhook secret configured - signature validation disabled",
-                has_api_key=bool(self.api_key),
-                has_webhook_secret=bool(self.webhook_secret)
-            )
-            # P0 FIX: Enforce signature validation in production
-            # In production, reject webhooks without valid signatures for security
-            if getattr(settings, 'ENVIRONMENT', 'development') == 'production':
-                logger.error("Webhook signature validation required in production but no secret configured")
+            env = getattr(settings, 'ENVIRONMENT', 'development')
+            if env == 'production':
+                logger.error(
+                    "SECURITY CRITICAL: Webhook secret not configured in production!",
+                    environment=env,
+                    has_api_key=bool(self.api_key),
+                    has_webhook_secret=bool(self.webhook_secret)
+                )
                 return False
-            return True  # Allow in development only
+            else:
+                logger.warning(
+                    "SECURITY WARNING: Webhook validation disabled in development",
+                    environment=env,
+                    has_api_key=bool(self.api_key),
+                    has_webhook_secret=bool(self.webhook_secret)
+                )
+                return True  # Allow ONLY in development
 
         try:
             # Remove common prefixes

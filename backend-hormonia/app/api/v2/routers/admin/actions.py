@@ -242,9 +242,9 @@ async def reset_password(
         # Update password
         update_data = {"hashed_password": hashed_password}
 
-        # TODO: Implement force_change_password field in User model
-        # if password_data.force_change:
-        #     update_data["force_change_password"] = True
+        # Set force change password flag if requested
+        if password_data.force_change:
+            update_data["force_change_password"] = True
 
         user_repo.update(user_id, update_data)
         db.commit()

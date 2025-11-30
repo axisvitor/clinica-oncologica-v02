@@ -228,8 +228,6 @@ export class ApiClientCore {
 
       try {
         logger.debug("[ApiClient] Initiating CSRF token fetch...");
-        // MIGRATION: Updated from deprecated /api/v2/csrf-token to /api/v2/auth/csrf-token
-        // See P1-1 issue: Frontend uses deprecated CSRF endpoint
         const response = await fetch(`${this.baseURL}/api/v2/auth/csrf-token`, {
           credentials: "include",
           signal: controller.signal,

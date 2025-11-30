@@ -54,7 +54,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
     Usage:
         app.add_middleware(
             CSRFMiddleware,
-            secret_key=settings.CSRF_SECRET_KEY,
+            secret_key=settings.SECURITY_CSRF_SECRET_KEY,
             token_expiry=3600,
             exempt_paths=["/api/v2/csrf-token", "/health", "/docs"]
         )
@@ -341,7 +341,7 @@ def create_csrf_middleware(
     Example:
         middleware = create_csrf_middleware(
             app,
-            secret_key=settings.CSRF_SECRET_KEY,
+            secret_key=settings.SECURITY_CSRF_SECRET_KEY,
             token_expiry=3600,
             exempt_paths=["/webhooks/", "/api/public/"]
         )

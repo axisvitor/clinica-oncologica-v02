@@ -344,8 +344,8 @@ class HealthMonitor:
         services = [
             {
                 'name': 'evolution_api',
-                'url': f"{settings.EVOLUTION_API_URL}/instance/connectionState/{settings.EVOLUTION_INSTANCE_NAME}",
-                'headers': {'apikey': settings.EVOLUTION_API_KEY}
+                'url': f"{settings.WHATSAPP_EVOLUTION_API_URL}/instance/connectionState/{settings.WHATSAPP_EVOLUTION_INSTANCE_NAME}",
+                'headers': {'apikey': settings.WHATSAPP_EVOLUTION_API_KEY}
             }
         ]
         
@@ -490,7 +490,7 @@ class HealthMonitor:
             'status': overall_status.value,
             'service': 'hormonia-backend',
             'version': '1.0.0',
-            'environment': settings.ENVIRONMENT,
+            'environment': settings.APP_ENVIRONMENT,
             'timestamp': datetime.utcnow().isoformat() + 'Z',
             'check_duration_ms': round(check_duration, 2),
             'components': {

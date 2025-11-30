@@ -57,10 +57,10 @@ async def production_health_check(
     """
     return ProductionHealth(
         status=HealthStatus.HEALTHY,
-        environment=settings.ENVIRONMENT,
+        environment=settings.APP_ENVIRONMENT,
         build_version=os.getenv("BUILD_VERSION", "2.0.0"),
         deployment_time=None,  # TODO: Get from deployment
-        debug_mode=settings.DEBUG,
+        debug_mode=settings.APP_ENABLE_DEBUG,
     )
 
 

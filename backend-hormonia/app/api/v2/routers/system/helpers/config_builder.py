@@ -80,7 +80,7 @@ def _build_api_urls() -> Dict[str, str]:
             api_url = railway_static
         else:
             # Fallback based on environment
-            if settings.ENVIRONMENT == "production":
+            if settings.APP_ENVIRONMENT == "production":
                 api_url = "https://backend-production.railway.app"
             else:
                 port = os.getenv("PORT", "8000")

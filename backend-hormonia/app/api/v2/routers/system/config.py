@@ -100,7 +100,7 @@ async def get_public_config(request: Request) -> JSONResponse:
             "VITE_API_URL": urls["API_URL"],
 
             # Environment
-            "VITE_ENVIRONMENT": settings.ENVIRONMENT,
+            "VITE_ENVIRONMENT": settings.APP_ENVIRONMENT,
 
             # Localization
             "VITE_DEFAULT_LOCALE": settings.DEFAULT_LOCALE,
@@ -109,7 +109,7 @@ async def get_public_config(request: Request) -> JSONResponse:
             # Feature flags (PUBLIC ONLY)
             "features": {
                 "enableRealtime": True,
-                "enableAnalytics": settings.MONITORING_ENABLED,
+                "enableAnalytics": settings.MONITORING_ENABLE_SERVICE,
                 "enableEvolution": getattr(settings, "ENABLE_EVOLUTION", False),
                 "enableMonthlyQuizViaLink": getattr(settings, "MONTHLY_QUIZ_VIA_LINK", True),
                 "enableAIHumanization": getattr(settings, "AI_HUMANIZATION_ENABLED", True),
@@ -117,7 +117,7 @@ async def get_public_config(request: Request) -> JSONResponse:
 
             # CORS information
             "cors": {
-                "allowedOrigins": settings.ALLOWED_ORIGINS if hasattr(settings, "ALLOWED_ORIGINS") else [],
+                "allowedOrigins": settings.CORS_ALLOWED_ORIGINS if hasattr(settings, "ALLOWED_ORIGINS") else [],
                 "credentials": True
             }
         }
@@ -141,7 +141,7 @@ async def get_public_config(request: Request) -> JSONResponse:
         # Log access for monitoring
         logger.info(
             f"Public config accessed from {request.client.host if request.client else 'unknown'}",
-            extra={"endpoint": "/config", "environment": settings.ENVIRONMENT}
+            extra={"endpoint": "/config", "environment": settings.APP_ENVIRONMENT}
         )
 
         return JSONResponse(

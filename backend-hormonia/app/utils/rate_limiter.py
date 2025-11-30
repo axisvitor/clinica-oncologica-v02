@@ -391,8 +391,8 @@ def multi_layer_rate_limit(
             if redis_client:
                 try:
                     await redis_client.close()
-                except:
-                    pass
+                except Exception:
+                    pass  # Ignore close errors (connection may already be closed)
 
             # All rate limits passed - execute the function
             return await func(*args, **kwargs)

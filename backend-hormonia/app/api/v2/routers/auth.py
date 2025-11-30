@@ -144,7 +144,7 @@ async def verify_firebase_token(
             key="session_id",
             value=str(session.id),
             httponly=True,
-            secure=settings.SESSION_COOKIE_SECURE,
+            secure=settings.SESSION_ENABLE_COOKIE_SECURE,
             samesite="lax",
             max_age=432000 # 5 days
         )
@@ -177,8 +177,8 @@ async def verify_session(
     user_id = _extract_user_id(current_user)
     try:
         user_uuid = UUID(user_id)
-    except:
-        raise HTTPException(status_code=400)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid user_id UUID")
 
     from app.models.session import Session as SessionModel
     session = db.query(SessionModel).filter(

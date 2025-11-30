@@ -36,7 +36,7 @@ from app.services.websocket_events import websocket_events
 from app.schemas.websocket import WebSocketEventType
 from app.exceptions import ExternalServiceError, NotFoundError
 from app.config import settings
-from app.services.circuit_breaker import CircuitBreaker, CircuitOpenError
+from app.services.circuit_breaker import CircuitBreaker, CircuitOpenError, CircuitBreakerOpenError
 from app.core.retry import retry_with_backoff, RetryStrategies, RetryExhaustedError
 from app.core.tracing import get_tracer, trace
 from app.domain.analytics.quiz import get_quiz_metrics_collector
@@ -78,14 +78,36 @@ class UnifiedWhatsAppService:
             default_instance_name: Default Evolution instance name (can be overridden per message)
         """
         self.db = db
-        # Garantir uma Session síncrona para MessageService mesmo quando recebemos AsyncSession
-        self._db_sync = db.sync_session if isinstance(db, AsyncSession) else db
+
+        # WA-002 FIX: Detect AsyncSession properly without accessing non-existent sync_session
+        self._is_async = isinstance(db, AsyncSession)
+        self._db_sync = None
+
+        if self._is_async:
+            logger.info(
+                "UnifiedWhatsAppService initialized with AsyncSession",
+                extra={"session_type": "async", "instance": default_instance_name}
+            )
+        else:
+            # Sync session - use directly
+            self._db_sync = db
+            logger.info(
+                "UnifiedWhatsAppService initialized with sync Session",
+                extra={"session_type": "sync", "instance": default_instance_name}
+            )
 
         self.redis_url = redis_url or settings.REDIS_URL
         self.default_instance_name = default_instance_name
 
-        # Legacy components (sempre síncronos)
-        self.message_service = MessageService(self._db_sync)
+        # Legacy components (only initialize for sync sessions)
+        self.message_service = None
+        if self._db_sync:
+            try:
+                self.message_service = MessageService(self._db_sync)
+                logger.info("Legacy MessageService initialized successfully")
+            except Exception as e:
+                logger.warning(f"Could not initialize legacy MessageService: {e}")
+
         self.flow_message_callbacks: Dict[str, Callable] = {}
 
         # Queue components
@@ -101,6 +123,22 @@ class UnifiedWhatsAppService:
 
         # Tracer for distributed tracing
         self.tracer = get_tracer()
+
+        # WA-004 FIX: Circuit breaker for Evolution API protection
+        self._evolution_breaker = CircuitBreaker(
+            name="evolution_api",
+            failure_threshold=5,
+            recovery_timeout=60,  # 1 minute
+            success_threshold=3
+        )
+        logger.info(
+            "Circuit breaker initialized for Evolution API",
+            extra={
+                "failure_threshold": 5,
+                "recovery_timeout": 60,
+                "success_threshold": 3
+            }
+        )
 
         # Unified retry policies
         self.retry_policies = {
@@ -140,22 +178,22 @@ class UnifiedWhatsAppService:
     async def _get_queue_client(self) -> EvolutionAPIClient:
         """Get queue-based Evolution client."""
         if not self._queue_client:
-            if not settings.EVOLUTION_API_URL:
+            if not settings.WHATSAPP_EVOLUTION_API_URL:
                 raise ExternalServiceError("Evolution API not configured")
 
             # Use mock client for development
-            if settings.EVOLUTION_API_URL.startswith("http://localhost:8080"):
+            if settings.WHATSAPP_EVOLUTION_API_URL.startswith("http://localhost:8080"):
                 from app.integrations.whatsapp.services.mock_evolution import MockEvolutionAPIClient
                 self._queue_client = MockEvolutionAPIClient(
-                    base_url=settings.EVOLUTION_API_URL,
-                    api_key=settings.EVOLUTION_API_KEY,
-                    global_webhook_url=settings.EVOLUTION_WEBHOOK_URL
+                    base_url=settings.WHATSAPP_EVOLUTION_API_URL,
+                    api_key=settings.WHATSAPP_EVOLUTION_API_KEY,
+                    global_webhook_url=settings.WHATSAPP_EVOLUTION_WEBHOOK_URL
                 )
             else:
                 self._queue_client = EvolutionAPIClient(
-                    base_url=settings.EVOLUTION_API_URL,
-                    api_key=settings.EVOLUTION_API_KEY,
-                    global_webhook_url=settings.EVOLUTION_WEBHOOK_URL
+                    base_url=settings.WHATSAPP_EVOLUTION_API_URL,
+                    api_key=settings.WHATSAPP_EVOLUTION_API_KEY,
+                    global_webhook_url=settings.WHATSAPP_EVOLUTION_WEBHOOK_URL
                 )
 
             await self._queue_client.connect()
@@ -290,7 +328,26 @@ class UnifiedWhatsAppService:
             message.message_metadata['retry_policy'] = 'default'
 
     async def _send_via_queue(self, message: Message, **kwargs) -> bool:
-        """Send message via queue pipeline."""
+        """
+        Send message via queue pipeline with circuit breaker protection.
+
+        WA-004: Circuit breaker protects against Evolution API failures
+        """
+        # WA-004 FIX: Check circuit breaker before processing
+        if not self._evolution_breaker.can_execute():
+            logger.warning(
+                "Evolution API circuit breaker OPEN - skipping message send",
+                extra={
+                    "message_id": message.id,
+                    "breaker_state": self._evolution_breaker.get_state().value
+                }
+            )
+            await self._mark_message_failed(message, {
+                "error": "Circuit breaker open",
+                "message": "Evolution API temporarily unavailable"
+            })
+            return False
+
         try:
             # Convert legacy message to queue format
             queue_request = await self._convert_to_queue_request(message)
@@ -300,6 +357,9 @@ class UnifiedWhatsAppService:
 
             # Send via queue
             response = await queue_service.send_message(queue_request)
+
+            # WA-004: Record success in circuit breaker
+            self._evolution_breaker.record_success()
 
             if response.status == WhatsAppMessageStatus.PENDING:
                 logger.info(f"Message {message.id} queued successfully")
@@ -311,6 +371,10 @@ class UnifiedWhatsAppService:
 
         except Exception as e:
             logger.error(f"Queue send failed for message {message.id}: {e}")
+
+            # WA-004: Record failure in circuit breaker
+            self._evolution_breaker.record_failure()
+
             await self._mark_message_failed(message, {
                 "error": "Queue send failed",
                 "message": str(e)
@@ -318,11 +382,26 @@ class UnifiedWhatsAppService:
             return False
 
     async def _convert_to_queue_request(self, message: Message) -> MessageRequest:
-        """Convert legacy message to queue request format."""
+        """
+        Convert legacy message to queue request format with proper validation.
+
+        Raises:
+            ValueError: If instance_name, patient, or phone is missing
+        """
+        # WA-003 FIX: Validate instance_name before processing
+        metadata = message.message_metadata or {}
+        instance_name = metadata.get('instance_name', self.default_instance_name)
+
+        if not instance_name:
+            raise ValueError("instance_name is required for queue request")
+
         # Certifique-se de que o paciente está carregado para obter o telefone
         patient = await self._ensure_patient_loaded(message)
-        if not patient or not patient.phone:
-            raise ValueError("Patient or phone number not available for queue request")
+        if not patient:
+            raise ValueError(f"Patient {message.patient_id} not found")
+
+        if not patient.phone:
+            raise ValueError(f"Patient {message.patient_id} has no phone number")
 
         # Map legacy message types to queue types
         type_mapping = {

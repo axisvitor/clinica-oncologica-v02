@@ -162,8 +162,8 @@ def create_optimized_engine(database_url: str, **kwargs):
         "pool_pre_ping": True,  # Validate connections before use
         "pool_recycle": 3600,  # Recycle connections after 1 hour
         "pool_timeout": 30,  # Timeout for getting connection from pool
-        "echo": settings.DEBUG,  # Log SQL queries in debug mode
-        "echo_pool": settings.DEBUG,  # Log connection pool events
+        "echo": settings.APP_ENABLE_DEBUG,  # Log SQL queries in debug mode
+        "echo_pool": settings.APP_ENABLE_DEBUG,  # Log connection pool events
     }
     
     # Merge with provided kwargs

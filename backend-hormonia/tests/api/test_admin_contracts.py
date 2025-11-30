@@ -210,7 +210,7 @@ class TestResetPasswordContract:
         expired_time = datetime.utcnow() - timedelta(hours=25)
         token = jwt.encode(
             {"sub": sample_user.email, "exp": expired_time},
-            settings.SECRET_KEY,
+            settings.SECURITY_SECRET_KEY,
             algorithm="HS256"
         )
 

@@ -213,8 +213,8 @@ class HIPAAAuditMiddleware(BaseHTTPMiddleware):
                 body = await request.body()
                 if body:
                     request_body_hash = hashlib.sha256(body).hexdigest()
-            except:
-                pass  # Body already consumed by another middleware
+            except (RuntimeError, ConnectionError):
+                pass  # Body already consumed by another middleware or connection error
 
         # Resource context (detect from URL)
         resource_type, resource_id = self._detect_resource(endpoint)

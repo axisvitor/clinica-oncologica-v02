@@ -645,6 +645,51 @@ def user_token(auth_headers: dict) -> str:
     return auth_headers["Authorization"].split(" ", 1)[1]
 
 
+@pytest.fixture
+def authenticated_client(client: TestClient, test_user: User) -> TestClient:
+    """
+    Create an authenticated test client with user token.
+
+    This fixture combines the test client with authentication headers
+    for making authenticated requests.
+
+    Args:
+        client: Base test client
+        test_user: Test user for authentication
+
+    Returns:
+        TestClient with default authenticated headers
+    """
+    # Override dependency to return test_user
+    app.dependency_overrides[get_current_user] = lambda: test_user
+    TEST_TOKEN_REGISTRY[f"test_token_{test_user.id}"] = test_user
+
+    # Set default headers on the client
+    client.headers["Authorization"] = f"Bearer test_token_{test_user.id}"
+    return client
+
+
+@pytest.fixture
+def admin_authenticated_client(client: TestClient, admin_user: User) -> TestClient:
+    """
+    Create an authenticated test client with admin token.
+
+    Args:
+        client: Base test client
+        admin_user: Admin user for authentication
+
+    Returns:
+        TestClient with default admin authenticated headers
+    """
+    # Override dependency to return admin_user
+    app.dependency_overrides[get_current_user] = lambda: admin_user
+    TEST_TOKEN_REGISTRY[f"admin_token_{admin_user.id}"] = admin_user
+
+    # Set default headers on the client
+    client.headers["Authorization"] = f"Bearer admin_token_{admin_user.id}"
+    return client
+
+
 # ============================================================================
 # Mock Client Fixtures
 # ============================================================================

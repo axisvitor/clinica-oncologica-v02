@@ -83,7 +83,8 @@ async def list_quiz_templates(
                     QuizTemplate.created_at < cursor_created,
                     and_(QuizTemplate.created_at == cursor_created, QuizTemplate.id < cursor_id)
                 ))
-            except: raise HTTPException(status_code=400, detail="Invalid cursor")
+            except (json.JSONDecodeError, ValueError, TypeError, KeyError):
+                raise HTTPException(status_code=400, detail="Invalid cursor")
 
         query = query.order_by(desc(QuizTemplate.created_at), desc(QuizTemplate.id))
         templates = query.limit(limit + 1).all()

@@ -144,7 +144,7 @@ async def list_components(
                 status="running",
                 restartable=True,
                 dependencies=[],
-                metadata={"enabled": settings.MONITORING_ENABLED}
+                metadata={"enabled": settings.MONITORING_ENABLE_SERVICE}
             ),
         ]
 

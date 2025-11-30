@@ -31,7 +31,7 @@ def create_password_reset_token(
     Args:
         email: User email to embed in the token.
         expires_delta: Optional custom expiration window.
-        secret_key: Optional secret key (defaults to settings.SECRET_KEY).
+        secret_key: Optional secret key (defaults to settings.SECURITY_SECRET_KEY).
         algorithm: JWT algorithm (defaults to HS256).
 
     Returns:
@@ -41,7 +41,7 @@ def create_password_reset_token(
         expires_delta or timedelta(hours=PASSWORD_RESET_TOKEN_EXPIRE_HOURS)
     )
     payload = {"sub": email, "exp": expire}
-    return jwt.encode(payload, secret_key or settings.SECRET_KEY, algorithm=algorithm)
+    return jwt.encode(payload, secret_key or settings.SECURITY_SECRET_KEY, algorithm=algorithm)
 
 
 def verify_password_reset_token(
@@ -56,7 +56,7 @@ def verify_password_reset_token(
     try:
         payload = jwt.decode(
             token,
-            secret_key or settings.SECRET_KEY,
+            secret_key or settings.SECURITY_SECRET_KEY,
             algorithms=algorithms or ["HS256"],
         )
         email = payload.get("sub")

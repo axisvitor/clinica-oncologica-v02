@@ -328,7 +328,7 @@ class TestCSRFBypassFix:
         """
         with patch('app.config.settings') as mock_settings:
             mock_settings.CSRF_SECRET_KEY = "weak"  # Only 4 chars
-            mock_settings.ENVIRONMENT = "production"
+            mock_settings.APP_ENVIRONMENT = "production"
 
             with pytest.raises(ValueError, match="at least 32 characters"):
                 get_csrf_settings()
@@ -339,7 +339,7 @@ class TestCSRFBypassFix:
         """Strong secret keys (32+ chars) should be accepted"""
         with patch('app.config.settings') as mock_settings:
             mock_settings.CSRF_SECRET_KEY = "strong_secret_key_32_chars_plus!"  # 34 chars
-            mock_settings.ENVIRONMENT = "development"
+            mock_settings.APP_ENVIRONMENT = "development"
             mock_settings.SESSION_COOKIE_SECURE = False
 
             settings = get_csrf_settings()

@@ -383,8 +383,8 @@ export function createEnhancedAnalyticsIntegration(client: ApiClientCore) {
         )
         return response.data
       } catch (error) {
-        logger.warn('Enhanced metrics not available')
-        return {}
+        logger.warn('Enhanced metrics not available', error)
+        return { error: true, message: 'Enhanced metrics not available', metrics: {} }
       }
     },
   }

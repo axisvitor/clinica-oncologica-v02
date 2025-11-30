@@ -36,7 +36,7 @@ class PHIEncryptionService:
 
             if not master_key:
                 # Generate a new key for development (NOT for production)
-                if self.settings.ENVIRONMENT == 'development':
+                if self.settings.APP_ENVIRONMENT == 'development':
                     master_key = base64.b64encode(os.urandom(32)).decode('utf-8')
                     logger.warning("Generated development encryption key. Use proper key management in production!")
                 else:

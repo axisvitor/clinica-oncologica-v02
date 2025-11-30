@@ -258,7 +258,7 @@ async def send_message(
     )
 
     if scheduled_time <= datetime.utcnow():
-        sender = MessageSender(db, messaging_mode=MessagingMode.LEGACY)
+        sender = MessageSender(db, messaging_mode=MessagingMode.QUEUE)
         background_tasks.add_task(sender.send_message, message)
 
     try: await redis_cache.delete_pattern("v2:messages_list:*")

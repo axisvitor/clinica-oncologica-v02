@@ -1,8 +1,8 @@
 # Database Schema Documentation
 
-> **Auto-generated:** 2025-11-25 11:46:24  
-> **Database:** PostgreSQL 14+ on Amazon RDS (sa-east-1)  
-> **Total Tables:** 55
+> **Auto-generated:** 2025-11-26 15:00:00
+> **Database:** PostgreSQL 14+ on Amazon RDS (sa-east-1)
+> **Total Tables:** 56
 
 ## Table of Contents
 
@@ -36,8 +36,9 @@
 | `diagnosis` | `text` | ✓ | - |
 | `flow_state` | `flow_state` | ✗ | 'onboarding'::flow_state |
 | `current_day` | `integer` | ✗ | 0 |
-| `cpf` | `character varying(14)` | ✓ | - |
 | `doctor_notes` | `text` | ✓ | - |
+| `cpf_encrypted` | `text` | ✓ | - |
+| `cpf_hash` | `character varying(64)` | ✓ | - |
 | `created_at` | `timestamp with time zone` | ✗ | now() |
 | `updated_at` | `timestamp with time zone` | ✗ | now() |
 | `metadata` | `jsonb` | ✓ | '{}'::jsonb |
@@ -46,7 +47,12 @@
 **Foreign Keys:**
 - `doctor_id` → `users.id`
 
-**Indexes:** 24
+**LGPD Compliance:**
+- `cpf_encrypted`: AES-256-GCM encrypted CPF (Migration 020)
+- `cpf_hash`: SHA-256 hash for searchable queries without decryption
+- Original plaintext `cpf` column removed in Migration 024
+
+**Indexes:** 26
 
 ---
 
@@ -69,10 +75,14 @@
 | `firebase_photo_url` | `character varying(500)` | ✓ | - |
 | `firebase_custom_claims` | `jsonb` | ✗ | '{}'::jsonb |
 | `last_firebase_sync` | `timestamp with time zone` | ✓ | - |
+| `permissions` | `jsonb` | ✗ | '[]'::jsonb |
 | `created_at` | `timestamp with time zone` | ✗ | now() |
 | `updated_at` | `timestamp with time zone` | ✗ | now() |
 
-**Indexes:** 9
+**RBAC:**
+- `permissions`: Granular permission array (e.g., `["patients:read", "patients:write"]`) (Migration 023)
+
+**Indexes:** 10
 
 ---
 
@@ -1023,6 +1033,34 @@
 - `acknowledged_by` → `users.id`
 
 **Indexes:** 8
+
+---
+
+### `patient_summaries`
+
+| Column | Type | Nullable | Default |
+|--------|------|----------|--------|
+| `id` | `uuid` | ✗ | gen_random_uuid() |
+| `patient_id` | `uuid` | ✗ | - |
+| `generated_by` | `uuid` | ✓ | - |
+| `start_date` | `date` | ✗ | - |
+| `end_date` | `date` | ✗ | - |
+| `content` | `jsonb` | ✗ | '{}'::jsonb |
+| `pdf_data` | `bytea` | ✓ | - |
+| `token_usage` | `integer` | ✓ | - |
+| `model_used` | `character varying(100)` | ✓ | 'gemini-2.5-flash-latest' |
+| `generation_time_ms` | `integer` | ✓ | - |
+| `created_at` | `timestamp with time zone` | ✗ | now() |
+| `updated_at` | `timestamp with time zone` | ✗ | now() |
+
+**Foreign Keys:**
+- `patient_id` → `patients.id`
+- `generated_by` → `users.id`
+
+**Description:**
+AI-generated medical summaries for patients covering specific date ranges. Stores both structured JSON content and optional PDF export data.
+
+**Indexes:** 3
 
 ---
 

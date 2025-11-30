@@ -24,6 +24,7 @@ from fastapi import (
 
 from app.database import get_db
 from app.models.user import User
+from app.models.upload import Upload
 from app.dependencies.auth_dependencies import get_current_user_object_from_session
 from app.schemas.v2.upload import (
     UploadOptionsRequest,
@@ -231,6 +232,33 @@ async def upload_file_handler(
             custom_metadata=None,
         )
 
+        # Persist upload to database
+        try:
+            upload_record = Upload(
+                id=upload_id,
+                user_id=current_user.id,
+                file_name=file.filename or "upload",
+                file_size=file_size,
+                file_type=file.content_type,
+                storage_path=storage_path,
+                storage_provider="local",
+                content_hash=checksum,
+                file_metadata={
+                    "category": category.value if hasattr(category, 'value') else str(category),
+                    "original_filename": file.filename,
+                    "image_metadata": image_metadata.model_dump() if image_metadata else None,
+                },
+                is_public=public,
+                virus_scanned=scan_virus_flag,
+                virus_clean=processing_info.virus_scan_clean,
+            )
+            db.add(upload_record)
+            db.commit()
+            logger.info(f"Upload {upload_id} persisted to database")
+        except Exception as e:
+            logger.warning(f"Failed to persist upload to database: {e}")
+            db.rollback()
+
         # Cache metadata
         if redis_client:
             try:
@@ -270,6 +298,7 @@ async def get_upload_info_handler(
     upload_id,
     fields: Optional[str] = None,
     current_user: User = None,
+    db = None,
 ) -> Dict[str, Any]:
     """
     Get upload information.
@@ -304,8 +333,61 @@ async def get_upload_info_handler(
 
                 return response_dict
 
-        # TODO: Query from database in production
-        # For now, return 404 if not in cache
+        # Query from database if not in cache
+        if db:
+            upload_record = db.query(Upload).filter(
+                Upload.id == upload_id,
+                Upload.deleted_at.is_(None)
+            ).first()
+
+            if upload_record:
+                # Build response from database record
+                response_data = UploadResponse(
+                    id=upload_record.id,
+                    url=f"/uploads/{upload_record.storage_path}",
+                    download_url=f"/api/v2/upload/{upload_record.id}/download",
+                    file=FileMetadata(
+                        id=upload_record.id,
+                        filename=upload_record.file_name,
+                        safe_filename=upload_record.file_name,
+                        content_type=upload_record.file_type or "application/octet-stream",
+                        category=get_file_category(upload_record.file_type or "application/octet-stream"),
+                        size=upload_record.file_size,
+                        checksum=upload_record.content_hash,
+                    ),
+                    image_metadata=None,
+                    processing=ProcessingInfo(
+                        status=ProcessingStatus.COMPLETED,
+                        virus_scan_clean=upload_record.virus_clean,
+                    ),
+                    storage_provider=StorageProvider(upload_record.storage_provider),
+                    storage_path=upload_record.storage_path,
+                    uploaded_by=upload_record.user_id,
+                    uploaded_at=upload_record.created_at,
+                    is_public=upload_record.is_public,
+                    expires_at=None,
+                    custom_metadata=upload_record.file_metadata,
+                )
+
+                # Cache for future requests
+                if redis_client:
+                    try:
+                        cache_key = generate_cache_key("metadata", upload_id=str(upload_id))
+                        await redis_client.setex(
+                            cache_key,
+                            CACHE_TTL_METADATA,
+                            response_data.model_dump_json(),
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to cache upload metadata: {e}")
+
+                response_dict = response_data.model_dump()
+                if fields:
+                    field_set = FieldSelector.parse_fields(fields)
+                    response_dict = FieldSelector.filter_dict(response_dict, field_set)
+
+                return response_dict
+
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Upload {upload_id} not found",
@@ -324,6 +406,7 @@ async def get_upload_info_handler(
 async def delete_upload_handler(
     upload_id,
     current_user: User,
+    db = None,
 ) -> None:
     """
     Delete an uploaded file.
@@ -348,8 +431,44 @@ async def delete_upload_handler(
             if cached:
                 upload_info = UploadResponse.model_validate_json(cached)
 
+        # Query from database if not in cache
+        upload_record = None
+        if not upload_info and db:
+            upload_record = db.query(Upload).filter(
+                Upload.id == upload_id,
+                Upload.deleted_at.is_(None)
+            ).first()
+
+            if upload_record:
+                # Build minimal info for deletion
+                upload_info = UploadResponse(
+                    id=upload_record.id,
+                    url=f"/uploads/{upload_record.storage_path}",
+                    download_url=f"/api/v2/upload/{upload_record.id}/download",
+                    file=FileMetadata(
+                        id=upload_record.id,
+                        filename=upload_record.file_name,
+                        safe_filename=upload_record.file_name,
+                        content_type=upload_record.file_type or "application/octet-stream",
+                        category=get_file_category(upload_record.file_type or "application/octet-stream"),
+                        size=upload_record.file_size,
+                        checksum=upload_record.content_hash,
+                    ),
+                    image_metadata=None,
+                    processing=ProcessingInfo(
+                        status=ProcessingStatus.COMPLETED,
+                        virus_scan_clean=upload_record.virus_clean,
+                    ),
+                    storage_provider=StorageProvider(upload_record.storage_provider),
+                    storage_path=upload_record.storage_path,
+                    uploaded_by=upload_record.user_id,
+                    uploaded_at=upload_record.created_at,
+                    is_public=upload_record.is_public,
+                    expires_at=None,
+                    custom_metadata=upload_record.file_metadata,
+                )
+
         if not upload_info:
-            # TODO: Query from database in production
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Upload {upload_id} not found",
@@ -381,6 +500,18 @@ async def delete_upload_handler(
                         if derived_path.exists():
                             derived_path.unlink()
                             logger.info(f"Deleted derived file: {derived_path}")
+
+        # Soft delete in database
+        if db:
+            try:
+                upload_to_delete = db.query(Upload).filter(Upload.id == upload_id).first()
+                if upload_to_delete:
+                    upload_to_delete.deleted_at = datetime.utcnow()
+                    db.commit()
+                    logger.info(f"Soft deleted upload {upload_id} in database")
+            except Exception as e:
+                logger.warning(f"Failed to soft delete in database: {e}")
+                db.rollback()
 
         # Clear cache
         if redis_client:

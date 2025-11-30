@@ -99,13 +99,24 @@ class MessageQueue:
         retry_count = message_payload.get("retry_count", 0) + 1
         max_retries = message_payload.get("max_retries", 3)
 
-        if retry_count > max_retries:
+        # FIX: Off-by-one bug - should be >= not >
+        # Previous code used > which allowed one extra retry beyond max_retries
+        if retry_count >= max_retries:
             # Move to dead letter queue
+            message_id = message_payload.get('id', 'unknown')
             await self.redis_client.lpush(
                 self.dlq_name,
                 json.dumps({**message_payload, "failed_at": datetime.utcnow().isoformat()})
             )
-            logger.error(f"Message {message_payload.get('id')} moved to DLQ after {retry_count} retries")
+            logger.error(
+                f"Message moved to DLQ after max retries",
+                extra={
+                    "message_id": message_id,
+                    "retry_count": retry_count,
+                    "max_retries": max_retries,
+                    "action": "dlq_moved"
+                }
+            )
             return False
 
         # Calculate exponential backoff delay
@@ -123,7 +134,16 @@ class MessageQueue:
             {json.dumps(retry_payload): execute_at.timestamp()}
         )
 
-        logger.info(f"Message {message_payload.get('id')} scheduled for retry {retry_count} in {backoff_delay}s")
+        logger.info(
+            f"Message scheduled for retry with exponential backoff",
+            extra={
+                "message_id": message_payload.get('id', 'unknown'),
+                "retry_count": retry_count,
+                "max_retries": max_retries,
+                "backoff_delay_seconds": backoff_delay,
+                "execute_at": execute_at.isoformat()
+            }
+        )
         return True
 
     async def _process_scheduled_messages(self):

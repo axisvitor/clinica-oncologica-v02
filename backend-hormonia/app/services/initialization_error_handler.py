@@ -233,7 +233,7 @@ class InitializationErrorHandler:
     def _fallback_to_sqlite(self, error: Exception) -> Dict[str, Any]:
         """Fallback to SQLite for development/testing."""
         try:
-            if settings.ENVIRONMENT.lower() in ['development', 'testing']:
+            if settings.APP_ENVIRONMENT.lower() in ['development', 'testing']:
                 # This would require reconfiguring the database engine
                 return {
                     "success": True,
@@ -320,11 +320,11 @@ class InitializationErrorHandler:
             warnings = []
             
             # This would need to update environment or config
-            if not settings.SECRET_KEY or 'CHANGE_THIS' in settings.SECRET_KEY.upper():
+            if not settings.SECURITY_SECRET_KEY or 'CHANGE_THIS' in settings.SECURITY_SECRET_KEY.upper():
                 new_secret = secrets.token_urlsafe(32)
                 warnings.append(f"Generated new SECRET_KEY: {new_secret[:8]}...")
             
-            if not settings.CSRF_SECRET_KEY:
+            if not settings.SECURITY_CSRF_SECRET_KEY:
                 new_csrf_secret = secrets.token_urlsafe(32)
                 warnings.append(f"Generated new CSRF_SECRET_KEY: {new_csrf_secret[:8]}...")
             
@@ -341,7 +341,7 @@ class InitializationErrorHandler:
     def _use_development_security(self, error: Exception) -> Dict[str, Any]:
         """Use development security settings."""
         try:
-            if settings.ENVIRONMENT.lower() == 'development':
+            if settings.APP_ENVIRONMENT.lower() == 'development':
                 return {
                     "success": True,
                     "message": "Development security mode activated",

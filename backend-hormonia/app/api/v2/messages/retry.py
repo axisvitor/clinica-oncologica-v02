@@ -88,7 +88,7 @@ async def retry_message(
         db.commit()
 
     # Retry the message in background
-    message_sender = MessageSender(db, messaging_mode=MessagingMode.LEGACY)  # type: ignore[call-arg]
+    message_sender = MessageSender(db, messaging_mode=MessagingMode.QUEUE)  # type: ignore[call-arg]
     background_tasks.add_task(message_sender.send_message, message)  # type: ignore[call-arg]
 
     # Update status to pending
@@ -112,7 +112,7 @@ async def retry_failed_messages(
     current_user = Depends(get_current_user_from_session),
 ):
     """Retry all failed messages."""
-    message_sender = MessageSender(db, messaging_mode=MessagingMode.LEGACY)  # type: ignore[call-arg]
+    message_sender = MessageSender(db, messaging_mode=MessagingMode.QUEUE)  # type: ignore[call-arg]
 
     retry_count = await message_sender.retry_failed_messages(limit)  # type: ignore[attr-defined]
 

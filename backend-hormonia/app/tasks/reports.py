@@ -42,7 +42,7 @@ def generate_patient_report(self, patient_id: str, report_type: str):
         )
         report = asyncio.run(service.generate_report(request, UUID("00000000-0000-0000-0000-000000000000")))
         pdf_content = service.generate_pdf_report(report.id)
-        reports_dir = Path(settings.UPLOAD_DIR) / "reports"
+        reports_dir = Path(settings.UPLOAD_DIRECTORY) / "reports"
         reports_dir.mkdir(parents=True, exist_ok=True)
         output_path = reports_dir / f"{patient_id}_{report_type}.pdf"
         with open(output_path, "wb") as f:

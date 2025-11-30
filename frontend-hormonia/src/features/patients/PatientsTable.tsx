@@ -49,12 +49,19 @@ interface RowData {
   isResending: boolean
 }
 
+interface PatientRowProps extends RowData {
+  style: React.CSSProperties
+  index: number
+}
+
 const GRID_COLS = "grid-cols-[2.5fr_1.5fr_1fr_1fr_1fr_0.8fr_1.2fr_70px]"
 
-const PatientRow = memo(({ style, index, patients, onNavigate, onEdit, onDelete, onActivate, onDeactivate, onSendQuiz, confirmDeleteId, isResending }: any) => {
+const PatientRow = memo(({ style, index, patients, onNavigate, onEdit, onDelete, onActivate, onDeactivate, onSendQuiz, confirmDeleteId, isResending }: PatientRowProps) => {
   const patient = patients[index]
-  const { data: quizStatus, isLoading } = useMonthlyQuizStatus(patient.id)
+  const { data: quizStatus, isLoading } = useMonthlyQuizStatus(patient?.id ?? '')
   const resendQuizLinkMutation = useResendQuizLink()
+
+  if (!patient) return null
 
   const getInitials = (name: string) => {
     return name
@@ -245,10 +252,12 @@ const PatientRow = memo(({ style, index, patients, onNavigate, onEdit, onDelete,
   )
 })
 
-const MobilePatientCard = memo(({ style, index, patients, onNavigate, onEdit, onDelete, onActivate, onDeactivate, onSendQuiz, confirmDeleteId, isResending }: any) => {
+const MobilePatientCard = memo(({ style, index, patients, onNavigate, onEdit, onDelete, onActivate, onDeactivate, onSendQuiz, confirmDeleteId, isResending }: PatientRowProps) => {
   const patient = patients[index]
-  const { data: quizStatus, isLoading } = useMonthlyQuizStatus(patient.id)
+  const { data: quizStatus, isLoading } = useMonthlyQuizStatus(patient?.id ?? '')
   const resendQuizLinkMutation = useResendQuizLink()
+
+  if (!patient) return null
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)

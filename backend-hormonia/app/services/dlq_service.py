@@ -400,7 +400,13 @@ class DLQService:
 
     def _reprocess_message(self, failed_message: FailedMessage) -> bool:
         """
-        Reprocessa mensagem (lógica de reenvio).
+        Reprocessa mensagem baseado no tipo de falha e payload.
+
+        Suporta reprocessamento de:
+        - Mensagens WhatsApp (via WhatsApp Unified Service)
+        - Notificações Email (via NotificationService)
+        - Quiz session messages
+        - Generic notifications
 
         Args:
             failed_message: Mensagem a ser reprocessada
@@ -408,25 +414,337 @@ class DLQService:
         Returns:
             True se sucesso, False caso contrário
         """
-        # TODO: Implementar lógica real de reenvio
-        # Por enquanto, apenas simula o reprocessamento
+        import asyncio
 
         try:
-            # Aqui deveria chamar o serviço de envio de mensagem
-            # from app.domain.messaging.delivery import MessageSender
-            # sender = MessageSender(self.db)
-            # sender.send_message(
-            #     patient_id=failed_message.patient_id,
-            #     content=failed_message.payload.get("content"),
-            #     ...
-            # )
+            payload = failed_message.payload or {}
+            message_type = payload.get("type", "unknown")
+            failure_reason = failed_message.failure_reason
 
-            # Simulação
-            logger.info(f"Reprocessando mensagem {failed_message.message_id}")
-            return True
+            logger.info(
+                f"Reprocessando mensagem {failed_message.message_id} "
+                f"(tipo: {message_type}, razão: {failure_reason.value})"
+            )
+
+            # Route to appropriate handler based on failure reason and message type
+            if failure_reason == FailureReason.WHATSAPP_ERROR or message_type == "whatsapp":
+                return self._reprocess_whatsapp_message(failed_message, payload)
+
+            elif failure_reason == FailureReason.EMAIL_ERROR or message_type == "email":
+                return self._reprocess_email_message(failed_message, payload)
+
+            elif failure_reason == FailureReason.QUIZ_ERROR or message_type == "quiz":
+                return self._reprocess_quiz_message(failed_message, payload)
+
+            elif failure_reason == FailureReason.NOTIFICATION_ERROR or message_type == "notification":
+                return self._reprocess_notification(failed_message, payload)
+
+            else:
+                # Generic message - try to determine type from payload
+                if "phone_number" in payload or "whatsapp" in payload:
+                    return self._reprocess_whatsapp_message(failed_message, payload)
+                elif "email" in payload or "recipients" in payload:
+                    return self._reprocess_email_message(failed_message, payload)
+                else:
+                    logger.warning(
+                        f"Tipo de mensagem desconhecido para reprocessamento: {message_type}"
+                    )
+                    return False
 
         except Exception as e:
-            logger.error(f"Erro ao reprocessar mensagem: {e}")
+            logger.error(f"Erro ao reprocessar mensagem {failed_message.message_id}: {e}", exc_info=True)
+            # Update error message in metadata
+            failed_message.metadata["last_reprocess_error"] = str(e)
+            failed_message.metadata["last_reprocess_at"] = datetime.utcnow().isoformat()
+            return False
+
+    def _reprocess_whatsapp_message(self, failed_message: FailedMessage, payload: Dict[str, Any]) -> bool:
+        """
+        Reprocessa mensagem WhatsApp via WhatsApp Unified Service.
+
+        Args:
+            failed_message: Mensagem com falha
+            payload: Payload original da mensagem
+
+        Returns:
+            True se sucesso
+        """
+        import asyncio
+
+        try:
+            from app.services.whatsapp_unified import get_whatsapp_service, MessageType, MessagePriority
+
+            whatsapp_service = get_whatsapp_service()
+
+            phone_number = payload.get("phone_number") or payload.get("phone")
+            content = payload.get("content", {})
+            message_type_str = payload.get("message_type", "text")
+
+            if not phone_number:
+                logger.error(f"Número de telefone ausente no payload da mensagem {failed_message.message_id}")
+                return False
+
+            # Map string to MessageType enum
+            message_type_map = {
+                "text": MessageType.TEXT,
+                "template": MessageType.TEMPLATE,
+                "media": MessageType.MEDIA,
+                "interactive": MessageType.INTERACTIVE,
+            }
+            message_type = message_type_map.get(message_type_str, MessageType.TEXT)
+
+            # Determine priority
+            priority = MessagePriority.HIGH if failed_message.retry_count > 2 else MessagePriority.NORMAL
+
+            # Run async call in sync context
+            async def send_async():
+                result = await whatsapp_service.send_message(
+                    phone_number=phone_number,
+                    message_type=message_type,
+                    content=content,
+                    priority=priority,
+                    metadata={
+                        "dlq_retry": True,
+                        "retry_count": failed_message.retry_count,
+                        "original_message_id": str(failed_message.message_id),
+                    }
+                )
+                return result
+
+            # Execute async function
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If already in async context, create a new task
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, send_async())
+                    result = future.result(timeout=30)
+            else:
+                result = asyncio.run(send_async())
+
+            if result and result.get("status") in ["sent", "queued", "success"]:
+                logger.info(f"WhatsApp message {failed_message.message_id} reprocessed successfully")
+                return True
+            else:
+                logger.warning(f"WhatsApp reprocess failed: {result}")
+                return False
+
+        except ImportError as e:
+            logger.error(f"WhatsApp service not available: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Error reprocessing WhatsApp message: {e}", exc_info=True)
+            return False
+
+    def _reprocess_email_message(self, failed_message: FailedMessage, payload: Dict[str, Any]) -> bool:
+        """
+        Reprocessa mensagem de email via NotificationService.
+
+        Args:
+            failed_message: Mensagem com falha
+            payload: Payload original da mensagem
+
+        Returns:
+            True se sucesso
+        """
+        import asyncio
+
+        try:
+            from app.services.notification_service import (
+                get_notification_service,
+                NotificationChannel,
+                NotificationPriority
+            )
+
+            notification_service = get_notification_service()
+
+            recipients = payload.get("recipients", [])
+            subject = payload.get("subject", "Mensagem Reprocessada")
+            message = payload.get("message") or payload.get("content", "")
+
+            if not recipients:
+                # Try to get from email field
+                email = payload.get("email")
+                if email:
+                    recipients = [email]
+                else:
+                    logger.error(f"Destinatários ausentes no payload da mensagem {failed_message.message_id}")
+                    return False
+
+            # Determine priority based on retry count
+            priority = NotificationPriority.HIGH if failed_message.retry_count > 2 else NotificationPriority.NORMAL
+
+            async def send_async():
+                return await notification_service.send_notification(
+                    channels=[NotificationChannel.EMAIL],
+                    subject=subject,
+                    message=message,
+                    recipients=recipients,
+                    priority=priority,
+                    template_data=payload.get("template_data")
+                )
+
+            # Execute async function
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, send_async())
+                    result = future.result(timeout=30)
+            else:
+                result = asyncio.run(send_async())
+
+            # Check if any channel succeeded
+            if result:
+                for channel, res in result.items():
+                    if res.success:
+                        logger.info(f"Email message {failed_message.message_id} reprocessed successfully")
+                        return True
+
+            logger.warning(f"Email reprocess failed for message {failed_message.message_id}")
+            return False
+
+        except ImportError as e:
+            logger.error(f"Notification service not available: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Error reprocessing email message: {e}", exc_info=True)
+            return False
+
+    def _reprocess_quiz_message(self, failed_message: FailedMessage, payload: Dict[str, Any]) -> bool:
+        """
+        Reprocessa mensagem relacionada a quiz.
+
+        Args:
+            failed_message: Mensagem com falha
+            payload: Payload original da mensagem
+
+        Returns:
+            True se sucesso
+        """
+        try:
+            quiz_session_id = payload.get("quiz_session_id")
+            action = payload.get("action", "send_reminder")
+
+            if not quiz_session_id:
+                logger.error(f"Quiz session ID ausente no payload da mensagem {failed_message.message_id}")
+                return False
+
+            # For quiz messages, we typically just need to resend a reminder
+            # The actual quiz data is stored in the database
+
+            if action == "send_reminder":
+                # Resend quiz reminder via WhatsApp
+                phone_number = payload.get("phone_number")
+                if phone_number:
+                    return self._reprocess_whatsapp_message(failed_message, {
+                        "phone_number": phone_number,
+                        "message_type": "template",
+                        "content": {
+                            "template_name": "quiz_reminder",
+                            "parameters": payload.get("template_params", {})
+                        }
+                    })
+
+            elif action == "send_results":
+                # Resend quiz results notification
+                email = payload.get("email")
+                if email:
+                    return self._reprocess_email_message(failed_message, {
+                        "recipients": [email],
+                        "subject": payload.get("subject", "Resultados do Quiz"),
+                        "message": payload.get("message", ""),
+                        "template_data": payload.get("template_data")
+                    })
+
+            logger.warning(f"Quiz action '{action}' not supported for reprocessing")
+            return False
+
+        except Exception as e:
+            logger.error(f"Error reprocessing quiz message: {e}", exc_info=True)
+            return False
+
+    def _reprocess_notification(self, failed_message: FailedMessage, payload: Dict[str, Any]) -> bool:
+        """
+        Reprocessa notificação genérica.
+
+        Args:
+            failed_message: Mensagem com falha
+            payload: Payload original da mensagem
+
+        Returns:
+            True se sucesso
+        """
+        import asyncio
+
+        try:
+            from app.services.notification_service import (
+                get_notification_service,
+                NotificationChannel,
+                NotificationPriority
+            )
+
+            notification_service = get_notification_service()
+
+            # Determine channels from payload
+            channels_str = payload.get("channels", ["email"])
+            channels = []
+
+            channel_map = {
+                "email": NotificationChannel.EMAIL,
+                "whatsapp": NotificationChannel.WHATSAPP,
+            }
+
+            for ch in channels_str:
+                if ch.lower() in channel_map:
+                    channels.append(channel_map[ch.lower()])
+
+            if not channels:
+                channels = [NotificationChannel.EMAIL]
+
+            recipients = payload.get("recipients", [])
+            subject = payload.get("subject", "Notificação")
+            message = payload.get("message", "")
+
+            if not recipients:
+                logger.error(f"Destinatários ausentes no payload da notificação {failed_message.message_id}")
+                return False
+
+            async def send_async():
+                return await notification_service.send_notification(
+                    channels=channels,
+                    subject=subject,
+                    message=message,
+                    recipients=recipients,
+                    priority=NotificationPriority.HIGH,
+                    template_data=payload.get("template_data")
+                )
+
+            # Execute async function
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, send_async())
+                    result = future.result(timeout=30)
+            else:
+                result = asyncio.run(send_async())
+
+            # Check if any channel succeeded
+            if result:
+                for channel, res in result.items():
+                    if res.success:
+                        logger.info(f"Notification {failed_message.message_id} reprocessed successfully")
+                        return True
+
+            logger.warning(f"Notification reprocess failed for message {failed_message.message_id}")
+            return False
+
+        except ImportError as e:
+            logger.error(f"Notification service not available: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Error reprocessing notification: {e}", exc_info=True)
             return False
 
     def discard_message(self, dlq_id: UUID, reason: str = "manual") -> bool:

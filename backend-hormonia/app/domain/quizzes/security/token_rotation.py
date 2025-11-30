@@ -244,7 +244,7 @@ async def submit_quiz_response_with_rotation(
             try:
                 import json
                 response_value = json.loads(response_value)
-            except:
+            except (json.JSONDecodeError, ValueError):
                 response_value = [normalize_other_value(response_value)]
         elif isinstance(response_value, list):
             response_value = [normalize_other_value(v) for v in response_value]

@@ -44,8 +44,8 @@ async def check_database_health(db: Any) -> DatabaseHealth:
         try:
             version_result = db.execute(text("SELECT version_num FROM alembic_version")).fetchone()
             migrations_current = version_result is not None
-        except:
-            migrations_current = False
+        except Exception:
+            migrations_current = False  # Table may not exist yet
 
         # Check RLS
         rls_enabled = False
@@ -54,8 +54,8 @@ async def check_database_health(db: Any) -> DatabaseHealth:
                 "SELECT COUNT(*) FROM pg_tables WHERE schemaname = 'public' AND rowsecurity = true"
             )).fetchone()
             rls_enabled = rls_result[0] > 0 if rls_result else False
-        except:
-            pass
+        except Exception:
+            pass  # RLS check is non-critical
 
         db_status = HealthStatus.HEALTHY
         if latency_ms > 1000 or utilization > 90:

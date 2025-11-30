@@ -25,15 +25,33 @@ class BaseAppSettings(BaseSettings):
         description="Base directory of the application (backend-hormonia parent)",
     )
 
-    # Environment
-    ENVIRONMENT: str = Field(default="development", description="Environment name")
-    DEBUG: bool = Field(default=True, description="Debug mode")
+    # Environment - Direct ENV names (no validation_alias)
+    APP_ENVIRONMENT: str = Field(
+        default="development",
+        description="Environment name"
+    )
+    APP_ENABLE_DEBUG: bool = Field(
+        default=True,
+        description="Debug mode"
+    )
+
+    # API Versioning (System is 100% V2)
+    API_V2_STR: str = Field(
+        default="/api/v2",
+        description="API v2 prefix (system is 100% V2, V1 has been deprecated)"
+    )
+
+    # Admin Dashboard
+    APP_ADMIN_DASHBOARD_URL: str = Field(
+        default="http://localhost:5173/admin",
+        description="Admin dashboard base URL for links in notifications"
+    )
 
     @model_validator(mode="before")
     @classmethod
     def parse_boolean_fields(cls, data: Any) -> Any:
         """Parse boolean fields from string environment variables."""
-        boolean_fields = ["DEBUG"]
+        boolean_fields = ["APP_ENABLE_DEBUG"]
 
         for field in boolean_fields:
             if field in data:

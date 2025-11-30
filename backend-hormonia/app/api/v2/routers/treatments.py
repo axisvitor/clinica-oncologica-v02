@@ -98,7 +98,8 @@ async def list_treatments(
     try:
         cached = await redis_cache.get(cache_key)
         if cached: return json.loads(cached)
-    except: pass
+    except Exception as e:
+        logger.debug(f"Cache read failed (non-critical): {e}")
 
     query = db.query(Treatment)
     if include:
@@ -128,20 +129,20 @@ async def list_treatments(
 
     if patient_id:
         try: filters.append(Treatment.patient_id == UUID(patient_id))
-        except: raise HTTPException(status_code=400)
+        except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid patient_id UUID")
 
     if doctor_id:
         if role_enum != UserRole.ADMIN: raise HTTPException(status_code=403)
         try: filters.append(Treatment.doctor_id == UUID(doctor_id))
-        except: raise HTTPException(status_code=400)
+        except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid doctor_id UUID")
 
     if treatment_type:
         try: filters.append(Treatment.treatment_type == TreatmentType(treatment_type.lower()))
-        except: raise HTTPException(status_code=400)
+        except ValueError: raise HTTPException(status_code=400, detail="Invalid treatment_type")
 
     if status_filter:
         try: filters.append(Treatment.status == TreatmentStatus(status_filter.lower()))
-        except: raise HTTPException(status_code=400)
+        except ValueError: raise HTTPException(status_code=400, detail="Invalid status")
 
     if start_date_from: filters.append(Treatment.start_date >= start_date_from)
     if start_date_to: filters.append(Treatment.start_date <= start_date_to)
@@ -181,7 +182,8 @@ async def list_treatments(
 
     result = {"data": resp_data, "next_cursor": next_cursor, "has_more": has_more, "total": total}
     try: await redis_cache.set(cache_key, json.dumps(result, default=str), ttl=120)
-    except: pass
+    except Exception as e:
+        logger.debug(f"Cache write failed (non-critical): {e}")
     return result
 
 @router.get("/statistics", response_model=TreatmentStatsResponse)
@@ -225,7 +227,7 @@ async def get_treatment(
     include: Optional[List[str]] = Depends(get_eager_load_params),
 ):
     try: tid = UUID(treatment_id)
-    except: raise HTTPException(status_code=400)
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid treatment_id UUID")
 
     query = db.query(Treatment)
     if include:
@@ -253,7 +255,7 @@ async def create_treatment(
     try:
         pid = UUID(treatment_data.patient_id)
         did = UUID(treatment_data.doctor_id) if treatment_data.doctor_id else None
-    except: raise HTTPException(status_code=400, detail="Invalid UUID")
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid UUID")
 
     from app.services.treatment_service import TreatmentService
     from app.repositories.treatment import TreatmentRepository
@@ -284,7 +286,8 @@ async def create_treatment(
         raise HTTPException(status_code=500, detail=str(e))
     
     try: await redis_cache.delete_pattern(f"treatments:list:{user_id}:*")
-    except: pass
+    except Exception as e:
+        logger.debug(f"Cache invalidation failed (non-critical): {e}")
 
     return _serialize_treatment(new_treatment)
 
@@ -297,7 +300,7 @@ async def update_treatment(
     redis_cache = Depends(get_redis_cache),
 ):
     try: tid = UUID(treatment_id)
-    except: raise HTTPException(status_code=400)
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid treatment_id UUID")
 
     from app.services.treatment_service import TreatmentService
     from app.repositories.treatment import TreatmentRepository
@@ -314,7 +317,8 @@ async def update_treatment(
         raise HTTPException(status_code=500, detail=str(e))
 
     try: await redis_cache.delete(f"treatment:{treatment_id}")
-    except: pass
+    except Exception as e:
+        logger.debug(f"Cache delete failed (non-critical): {e}")
     return _serialize_treatment(updated)
 
 @router.delete("/{treatment_id}", status_code=204)
@@ -325,13 +329,13 @@ async def delete_treatment(
     redis_cache = Depends(get_redis_cache),
 ):
     try: tid = UUID(treatment_id)
-    except: raise HTTPException(status_code=400)
-    
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid treatment_id UUID")
+
     from app.services.treatment_service import TreatmentService
     from app.repositories.treatment import TreatmentRepository
     repo = TreatmentRepository(db)
     service = TreatmentService(db, repo)
-    
+
     t = repo.get_by_id(tid)
     if not t: raise HTTPException(status_code=404)
     _ensure_treatment_access(current_user, t.doctor_id)
@@ -348,13 +352,13 @@ async def activate_treatment(
     current_user = Depends(get_current_user_from_session),
 ):
     try: tid = UUID(treatment_id)
-    except: raise HTTPException(status_code=400)
-    
+    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid treatment_id UUID")
+
     from app.services.treatment_service import TreatmentService
     from app.repositories.treatment import TreatmentRepository
     repo = TreatmentRepository(db)
     service = TreatmentService(db, repo)
-    
+
     t = repo.get_by_id(tid)
     if not t: raise HTTPException(status_code=404)
     _ensure_treatment_access(current_user, t.doctor_id)

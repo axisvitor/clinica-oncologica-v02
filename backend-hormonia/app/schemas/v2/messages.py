@@ -699,3 +699,44 @@ class MessageTemplateV2List(CursorPaginatedResponse[MessageTemplateV2Response]):
                 "total": 15
             }
         }
+
+
+class MessageTemplateV2Create(BaseModel):
+    """Request schema for creating a message template"""
+
+    name: str = Field(..., min_length=1, max_length=100, description="Unique template name")
+    content: str = Field(..., min_length=1, description="Template content with {{variables}}")
+    variables: List[str] = Field(default_factory=list, description="Variable names used in content")
+    category: str = Field("text", description="Template category (text, image, document, etc.)")
+    language: str = Field("pt_BR", description="Template language code")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "name": "appointment_reminder",
+                "content": "Olá {{patient_name}}, seu agendamento está confirmado para {{date}} às {{time}}.",
+                "variables": ["patient_name", "date", "time"],
+                "category": "reminder",
+                "language": "pt_BR"
+            }
+        }
+
+
+class MessageTemplateV2Update(BaseModel):
+    """Request schema for updating a message template"""
+
+    name: Optional[str] = Field(None, min_length=1, max_length=100, description="Template name")
+    content: Optional[str] = Field(None, min_length=1, description="Template content")
+    variables: Optional[List[str]] = Field(None, description="Variable names used in content")
+    category: Optional[str] = Field(None, description="Template category")
+    language: Optional[str] = Field(None, description="Template language code")
+    is_active: Optional[bool] = Field(None, description="Whether template is active")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "content": "Olá {{patient_name}}, sua consulta foi remarcada para {{new_date}}.",
+                "variables": ["patient_name", "new_date"],
+                "is_active": True
+            }
+        }

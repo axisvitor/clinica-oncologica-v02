@@ -789,7 +789,7 @@ class TestCsrfConfiguration:
         and appropriate SameSite policy.
         """
         with patch('app.config.settings') as mock_settings:
-            mock_settings.ENVIRONMENT = 'production'
+            mock_settings.APP_ENVIRONMENT = 'production'
             mock_settings.CSRF_SECRET_KEY = secrets.token_urlsafe(32)
             mock_settings.SESSION_COOKIE_SECURE = True
 

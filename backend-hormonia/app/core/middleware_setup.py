@@ -74,7 +74,7 @@ def setup_middleware(app: FastAPI) -> None:
 
     # Add optimized middleware in order (last added = first executed)
     # Only add essential middleware in production for better performance
-    if settings.DEBUG:
+    if settings.APP_ENABLE_DEBUG:
         app.add_middleware(
             RequestLoggingMiddleware,
             log_request_body=False,  # Disabled for performance
@@ -103,12 +103,12 @@ def setup_middleware(app: FastAPI) -> None:
 
     # Webhook signature validation middleware
     # Protects webhook endpoints from unauthorized access and replay attacks
-    if settings.EVOLUTION_WEBHOOK_SECRET:
+    if settings.WHATSAPP_EVOLUTION_WEBHOOK_SECRET:
         from app.middleware.webhook_validator import WebhookValidatorMiddleware
 
         app.add_middleware(
             WebhookValidatorMiddleware,
-            secret_key=settings.EVOLUTION_WEBHOOK_SECRET,
+            secret_key=settings.WHATSAPP_EVOLUTION_WEBHOOK_SECRET,
             max_timestamp_age=300,  # 5 minutes
             signature_header="X-Webhook-Signature",
             timestamp_header="X-Webhook-Timestamp",
@@ -123,12 +123,12 @@ def setup_middleware(app: FastAPI) -> None:
 
     # CSRF Protection Middleware
     # Protects against Cross-Site Request Forgery attacks on state-changing requests
-    if settings.CSRF_SECRET_KEY:
+    if settings.SECURITY_CSRF_SECRET_KEY:
         from app.core.csrf_middleware import CSRFMiddleware
 
         app.add_middleware(
             CSRFMiddleware,
-            secret_key=settings.CSRF_SECRET_KEY,
+            secret_key=settings.SECURITY_CSRF_SECRET_KEY,
             token_expiry=3600,  # 1 hour
             exempt_paths=[
                 "/api/v2/csrf-token",
@@ -218,7 +218,7 @@ def setup_middleware(app: FastAPI) -> None:
     from app.middleware.cors import configure_cors
 
     cors_origins = settings.get_cors_origins()
-    is_production = settings.ENVIRONMENT.lower() == "production"
+    is_production = settings.APP_ENVIRONMENT.lower() == "production"
 
     # Configure CORS with security validation
     # Production: No regex, explicit HTTPS origins only

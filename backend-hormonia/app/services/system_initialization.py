@@ -224,33 +224,33 @@ class SystemInitializationService:
             security_checks = []
             
             # Check JWT secret configuration
-            if not settings.SECRET_KEY or 'CHANGE_THIS' in settings.SECRET_KEY.upper():
+            if not settings.SECURITY_SECRET_KEY or 'CHANGE_THIS' in settings.SECURITY_SECRET_KEY.upper():
                 security_checks.append("JWT secret key is not properly configured")
             
             # Check CSRF secret configuration
-            if settings.CSRF_SECRET_KEY:
-                if 'CHANGE_THIS' in settings.CSRF_SECRET_KEY.upper():
+            if settings.SECURITY_CSRF_SECRET_KEY:
+                if 'CHANGE_THIS' in settings.SECURITY_CSRF_SECRET_KEY.upper():
                     security_checks.append("CSRF secret key is using default value")
             else:
                 security_checks.append("CSRF secret key not configured")
             
             # Check production security settings
-            if settings.ENVIRONMENT.lower() == 'production':
-                if settings.DEBUG:
+            if settings.APP_ENVIRONMENT.lower() == 'production':
+                if settings.APP_ENABLE_DEBUG:
                     security_checks.append("DEBUG is enabled in production")
-                if not settings.SESSION_COOKIE_SECURE:
+                if not settings.SESSION_ENABLE_COOKIE_SECURE:
                     security_checks.append("Session cookies not secured for HTTPS")
-                if not settings.SECURE_SSL_REDIRECT:
+                if not settings.SECURITY_ENABLE_SSL_REDIRECT:
                     security_checks.append("SSL redirect not enabled")
             
             # Check rate limiting configuration
-            rate_limiting_enabled = settings.RATE_LIMIT_ENABLED
+            rate_limiting_enabled = settings.RATE_LIMIT_ENABLE_SERVICE
             
             self.initialization_status["components"]["security"] = {
                 "status": "success" if not security_checks else "warning",
                 "checks": security_checks,
                 "rate_limiting_enabled": rate_limiting_enabled,
-                "environment": settings.ENVIRONMENT,
+                "environment": settings.APP_ENVIRONMENT,
                 "tested_at": datetime.utcnow().isoformat()
             }
             
@@ -275,7 +275,7 @@ class SystemInitializationService:
             monitoring_components = []
             
             # Check if monitoring is enabled
-            if settings.MONITORING_ENABLED:
+            if settings.MONITORING_ENABLE_SERVICE:
                 monitoring_components.append("system_metrics")
                 
                 # Test monitoring Redis connection if configured
@@ -295,7 +295,7 @@ class SystemInitializationService:
             
             self.initialization_status["components"]["monitoring"] = {
                 "status": "success",
-                "enabled": settings.MONITORING_ENABLED,
+                "enabled": settings.MONITORING_ENABLE_SERVICE,
                 "components": monitoring_components,
                 "apm_threshold": settings.APM_APDEX_THRESHOLD,
                 "tested_at": datetime.utcnow().isoformat()
@@ -331,17 +331,17 @@ class SystemInitializationService:
             # Check external service configurations
             external_services = []
             
-            if settings.ENABLE_EVOLUTION:
+            if settings.WHATSAPP_ENABLE_SERVICE:
                 external_services.append({
                     "name": "evolution_api",
-                    "url": settings.EVOLUTION_API_URL,
-                    "configured": bool(settings.EVOLUTION_API_KEY)
+                    "url": settings.WHATSAPP_EVOLUTION_API_URL,
+                    "configured": bool(settings.WHATSAPP_EVOLUTION_API_KEY)
                 })
             
-            if settings.GEMINI_API_KEY:
+            if settings.AI_GEMINI_API_KEY:
                 external_services.append({
                     "name": "gemini_ai",
-                    "model": settings.GEMINI_MODEL,
+                    "model": settings.AI_GEMINI_MODEL,
                     "configured": True
                 })
             

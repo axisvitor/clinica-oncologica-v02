@@ -493,7 +493,7 @@ async def _send_admin_email_alert(saga: PatientOnboardingSaga) -> None:
         <h3>Action Required:</h3>
         <p>Please review the saga logs and take appropriate action to resolve the issue.</p>
 
-        <p><strong>View Saga:</strong> <a href="{settings.ADMIN_DASHBOARD_URL}/sagas/{saga.id}">Click here</a></p>
+        <p><strong>View Saga:</strong> <a href="{settings.APP_ADMIN_DASHBOARD_URL}/sagas/{saga.id}">Click here</a></p>
         '''
 
         admin_email = settings.get("ADMIN_EMAIL", "admin@example.com")

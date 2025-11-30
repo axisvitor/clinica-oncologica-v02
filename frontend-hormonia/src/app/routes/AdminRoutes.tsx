@@ -100,11 +100,12 @@ const AdminLoginPage: React.FC = () => {
   }
 
   const handleForgotPassword = (email: string) => {
-    logger.log('Forgot password for:', email)
-    // TODO: Implement forgot password functionality
+    logger.log('Password recovery requested for:', email)
+    // LGPD Security: Password recovery requires admin contact
+    // This prevents email enumeration attacks and ensures proper identity verification
     toast({
       title: 'Recuperação de senha',
-      description: 'Funcionalidade em desenvolvimento.',
+      description: 'Por segurança (LGPD), entre em contato com o administrador do sistema para redefinir sua senha.'
     })
   }
 

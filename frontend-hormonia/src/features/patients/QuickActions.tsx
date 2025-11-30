@@ -1,6 +1,6 @@
 import React from 'react'
 import { MessageSquare, FileText, AlertTriangle, Activity } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
@@ -9,6 +9,16 @@ interface QuickActionsProps {
 }
 
 export function QuickActions({ patientId }: QuickActionsProps) {
+  const navigate = useNavigate()
+
+  const handleStartQuiz = () => {
+    navigate(`/quiz?patient=${patientId}`)
+  }
+
+  const handleViewAnalytics = () => {
+    navigate(`/patients/${patientId}/analytics`)
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -29,12 +39,10 @@ export function QuickActions({ patientId }: QuickActionsProps) {
           </Link>
         </Button>
 
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           className="w-full justify-start"
-          onClick={() => {
-            // TODO: Open quiz dialog
-          }}
+          onClick={handleStartQuiz}
         >
           <FileText className="mr-2 h-4 w-4" />
           Iniciar Questionário
@@ -62,12 +70,10 @@ export function QuickActions({ patientId }: QuickActionsProps) {
           </Link>
         </Button>
 
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           className="w-full justify-start"
-          onClick={() => {
-            // TODO: Open analytics dialog
-          }}
+          onClick={handleViewAnalytics}
         >
           <Activity className="mr-2 h-4 w-4" />
           Ver Analytics

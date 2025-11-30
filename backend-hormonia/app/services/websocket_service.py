@@ -180,7 +180,7 @@ class WebSocketConnectionManager:
         """
         try:
             payload = jwt.decode(
-                token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+                token, settings.SECURITY_SECRET_KEY, algorithms=[settings.SECURITY_ALGORITHM]
             )
             user_id = payload.get("sub")
 

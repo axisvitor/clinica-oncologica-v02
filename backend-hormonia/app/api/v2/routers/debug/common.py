@@ -15,11 +15,13 @@ from typing import Dict, Any
 from uuid import uuid4
 
 from fastapi import Depends, HTTPException, status, Request
+from typing import Union
 
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.models.audit_log import AuditLog
 from app.schemas.v2.debug import DebugSeverity
+from app.dependencies.auth_dependencies import get_current_active_admin
 
 logger = logging.getLogger(__name__)
 
@@ -56,36 +58,39 @@ def check_debug_enabled():
 
 
 async def get_admin_user(
-    request: Request,
+    admin_data: Dict[str, Any] = Depends(get_current_active_admin),
     db = Depends(get_db)
-) -> User:
+) -> Union[User, Dict[str, Any]]:
     """
-    Verify ADMIN-ONLY access.
+    Verify ADMIN-ONLY access using session-based authentication.
 
-    TODO: Integrate with actual auth system.
-    For now, checks for admin role in session/context.
+    Uses the secure get_current_active_admin dependency which:
+    1. Validates session from Redis cache (~2-5ms)
+    2. Verifies user is active
+    3. Confirms ADMIN role
+
+    Returns:
+        User model if found in DB, otherwise the admin dict from session
+
+    Raises:
+        HTTPException 401: If not authenticated
+        HTTPException 403: If not admin
     """
-    # TODO: Get user from session/token
-    # This is a placeholder - replace with actual auth integration
+    # admin_data is already validated by get_current_active_admin
+    # Try to get full User model from DB for audit logging
+    user_id = admin_data.get("id")
+    if user_id:
+        admin = db.query(User).filter(User.id == user_id).first()
+        if admin:
+            return admin
 
-    # For now, get first admin user (REPLACE THIS IN PRODUCTION)
-    admin = db.query(User).filter(
-        User.role == UserRole.ADMIN,
-        User.is_active == True
-    ).first()
-
-    if not admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required for debug endpoints"
-        )
-
-    return admin
+    # Fallback: return session data as dict (still authenticated admin)
+    return admin_data
 
 
 async def log_debug_operation(
     db,
-    admin_user: User,
+    admin_user: Union[User, Dict[str, Any]],
     endpoint: str,
     parameters: Dict[str, Any],
     result_summary: str,
@@ -97,7 +102,7 @@ async def log_debug_operation(
 
     Args:
         db: Database session
-        admin_user: Admin user performing operation
+        admin_user: Admin user performing operation (User model or dict)
         endpoint: Debug endpoint called
         parameters: Operation parameters (sanitized)
         result_summary: Brief result summary (sanitized)
@@ -105,9 +110,17 @@ async def log_debug_operation(
         severity: Operation severity level
     """
     try:
+        # Handle both User model and dict from session
+        if isinstance(admin_user, dict):
+            user_id = admin_user.get("id")
+            user_email = admin_user.get("email", "unknown")
+        else:
+            user_id = admin_user.id
+            user_email = admin_user.email
+
         audit_log = AuditLog(
             id=uuid4(),
-            user_id=admin_user.id,
+            user_id=user_id,
             action=f"debug:{endpoint}",
             resource_type="debug",
             resource_id=None,
@@ -124,7 +137,7 @@ async def log_debug_operation(
         db.add(audit_log)
         db.commit()
         logger.info(
-            f"Debug operation logged: {endpoint} by {admin_user.email} "
+            f"Debug operation logged: {endpoint} by {user_email} "
             f"(severity: {severity.value})"
         )
     except Exception as e:

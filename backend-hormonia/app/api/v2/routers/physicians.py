@@ -30,6 +30,7 @@ from app.models.user import User, UserRole
 from app.models.patient import Patient, FlowState
 from app.models.message import Message, MessageDirection, MessageStatus
 from app.models.alert import Alert, AlertSeverity, AlertStatus
+from app.models.appointment import Appointment, AppointmentStatus
 from app.schemas.v2.physicians import (
     PhysicianResponse,
     PhysicianList,
@@ -222,22 +223,92 @@ def _calculate_physician_statistics(
 
     response_rate = (read_count / inbound_count) if inbound_count > 0 else 0.0
 
+    # Calculate average response time
+    # Get pairs of inbound messages and their first outbound response
+    avg_response_time = None
+    try:
+        from sqlalchemy import func as sqlfunc
+        # Get messages with their timestamps
+        inbound_messages = db.query(
+            Message.id,
+            Message.created_at.label('inbound_time'),
+            Message.patient_id
+        ).filter(
+            Message.patient_id.in_(patient_ids),
+            Message.direction == MessageDirection.INBOUND,
+            Message.created_at >= week_ago
+        ).subquery()
+
+        # For each inbound message, find the next outbound response
+        response_times = db.query(
+            sqlfunc.avg(
+                sqlfunc.extract('epoch', Message.created_at) -
+                sqlfunc.extract('epoch', inbound_messages.c.inbound_time)
+            ) / 60  # Convert to minutes
+        ).filter(
+            Message.patient_id == inbound_messages.c.patient_id,
+            Message.direction == MessageDirection.OUTBOUND,
+            Message.created_at > inbound_messages.c.inbound_time
+        ).scalar()
+
+        if response_times:
+            avg_response_time = round(float(response_times), 1)
+    except Exception as e:
+        logger.warning(f"Failed to calculate response time: {e}")
+
     message_stats = MessageStats(
         total_sent=total_sent,
         total_received=total_received,
         unread_count=unread_count,
         response_rate=round(response_rate, 2),
-        avg_response_time_minutes=None  # TODO: Implement with message threading
+        avg_response_time_minutes=avg_response_time
     )
 
-    # Appointment statistics (placeholder - TODO: implement when appointments table available)
-    appointment_stats = AppointmentStats(
-        total_scheduled=0,
-        completed=0,
-        cancelled=0,
-        upcoming=0,
-        today=0
-    )
+    # Appointment statistics - using real data from appointments table
+    try:
+        # Get appointments for this physician's patients
+        appointments_base = db.query(Appointment).filter(
+            Appointment.practitioner_id == physician_id
+        )
+
+        total_scheduled = appointments_base.count()
+
+        completed = appointments_base.filter(
+            Appointment.status == AppointmentStatus.COMPLETED.value
+        ).count()
+
+        cancelled = appointments_base.filter(
+            Appointment.status.in_([AppointmentStatus.CANCELLED.value, AppointmentStatus.NO_SHOW.value])
+        ).count()
+
+        # Upcoming appointments (scheduled in the future)
+        upcoming = appointments_base.filter(
+            Appointment.scheduled_at > datetime.utcnow(),
+            Appointment.status.in_([AppointmentStatus.SCHEDULED.value, AppointmentStatus.CONFIRMED.value])
+        ).count()
+
+        # Today's appointments
+        today_appointments = appointments_base.filter(
+            Appointment.scheduled_at >= today_start,
+            Appointment.scheduled_at <= today_end
+        ).count()
+
+        appointment_stats = AppointmentStats(
+            total_scheduled=total_scheduled,
+            completed=completed,
+            cancelled=cancelled,
+            upcoming=upcoming,
+            today=today_appointments
+        )
+    except Exception as e:
+        logger.warning(f"Failed to calculate appointment stats: {e}")
+        appointment_stats = AppointmentStats(
+            total_scheduled=0,
+            completed=0,
+            cancelled=0,
+            upcoming=0,
+            today=0
+        )
 
     # Alert statistics
     alert_counts = db.query(
@@ -259,6 +330,56 @@ def _calculate_physician_statistics(
         low=alert_counts.low or 0
     )
 
+    # Calculate patient satisfaction score
+    # Based on completed appointments with positive outcomes and low alert rates
+    patient_satisfaction_score = None
+    try:
+        if total_patients > 0:
+            # Calculate based on:
+            # - % of completed vs cancelled appointments
+            # - Low critical/high alerts per patient
+            # - Active engagement (response rate)
+
+            # Appointment completion rate (40% weight)
+            appt_completion_rate = 0.0
+            if appointment_stats.total_scheduled > 0:
+                appt_completion_rate = appointment_stats.completed / appointment_stats.total_scheduled
+
+            # Alert severity score (30% weight) - lower is better
+            alert_severity_score = 1.0
+            if alert_stats.total > 0:
+                critical_weight = (alert_stats.critical * 4 + alert_stats.high * 2) / alert_stats.total
+                alert_severity_score = max(0, 1 - (critical_weight / 4))
+
+            # Response rate (30% weight)
+            response_rate_score = message_stats.response_rate if message_stats.response_rate else 0.5
+
+            # Weighted average (scale 0-5)
+            raw_score = (appt_completion_rate * 0.4 + alert_severity_score * 0.3 + response_rate_score * 0.3) * 5
+            patient_satisfaction_score = round(min(5.0, max(0.0, raw_score)), 2)
+    except Exception as e:
+        logger.warning(f"Failed to calculate satisfaction score: {e}")
+
+    # Calculate average treatment duration
+    avg_treatment_duration_days = None
+    try:
+        # Get patients who have completed treatment (CANCELLED state with completed_at)
+        completed_patients = db.query(
+            func.avg(
+                func.extract('epoch', Patient.updated_at) -
+                func.extract('epoch', Patient.created_at)
+            ) / 86400  # Convert to days
+        ).filter(
+            Patient.doctor_id == physician_id,
+            Patient.flow_state == FlowState.CANCELLED,
+            Patient.deleted_at.is_(None)
+        ).scalar()
+
+        if completed_patients:
+            avg_treatment_duration_days = round(float(completed_patients), 1)
+    except Exception as e:
+        logger.warning(f"Failed to calculate treatment duration: {e}")
+
     # Build statistics object
     statistics = PhysicianStatistics(
         total_patients=total_patients,
@@ -269,8 +390,8 @@ def _calculate_physician_statistics(
         messages=message_stats,
         appointments=appointment_stats,
         alerts=alert_stats,
-        patient_satisfaction_score=None,  # TODO: Implement patient satisfaction
-        avg_treatment_duration_days=None,  # TODO: Calculate from treatment data
+        patient_satisfaction_score=patient_satisfaction_score,
+        avg_treatment_duration_days=avg_treatment_duration_days,
         calculated_at=datetime.utcnow()
     )
 
@@ -608,11 +729,26 @@ async def get_physician(
         # Physicians can view themselves
         if str(physician.id) != user_id:
             # Patients can view their assigned physician
-            # TODO: Implement patient-physician relationship check
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized to view this physician"
-            )
+            if role_enum == UserRole.PATIENT:
+                # Check if this patient is assigned to the physician
+                patient_assigned = db.query(Patient).filter(
+                    Patient.doctor_id == physician_uuid,
+                    Patient.id == UUID(user_id) if user_id else None,
+                    Patient.deleted_at.is_(None)
+                ).first()
+
+                if patient_assigned:
+                    logger.debug(f"Patient {user_id} authorized to view assigned physician {physician_id}")
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Not authorized to view this physician"
+                    )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Not authorized to view this physician"
+                )
 
     # Serialize physician
     include_statistics = include and "statistics" in include

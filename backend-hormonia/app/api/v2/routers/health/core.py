@@ -50,7 +50,7 @@ async def basic_health_check() -> HealthResponse:
         status=HealthStatus.HEALTHY,
         timestamp=datetime.utcnow(),
         version="2.0.0",
-        environment=settings.ENVIRONMENT,
+        environment=settings.APP_ENVIRONMENT,
     )
 
 
@@ -76,7 +76,7 @@ async def readiness_probe(
     try:
         db.execute(text("SELECT 1")).fetchone()
         checks["database"] = True
-    except:
+    except Exception:
         checks["database"] = False
         ready = False
 
@@ -86,8 +86,8 @@ async def readiness_probe(
         inspect = celery_app.control.inspect(timeout=1.0)
         active = inspect.active()
         checks["workers"] = active is not None and len(active) > 0
-    except:
-        checks["workers"] = False
+    except Exception:
+        checks["workers"] = False  # Celery may not be configured
 
     if not ready:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
@@ -167,7 +167,7 @@ async def detailed_health_check(
         health_score=health_score,
         timestamp=datetime.utcnow(),
         version="2.0.0",
-        environment=settings.ENVIRONMENT,
+        environment=settings.APP_ENVIRONMENT,
         database=database,
         redis=redis_health,
         workers=workers,

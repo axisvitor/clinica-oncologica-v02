@@ -105,7 +105,7 @@ class StatusWebhookHandler:
                 # Cache status update in Redis
                 await redis_client.setex(
                     idempotency_key,
-                    cache_settings.WEBHOOK_IDEMPOTENCY_TTL,
+                    cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS,
                     "1"
                 )
                 

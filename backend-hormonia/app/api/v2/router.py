@@ -110,7 +110,7 @@ async def get_csrf_token_compat(request: Request):
         }
     )
 
-    if not settings.CSRF_SECRET_KEY:
+    if not settings.SECURITY_CSRF_SECRET_KEY:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="CSRF protection is not configured on this server"
@@ -119,7 +119,7 @@ async def get_csrf_token_compat(request: Request):
     # Create a temporary middleware instance to generate token
     csrf = CSRFMiddleware(
         app=None,  # Not needed for token generation
-        secret_key=settings.CSRF_SECRET_KEY,
+        secret_key=settings.SECURITY_CSRF_SECRET_KEY,
         token_expiry=3600
     )
 

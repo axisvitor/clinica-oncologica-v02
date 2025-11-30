@@ -92,6 +92,7 @@ class OnboardingCoordinator:
         patient_data: PatientCreate,
         doctor_id: UUID,
         current_user: Optional["User"] = None,
+        idempotency_key: Optional[str] = None,
     ) -> Patient:
         """
         Orchestrate patient creation workflow.
@@ -105,6 +106,7 @@ class OnboardingCoordinator:
             patient_data: Patient creation data
             doctor_id: ID of the doctor creating the patient
             current_user: Current authenticated user (optional)
+            idempotency_key: QW-004: Unique key to prevent duplicate requests (optional)
 
         Returns:
             Created patient object
@@ -130,6 +132,7 @@ class OnboardingCoordinator:
             patient_data=patient_data,
             doctor_id=doctor_id,
             current_user=current_user,
+            idempotency_key=idempotency_key,  # QW-004: Pass idempotency key to saga
         )
 
         if not patient:

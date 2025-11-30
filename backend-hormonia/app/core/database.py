@@ -59,8 +59,8 @@ class RLSConnectionManager:
                 'connect_timeout': 30,
                 'application_name': 'hormonia_service_role',
             },
-            echo=settings.DEBUG,
-            echo_pool=settings.DEBUG if hasattr(settings, 'DEBUG') else False
+            echo=settings.APP_ENABLE_DEBUG,
+            echo_pool=settings.APP_ENABLE_DEBUG if hasattr(settings, 'DEBUG') else False
         )
 
         # RLS Context Engine (with JWT)
@@ -78,8 +78,8 @@ class RLSConnectionManager:
                 'connect_timeout': 30,
                 'application_name': 'hormonia_rls',
             },
-            echo=settings.DEBUG,
-            echo_pool=settings.DEBUG if hasattr(settings, 'DEBUG') else False
+            echo=settings.APP_ENABLE_DEBUG,
+            echo_pool=settings.APP_ENABLE_DEBUG if hasattr(settings, 'DEBUG') else False
         )
 
         # Adicionar retry logic para reconexão automática em caso de falha SSL

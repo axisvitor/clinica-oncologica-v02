@@ -35,9 +35,34 @@ function upgradeWebSocketProtocol(wsUrl: string | undefined): string | undefined
 // Re-export runtime config functions for external access
 export { getRuntimeConfig, getRuntimeConfigSync, isProduction } from './lib/runtime-config';
 
+/**
+ * Runtime configuration type definition
+ */
+interface RuntimeConfigType {
+  API_BASE_URL: string
+  WS_BASE_URL?: string
+  WHATSAPP_INSTANCE_NAME: string
+  OPENAI_API_KEY?: string
+  LANGCHAIN_API_KEY?: string
+  GEMINI_API_KEY?: string
+  AI_CHAT_ENABLED: boolean
+  AI_ANALYTICS_ENABLED: boolean
+  AI_INSIGHTS_ENABLED: boolean
+  AI_RECOMMENDATIONS_ENABLED: boolean
+  SENTRY_DSN?: string
+  ANALYTICS_TRACKING_ID?: string
+  ENVIRONMENT: string
+  DEBUG_MODE: boolean
+  SESSION_TIMEOUT: number
+  TOKEN_REFRESH_THRESHOLD: number
+  maxFileSize: number
+  allowedFileTypes: string[]
+  [key: string]: string | boolean | number | string[] | undefined
+}
+
 // Configuration state
-let configPromise: Promise<any> | null = null;
-let syncConfig: any = null;
+let configPromise: Promise<RuntimeConfigType> | null = null;
+let syncConfig: RuntimeConfigType | null = null;
 
 /**
  * Use this in React components with useEffect or in async functions
@@ -51,8 +76,8 @@ export async function loadConfig() {
         const config = {
 
           // API Configuration
-          // Prefer API base (domain) if provided; otherwise derive from VITE_API_URL
-          API_BASE_URL: runtimeConfig.VITE_API_BASE_URL || (runtimeConfig.VITE_API_URL?.replace(/\/api\/v2$/, '') || runtimeConfig.VITE_API_URL),
+          // Prefer API base (domain) if provided; otherwise derive from API URL
+          API_BASE_URL: runtimeConfig.VITE_API_BASE_URL || runtimeConfig.VITE_API_URL?.replace(/\/api\/v2$/, ''),
 
           // WebSocket Configuration
           // Prefer WS base if provided; fallback to WS URL
@@ -129,28 +154,28 @@ export let TOKEN_REFRESH_THRESHOLD = 300000;
 // Update exports when config is loaded
 loadConfig().then(config => {
   if (config.API_BASE_URL !== API_BASE_URL) API_BASE_URL = config.API_BASE_URL;
-  if (config.WS_BASE_URL !== WS_BASE_URL) WS_BASE_URL = config.WS_BASE_URL;
+  if (config.WS_BASE_URL && config.WS_BASE_URL !== WS_BASE_URL) WS_BASE_URL = config.WS_BASE_URL;
 }).catch(error => {
   logger.error('Failed to initialize configuration:', error);
 });
 
-// Static fallback values from environment
+// Static fallback values from environment - NEW NAMING CONVENTION
 const STATIC_WHATSAPP_INSTANCE_NAME = import.meta.env['VITE_WHATSAPP_INSTANCE_NAME'] || 'hormonia-instance';
 const STATIC_OPENAI_API_KEY = import.meta.env['VITE_OPENAI_API_KEY'];
 const STATIC_LANGCHAIN_API_KEY = import.meta.env['VITE_LANGCHAIN_API_KEY'];
 const STATIC_GEMINI_API_KEY = import.meta.env['VITE_GEMINI_API_KEY'];
-const STATIC_SENTRY_DSN = import.meta.env['VITE_SENTRY_DSN'];
-const STATIC_ANALYTICS_TRACKING_ID = import.meta.env['VITE_ANALYTICS_TRACKING_ID'];
-const STATIC_ENVIRONMENT = import.meta.env['VITE_ENVIRONMENT'] || 'development';
-const STATIC_DEBUG_MODE = import.meta.env['VITE_DEBUG_MODE'] === 'true';
-const STATIC_SESSION_TIMEOUT = parseInt(import.meta.env['VITE_SESSION_TIMEOUT'] || '28800000', 10);
-const STATIC_TOKEN_REFRESH_THRESHOLD = parseInt(import.meta.env['VITE_TOKEN_REFRESH_THRESHOLD'] || '300000', 10);
+const STATIC_SENTRY_DSN = import.meta.env['VITE_MONITORING_SENTRY_DSN'];
+const STATIC_ANALYTICS_TRACKING_ID = import.meta.env['VITE_MONITORING_ANALYTICS_ID'];
+const STATIC_ENVIRONMENT = import.meta.env['VITE_APP_ENVIRONMENT'] || 'development';
+const STATIC_DEBUG_MODE = import.meta.env['VITE_APP_ENABLE_DEBUG'] === 'true';
+const STATIC_SESSION_TIMEOUT = parseInt(import.meta.env['VITE_SESSION_TIMEOUT_MS'] || '28800000', 10);
+const STATIC_TOKEN_REFRESH_THRESHOLD = parseInt(import.meta.env['VITE_SESSION_TOKEN_REFRESH_THRESHOLD_MS'] || '300000', 10);
 
-// AI Feature Flag Statics
-const STATIC_AI_CHAT_ENABLED = import.meta.env['VITE_AI_CHAT_ENABLED'] === 'true' || import.meta.env['VITE_AI_CHAT_ENABLED'] === undefined;
-const STATIC_AI_ANALYTICS_ENABLED = import.meta.env['VITE_AI_ANALYTICS_ENABLED'] === 'true' || import.meta.env['VITE_AI_ANALYTICS_ENABLED'] === undefined;
-const STATIC_AI_INSIGHTS_ENABLED = import.meta.env['VITE_AI_INSIGHTS_ENABLED'] === 'true' || import.meta.env['VITE_AI_INSIGHTS_ENABLED'] === undefined;
-const STATIC_AI_RECOMMENDATIONS_ENABLED = import.meta.env['VITE_AI_RECOMMENDATIONS_ENABLED'] === 'true' || import.meta.env['VITE_AI_RECOMMENDATIONS_ENABLED'] === undefined;
+// AI Feature Flag Statics - NEW NAMING: VITE_AI_ENABLE_*
+const STATIC_AI_CHAT_ENABLED = import.meta.env['VITE_AI_ENABLE_CHAT'] === 'true' || import.meta.env['VITE_AI_ENABLE_CHAT'] === undefined;
+const STATIC_AI_ANALYTICS_ENABLED = import.meta.env['VITE_AI_ENABLE_ANALYTICS'] === 'true' || import.meta.env['VITE_AI_ENABLE_ANALYTICS'] === undefined;
+const STATIC_AI_INSIGHTS_ENABLED = import.meta.env['VITE_AI_ENABLE_INSIGHTS'] === 'true' || import.meta.env['VITE_AI_ENABLE_INSIGHTS'] === undefined;
+const STATIC_AI_RECOMMENDATIONS_ENABLED = import.meta.env['VITE_AI_ENABLE_RECOMMENDATIONS'] === 'true' || import.meta.env['VITE_AI_ENABLE_RECOMMENDATIONS'] === undefined;
 
 // Remove duplicate declarations - these variables are already declared above
 
@@ -176,9 +201,9 @@ export const APP_CONFIG = {
   reconnectAttempts: 5,
   reconnectDelay: 1000,
 
-  // File upload settings (from env vars)
-  maxFileSize: parseInt(import.meta.env['VITE_MAX_FILE_SIZE'] || '10485760', 10),
-  allowedFileTypes: import.meta.env['VITE_SUPPORTED_FILE_TYPES']?.split(',') || ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'],
+  // File upload settings (from env vars) - NEW NAMING: VITE_UPLOAD_*
+  maxFileSize: parseInt(import.meta.env['VITE_UPLOAD_MAX_SIZE_BYTES'] || '10485760', 10),
+  allowedFileTypes: import.meta.env['VITE_UPLOAD_SUPPORTED_MIMETYPES']?.split(',') || ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'],
 
   // AI Settings
   ai: {
@@ -218,11 +243,11 @@ export const THEME_CONFIG = {
  * - AI_ANALYTICS: Enable AI analytics dashboard with predictive analytics
  * - AI_RECOMMENDATIONS: Enable AI-powered treatment recommendations
  *
- * Environment Variables:
- * - VITE_AI_CHAT_ENABLED: 'true' | 'false' (default: true if API keys present)
- * - VITE_AI_ANALYTICS_ENABLED: 'true' | 'false' (default: true)
- * - VITE_AI_INSIGHTS_ENABLED: 'true' | 'false' (default: true)
- * - VITE_AI_RECOMMENDATIONS_ENABLED: 'true' | 'false' (default: true)
+ * Environment Variables (NEW NAMING):
+ * - VITE_AI_ENABLE_CHAT: 'true' | 'false' (default: true if API keys present)
+ * - VITE_AI_ENABLE_ANALYTICS: 'true' | 'false' (default: true)
+ * - VITE_AI_ENABLE_INSIGHTS: 'true' | 'false' (default: true)
+ * - VITE_AI_ENABLE_RECOMMENDATIONS: 'true' | 'false' (default: true)
  * - VITE_OPENAI_API_KEY: OpenAI API key for AI features
  * - VITE_GEMINI_API_KEY: Google Gemini API key for AI features
  * - VITE_LANGCHAIN_API_KEY: LangChain API key for advanced AI workflows

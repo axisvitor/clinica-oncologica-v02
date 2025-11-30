@@ -1,5 +1,6 @@
 """
 Security configuration module: JWT, Firebase Auth, CSRF, CORS, and encryption settings.
+ENV Variable Naming Convention: {CATEGORY}_{SUBCATEGORY}_{ATTRIBUTE}_{UNIT}
 """
 
 from pydantic import Field, model_validator
@@ -12,35 +13,61 @@ class SecuritySettings(BaseAppSettings):
     """Security configuration for authentication, authorization, and protection."""
 
     # ============================================================================
-    # JWT Configuration
+    # Security Keys - Direct ENV names
     # ============================================================================
-    SECRET_KEY: str = Field(..., description="Secret key for JWT signing")
-    JWT_SECRET_KEY: Optional[str] = Field(
-        default=None, description="JWT secret key (fallback to SECRET_KEY if not set)"
+    SECURITY_SECRET_KEY: str = Field(
+        ...,
+        description="Secret key for JWT signing"
     )
-    ENCRYPTION_KEY: Optional[str] = Field(
-        default=None, description="Encryption key for sensitive data"
+    AUTH_JWT_SECRET_KEY: Optional[str] = Field(
+        default=None,
+        description="JWT secret key (fallback to SECURITY_SECRET_KEY if not set)"
     )
-    ALGORITHM: str = Field(default="HS256", description="JWT algorithm")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
-        default=30, description="JWT expiration time"
+    SECURITY_ENCRYPTION_KEY: Optional[str] = Field(
+        default=None,
+        description="Encryption key for sensitive data"
     )
-    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(
-        default=7, description="Refresh token expiration time in days"
+    SECURITY_ALGORITHM: str = Field(
+        default="HS256",
+        description="JWT algorithm"
     )
-    BCRYPT_ROUNDS: int = Field(
+
+    # ============================================================================
+    # Authentication - Direct ENV names
+    # ============================================================================
+    AUTH_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
+        default=30,
+        description="JWT expiration time"
+    )
+    AUTH_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(
+        default=7,
+        description="Refresh token expiration time in days"
+    )
+    AUTH_BCRYPT_ROUNDS: int = Field(
         default=12,
         description="Bcrypt hashing rounds for password security (12-15 recommended for production)",
     )
 
-    # ============================================================================
-    # Session and Cookie Configuration
-    # ============================================================================
-    SESSION_COOKIE_SECURE: bool = Field(
-        default=False, description="Require HTTPS for session cookies (must be True in production)"
+    # Token Rotation & Blacklist - Direct ENV names
+    AUTH_ENABLE_TOKEN_ROTATION: bool = Field(
+        default=False,
+        description="Enable automatic token rotation for enhanced security"
     )
-    SESSION_COOKIE_HTTPONLY: bool = Field(
-        default=True, description="Prevent JavaScript access to session cookies (XSS protection)"
+    AUTH_ENABLE_TOKEN_BLACKLIST: bool = Field(
+        default=True,
+        description="Enable token blacklist for logout/revocation support"
+    )
+
+    # ============================================================================
+    # Session and Cookie Configuration - Direct ENV names
+    # ============================================================================
+    SESSION_ENABLE_COOKIE_SECURE: bool = Field(
+        default=False,
+        description="Require HTTPS for session cookies (must be True in production)"
+    )
+    SESSION_ENABLE_COOKIE_HTTPONLY: bool = Field(
+        default=True,
+        description="Prevent JavaScript access to session cookies (XSS protection)"
     )
     SESSION_COOKIE_SAMESITE: str = Field(
         default="lax", description="SameSite cookie attribute: 'strict', 'lax', or 'none' (CSRF protection)"
@@ -54,15 +81,35 @@ class SecuritySettings(BaseAppSettings):
     SESSION_COOKIE_DOMAIN: Optional[str] = Field(
         default=None, description="Domain for session cookie (None = current domain only)"
     )
-    SESSION_COOKIE_MAX_AGE: int = Field(
-        default=28800, description="Session cookie max age in seconds (default: 8 hours)"
+    SESSION_COOKIE_MAX_AGE_SECONDS: int = Field(
+        default=28800,
+        description="Session cookie max age in seconds (default: 8 hours)"
     )
-    SECURE_SSL_REDIRECT: bool = Field(default=False, description="Force HTTPS redirect")
 
     # ============================================================================
-    # CSRF Protection
+    # Security Features - Direct ENV names
     # ============================================================================
-    CSRF_SECRET_KEY: Optional[str] = Field(
+    SECURITY_ENABLE_SSL_REDIRECT: bool = Field(
+        default=False,
+        description="Force HTTPS redirect"
+    )
+    SECURITY_ENABLE_CONTENT_TYPE_NOSNIFF: bool = Field(
+        default=True,
+        description="Enable X-Content-Type-Options: nosniff header"
+    )
+    SECURITY_ENABLE_BROWSER_XSS_FILTER: bool = Field(
+        default=True,
+        description="Enable X-XSS-Protection header"
+    )
+    SECURITY_ENABLE_FIELD_ENCRYPTION: bool = Field(
+        default=True,
+        description="Enable field-level encryption for sensitive data"
+    )
+
+    # ============================================================================
+    # CSRF Protection - Direct ENV name
+    # ============================================================================
+    SECURITY_CSRF_SECRET_KEY: Optional[str] = Field(
         default=None,
         description="Secret key for CSRF token generation (generate with secrets.token_urlsafe(32))",
     )
@@ -80,12 +127,12 @@ class SecuritySettings(BaseAppSettings):
         default=None, description="Firebase Admin SDK service account email"
     )
 
-    # Firebase Security Configuration
+    # Firebase Security Configuration - Direct ENV names
     FIREBASE_ALLOWED_DOMAINS: List[str] = Field(
         default_factory=list,
         description="Authorized email domains for Firebase user creation (no public domains allowed)",
     )
-    FIREBASE_REQUIRE_CUSTOM_CLAIMS: bool = Field(
+    FIREBASE_ENABLE_REQUIRE_CUSTOM_CLAIMS: bool = Field(
         default=True,
         description="Require valid custom claims (role) before creating user",
     )
@@ -97,7 +144,7 @@ class SecuritySettings(BaseAppSettings):
         default=True,
         description="Enable comprehensive audit logging for user provisioning",
     )
-    FIREBASE_BLOCK_PUBLIC_DOMAINS: bool = Field(
+    FIREBASE_ENABLE_BLOCK_PUBLIC_DOMAINS: bool = Field(
         default=True,
         description="Block public email domains (gmail.com, yahoo.com, etc.)",
     )
@@ -112,25 +159,26 @@ class SecuritySettings(BaseAppSettings):
         description="Public email domains that are explicitly blocked",
     )
 
-    # Firebase Redis Cache Configuration (3-Layer Architecture)
-    FIREBASE_TOKEN_CACHE_TTL: int = Field(
+    # Firebase Redis Cache Configuration - Direct ENV names
+    FIREBASE_TOKEN_CACHE_TTL_SECONDS: int = Field(
         default=3600,
         description="Firebase token validation cache TTL in seconds (Layer 1 - Default: 1 hour)",
     )
-    FIREBASE_USER_CACHE_TTL: int = Field(
+    FIREBASE_USER_CACHE_TTL_SECONDS: int = Field(
         default=7200,
         description="Firebase user object cache TTL in seconds (Layer 2 - Default: 2 hours)",
     )
-    FIREBASE_SESSION_TTL: int = Field(
+    FIREBASE_SESSION_TTL_SECONDS: int = Field(
         default=86400,
         description="Firebase session management TTL in seconds (Layer 3 - Default: 24 hours)",
     )
 
     # ============================================================================
-    # Rate Limiting Configuration
+    # Rate Limiting Configuration - Direct ENV name
     # ============================================================================
-    RATE_LIMIT_ENABLED: bool = Field(
-        default=True, description="Enable rate limiting on authentication endpoints"
+    RATE_LIMIT_ENABLE_SERVICE: bool = Field(
+        default=True,
+        description="Enable rate limiting on authentication endpoints"
     )
     RATE_LIMIT_REDIS_URL: Optional[str] = Field(
         default=None,
@@ -138,19 +186,19 @@ class SecuritySettings(BaseAppSettings):
     )
 
     # ============================================================================
-    # CORS Configuration
+    # CORS Configuration - Direct ENV names
     # ============================================================================
-    FRONTEND_URL: str = Field(
+    CORS_FRONTEND_URL: str = Field(
         default="http://localhost:5173",
         description="Frontend URL (used for CORS in production)",
     )
-    QUIZ_URL: str = Field(
+    CORS_QUIZ_URL: str = Field(
         default="http://localhost:3001",
         description="Quiz interface URL (used for CORS in production)",
     )
-    ALLOWED_ORIGINS: List[str] | str = Field(
+    CORS_ALLOWED_ORIGINS: List[str] | str = Field(
         default=[],
-        description="Allowed CORS origins (auto-constructed from FRONTEND_URL + QUIZ_URL in production, empty in dev for regex)",
+        description="Allowed CORS origins (auto-constructed from CORS_FRONTEND_URL + CORS_QUIZ_URL in production, empty in dev for regex)",
     )
 
     # ============================================================================
@@ -161,15 +209,15 @@ class SecuritySettings(BaseAppSettings):
     @classmethod
     def parse_security_values(cls, data: Any) -> Any:
         """Parse security-related environment variable values."""
-        # Parse boolean fields
+        # Parse boolean fields - Using new field names
         boolean_fields = [
-            "SESSION_COOKIE_SECURE",
-            "SESSION_COOKIE_HTTPONLY",
-            "SECURE_SSL_REDIRECT",
-            "FIREBASE_REQUIRE_CUSTOM_CLAIMS",
+            "SESSION_ENABLE_COOKIE_SECURE",
+            "SESSION_ENABLE_COOKIE_HTTPONLY",
+            "SECURITY_ENABLE_SSL_REDIRECT",
+            "FIREBASE_ENABLE_REQUIRE_CUSTOM_CLAIMS",
             "FIREBASE_ENABLE_AUDIT_LOGGING",
-            "FIREBASE_BLOCK_PUBLIC_DOMAINS",
-            "RATE_LIMIT_ENABLED",
+            "FIREBASE_ENABLE_BLOCK_PUBLIC_DOMAINS",
+            "RATE_LIMIT_ENABLE_SERVICE",
         ]
 
         for field in boolean_fields:
@@ -193,29 +241,29 @@ class SecuritySettings(BaseAppSettings):
                 except json.JSONDecodeError:
                     data["FIREBASE_ALLOWED_DOMAINS"] = []
 
-        # Parse ALLOWED_ORIGINS
-        if "ALLOWED_ORIGINS" in data:
-            v = data["ALLOWED_ORIGINS"]
+        # Parse CORS_ALLOWED_ORIGINS
+        if "CORS_ALLOWED_ORIGINS" in data:
+            v = data["CORS_ALLOWED_ORIGINS"]
             if isinstance(v, list) and len(v) > 0:
                 pass  # Already a list
             elif isinstance(v, str) and v.strip():
                 s = v.strip()
                 if s.startswith("["):
                     try:
-                        data["ALLOWED_ORIGINS"] = json.loads(s)
-                    except:
-                        data["ALLOWED_ORIGINS"] = [
+                        data["CORS_ALLOWED_ORIGINS"] = json.loads(s)
+                    except (json.JSONDecodeError, ValueError):
+                        data["CORS_ALLOWED_ORIGINS"] = [
                             item.strip() for item in s.split(",") if item.strip()
                         ]
                 else:
-                    data["ALLOWED_ORIGINS"] = [
+                    data["CORS_ALLOWED_ORIGINS"] = [
                         item.strip() for item in s.split(",") if item.strip()
                     ]
             else:
-                data["ALLOWED_ORIGINS"] = []
+                data["CORS_ALLOWED_ORIGINS"] = []
 
         # Validate security keys are not placeholders
-        for field in ["SECRET_KEY", "JWT_SECRET_KEY", "ENCRYPTION_KEY"]:
+        for field in ["SECURITY_SECRET_KEY", "AUTH_JWT_SECRET_KEY", "SECURITY_ENCRYPTION_KEY"]:
             if field in data:
                 v = data[field]
                 if v and ("CHANGE_THIS" in v.upper() or "YOUR_" in v.upper()):
@@ -258,28 +306,28 @@ class SecuritySettings(BaseAppSettings):
 
         logger = logging.getLogger(__name__)
 
-        if not self.ALLOWED_ORIGINS:
+        if not self.CORS_ALLOWED_ORIGINS:
             # Check if fallback URLs are configured
-            has_fallback = bool(self.FRONTEND_URL or self.QUIZ_URL)
-            if has_fallback and self.ENVIRONMENT.lower() != "production":
-                # Dev mode: empty ALLOWED_ORIGINS is OK (regex is used)
+            has_fallback = bool(self.CORS_FRONTEND_URL or self.CORS_QUIZ_URL)
+            if has_fallback and self.APP_ENVIRONMENT.lower() != "production":
+                # Dev mode: empty CORS_ALLOWED_ORIGINS is OK (regex is used)
                 logger.info(
-                    "✅ CORS using regex pattern (dev mode) - ALLOWED_ORIGINS empty by design"
+                    "✅ CORS using regex pattern (dev mode) - CORS_ALLOWED_ORIGINS empty by design"
                 )
             elif has_fallback:
-                # Production with fallback: build from FRONTEND_URL/QUIZ_URL
+                # Production with fallback: build from CORS_FRONTEND_URL/CORS_QUIZ_URL
                 logger.info(
-                    f"✅ CORS will use fallback: {self.FRONTEND_URL}, {self.QUIZ_URL}"
+                    f"✅ CORS will use fallback: {self.CORS_FRONTEND_URL}, {self.CORS_QUIZ_URL}"
                 )
             else:
                 # No origins and no fallback: actual problem
                 logger.warning(
-                    "⚠️  ALLOWED_ORIGINS is empty! CORS will block all cross-origin requests. "
-                    "Add your frontend URL to ALLOWED_ORIGINS in .env"
+                    "⚠️  CORS_ALLOWED_ORIGINS is empty! CORS will block all cross-origin requests. "
+                    "Add your frontend URL to CORS_ALLOWED_ORIGINS in .env"
                 )
         else:
             logger.info(
-                f"✅ CORS configured with {len(self.ALLOWED_ORIGINS)} allowed origins"
+                f"✅ CORS configured with {len(self.CORS_ALLOWED_ORIGINS)} allowed origins"
             )
 
     def validate_csrf_config(self):
@@ -288,21 +336,21 @@ class SecuritySettings(BaseAppSettings):
 
         logger = logging.getLogger(__name__)
 
-        if self.CSRF_SECRET_KEY:
+        if self.SECURITY_CSRF_SECRET_KEY:
             try:
                 # Import validation function
                 from app.utils.security_validation import validate_csrf_secret
 
                 # Validate CSRF secret with entropy checking
                 # log_validation=True will log metrics without exposing the secret
-                validate_csrf_secret(self.CSRF_SECRET_KEY, log_validation=True)
+                validate_csrf_secret(self.SECURITY_CSRF_SECRET_KEY, log_validation=True)
                 logger.info("✅ CSRF secret validation passed")
 
             except ValueError as e:
                 logger.error(f"❌ CSRF secret validation failed: {e}")
 
                 # In production, weak CSRF secrets should prevent application startup
-                if self.ENVIRONMENT.lower() == "production":
+                if self.APP_ENVIRONMENT.lower() == "production":
                     raise ValueError(
                         f"CSRF secret validation failed in production: {e}\n"
                         "Generate a secure secret with: "
@@ -318,7 +366,7 @@ class SecuritySettings(BaseAppSettings):
                     )
         else:
             logger.warning(
-                "⚠️  CSRF_SECRET_KEY not configured. "
+                "⚠️  SECURITY_CSRF_SECRET_KEY not configured. "
                 "CSRF protection will be disabled. "
                 "For production, generate a secret with: "
                 "python -c 'import secrets; print(secrets.token_urlsafe(32))'"
@@ -326,23 +374,23 @@ class SecuritySettings(BaseAppSettings):
 
     def validate_production_config(self):
         """Validate production environment has secure configurations."""
-        if self.ENVIRONMENT.lower() == "production":
+        if self.APP_ENVIRONMENT.lower() == "production":
             errors = []
 
             # DEBUG must be False in production
-            if self.DEBUG:
-                errors.append("DEBUG must be False in production environment")
+            if self.APP_ENABLE_DEBUG:
+                errors.append("APP_ENABLE_DEBUG must be False in production environment")
 
             # Session cookies must be secure in production
-            if not self.SESSION_COOKIE_SECURE:
+            if not self.SESSION_ENABLE_COOKIE_SECURE:
                 errors.append(
-                    "SESSION_COOKIE_SECURE must be True in production environment"
+                    "SESSION_ENABLE_COOKIE_SECURE must be True in production environment"
                 )
 
             # HttpOnly should always be true for security
-            if not self.SESSION_COOKIE_HTTPONLY:
+            if not self.SESSION_ENABLE_COOKIE_HTTPONLY:
                 errors.append(
-                    "SESSION_COOKIE_HTTPONLY must be True to prevent XSS attacks"
+                    "SESSION_ENABLE_COOKIE_HTTPONLY must be True to prevent XSS attacks"
                 )
 
             # SameSite should be strict or lax in production
@@ -352,9 +400,9 @@ class SecuritySettings(BaseAppSettings):
                 )
 
             # SSL redirect should be enabled in production
-            if not self.SECURE_SSL_REDIRECT:
+            if not self.SECURITY_ENABLE_SSL_REDIRECT:
                 errors.append(
-                    "SECURE_SSL_REDIRECT must be True in production environment"
+                    "SECURITY_ENABLE_SSL_REDIRECT must be True in production environment"
                 )
 
             if errors:
@@ -366,18 +414,18 @@ class SecuritySettings(BaseAppSettings):
     def get_cors_origins(self) -> List[str]:
         """
         Returns CORS origins based on environment.
-        Production: FRONTEND_URL + QUIZ_URL
+        Production: CORS_FRONTEND_URL + CORS_QUIZ_URL
         Dev: empty list (uses regex)
         """
-        if self.ENVIRONMENT.lower() == "production":
+        if self.APP_ENVIRONMENT.lower() == "production":
             origins = []
-            if self.FRONTEND_URL:
-                origins.append(self.FRONTEND_URL.rstrip("/"))
-            if self.QUIZ_URL:
-                origins.append(self.QUIZ_URL.rstrip("/"))
-            # If ALLOWED_ORIGINS was explicitly set, use it
-            if self.ALLOWED_ORIGINS:
-                return self.ALLOWED_ORIGINS
+            if self.CORS_FRONTEND_URL:
+                origins.append(self.CORS_FRONTEND_URL.rstrip("/"))
+            if self.CORS_QUIZ_URL:
+                origins.append(self.CORS_QUIZ_URL.rstrip("/"))
+            # If CORS_ALLOWED_ORIGINS was explicitly set, use it
+            if self.CORS_ALLOWED_ORIGINS:
+                return self.CORS_ALLOWED_ORIGINS
             return origins
         else:
             # Dev: return empty, middleware will use regex
@@ -387,9 +435,9 @@ class SecuritySettings(BaseAppSettings):
         """Get Firebase security configuration for user provisioning."""
         return {
             "allowed_domains": self.FIREBASE_ALLOWED_DOMAINS,
-            "require_custom_claims": self.FIREBASE_REQUIRE_CUSTOM_CLAIMS,
+            "require_custom_claims": self.FIREBASE_ENABLE_REQUIRE_CUSTOM_CLAIMS,
             "allowed_roles": self.FIREBASE_ALLOWED_ROLES,
             "enable_audit_logging": self.FIREBASE_ENABLE_AUDIT_LOGGING,
-            "block_public_domains": self.FIREBASE_BLOCK_PUBLIC_DOMAINS,
+            "block_public_domains": self.FIREBASE_ENABLE_BLOCK_PUBLIC_DOMAINS,
             "public_domains_blocklist": self.FIREBASE_PUBLIC_DOMAINS_BLOCKLIST,
         }

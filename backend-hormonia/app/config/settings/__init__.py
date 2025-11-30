@@ -42,38 +42,57 @@ class Settings(
         """
         Parse all environment variable values before model validation (Pydantic v2 compatible).
         This consolidates parsing logic from all parent classes.
+
+        NOTE: Field names here are the DIRECT env variable names (no more aliases).
         """
-        # Parse boolean fields from string
+        # Parse boolean fields from string - Using NEW direct field names
         boolean_fields = [
-            "DEBUG",
-            "SESSION_COOKIE_SECURE",
-            "SECURE_SSL_REDIRECT",
-            "FIREBASE_REQUIRE_CUSTOM_CLAIMS",
+            # Base
+            "APP_ENABLE_DEBUG",
+            # Security
+            "SESSION_ENABLE_COOKIE_SECURE",
+            "SESSION_ENABLE_COOKIE_HTTPONLY",
+            "SECURITY_ENABLE_SSL_REDIRECT",
+            "SECURITY_ENABLE_CONTENT_TYPE_NOSNIFF",
+            "SECURITY_ENABLE_BROWSER_XSS_FILTER",
+            "SECURITY_ENABLE_FIELD_ENCRYPTION",
+            # Firebase
+            "FIREBASE_ENABLE_REQUIRE_CUSTOM_CLAIMS",
             "FIREBASE_ENABLE_AUDIT_LOGGING",
-            "FIREBASE_BLOCK_PUBLIC_DOMAINS",
-            "RATE_LIMIT_ENABLED",
-            "ENABLE_EVOLUTION",
-            "ENABLE_WHATSAPP_ON_REGISTRATION",
-            "WHATSAPP_WELCOME_MESSAGE_ENABLED",
-            "LANGCHAIN_TRACING_V2",
-            "AI_HUMANIZATION_ENABLED",
-            "AI_HUMANIZATION_SAFETY_MODE",
-            "AI_HUMANIZATION_FALLBACK_ENABLED",
+            "FIREBASE_ENABLE_BLOCK_PUBLIC_DOMAINS",
+            # Rate Limiting
+            "RATE_LIMIT_ENABLE_SERVICE",
+            # WhatsApp/Evolution
+            "WHATSAPP_ENABLE_SERVICE",
+            "WHATSAPP_ENABLE_ON_REGISTRATION",
+            "WHATSAPP_ENABLE_WELCOME_MESSAGE",
+            # AI
+            "AI_LANGCHAIN_ENABLE_TRACING_V2",
+            "AI_ENABLE_HUMANIZATION",
+            "AI_HUMANIZATION_ENABLE_SAFETY_MODE",
+            "AI_HUMANIZATION_ENABLE_FALLBACK",
+            # Celery
             "CELERY_ENABLE_UTC",
-            "CELERY_TASK_TRACK_STARTED",
-            "CELERY_WORKER_DISABLE_RATE_LIMITS",
-            "MONTHLY_QUIZ_VIA_LINK",
-            "ENABLE_AUTO_FLOW_ENROLLMENT",
-            "AUTO_FLOW_ENROLLMENT_FALLBACK",
-            "ENABLE_REQUEST_LOGGING",
-            "LOG_STACK_TRACES",
-            "ENABLE_ERROR_TRACKING",
-            "CRITICAL_ERROR_NOTIFICATION",
-            "MONITORING_ENABLED",
-            "MONITORING_DEBUG",
-            "REDIS_SSL",
-            "REDIS_RETRY_ON_TIMEOUT",
-            "REDIS_DECODE_RESPONSES",
+            "CELERY_ENABLE_TRACK_STARTED",
+            "CELERY_ENABLE_DISABLE_RATE_LIMITS",
+            # Quiz
+            "QUIZ_ENABLE_VIA_LINK",
+            # Flow
+            "FLOW_ENABLE_AUTO_ENROLLMENT",
+            "FLOW_ENABLE_AUTO_ENROLLMENT_FALLBACK",
+            "TASK_SAGA_ENABLE_PATTERN",
+            # Logging/Monitoring
+            "LOGGING_ENABLE_REQUEST_LOGGING",
+            "LOGGING_ENABLE_STACK_TRACES",
+            "ERROR_ENABLE_TRACKING",
+            "ERROR_ENABLE_CRITICAL_NOTIFICATION",
+            "MONITORING_ENABLE_SERVICE",
+            "MONITORING_ENABLE_DEBUG",
+            # Redis
+            "REDIS_ENABLE_SERVICE",
+            "REDIS_ENABLE_SSL",
+            "REDIS_ENABLE_RETRY_ON_TIMEOUT",
+            "REDIS_ENABLE_DECODE_RESPONSES",
             "REDIS_ENABLE_DB_ISOLATION",
         ]
 
@@ -98,26 +117,26 @@ class Settings(
                 except json.JSONDecodeError:
                     data["FIREBASE_ALLOWED_DOMAINS"] = []
 
-        # Parse ALLOWED_ORIGINS
-        if "ALLOWED_ORIGINS" in data:
-            v = data["ALLOWED_ORIGINS"]
+        # Parse CORS_ALLOWED_ORIGINS
+        if "CORS_ALLOWED_ORIGINS" in data:
+            v = data["CORS_ALLOWED_ORIGINS"]
             if isinstance(v, list) and len(v) > 0:
                 pass  # Already a list
             elif isinstance(v, str) and v.strip():
                 s = v.strip()
                 if s.startswith("["):
                     try:
-                        data["ALLOWED_ORIGINS"] = json.loads(s)
-                    except:
-                        data["ALLOWED_ORIGINS"] = [
+                        data["CORS_ALLOWED_ORIGINS"] = json.loads(s)
+                    except (json.JSONDecodeError, ValueError):
+                        data["CORS_ALLOWED_ORIGINS"] = [
                             item.strip() for item in s.split(",") if item.strip()
                         ]
                 else:
-                    data["ALLOWED_ORIGINS"] = [
+                    data["CORS_ALLOWED_ORIGINS"] = [
                         item.strip() for item in s.split(",") if item.strip()
                     ]
             else:
-                data["ALLOWED_ORIGINS"] = []
+                data["CORS_ALLOWED_ORIGINS"] = []
 
         # Parse AI_HUMANIZATION_CRITICAL_KEYWORDS
         if "AI_HUMANIZATION_CRITICAL_KEYWORDS" in data:
@@ -145,7 +164,10 @@ class Settings(
                     ]
 
         # Validate security keys are not placeholders
-        for field in ["SECRET_KEY", "JWT_SECRET_KEY", "ENCRYPTION_KEY"]:
+        security_fields = [
+            "SECURITY_SECRET_KEY", "AUTH_JWT_SECRET_KEY", "SECURITY_ENCRYPTION_KEY"
+        ]
+        for field in security_fields:
             if field in data:
                 v = data[field]
                 if v and ("CHANGE_THIS" in v.upper() or "YOUR_" in v.upper()):
@@ -166,42 +188,42 @@ class Settings(
 
     def validate_production_config(self):
         """Validate production environment has secure configurations."""
-        if self.ENVIRONMENT.lower() == "production":
+        if self.APP_ENVIRONMENT.lower() == "production":
             errors = []
 
             # DEBUG must be False in production
-            if self.DEBUG:
-                errors.append("DEBUG must be False in production environment")
+            if self.APP_ENABLE_DEBUG:
+                errors.append("APP_ENABLE_DEBUG must be False in production environment")
 
             # Redis SSL validation (optional - some Redis Cloud instances don't use SSL)
             # Note: Redis Cloud port 14149 does NOT use SSL/TLS
             # Validate URL scheme matches SSL setting
-            if self.REDIS_SSL and not self.REDIS_URL.startswith("rediss://"):
+            if self.REDIS_ENABLE_SSL and not self.REDIS_URL.startswith("rediss://"):
                 import logging
                 logger = logging.getLogger(__name__)
                 logger.warning(
                     "Redis SSL configuration mismatch",
                     extra={
-                        "redis_ssl": self.REDIS_SSL,
+                        "redis_ssl": self.REDIS_ENABLE_SSL,
                         "redis_url_scheme": self.REDIS_URL.split("://")[0] if "://" in self.REDIS_URL else "unknown",
-                        "warning": "REDIS_SSL=True but URL doesn't use rediss:// scheme"
+                        "warning": "REDIS_ENABLE_SSL=True but URL doesn't use rediss:// scheme"
                     }
                 )
-            elif not self.REDIS_SSL and self.REDIS_URL.startswith("rediss://"):
+            elif not self.REDIS_ENABLE_SSL and self.REDIS_URL.startswith("rediss://"):
                 errors.append(
-                    "REDIS_SSL=False but URL uses rediss:// scheme - configuration mismatch"
+                    "REDIS_ENABLE_SSL=False but URL uses rediss:// scheme - configuration mismatch"
                 )
 
             # Session cookies must be secure in production
-            if not self.SESSION_COOKIE_SECURE:
+            if not self.SESSION_ENABLE_COOKIE_SECURE:
                 errors.append(
-                    "SESSION_COOKIE_SECURE must be True in production environment"
+                    "SESSION_ENABLE_COOKIE_SECURE must be True in production environment"
                 )
 
             # SSL redirect should be enabled in production
-            if not self.SECURE_SSL_REDIRECT:
+            if not self.SECURITY_ENABLE_SSL_REDIRECT:
                 errors.append(
-                    "SECURE_SSL_REDIRECT must be True in production environment"
+                    "SECURITY_ENABLE_SSL_REDIRECT must be True in production environment"
                 )
 
             if errors:
@@ -222,12 +244,12 @@ settings = Settings()
 
 def is_ai_humanization_enabled() -> bool:
     """Check if AI humanization is enabled."""
-    return settings.AI_HUMANIZATION_ENABLED
+    return settings.AI_ENABLE_HUMANIZATION
 
 
 def should_humanize_message(content: str) -> bool:
     """Check if message content is safe for AI humanization."""
-    if not settings.AI_HUMANIZATION_SAFETY_MODE:
+    if not settings.AI_HUMANIZATION_ENABLE_SAFETY_MODE:
         return True
 
     content_lower = content.lower()
@@ -240,11 +262,11 @@ def should_humanize_message(content: str) -> bool:
 def get_humanization_config() -> dict:
     """Get AI humanization configuration."""
     return {
-        "enabled": settings.AI_HUMANIZATION_ENABLED,
-        "safety_mode": settings.AI_HUMANIZATION_SAFETY_MODE,
+        "enabled": settings.AI_ENABLE_HUMANIZATION,
+        "safety_mode": settings.AI_HUMANIZATION_ENABLE_SAFETY_MODE,
         "max_retries": settings.AI_HUMANIZATION_MAX_RETRIES,
-        "timeout": settings.AI_HUMANIZATION_TIMEOUT,
-        "fallback_enabled": settings.AI_HUMANIZATION_FALLBACK_ENABLED,
+        "timeout": settings.AI_HUMANIZATION_TIMEOUT_SECONDS,
+        "fallback_enabled": settings.AI_HUMANIZATION_ENABLE_FALLBACK,
         "critical_keywords": settings.AI_HUMANIZATION_CRITICAL_KEYWORDS,
     }
 
@@ -258,10 +280,10 @@ def get_firebase_security_config():
     """Get Firebase security configuration for user provisioning."""
     return {
         "allowed_domains": settings.FIREBASE_ALLOWED_DOMAINS,
-        "require_custom_claims": settings.FIREBASE_REQUIRE_CUSTOM_CLAIMS,
+        "require_custom_claims": settings.FIREBASE_ENABLE_REQUIRE_CUSTOM_CLAIMS,
         "allowed_roles": settings.FIREBASE_ALLOWED_ROLES,
         "enable_audit_logging": settings.FIREBASE_ENABLE_AUDIT_LOGGING,
-        "block_public_domains": settings.FIREBASE_BLOCK_PUBLIC_DOMAINS,
+        "block_public_domains": settings.FIREBASE_ENABLE_BLOCK_PUBLIC_DOMAINS,
         "public_domains_blocklist": settings.FIREBASE_PUBLIC_DOMAINS_BLOCKLIST,
     }
 

@@ -585,7 +585,7 @@ def test_validate_configuration_response_structure(admin_user):
 
 def test_validate_configuration_detects_missing_secret_key(admin_user):
     """Test that validation detects missing SECRET_KEY."""
-    with patch('app.config.settings.SECRET_KEY', ''):
+    with patch('app.config.settings.SECURITY_SECRET_KEY', ''):
         with patch('app.dependencies.auth_dependencies.get_current_user_from_session', return_value=admin_user):
             response = client.post("/api/v2/system/validate")
 
@@ -599,8 +599,8 @@ def test_validate_configuration_detects_missing_secret_key(admin_user):
 
 def test_validate_configuration_production_checks(admin_user):
     """Test production-specific validation checks."""
-    with patch('app.config.settings.ENVIRONMENT', 'production'):
-        with patch('app.config.settings.DEBUG', True):
+    with patch('app.config.settings.APP_ENVIRONMENT', 'production'):
+        with patch('app.config.settings.APP_ENABLE_DEBUG', True):
             with patch('app.dependencies.auth_dependencies.get_current_user_from_session', return_value=admin_user):
                 response = client.post("/api/v2/system/validate")
 

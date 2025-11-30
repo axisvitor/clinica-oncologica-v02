@@ -409,16 +409,14 @@ export function RoleAssignmentModal({ open, onOpenChange, user }: RoleAssignment
 
   const updatePermissionsMutation = useMutation({
     mutationFn: async ({ id, permissions }: { id: string; permissions: string[] }) => {
-      // WARNING: Backend endpoint is currently a placeholder and doesn't persist permissions
-      // TODO: Implement actual permissions storage in backend (see backend-hormonia/app/api/v2/admin/users.py:830-885)
       return apiClient.adminUsers.updatePermissions(id, permissions);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       queryClient.invalidateQueries({ queryKey: ["admin-user", user?.id] });
       toast({
-        title: "⚠️ Permissões atualizadas (temporário)",
-        description: "Nota: Backend ainda não persiste permissões. Implementação pendente.",
+        title: "Permissões atualizadas",
+        description: "As permissões do usuário foram salvas com sucesso.",
         variant: "default",
       });
     },

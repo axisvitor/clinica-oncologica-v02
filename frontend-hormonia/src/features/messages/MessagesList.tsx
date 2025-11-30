@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useMemo, memo } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient, UseMutationResult } from '@tanstack/react-query'
 import { MessageSquare, Send, Inbox, RefreshCw, Check, CheckCheck, Clock } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -37,7 +37,13 @@ interface ListItem {
 
 interface RowData {
   items: ListItem[]
-  retryMutation: any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  retryMutation: UseMutationResult<any, unknown, string, unknown>
+}
+
+interface MessageRowProps extends RowData {
+  style: React.CSSProperties
+  index: number
 }
 
 const formatTime = (timestamp: string) => {
@@ -85,7 +91,7 @@ const getMessageStatusIcon = (status: string) => {
   }
 }
 
-const MessageRow = memo(({ style, index, items, retryMutation }: any) => {
+const MessageRow = memo(({ style, index, items, retryMutation }: MessageRowProps) => {
   const item = items[index]
   if (!item) return <></>
 

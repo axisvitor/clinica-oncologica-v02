@@ -17,6 +17,8 @@ Welcome to the Hormonia Backend database documentation.
 **Operational guides and procedures.**
 - **[BACKUP_RESTORE_GUIDE.md](./guides/BACKUP_RESTORE_GUIDE.md)**: How to backup and restore the database.
 - **[DATA_MIGRATION_STRATEGY.md](./guides/DATA_MIGRATION_STRATEGY.md)**: Strategy for data migrations.
+- **[KEY_ROTATION_GUIDE.md](./guides/KEY_ROTATION_GUIDE.md)**: Encryption key rotation procedures.
+- **[AUDIT_ARCHIVAL_GUIDE.md](./guides/AUDIT_ARCHIVAL_GUIDE.md)**: Audit log archival and retention.
 
 ### 📜 [History](./history/)
 **Archives of past migration projects and logs.**
@@ -43,11 +45,11 @@ alembic upgrade head
 |--------|-------|
 | **Type** | PostgreSQL 14+ on **Amazon RDS** (sa-east-1) |
 | **ORM** | SQLAlchemy 2.0+ (async support) |
-| **Migration Tool** | Alembic (22 migrations) |
-| **Total Tables** | 55 |
-| **Total Columns** | 797 |
-| **Total Indexes** | 325 |
-| **Foreign Keys** | 57 |
+| **Migration Tool** | Alembic (29 migrations) |
+| **Total Tables** | 56 |
+| **Total Columns** | ~820 |
+| **Total Indexes** | ~350 |
+| **Foreign Keys** | 58 |
 | **Custom Enums** | 17 PostgreSQL enums |
 | **Authentication** | Firebase Admin SDK |
 | **Cache** | Redis Cloud |
@@ -72,7 +74,7 @@ alembic upgrade head
 | **WhatsApp** | 5 | Evolution API integration |
 | **Flows** | 9 | Treatment flow management |
 | **Quiz** | 6 | Patient questionnaires |
-| **Medical** | 3 | Reports, appointments, alerts |
+| **Medical** | 4 | Reports, appointments, alerts, AI summaries |
 | **Audit & Logging** | 5 | Audit trails, error logs |
 | **System** | 5 | Health, incidents, migrations |
 
@@ -89,13 +91,33 @@ alert_severity: low, medium, high, critical
 user_role: doctor, admin
 ```
 
-## 🔐 Security Features
+## 🔐 Security & Compliance Features
 
-- **CPF Encryption:** Patient CPF numbers are encrypted at rest (LGPD)
+### LGPD Compliance (Migrations 020, 024)
+- **CPF Encryption:** AES-256-GCM encryption for CPF data
+- **Searchable Hash:** SHA-256 hash enables queries without decryption
+- **Plaintext Removal:** Original CPF column permanently deleted (Migration 024)
+- **Encryption Key:** Stored securely in environment variable `ENCRYPTION_KEY`
+
+### Security Features
 - **Audit Logging:** All data changes tracked in `audit_logs`
 - **Admin 2FA:** Two-factor authentication for admin users
 - **Session Management:** Secure session handling with IP whitelisting
 - **Soft Deletes:** Data recovery possible via `deleted_at` timestamps
+- **RBAC Permissions:** Granular user permissions via `users.permissions` (Migration 023)
+
+### Performance Optimizations (Migration 022)
+- **Cursor Pagination:** 8 composite indexes for efficient deep pagination
+- **Query Speed:** 99% improvement (450ms → 5ms for deep pagination)
+- **Affected Tables:** Messages, patients, quiz responses, audit logs, alerts
+
+## 📋 Recent Migrations
+
+| # | Migration | Description |
+|---|-----------|-------------|
+| 027 | consolidate_duplicates | Documenta migrations duplicadas (005/013, 014/022) |
+| 028 | encrypt_email_phone | Adiciona criptografia LGPD para email e telefone |
+| 029 | (próxima) | Planejada conforme necessidade |
 
 ## 📈 Current Data Statistics
 

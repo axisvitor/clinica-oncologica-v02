@@ -71,13 +71,13 @@ class PatientSummaryService:
 
         # Initialize Gemini model
         self.model = ChatGoogleGenerativeAI(
-            model=settings.GEMINI_MODEL,
-            google_api_key=settings.GEMINI_API_KEY,
+            model=settings.AI_GEMINI_MODEL,
+            google_api_key=settings.AI_GEMINI_API_KEY,
             temperature=0.3,  # Lower temperature for more consistent output
             max_output_tokens=2000,  # Enough for full summary
         )
 
-        logger.info(f"PatientSummaryService initialized with model: {settings.GEMINI_MODEL}")
+        logger.info(f"PatientSummaryService initialized with model: {settings.AI_GEMINI_MODEL}")
 
     async def generate_summary(
         self,
@@ -137,7 +137,7 @@ class PatientSummaryService:
             generated_at=datetime.utcnow(),
             generated_by=generated_by,
             token_usage=token_usage,
-            model_used=settings.GEMINI_MODEL,
+            model_used=settings.AI_GEMINI_MODEL,
             generation_time_ms=generation_time_ms,
             from_cache=False,
         )

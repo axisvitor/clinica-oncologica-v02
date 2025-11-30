@@ -16,7 +16,7 @@ Usage:
 
     app.add_middleware(
         WebhookValidatorMiddleware,
-        secret_key=settings.EVOLUTION_WEBHOOK_SECRET,
+        secret_key=settings.WHATSAPP_EVOLUTION_WEBHOOK_SECRET,
         max_timestamp_age=300  # 5 minutes
     )
 

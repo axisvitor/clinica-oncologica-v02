@@ -78,7 +78,7 @@ async def send_message(
         )
 
     message_service = MessageService(db)
-    message_sender = MessageSender(db, messaging_mode=MessagingMode.LEGACY)  # type: ignore[call-arg]
+    message_sender = MessageSender(db, messaging_mode=MessagingMode.QUEUE)  # type: ignore[call-arg]
 
     # Map V2 type to V1 type
     type_map = {
@@ -262,7 +262,7 @@ async def get_message_status(
             detail="Invalid message ID format"
         )
 
-    message_sender = MessageSender(db, messaging_mode=MessagingMode.LEGACY)  # type: ignore[call-arg]
+    message_sender = MessageSender(db, messaging_mode=MessagingMode.QUEUE)  # type: ignore[call-arg]
     status_info = await message_sender.get_message_delivery_status(msg_uuid)  # type: ignore[attr-defined]
 
     if not status_info:

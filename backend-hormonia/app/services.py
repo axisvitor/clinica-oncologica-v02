@@ -20,7 +20,7 @@ from app.domain.messaging.core import MessageService
 from app.services.flow import FlowManager, get_flow_config
 from app.services.flow import FlowEngine  # Use the consolidated engine
 from app.services.enhanced_flow_engine import EnhancedFlowEngine
-# from app.services.notification import NotificationService  # TODO: Implement when needed
+from app.services.notification_service import NotificationService, get_notification_service
 from app.services.file import FileService
 from app.domain.quizzes import MonthlyQuizService
 from app.services.analytics.metrics_collector import MetricsCollectorService
@@ -74,7 +74,7 @@ class ServiceProvider:
         self._message_service = None
         self._flow_engine = None
         self._flow_service = None
-        # self._notification_service = None  # TODO: Implement when needed
+        self._notification_service = None
         self._file_service = None
         self._monthly_quiz_service = None
         self._metrics_collector_service = None
@@ -87,8 +87,8 @@ class ServiceProvider:
         """Cleanup logging when ServiceProvider is destroyed."""
         try:
             logger.debug(f"ServiceProvider destroyed for request {self._request_id}")
-        except:
-            pass  # Avoid errors during cleanup
+        except Exception:
+            pass  # Avoid errors during cleanup (logger may be unavailable)
 
     def _detect_redis_client_type(self, redis_client) -> str:
         """Detect the type of Redis client provided."""
@@ -275,12 +275,12 @@ class ServiceProvider:
             self._flow_service = FlowManager(self.db)
         return self._flow_service
 
-    # @property
-    # def notification_service(self) -> NotificationService:
-    #     if self._notification_service is None:
-    #         self._notification_service = NotificationService(self.db)
-    #     return self._notification_service
-    # TODO: Implement NotificationService when needed
+    @property
+    def notification_service(self) -> NotificationService:
+        """Get multi-channel notification service (singleton)."""
+        if self._notification_service is None:
+            self._notification_service = get_notification_service()
+        return self._notification_service
 
     @property
     def file_service(self) -> FileService:

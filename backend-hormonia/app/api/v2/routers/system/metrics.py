@@ -126,13 +126,27 @@ async def get_system_metrics(
         # Network connections
         network_connections = len(psutil.net_connections())
 
-        # Database metrics (placeholder - would need actual connection pool access)
-        db_connections = 5  # Placeholder
-        db_pool_size = 10  # Placeholder
+        # Database metrics from SQLAlchemy engine pool
+        db_connections = 0
+        db_pool_size = 0
+        try:
+            from app.database import engine
+            pool = engine.pool
+            db_pool_size = pool.size()
+            db_connections = pool.checkedout()
+        except Exception as e:
+            logger.warning(f"Could not get DB pool stats: {e}")
 
-        # Application metrics (placeholder)
-        active_sessions = 0  # Would query from sessions table
-        request_rate_per_min = 0.0  # Would need request tracking
+        # Application metrics - active sessions count
+        active_sessions = 0
+        try:
+            from sqlalchemy import text
+            result = db.execute(text("SELECT COUNT(*) FROM sessions WHERE expires_at > NOW()"))
+            active_sessions = result.scalar() or 0
+        except Exception as e:
+            logger.debug(f"Could not count sessions: {e}")
+
+        request_rate_per_min = 0.0  # Would need request tracking middleware
 
         # Cache metrics (placeholder)
         cache_hit_rate = None
@@ -247,18 +261,18 @@ async def get_system_info(
             pass
 
         system_info = {
-            "environment": settings.ENVIRONMENT,
-            "debug_mode": settings.DEBUG,
+            "environment": settings.APP_ENVIRONMENT,
+            "debug_mode": settings.APP_ENABLE_DEBUG,
             "version": "2.0.0",  # API v2 version
             "uptime": uptime,
             "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
             "features": {
                 "firebase_auth": bool(settings.FIREBASE_ADMIN_PROJECT_ID),
-                "whatsapp_integration": settings.ENABLE_EVOLUTION,
-                "ai_humanization": settings.AI_HUMANIZATION_ENABLED,
-                "monitoring": settings.MONITORING_ENABLED,
-                "rate_limiting": settings.RATE_LIMIT_ENABLED,
-                "monthly_quiz_links": settings.MONTHLY_QUIZ_VIA_LINK
+                "whatsapp_integration": settings.WHATSAPP_ENABLE_SERVICE,
+                "ai_humanization": settings.AI_ENABLE_HUMANIZATION,
+                "monitoring": settings.MONITORING_ENABLE_SERVICE,
+                "rate_limiting": settings.RATE_LIMIT_ENABLE_SERVICE,
+                "monthly_quiz_links": settings.QUIZ_ENABLE_VIA_LINK
             },
             "build_info": {
                 "api_version": "v2",

@@ -59,7 +59,7 @@ class TestTokenGeneration:
         # Decode and verify payload
         payload = jwt.decode(
             token,
-            settings.SECRET_KEY,
+            settings.SECURITY_SECRET_KEY,
             algorithms=[settings.ALGORITHM]
         )
         assert payload["sub"] == str(test_user_id)
@@ -89,7 +89,7 @@ class TestTokenGeneration:
         # Decode and verify
         payload = jwt.decode(
             token,
-            settings.SECRET_KEY,
+            settings.SECURITY_SECRET_KEY,
             algorithms=[settings.ALGORITHM]
         )
         assert payload["sub"] == str(test_user_id)
@@ -111,7 +111,7 @@ class TestTokenGeneration:
         # Assert
         payload = jwt.decode(
             token,
-            settings.SECRET_KEY,
+            settings.SECURITY_SECRET_KEY,
             algorithms=[settings.ALGORITHM]
         )
 
@@ -138,12 +138,12 @@ class TestTokenGeneration:
         # Assert
         access_payload = jwt.decode(
             access_token,
-            settings.SECRET_KEY,
+            settings.SECURITY_SECRET_KEY,
             algorithms=[settings.ALGORITHM]
         )
         refresh_payload = jwt.decode(
             refresh_token,
-            settings.SECRET_KEY,
+            settings.SECURITY_SECRET_KEY,
             algorithms=[settings.ALGORITHM]
         )
 
@@ -165,7 +165,7 @@ class TestTokenGeneration:
         # Assert
         payload = jwt.decode(
             token,
-            settings.SECRET_KEY,
+            settings.SECURITY_SECRET_KEY,
             algorithms=[settings.ALGORITHM]
         )
 
@@ -257,7 +257,7 @@ class TestTokenGeneration:
         after_creation = datetime.utcnow()
         payload = jwt.decode(
             token,
-            settings.SECRET_KEY,
+            settings.SECURITY_SECRET_KEY,
             algorithms=[settings.ALGORITHM]
         )
 
@@ -285,7 +285,7 @@ class TestTokenGeneration:
         # Assert
         payload = jwt.decode(
             token,
-            settings.SECRET_KEY,
+            settings.SECURITY_SECRET_KEY,
             algorithms=[settings.ALGORITHM]
         )
 
@@ -313,7 +313,7 @@ class TestTokenGeneration:
         token = create_access_token(user_data)
         payload = jwt.decode(
             token,
-            settings.SECRET_KEY,
+            settings.SECURITY_SECRET_KEY,
             algorithms=[settings.ALGORITHM]
         )
         # Verify sub was not added if not provided

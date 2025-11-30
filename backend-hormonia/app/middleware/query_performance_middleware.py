@@ -101,8 +101,8 @@ class QueryPerformanceMiddleware(BaseHTTPMiddleware):
             # Clean up database session
             try:
                 db_gen.close()
-            except:
-                pass
+            except Exception:
+                pass  # Ignore cleanup errors (generator already exhausted)
 
 
 @asynccontextmanager

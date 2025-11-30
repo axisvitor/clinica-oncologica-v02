@@ -108,7 +108,7 @@ class RedisManager:
             # Since .env already defines REDIS_URL with rediss://, no URL rewriting needed
             redis_url = self.redis_url
 
-            if settings.REDIS_SSL:
+            if settings.REDIS_ENABLE_SSL:
                 ssl_cert_reqs = getattr(settings, 'REDIS_SSL_CERT_REQS', 'required').lower()
 
                 # Configure SSL certificate validation level
@@ -215,7 +215,7 @@ class RedisManager:
 
             # Configure SSL if enabled
             redis_url = self.redis_url
-            if settings.REDIS_SSL:
+            if settings.REDIS_ENABLE_SSL:
                 # Change redis:// to rediss:// for SSL
                 if redis_url.startswith('redis://'):
                     redis_url = 'rediss://' + redis_url[8:]

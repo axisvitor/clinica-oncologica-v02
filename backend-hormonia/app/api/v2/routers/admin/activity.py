@@ -150,14 +150,43 @@ async def get_user_activity(
 
 
 # ============================================================================
-# ENDPOINT 2: UPDATE PERMISSIONS (PLACEHOLDER)
+# ENDPOINT 2: UPDATE PERMISSIONS
 # ============================================================================
+
+# Valid permission identifiers that can be assigned
+VALID_PERMISSIONS = {
+    # Patients
+    "patients:read", "patients:write", "patients:delete", "patients:admin",
+    # Messages
+    "messages:read", "messages:write", "messages:delete", "messages:admin",
+    # Reports
+    "reports:read", "reports:write", "reports:delete", "reports:admin",
+    # Analytics
+    "analytics:read", "analytics:write", "analytics:admin",
+    # Settings
+    "settings:read", "settings:write", "settings:admin",
+    # Users (admin only)
+    "users:read", "users:write", "users:delete", "users:admin",
+    # Flows
+    "flows:read", "flows:write", "flows:delete", "flows:admin",
+    # Appointments
+    "appointments:read", "appointments:write", "appointments:delete", "appointments:admin",
+    # Treatments
+    "treatments:read", "treatments:write", "treatments:delete", "treatments:admin",
+    # Medications
+    "medications:read", "medications:write", "medications:delete", "medications:admin",
+    # Alerts
+    "alerts:read", "alerts:write", "alerts:delete", "alerts:admin",
+    # AI Features
+    "ai:read", "ai:write", "ai:admin",
+}
+
 
 @router.put(
     "/users/{user_id}/permissions",
     response_model=UserActionResponse,
     summary="Update User Permissions",
-    description="Update user permissions (placeholder for future RBAC implementation)."
+    description="Update granular permissions for a user."
 )
 @limiter.limit("20/hour")
 async def assign_permissions(
@@ -171,22 +200,72 @@ async def assign_permissions(
     """
     Update user permissions.
 
-    TODO: Implement granular permission management system.
-
-    This is a placeholder for future RBAC implementation.
-    Currently returns 501 Not Implemented.
+    Features:
+    - Validates permission identifiers against allowed list
+    - Persists permissions to user record
+    - Cache invalidation
+    - Audit logging
     """
-    # TODO: Implement permission management
-    # This would involve:
-    # 1. Creating a permissions table
-    # 2. Creating user_permissions junction table
-    # 3. Implementing permission checks in endpoints
-    # 4. Adding permission-based access control
+    try:
+        user_repo = UserRepository(db)
+        user = user_repo.get(user_id)
 
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Permission management not yet implemented. Use role-based access control."
-    )
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        # Validate permissions
+        invalid_permissions = [p for p in permissions_data.permissions if p not in VALID_PERMISSIONS]
+        if invalid_permissions:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid permissions: {', '.join(invalid_permissions)}"
+            )
+
+        # Store old permissions for audit
+        old_permissions = list(user.permissions) if user.permissions else []
+
+        # Update permissions
+        user.permissions = permissions_data.permissions
+        db.commit()
+        db.refresh(user)
+
+        # Invalidate cache
+        await invalidate_user_cache(str(user_id))
+
+        # Log action
+        await _log_admin_action(
+            db, "update_permissions", admin_user, context,
+            target_user_id=user_id,
+            additional_data={
+                "old_permissions": old_permissions,
+                "new_permissions": permissions_data.permissions,
+                "changes": {
+                    "added": [p for p in permissions_data.permissions if p not in old_permissions],
+                    "removed": [p for p in old_permissions if p not in permissions_data.permissions]
+                }
+            }
+        )
+
+        logger.info(f"Permissions updated for user {user_id} by admin {admin_user.id}")
+
+        return {
+            "success": True,
+            "message": f"Permissions updated successfully. {len(permissions_data.permissions)} permissions assigned.",
+            "user_id": str(user_id)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating permissions: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error updating permissions"
+        )
 
 
 # ============================================================================
