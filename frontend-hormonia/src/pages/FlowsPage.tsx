@@ -11,7 +11,7 @@ export function FlowsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
 
   const { data: flowsData, isLoading: flowsLoading, error: flowsError, refetch } = useFlows({
-    ...(statusFilter !== 'all' && { status: statusFilter }),
+    ...(statusFilter !== 'all' && { isActive: statusFilter === 'active' }),
   })
 
   const { data: statsData, isLoading: statsLoading } = useFlowStats()

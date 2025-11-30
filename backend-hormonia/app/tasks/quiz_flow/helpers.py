@@ -104,14 +104,9 @@ def _notify_providers_of_quiz_completion(
 
         with next(get_db()) as db:
             # Use consolidated alert system
-            try:
-                from app.services.alerts import AlertManagerAdapter
+            from app.services.alerts import AlertManagerAdapter
 
-                alert_service = AlertManagerAdapter(db)
-            except ImportError:
-                from app.services.alert import AlertService
-
-                alert_service = AlertService(db)
+            alert_service = AlertManagerAdapter(db)
 
             # Create alert for healthcare providers
             alert_data = {

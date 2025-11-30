@@ -165,12 +165,8 @@ def _notify_doctor_of_expired_session(db: Session, session, patient) -> bool:
     """
     try:
         # Use consolidated alert system (QW-020: Legacy alert system archived)
-        try:
-            from app.services.alerts import AlertManagerAdapter
-            alert_service = AlertManagerAdapter(db)
-        except ImportError:
-            from app.services.alert import AlertService
-            alert_service = AlertService(db)
+        from app.services.alerts import AlertManagerAdapter
+        alert_service = AlertManagerAdapter(db)
 
         # Create alert for healthcare providers
         patient_name = f"{patient.first_name} {patient.last_name}" if patient else "Unknown Patient"

@@ -150,7 +150,7 @@ export const protectedRoutes: RouteDefinition[] = [
   {
     path: ROUTES.PATIENTS.IMPORT,
     element: (
-      <ProtectedRoute requiredRoles={['ADMIN', 'DOCTOR']}>
+      <ProtectedRoute requiredPermission="canImportPatients">
         {withLayoutAndSuspense(PatientImport)}
       </ProtectedRoute>
     ),
@@ -230,7 +230,7 @@ export const protectedRoutes: RouteDefinition[] = [
   {
     path: ROUTES.HIVE_MIND,
     element: (
-      <ProtectedRoute requiredRoles={['ADMIN']}>
+      <ProtectedRoute requiredPermission="canAccessHiveMind">
         {withLayoutAndSuspense(HiveMindPage)}
       </ProtectedRoute>
     ),
@@ -274,7 +274,7 @@ export const physicianRoutes: RouteDefinition[] = [
   {
     path: ROUTES.PHYSICIAN.DASHBOARD,
     element: (
-      <ProtectedRoute requiredRoles={['PHYSICIAN', 'DOCTOR', 'ADMIN']}>
+      <ProtectedRoute requiredPermission="canViewPhysicianDashboard">
         {withLayoutAndSuspense(PhysicianDashboard)}
       </ProtectedRoute>
     ),
@@ -282,7 +282,7 @@ export const physicianRoutes: RouteDefinition[] = [
   {
     path: ROUTES.PHYSICIAN.PATIENT_DETAIL,
     element: (
-      <ProtectedRoute requiredRoles={['PHYSICIAN', 'DOCTOR', 'ADMIN']}>
+      <ProtectedRoute requiredPermission="canViewPhysicianPatients">
         {withLayoutAndSuspense(PatientDetailPage)}
       </ProtectedRoute>
     ),

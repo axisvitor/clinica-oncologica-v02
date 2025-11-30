@@ -28,8 +28,6 @@ export interface UseFlowsOptions {
   search?: string;
   limit?: number;
   enabled?: boolean;
-  /** @deprecated Use flowType or isActive instead. Maps 'active'->isActive:true, 'paused'->isActive:false */
-  status?: string;
 }
 
 /**
@@ -60,20 +58,13 @@ export interface UseFlowStatsReturn {
  * Hook for managing flows - connects to /api/v2/flows
  */
 export function useFlows(options?: UseFlowsOptions): UseFlowsReturn {
-  // Map legacy status to isActive filter
-  const resolvedIsActive = options?.isActive ?? (
-    options?.status === 'active' ? true :
-    options?.status === 'paused' ? false :
-    undefined
-  );
-
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['flows', options?.flowType, resolvedIsActive, options?.search, options?.limit, options?.status],
+    queryKey: ['flows', options?.flowType, options?.isActive, options?.search, options?.limit],
     queryFn: async () => {
       logger.debug('Fetching flows', { options });
       const response = await apiClient.flows.list({
         flow_type: options?.flowType,
-        is_active: resolvedIsActive,
+        is_active: options?.isActive,
         search: options?.search,
         limit: options?.limit ?? 50,
       });

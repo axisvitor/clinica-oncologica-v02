@@ -5,13 +5,6 @@ export type User = ApiUser
 export type AuthTokens = ApiAuthTokens
 export type LoginResponse = ApiLoginResponse
 
-/** @deprecated Legacy interface - Supabase no longer used. Use AuthState instead. */
-export interface SupabaseAuthData {
-  user: Record<string, unknown> | null  // Legacy - system uses Amazon RDS
-  session: Record<string, unknown> | null  // Legacy - system uses Amazon RDS
-  loading: boolean
-}
-
 export interface SessionData {
   expiry: number | null
   isExpiring: boolean

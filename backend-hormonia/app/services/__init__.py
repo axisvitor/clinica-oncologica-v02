@@ -41,8 +41,6 @@ from .alerts import (
     AlertProcessor,
 )
 
-# Backward compatibility: legacy imports still expect AlertService
-AlertService = AlertManagerAdapter
 
 # Analytics Services
 from app.domain.analytics.analytics_service import AnalyticsService
@@ -74,8 +72,6 @@ from .webhook_processor import WebhookProcessor
 from .websocket_events import websocket_events
 from .websocket import UnifiedWebSocketConnectionManager
 
-# Compatibility alias for legacy ConnectionManager name
-ConnectionManager = UnifiedWebSocketConnectionManager
 
 # Utility Services
 from .template_loader import EnhancedTemplateLoader
@@ -127,7 +123,6 @@ __all__ = [
     "PatientContext",
     
     # Alert Services
-    "AlertService",
     "AlertManager",
     "AlertManagerAdapter",
     "AlertProcessor",
@@ -156,7 +151,7 @@ __all__ = [
     
     # Messaging Services
     "websocket_events",
-    "ConnectionManager",
+    "UnifiedWebSocketConnectionManager",
     
     # Utility Services
     "EnhancedTemplateLoader",
