@@ -36,7 +36,7 @@ Usage:
 """
 
 from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field, field_validator, ValidationError as PydanticValidationError
+from pydantic import BaseModel, Field, field_validator, ConfigDict, ValidationError as PydanticValidationError
 from app.core.exceptions import ValidationError
 
 
@@ -129,8 +129,7 @@ class ClinicalMetadataSchema(BaseModel):
     )
 
     # Allow other fields (backward compatibility)
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 # =========================================================================

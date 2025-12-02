@@ -6,7 +6,7 @@ Pydantic models for multi-platform synchronization with conflict resolution.
 from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field, HttpUrl, validator, model_validator, field_validator, ConfigDict
+from pydantic import BaseModel, Field, HttpUrl, model_validator, field_validator, ConfigDict
 from uuid import UUID
 
 

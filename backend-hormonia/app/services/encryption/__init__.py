@@ -1,105 +1,95 @@
 """
-Unified Encryption Services Package
+Unified Encryption Service for Healthcare Compliance
 
-This package consolidates all encryption services into a single, unified service
-that supports multiple algorithms and field types.
+Consolidates all encryption services into a single, unified service:
+- PHI Encryption Service (HIPAA)
+- LGPD Encryption Service (Brazilian LGPD)
+- CPF Encryption Service
+- Quiz Encryption Service (Fernet-based)
+- Token Rotation Security
 
-Main Classes:
-- UnifiedEncryptionService: Main encryption service
-- BaseEncryptionService: Base class with common functionality
-- EncryptionAlgorithm: Enum of supported algorithms
-- FieldType: Enum of supported field types
+Features:
+- AES-256-GCM encryption (default, more secure than CBC)
+- AES-256-CBC encryption (legacy compatibility)
+- Fernet encryption (for quiz tokens)
+- Searchable hash generation
+- Field-level encryption for all PII/PHI types
+- Key rotation support
+- Multi-algorithm support
 
-Quick Start:
-    >>> from app.services.encryption import get_unified_encryption_service
-    >>>
-    >>> service = get_unified_encryption_service()
-    >>>
-    >>> # Encrypt CPF
-    >>> encrypted_cpf, cpf_hash = service.encrypt_cpf("12345678901")
-    >>> decrypted = service.decrypt_cpf(encrypted_cpf)
-    >>>
-    >>> # Encrypt email
-    >>> encrypted_email, email_hash = service.encrypt_email("user@example.com")
-    >>> decrypted = service.decrypt_email(encrypted_email)
-
-Backward Compatibility:
-    The following imports maintain backward compatibility with existing code:
-
-    >>> from app.services.encryption import get_phi_encryption_service
-    >>> from app.services.encryption import get_lgpd_encryption_service
-    >>> from app.services.encryption import get_cpf_encryption_service
-    >>> from app.services.encryption import get_encryption_service
-
-    All these functions return the same UnifiedEncryptionService instance.
-
-Migration Guide:
-    Old code:
-        from app.services.phi_encryption_service import get_phi_encryption_service
-        service = get_phi_encryption_service()
-        encrypted = service.encrypt_field(data)
-
-    New code (recommended):
-        from app.services.encryption import get_unified_encryption_service
-        service = get_unified_encryption_service()
-        encrypted = service.encrypt_field(data, FieldType.PHI_GENERIC)
-
-    Or keep old code (backward compatible):
-        from app.services.encryption import get_phi_encryption_service
-        service = get_phi_encryption_service()
-        encrypted = service.encrypt_field(data)
+Security Standards:
+- HIPAA compliant
+- LGPD (Brazilian GDPR) compliant
+- PBKDF2 key derivation
+- SHA-256 HMAC searchable hashes
+- Salt-based hashing prevents rainbow table attacks
 """
 
-from .unified_encryption_service import (
-    # Main classes
-    BaseEncryptionService,
-    UnifiedEncryptionService,
+from typing import Optional
 
-    # Enums
-    EncryptionAlgorithm,
-    FieldType,
+from .types import EncryptionAlgorithm, FieldType
+from .service import UnifiedEncryptionService
 
-    # Main service getter
-    get_unified_encryption_service,
+# =========================================================================
+# SINGLETON INSTANCES
+# =========================================================================
 
-    # Backward compatibility aliases
-    get_phi_encryption_service,
-    get_lgpd_encryption_service,
-    get_cpf_encryption_service,
-    get_encryption_service,
-)
+_unified_encryption_service: Optional[UnifiedEncryptionService] = None
 
-# Key management (existing)
-try:
-    from app.services.encryption.key_manager import KeyManagementService, KeyNotFoundError, AWSError
-    _has_key_manager = True
-except ImportError:
-    _has_key_manager = False
+
+def get_unified_encryption_service() -> UnifiedEncryptionService:
+    """
+    Get or create the unified encryption service singleton.
+
+    Returns:
+        UnifiedEncryptionService instance
+    """
+    global _unified_encryption_service
+    if _unified_encryption_service is None:
+        _unified_encryption_service = UnifiedEncryptionService()
+    return _unified_encryption_service
+
+
+# =========================================================================
+# BACKWARD COMPATIBILITY ALIASES
+# =========================================================================
+
+# Alias for PHI encryption service
+def get_phi_encryption_service() -> UnifiedEncryptionService:
+    """Get PHI encryption service (backward compatibility)."""
+    return get_unified_encryption_service()
+
+
+# Alias for LGPD encryption service
+def get_lgpd_encryption_service() -> UnifiedEncryptionService:
+    """Get LGPD encryption service (backward compatibility)."""
+    return get_unified_encryption_service()
+
+
+# Alias for CPF encryption service
+def get_cpf_encryption_service() -> UnifiedEncryptionService:
+    """Get CPF encryption service (backward compatibility)."""
+    return get_unified_encryption_service()
+
+
+# Alias for quiz encryption service
+def get_encryption_service() -> UnifiedEncryptionService:
+    """Get encryption service (backward compatibility)."""
+    return get_unified_encryption_service()
+
 
 __all__ = [
-    # Main classes
-    "BaseEncryptionService",
-    "UnifiedEncryptionService",
+    # Types
+    'EncryptionAlgorithm',
+    'FieldType',
 
-    # Enums
-    "EncryptionAlgorithm",
-    "FieldType",
-
-    # Service getters
-    "get_unified_encryption_service",
+    # Service
+    'UnifiedEncryptionService',
+    'get_unified_encryption_service',
 
     # Backward compatibility
-    "get_phi_encryption_service",
-    "get_lgpd_encryption_service",
-    "get_cpf_encryption_service",
-    "get_encryption_service",
+    'get_phi_encryption_service',
+    'get_lgpd_encryption_service',
+    'get_cpf_encryption_service',
+    'get_encryption_service',
 ]
-
-# Add key manager to exports if available
-if _has_key_manager:
-    __all__.extend(["KeyManagementService", "KeyNotFoundError", "AWSError"])
-
-# Package metadata
-__version__ = "2.0.0"
-__author__ = "Hormonia Development Team"
-__description__ = "Unified encryption services for healthcare compliance (HIPAA, LGPD)"

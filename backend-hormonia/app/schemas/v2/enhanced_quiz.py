@@ -6,7 +6,7 @@ Advanced quiz models with branching logic, risk scoring, and adaptive flows.
 from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field, validator, model_validator, field_validator, ConfigDict
+from pydantic import BaseModel, Field, model_validator, field_validator, ConfigDict
 from uuid import UUID
 
 from .common import CursorPaginatedResponse

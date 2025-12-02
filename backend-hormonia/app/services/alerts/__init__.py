@@ -138,6 +138,20 @@ from .metrics import (
     set_metrics_collector,
 )
 
+# NEW MODULAR COMPONENTS
+from .evaluator import AlertEvaluator
+from .processor import AlertProcessor
+from .escalation import AlertEscalation
+from .statistics import AlertStatisticsCollector
+from .target_resolver import TargetResolver
+
+# NEW: Modular AlertManager (RECOMMENDED)
+from .manager import (
+    AlertManager as AlertManagerModular,
+    get_alert_manager as get_alert_manager_modular,
+    set_alert_manager as set_alert_manager_modular,
+)
+
 # Refactored AlertManager (NEW - recommended)
 from .alert_manager_refactored import (
     AlertManager as AlertManagerRefactored,
@@ -159,10 +173,10 @@ from .migration import (
     AlertManagerProxy,
 )
 
-# Default exports (use refactored version)
-AlertManager = AlertManagerRefactored
-get_alert_manager = get_alert_manager_refactored
-set_alert_manager = set_alert_manager_refactored
+# Default exports (use NEW modular version)
+AlertManager = AlertManagerModular
+get_alert_manager = get_alert_manager_modular
+set_alert_manager = set_alert_manager_modular
 
 from .evaluation.rule_engine import (
     RuleEngine,
@@ -225,6 +239,15 @@ from .adapter import (
 )
 
 __all__ = [
+    # ===== NEW MODULAR COMPONENTS =====
+    "AlertEvaluator",
+    "AlertProcessor",
+    "AlertEscalation",
+    "AlertStatisticsCollector",
+    "TargetResolver",
+    "AlertManagerModular",  # NEW recommended version
+    "get_alert_manager_modular",
+    "set_alert_manager_modular",
     # ===== TYPES =====
     # Enums
     "AlertSeverity",

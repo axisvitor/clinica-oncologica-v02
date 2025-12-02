@@ -16,7 +16,7 @@ from enum import Enum
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 # ============================================================================
@@ -266,8 +266,8 @@ class FlowStepData(BaseModel):
     )
     error: Optional[str] = Field(default=None, description="Error message if failed")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "step_id": "step_001",
                 "step_type": "question",
@@ -279,6 +279,7 @@ class FlowStepData(BaseModel):
                 "completed_at": "2025-01-22T10:05:00Z",
             }
         }
+    )
 
 
 class FlowContext(BaseModel):
@@ -329,8 +330,8 @@ class FlowContext(BaseModel):
         default=FlowPriority.MEDIUM, description="Execution priority"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "flow_instance_id": "550e8400-e29b-41d4-a716-446655440000",
                 "flow_type": "daily_checkin",
@@ -342,6 +343,7 @@ class FlowContext(BaseModel):
                 "steps_completed": ["step_001"],
             }
         }
+    )
 
 
 class FlowTemplate(BaseModel):
@@ -381,8 +383,8 @@ class FlowTemplate(BaseModel):
         default_factory=dict, description="Additional template metadata"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "template_id": "daily_checkin_v1",
                 "flow_type": "daily_checkin",
@@ -398,6 +400,7 @@ class FlowTemplate(BaseModel):
                 ],
             }
         }
+    )
 
 
 class FlowEvent(BaseModel):
@@ -428,8 +431,8 @@ class FlowEvent(BaseModel):
         default_factory=dict, description="Additional event metadata"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "event_id": "evt_001",
                 "event_type": "step_completed",
@@ -439,6 +442,7 @@ class FlowEvent(BaseModel):
                 "timestamp": "2025-01-22T10:05:00Z",
             }
         }
+    )
 
 
 class FlowValidationResult(BaseModel):

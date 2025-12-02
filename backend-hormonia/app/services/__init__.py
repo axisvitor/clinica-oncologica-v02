@@ -88,7 +88,7 @@ from .reporting import (
 # Monitoring Services
 from .performance_monitoring import PerformanceMonitoringService
 from .flow_monitoring import FlowMonitoringService
-from .data_corruption_detector import DataCorruptionDetector
+from .data_corruption import DataCorruptionDetector
 
 # Error Handling Services
 from .error_recovery import ErrorRecoveryService

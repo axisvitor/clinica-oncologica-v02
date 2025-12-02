@@ -36,7 +36,7 @@ from typing import Generic, TypeVar, Optional, List
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy import select, and_, or_, Select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import DeclarativeMeta
@@ -63,8 +63,7 @@ class CursorPage(BaseModel, Generic[T]):
     has_prev: bool = False
     total_count: Optional[int] = None
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class CursorPaginator:

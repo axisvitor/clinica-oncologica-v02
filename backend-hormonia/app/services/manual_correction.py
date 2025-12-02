@@ -13,7 +13,7 @@ from app.models.flow import PatientFlowState
 from app.models.flow_analytics import FlowMessage
 from app.models.patient import Patient
 from app.repositories.flow import FlowStateRepository
-from app.services.data_corruption_detector import DataCorruptionDetector
+from app.services.data_corruption import DataCorruptionDetector
 from app.exceptions.flow_exceptions import FlowStateCorruptionError, FlowValidationError
 from app.services.enhanced_flow_engine import FlowType
 

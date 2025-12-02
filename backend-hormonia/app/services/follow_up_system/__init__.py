@@ -3,13 +3,16 @@ Follow-up Action System package.
 Provides automatic follow-up message generation, escalation logic,
 healthcare provider notifications, and conversation continuity.
 
-This package is organized into the following modules:
+Modular architecture:
+- context/: Conversation context management and patient context building
+- generators/: Follow-up message generation (empathy, medical concerns)
+- scheduling/: Action scheduling (messages, escalations, provider alerts)
+- execution/: Action execution logic
 - enums: Enumeration types for follow-up types, escalation levels, and notification channels
 - models: Data models for actions, alerts, and conversation context
-- generators: Response generation logic for empathetic messages and clarifications
 - escalation: Escalation alert creation and management
 - notifications: Provider notification delivery through multiple channels
-- service: Main service orchestrating all follow-up functionality
+- service: Main orchestrator coordinating all components
 """
 # Import enums
 from .enums import (
@@ -32,10 +35,16 @@ from .service import (
     get_follow_up_system_service
 )
 
-# Import sub-services for advanced usage
+# Import legacy sub-services for backward compatibility
 from .generators import ResponseGenerator
 from .escalation import EscalationManager
 from .notifications import NotificationService
+
+# Import new modular components
+from .context import ContextManager, ContextBuilder
+from .generators import EmpathyGenerator, MedicalConcernGenerator, BaseGenerator
+from .scheduling import ActionScheduler, FollowUpMessageScheduler, EscalationScheduler
+from .execution import ActionExecutor, MessageExecutor
 
 __all__ = [
     # Enums
@@ -53,8 +62,20 @@ __all__ = [
     "FollowUpSystemService",
     "get_follow_up_system_service",
 
-    # Sub-services
+    # Legacy sub-services (backward compatibility)
     "ResponseGenerator",
     "EscalationManager",
     "NotificationService",
+
+    # New modular components
+    "ContextManager",
+    "ContextBuilder",
+    "EmpathyGenerator",
+    "MedicalConcernGenerator",
+    "BaseGenerator",
+    "ActionScheduler",
+    "FollowUpMessageScheduler",
+    "EscalationScheduler",
+    "ActionExecutor",
+    "MessageExecutor",
 ]

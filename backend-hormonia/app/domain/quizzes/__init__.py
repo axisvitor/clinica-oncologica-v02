@@ -51,7 +51,8 @@ from .security import (
 )
 
 # Session management (renamed to avoid collision with core.session_manager)
-from .quiz_session_manager import QuizSessionManager
+# Now refactored into modular structure in manager.py
+from .manager import QuizSessionManager
 from .question_renderer import QuestionRenderer as QuizQuestionRenderer
 from .answer_validator import AnswerValidator as QuizAnswerValidator
 from .score_calculator import ScoreCalculator as QuizScoreCalculator

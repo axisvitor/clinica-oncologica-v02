@@ -8,7 +8,7 @@ A/B testing, and performance tracking.
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 from enum import Enum
-from pydantic import BaseModel, Field, validator, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from uuid import UUID
 
 from .common import CursorPaginatedResponse, ErrorResponse

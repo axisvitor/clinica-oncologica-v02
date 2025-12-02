@@ -14,7 +14,7 @@ from redis import Redis
 
 from app.services.flow_monitoring import FlowMonitoringService
 from app.services.error_recovery import ErrorRecoveryService
-from app.services.data_corruption_detector import DataCorruptionDetector
+from app.services.data_corruption import DataCorruptionDetector
 from app.services.manual_correction import ManualCorrectionService
 from app.repositories.flow import FlowStateRepository
 
