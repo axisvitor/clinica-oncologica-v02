@@ -370,7 +370,7 @@ class TestConcurrentSagaExecution:
 
         async def execute_saga_concurrent():
             """Execute patient onboarding saga."""
-            from app.coordination.saga_orchestrator import SagaOrchestrator
+            from app.orchestration.saga_orchestrator import SagaOrchestrator
 
             saga = SagaOrchestrator(
                 db=db_session,

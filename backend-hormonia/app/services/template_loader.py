@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import logging
 from functools import lru_cache
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, ConfigDict
 
 from app.models.flow import FlowKind, FlowTemplateVersion
 from app.repositories.flow_kind import FlowKindRepository

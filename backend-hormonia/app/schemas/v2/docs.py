@@ -4,7 +4,7 @@ Models for API documentation, guides, examples, and changelog.
 """
 
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field, validator, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict
 
 
 # ==================== API Endpoint Documentation ====================

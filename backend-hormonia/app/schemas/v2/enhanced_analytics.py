@@ -5,7 +5,7 @@ Complex analytics models with validation and examples.
 
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field, validator, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
 
 
