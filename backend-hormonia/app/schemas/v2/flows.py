@@ -6,7 +6,7 @@ Enhanced flow models with cursor pagination, field selection, and eager loading 
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field, validator, field_validator
+from pydantic import BaseModel, Field, validator, field_validator, ConfigDict
 
 from .common import CursorPaginatedResponse, ErrorResponse
 
