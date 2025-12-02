@@ -15,7 +15,7 @@ from unittest.mock import Mock, patch, MagicMock, AsyncMock, call
 from datetime import datetime, timedelta
 import json
 
-from app.services.alerts.alert_manager import AlertManager, Alert, AlertPriority, AlertStatus
+from app.services.alerts import AlertManager, Alert, AlertSeverity as AlertPriority, AlertStatus
 
 
 # ==========================================

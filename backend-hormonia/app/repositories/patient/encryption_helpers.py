@@ -50,8 +50,7 @@ def build_search_criteria(search_term: str) -> List:
     if _looks_like_email(search_term):
         try:
             # Lazy import to avoid circular dependency
-            from app.services.encryption import get_unified_encryption_service
-            from app.services.encryption.unified_encryption_service import FieldType
+            from app.services.encryption import get_unified_encryption_service, FieldType
             encryption_service = get_unified_encryption_service()
             email_hash = encryption_service.generate_hash(
                 search_term.lower().strip(),
@@ -66,8 +65,7 @@ def build_search_criteria(search_term: str) -> List:
     if _looks_like_phone(search_term):
         try:
             # Lazy import to avoid circular dependency
-            from app.services.encryption import get_unified_encryption_service
-            from app.services.encryption.unified_encryption_service import FieldType
+            from app.services.encryption import get_unified_encryption_service, FieldType
             encryption_service = get_unified_encryption_service()
             # Normalize phone for hash lookup
             normalized_phone = ''.join(c for c in search_term if c.isdigit() or c == '+')

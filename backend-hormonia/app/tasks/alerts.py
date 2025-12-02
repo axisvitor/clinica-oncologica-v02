@@ -54,7 +54,7 @@ def check_patient_alerts(self) -> Dict[str, Any]:
 
     try:
         with get_db_session() as db:
-            from app.services.alerts.alert_manager import AlertManager
+            from app.services.alerts import AlertManager
             from app.repositories.patient import PatientRepository
 
             alert_manager = AlertManager()
