@@ -73,7 +73,7 @@ class TestPatientRepositoryHashSearch:
         # Should have at least one criteria (name ILIKE)
         assert len(criteria) >= 1
 
-    @patch('app.repositories.patient.get_unified_encryption_service')
+    @patch('app.services.encryption.get_unified_encryption_service')
     def test_build_search_criteria_email_uses_hash(
         self, mock_encryption, repository
     ):
@@ -89,7 +89,7 @@ class TestPatientRepositoryHashSearch:
         # Criteria should include hash comparison
         assert len(criteria) >= 2  # name + email_hash
 
-    @patch('app.repositories.patient.get_unified_encryption_service')
+    @patch('app.services.encryption.get_unified_encryption_service')
     def test_build_search_criteria_phone_uses_hash(
         self, mock_encryption, repository
     ):
@@ -105,7 +105,7 @@ class TestPatientRepositoryHashSearch:
         # Criteria should include hash comparison
         assert len(criteria) >= 2  # name + phone_hash
 
-    @patch('app.repositories.patient.get_unified_encryption_service')
+    @patch('app.services.encryption.get_unified_encryption_service')
     def test_encryption_failure_graceful_degradation(
         self, mock_encryption, repository
     ):
@@ -144,25 +144,27 @@ class TestPatientRepositorySearchMethods:
         return PatientRepository(mock_db)
 
     @patch.object(PatientRepository, '_build_search_criteria')
-    def test_list_with_search_uses_build_criteria(
+    def test_list_v2_with_search_uses_build_criteria(
         self, mock_build, repository
     ):
-        """list() with search param should use _build_search_criteria."""
+        """list_v2() with search param should use _build_search_criteria."""
         mock_build.return_value = []
 
-        repository.list(
-            doctor_id=uuid4(),
-            search="test@example.com"
+        repository.list_v2(
+            filters={"doctor_id": str(uuid4()), "search": "test@example.com"}
         )
 
-        mock_build.assert_called_once_with("test@example.com")
+        # Verify _build_search_criteria was called with the search term
+        # May be called multiple times (data query + count query)
+        mock_build.assert_called_with("test@example.com")
+        assert mock_build.call_count >= 1
 
     @patch.object(PatientRepository, '_build_search_criteria')
-    def test_list_without_search_skips_criteria(
+    def test_list_v2_without_search_skips_criteria(
         self, mock_build, repository
     ):
-        """list() without search should not call _build_search_criteria."""
-        repository.list(doctor_id=uuid4())
+        """list_v2() without search should not call _build_search_criteria."""
+        repository.list_v2(filters={"doctor_id": str(uuid4())})
 
         mock_build.assert_not_called()
 
@@ -234,20 +236,17 @@ class TestSearchResultsDecryption:
         patient.phone = None
         return patient
 
-    @patch('app.repositories.patient.get_unified_encryption_service')
-    def test_get_patient_decrypts_email(
-        self, mock_encryption, mock_patient
+    def test_get_patient_has_encrypted_fields(
+        self, mock_patient
     ):
-        """Getting a patient should decrypt email if needed."""
-        mock_service = Mock()
-        mock_service.decrypt_email.return_value = "test@example.com"
-        mock_service.decrypt_phone.return_value = "+5511999887766"
-        mock_encryption.return_value = mock_service
-
-        # The repository should handle decryption internally
+        """Patient should have encrypted fields available."""
+        # The repository should handle decryption internally via model properties
         # This test documents expected behavior
         assert mock_patient.email_encrypted is not None
         assert mock_patient.email_hash is not None
+        # Legacy plaintext should be None after migration 030
+        assert mock_patient.email is None
+        assert mock_patient.phone is None
 
 
 class TestIdempotencyKeySearch:

@@ -249,9 +249,9 @@ class EnhancedFlowEngine(FlowCore):
                     )
                     if varied:
                         personalized_message = varied
-                except Exception as _:
+                except Exception as e:
                     # Keep original personalized_message on any AI variation failure
-                    pass
+                    logger.warning(f"AI message variation failed: {e}", exc_info=True)
 
             # Store message pattern for future anti-repetition
             await self.conversation_memory.store_message_pattern(patient_id, personalized_message)
@@ -421,9 +421,9 @@ class EnhancedFlowEngine(FlowCore):
                     )
                     if varied:
                         personalized_message = varied
-                except Exception as _:
+                except Exception as e:
                     # Keep original personalized_message on any AI variation failure
-                    pass
+                    logger.warning(f"AI message variation failed: {e}", exc_info=True)
 
             # Store message pattern for future anti-repetition
             await self.conversation_memory.store_message_pattern(patient_id, personalized_message)

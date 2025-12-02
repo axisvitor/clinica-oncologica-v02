@@ -689,5 +689,6 @@ class FlowEngine(AsyncFlowEngineBase):
         """Destructor to ensure cleanup on garbage collection."""
         try:
             self.cleanup()
-        except Exception:
-            pass
+        except Exception as e:
+            # Log cleanup failure during garbage collection
+            logger.warning(f"FlowEngine cleanup failed during garbage collection: {e}")

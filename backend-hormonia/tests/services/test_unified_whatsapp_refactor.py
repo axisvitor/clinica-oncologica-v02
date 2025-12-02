@@ -29,9 +29,16 @@ def mock_queue_service():
 @pytest.fixture
 def service(mock_db, mock_queue_service):
     # Patch internal methods to avoid real DB/Redis calls
+    # LGPD: Create mock patient since Patient no longer has phone column
+    mock_patient = MagicMock(spec=Patient)
+    mock_patient.phone_decrypted = "5511999999999"
+
+    # Use AsyncMock for async method _ensure_patient_loaded
+    async_mock_ensure = AsyncMock(return_value=mock_patient)
+
     with patch("app.services.unified_whatsapp_service.UnifiedWhatsAppService._get_queue_service", return_value=mock_queue_service), \
-         patch("app.services.unified_whatsapp_service.UnifiedWhatsAppService._ensure_patient_loaded", return_value=Patient(phone="5511999999999")):
-        
+         patch.object(UnifiedWhatsAppService, "_ensure_patient_loaded", async_mock_ensure):
+
         svc = UnifiedWhatsAppService(mock_db, redis_url="redis://mock")
         return svc
 

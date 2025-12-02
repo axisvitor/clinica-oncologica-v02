@@ -423,8 +423,11 @@ async def process_inbound_message(
     db: Session = Depends(get_db),
 ):
     """Process an inbound message (webhook endpoint)."""
-    # Find patient by phone
-    patient = db.query(Patient).filter(Patient.phone == inbound_data.patient_phone).first()
+    # Find patient by phone (LGPD: use phone_hash lookup)
+    from app.services.encryption import get_lgpd_encryption_service
+    lgpd_service = get_lgpd_encryption_service()
+    phone_hash = lgpd_service.hash_phone(inbound_data.patient_phone)
+    patient = db.query(Patient).filter(Patient.phone_hash == phone_hash).first()
 
     if not patient:
         raise HTTPException(

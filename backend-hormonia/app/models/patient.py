@@ -32,15 +32,18 @@ class Patient(BaseModel):
     This model corresponds exactly to the Supabase patients table schema:
     - id (uuid, PK)
     - doctor_id (uuid, FK to users)
-    - phone (varchar, unique, not null)
     - name (varchar, not null)
-    - email (varchar, nullable)
     - birth_date (date, nullable)
     - treatment_type (varchar, nullable)
     - treatment_start_date (date, nullable)
     - flow_state (enum, not null, default: onboarding)
     - current_day (integer, not null, default: 0)
-    - cpf (varchar(11), nullable, indexed)
+    - cpf_encrypted (text, nullable) - LGPD encrypted CPF
+    - cpf_hash (varchar(64), nullable, indexed) - Searchable hash
+    - email_encrypted (bytea, nullable) - LGPD encrypted email
+    - email_hash (varchar(64), nullable, indexed) - Searchable hash
+    - phone_encrypted (bytea, nullable) - LGPD encrypted phone
+    - phone_hash (varchar(64), nullable, indexed) - Searchable hash
     - diagnosis (varchar(500), nullable, indexed)
     - treatment_phase (varchar(100), nullable, indexed)
     - doctor_notes (text, nullable)
@@ -48,15 +51,17 @@ class Patient(BaseModel):
     - created_at (timestamptz, not null)
     - updated_at (timestamptz, not null)
 
-    Migration: add_dedicated_patient_columns
+    LGPD Compliance (Post-Migration 030):
+    - Plaintext cpf, email, phone columns REMOVED
+    - All PII stored encrypted with AES-256-GCM
     """
     __tablename__ = "patients"
     
     # Basic information (matches Supabase schema exactly)
     doctor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    phone = Column(String, nullable=False)
+    # NOTE: phone and email plaintext columns REMOVED in migration 030 (LGPD compliance)
+    # Use phone_encrypted/phone_hash and email_encrypted/email_hash instead
     name = Column(String, nullable=False)
-    email = Column(String, nullable=True)
     birth_date = Column(Date, nullable=True)
     
     # Treatment information
@@ -150,27 +155,21 @@ class Patient(BaseModel):
     # Constraints and indexes to match DB uniques
     # After migrations 009, 020 (CPF encryption), 024 (CPF plaintext removal), 028 (email/phone encryption)
     #
-    # LGPD Compliance Note:
-    # - email and phone plaintext columns will be dropped in migration 030
-    # - All unique constraints now use hash columns for encrypted data
-    # - Legacy plaintext constraints kept temporarily for backward compatibility during migration
+    # LGPD Compliance Note (Post-Migration 030):
+    # - email and phone plaintext columns REMOVED in migration 030 ✅
+    # - All unique constraints use hash columns for encrypted data
+    # - Indexes defined here must match database schema
     __table_args__ = (
-        # LGPD: Hash-based unique constraints (primary - used after migration 030)
+        # LGPD: Hash-based unique constraints
         UniqueConstraint('cpf_hash', 'doctor_id', name='uq_patient_cpf_hash_doctor'),
-        # Note: email_hash and phone_hash uniqueness enforced via partial unique indexes below
 
-        # Legacy plaintext constraints (to be removed in migration 030)
-        # Kept for backward compatibility during migration transition
-        UniqueConstraint('phone', 'doctor_id', name='uq_patient_phone_doctor'),
-
-        # Composite indexes for faster lookups
-        Index('idx_patient_phone_doctor', 'phone', 'doctor_id'),
+        # Composite indexes for faster lookups (hash-based only)
         Index('ix_patients_cpf_hash_doctor', 'cpf_hash', 'doctor_id', postgresql_where=sa.text('cpf_hash IS NOT NULL')),
 
-        # LGPD: Email/Phone hash indexes (primary search indexes after migration 030)
+        # LGPD: Email/Phone hash indexes (primary search indexes)
         Index('ix_patients_email_hash', 'email_hash'),
         Index('ix_patients_phone_hash', 'phone_hash'),
-        # Unique partial indexes on hash columns (replaces plaintext unique constraints)
+        # Unique partial indexes on hash columns (enforces uniqueness per doctor)
         Index('ix_patients_email_hash_doctor', 'email_hash', 'doctor_id', unique=True, postgresql_where=sa.text('email_hash IS NOT NULL AND deleted_at IS NULL')),
         Index('ix_patients_phone_hash_doctor', 'phone_hash', 'doctor_id', unique=True, postgresql_where=sa.text('phone_hash IS NOT NULL AND deleted_at IS NULL')),
 
@@ -260,6 +259,16 @@ class Patient(BaseModel):
             return service.decrypt_cpf(self.cpf_encrypted)
         return None
 
+    @property
+    def cpf(self) -> Optional[str]:
+        """
+        Backward compatibility alias for cpf_decrypted.
+
+        LGPD: Returns decrypted CPF for backward compatibility.
+        New code should use cpf_decrypted directly.
+        """
+        return self.cpf_decrypted
+
     def set_cpf(self, cpf_value: Optional[str]) -> None:
         """
         Set CPF with automatic encryption.
@@ -280,12 +289,9 @@ class Patient(BaseModel):
         # Encrypt and hash
         encrypted_cpf, cpf_hash = service.encrypt_cpf(cpf_value)
 
-        # Store encrypted values
+        # Store encrypted values (plaintext column removed in migration 030)
         self.cpf_encrypted = encrypted_cpf
         self.cpf_hash = cpf_hash
-
-        # Clear legacy plaintext column for security
-        self.cpf = None
 
     def get_cpf_display(self, mask: bool = False) -> Optional[str]:
         """
@@ -323,13 +329,24 @@ class Patient(BaseModel):
             from app.services.encryption import get_lgpd_encryption_service
             service = get_lgpd_encryption_service()
             return service.decrypt_email(self.email_encrypted)
-        return self.email  # Fallback to plaintext for backward compatibility
+        return None  # No plaintext fallback (column removed in migration 030)
+
+    @property
+    def email(self) -> Optional[str]:
+        """
+        Backward compatibility alias for email_decrypted.
+
+        LGPD: Returns decrypted email for backward compatibility.
+        New code should use email_decrypted directly.
+        """
+        return self.email_decrypted
 
     def set_email(self, email_value: Optional[str]) -> None:
         """
         Set email with automatic encryption.
 
         Encrypts the email and generates searchable hash.
+        NOTE: Plaintext email column removed in migration 030 (LGPD compliance).
 
         Args:
             email_value: Email to encrypt
@@ -337,7 +354,6 @@ class Patient(BaseModel):
         if not email_value:
             self.email_encrypted = None
             self.email_hash = None
-            self.email = None
             return
 
         from app.services.encryption import get_lgpd_encryption_service
@@ -346,12 +362,9 @@ class Patient(BaseModel):
         # Encrypt and hash
         encrypted_email, email_hash = service.encrypt_email(email_value)
 
-        # Store encrypted values
+        # Store encrypted values only (plaintext column removed in migration 030)
         self.email_encrypted = encrypted_email
         self.email_hash = email_hash
-
-        # Keep plaintext for backward compatibility (will be removed in future migration)
-        self.email = email_value
 
     @property
     def phone_decrypted(self) -> Optional[str]:
@@ -367,13 +380,24 @@ class Patient(BaseModel):
             from app.services.encryption import get_lgpd_encryption_service
             service = get_lgpd_encryption_service()
             return service.decrypt_phone(self.phone_encrypted)
-        return self.phone  # Fallback to plaintext for backward compatibility
+        return None  # No plaintext fallback (column removed in migration 030)
+
+    @property
+    def phone(self) -> Optional[str]:
+        """
+        Backward compatibility alias for phone_decrypted.
+
+        LGPD: Returns decrypted phone for backward compatibility.
+        New code should use phone_decrypted directly.
+        """
+        return self.phone_decrypted
 
     def set_phone(self, phone_value: Optional[str]) -> None:
         """
         Set phone with automatic encryption.
 
         Encrypts the phone and generates searchable hash.
+        NOTE: Plaintext phone column removed in migration 030 (LGPD compliance).
 
         Args:
             phone_value: Phone to encrypt
@@ -381,7 +405,6 @@ class Patient(BaseModel):
         if not phone_value:
             self.phone_encrypted = None
             self.phone_hash = None
-            self.phone = None
             return
 
         from app.services.encryption import get_lgpd_encryption_service
@@ -390,12 +413,9 @@ class Patient(BaseModel):
         # Encrypt and hash
         encrypted_phone, phone_hash = service.encrypt_phone(phone_value)
 
-        # Store encrypted values
+        # Store encrypted values only (plaintext column removed in migration 030)
         self.phone_encrypted = encrypted_phone
         self.phone_hash = phone_hash
-
-        # Keep plaintext for backward compatibility (will be removed in future migration)
-        self.phone = phone_value
 
     # NOTE: diagnosis, treatment_phase, doctor_notes are dedicated columns
     # No property accessors needed - they are direct column attributes
@@ -441,7 +461,9 @@ class Patient(BaseModel):
         self.patient_data['timezone'] = value
     
     def __repr__(self):
-        return f"<Patient(name='{self.name}', phone='{self.phone}')>"
+        # Use phone_hash for repr (phone column removed in migration 030)
+        phone_display = self.phone_hash[:8] + "..." if self.phone_hash else "N/A"
+        return f"<Patient(name='{self.name}', phone_hash='{phone_display}')>"
 
 
 # =========================================================================
@@ -452,18 +474,16 @@ class Patient(BaseModel):
 @event.listens_for(Patient, 'before_update')
 def validate_cpf_encryption(mapper, connection, target):
     """
-    Ensure CPF is never stored in plain text.
+    Ensure CPF is properly encrypted before database operations.
 
     QW-003: LGPD Compliance - CPF Encryption Validation Hook
 
     This hook validates that CPF data is properly encrypted before database insertion
-    or update. It prevents accidental storage of plain text CPF data which would
-    violate LGPD (Brazilian data protection law) requirements.
+    or update. It prevents incomplete encryption which would violate LGPD requirements.
 
-    Validation checks:
+    Validation checks (Post-Migration 030):
     1. If cpf_encrypted exists, cpf_hash must also exist
-    2. Plain text CPF (11 digits) is not allowed
-    3. Legacy 'cpf' column must be None
+    2. NOTE: Legacy plaintext 'cpf' column REMOVED in migration 030
 
     Args:
         mapper: SQLAlchemy mapper
@@ -482,22 +502,4 @@ def validate_cpf_encryption(mapper, connection, target):
                 "Use set_cpf() method to properly encrypt CPF data."
             )
 
-    # Validate that no plain text CPF is being saved
-    # Check legacy 'cpf' column if it exists in the instance
-    if hasattr(target, 'cpf') and target.cpf:
-        # Detect plain text CPF (11 digits)
-        cpf_value = str(target.cpf).strip()
-        if len(cpf_value) == 11 and cpf_value.isdigit():
-            raise ValueError(
-                "Plain text CPF detected in legacy 'cpf' column. "
-                "LGPD compliance requires CPF encryption. "
-                f"Use set_cpf('{cpf_value}') method instead of direct assignment."
-            )
-
-        # If cpf column has any value, it should be None for LGPD compliance
-        if target.cpf is not None:
-            raise ValueError(
-                "Legacy 'cpf' column must be None. "
-                "All CPF data must be stored in encrypted format (cpf_encrypted/cpf_hash). "
-                "Use set_cpf() method for CPF assignment."
-            )
+    # NOTE: Legacy 'cpf' column validation removed - column dropped in migration 030

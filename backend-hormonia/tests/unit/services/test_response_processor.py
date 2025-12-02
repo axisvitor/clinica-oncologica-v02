@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock, AsyncMock, patch
 from uuid import uuid4
 from datetime import datetime
 
@@ -21,26 +21,32 @@ def mock_config():
 
 @pytest.fixture
 def response_processor(mock_db, mock_config):
-    processor = ResponseProcessor(mock_db, mock_config)
-    # Mock repositories
-    processor.message_repo = MagicMock()
-    processor.flow_state_repo = MagicMock()
-    processor.patient_repo = MagicMock()
-    processor.flow_broadcaster = AsyncMock()
-    processor.platform_sync = AsyncMock()
-    processor.quiz_service = AsyncMock()
-    
-    # Mock internal methods to avoid complex logic in unit tests
-    processor._store_inbound_message = AsyncMock()
-    processor._is_quiz_response = AsyncMock(return_value=False)
-    processor._validate_response = AsyncMock()
-    processor._extract_structured_data = AsyncMock()
-    processor._determine_flow_actions = AsyncMock(return_value=[])
-    processor._generate_follow_up_message = AsyncMock(return_value=None)
-    processor._prepare_state_updates = AsyncMock(return_value=None)
-    processor._apply_state_updates = AsyncMock()
-    
-    return processor
+    # Patch services that require external connections
+    with patch("app.services.response_processor.processor.get_platform_sync_service") as mock_sync, \
+         patch("app.services.response_processor.processor.FlowBroadcaster") as mock_broadcaster:
+        mock_sync.return_value = AsyncMock()
+        mock_broadcaster.return_value = AsyncMock()
+
+        processor = ResponseProcessor(mock_db, mock_config)
+        # Mock repositories
+        processor.message_repo = MagicMock()
+        processor.flow_state_repo = MagicMock()
+        processor.patient_repo = MagicMock()
+        processor.flow_broadcaster = AsyncMock()
+        processor.platform_sync = AsyncMock()
+        processor.quiz_service = AsyncMock()
+
+        # Mock internal methods to avoid complex logic in unit tests
+        processor._store_inbound_message = AsyncMock()
+        processor._is_quiz_response = AsyncMock(return_value=False)
+        processor._validate_response = AsyncMock()
+        processor._extract_structured_data = AsyncMock()
+        processor._determine_flow_actions = AsyncMock(return_value=[])
+        processor._generate_follow_up_message = AsyncMock(return_value=None)
+        processor._prepare_state_updates = AsyncMock(return_value=None)
+        processor._apply_state_updates = AsyncMock()
+
+        return processor
 
 @pytest.mark.asyncio
 async def test_process_inbound_message_success(response_processor):
@@ -53,8 +59,11 @@ async def test_process_inbound_message_success(response_processor):
         whatsapp_id="wamid.123"
     )
     
-    # Mocks
-    patient = Patient(id=patient_id, phone=phone, name="Test Patient")
+    # Mocks - use MagicMock since Patient no longer has phone column
+    patient = MagicMock(spec=Patient)
+    patient.id = patient_id
+    patient.name = "Test Patient"
+    patient.phone_decrypted = phone  # LGPD: encrypted field accessor
     response_processor.patient_repo.get_by_phone.return_value = patient
     
     response_processor._store_inbound_message.return_value = MagicMock(id=uuid4())
@@ -108,7 +117,10 @@ async def test_process_inbound_message_invalid_response(response_processor):
         whatsapp_id="wamid.123"
     )
     
-    patient = Patient(id=patient_id, phone=phone)
+    # Mocks - use MagicMock since Patient no longer has phone column
+    patient = MagicMock(spec=Patient)
+    patient.id = patient_id
+    patient.phone_decrypted = phone  # LGPD: encrypted field accessor
     response_processor.patient_repo.get_by_phone.return_value = patient
     response_processor._store_inbound_message.return_value = MagicMock(id=uuid4())
     

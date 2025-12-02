@@ -297,9 +297,12 @@ async def handle_message_upsert(instance_name: str, data: Dict[str, Any], backgr
                     # Clean phone number (remove suffix)
                     phone_number = sender_id.split('@')[0] if '@' in sender_id else sender_id
 
-                    # Find patient by phone
+                    # Find patient by phone (LGPD: use phone_hash lookup)
                     from app.models.patient import Patient
-                    stmt = select(Patient).where(Patient.phone == phone_number)
+                    from app.services.encryption import get_lgpd_encryption_service
+                    lgpd_service = get_lgpd_encryption_service()
+                    phone_hash = lgpd_service.hash_phone(phone_number)
+                    stmt = select(Patient).where(Patient.phone_hash == phone_hash)
                     result = await db.execute(stmt)
                     patient = result.scalar_one_or_none()
 

@@ -130,8 +130,8 @@ class EnhancedQuizService:
                         if numeric_value >= 7:
                             risk_score += factor_weight * 10
                             risk_factors.append(factor_name)
-                    except (ValueError, TypeError):
-                        pass
+                    except (ValueError, TypeError) as e:
+                        logger.debug(f"Could not convert response value to numeric for risk scoring: {response.response_value}, error: {e}")
 
         risk_score = min(risk_score, 100.0)
 

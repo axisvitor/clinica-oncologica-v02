@@ -73,8 +73,8 @@ def _extract_user_context(current_user) -> tuple[UserRole, Optional[UUID]]:
     if user_id:
         try:
             user_uuid = UUID(str(user_id))
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as e:
+            logger.warning(f"Failed to parse user_id as UUID: {user_id}, error: {e}")
     return role, user_uuid
 
 @router.post("/builder", response_model=ReportBuilderResponse, status_code=status.HTTP_202_ACCEPTED)

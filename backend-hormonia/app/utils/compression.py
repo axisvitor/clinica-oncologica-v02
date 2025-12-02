@@ -197,10 +197,10 @@ class StaticFileCompressionMiddleware(BaseHTTPMiddleware):
                     headers=headers,
                     media_type=response.media_type
                 )
-        
-        except Exception:
-            pass
-        
+
+        except Exception as e:
+            logger.warning(f"Brotli compression fallback failed: {e}", exc_info=True)
+
         # Fall back to original file
         request.scope["path"] = original_path
         return await call_next(request)

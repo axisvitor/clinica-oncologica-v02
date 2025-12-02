@@ -9,7 +9,7 @@ from datetime import datetime
 from uuid import UUID
 import enum
 
-from pydantic import BaseModel, EmailStr, Field, validator, root_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from app.schemas.common import PaginatedResponse
 
 
@@ -30,7 +30,8 @@ class UserCreate(BaseModel):
     role: UserRole = Field(default=UserRole.DOCTOR, description="User role")
     phone_number: Optional[str] = Field(None, max_length=20, description="Phone number (optional)")
 
-    @validator('password')
+    @field_validator('password')
+    @classmethod
     def validate_password(cls, v):
         """Validate password strength."""
         if len(v) < 8:
@@ -41,7 +42,8 @@ class UserCreate(BaseModel):
             raise ValueError('Password must contain at least one letter')
         return v
 
-    @validator('phone_number')
+    @field_validator('phone_number')
+    @classmethod
     def validate_phone_number(cls, v):
         """Validate phone number format."""
         if v is not None:
@@ -71,7 +73,8 @@ class UserUpdate(BaseModel):
     phone_number: Optional[str] = Field(None, max_length=20, description="Phone number")
     is_active: Optional[bool] = Field(None, description="Whether the user is active")
 
-    @validator('phone_number')
+    @field_validator('phone_number')
+    @classmethod
     def validate_phone_number(cls, v):
         """Validate phone number format."""
         if v is not None:
@@ -81,12 +84,12 @@ class UserUpdate(BaseModel):
                 raise ValueError('Phone number must contain at least 10 digits')
         return v
 
-    @root_validator(skip_on_failure=True)
-    def validate_at_least_one_field(cls, values):
+    @model_validator(mode='after')
+    def validate_at_least_one_field(self):
         """Ensure at least one field is provided for update."""
-        if not any(v is not None for v in values.values()):
+        if not any(getattr(self, field) is not None for field in self.model_fields):
             raise ValueError('At least one field must be provided for update')
-        return values
+        return self
 
     class Config:
         json_schema_extra = {
@@ -181,7 +184,8 @@ class PermissionsUpdate(BaseModel):
     """Schema for updating user permissions."""
     permissions: List[str] = Field(..., description="List of permissions to assign")
 
-    @validator('permissions')
+    @field_validator('permissions')
+    @classmethod
     def validate_permissions(cls, v):
         """Validate permissions list."""
         if not v:
@@ -219,7 +223,8 @@ class PasswordReset(BaseModel):
     """Schema for resetting user password."""
     new_password: str = Field(..., min_length=8, max_length=128, description="New password (minimum 8 characters)")
 
-    @validator('new_password')
+    @field_validator('new_password')
+    @classmethod
     def validate_new_password(cls, v):
         """Validate new password strength."""
         if len(v) < 8:
@@ -318,10 +323,11 @@ class UserActivityResponse(BaseModel):
 
 class BulkUserOperation(BaseModel):
     """Schema for bulk user operations."""
-    user_ids: List[UUID] = Field(..., min_items=1, max_items=100, description="List of user IDs (max 100)")
+    user_ids: List[UUID] = Field(..., min_length=1, max_length=100, description="List of user IDs (max 100)")
     operation: str = Field(..., description="Operation to perform (activate, deactivate, delete)")
 
-    @validator('operation')
+    @field_validator('operation')
+    @classmethod
     def validate_operation(cls, v):
         """Validate operation type."""
         valid_operations = ['activate', 'deactivate', 'delete']

@@ -390,7 +390,8 @@ class UnifiedWhatsAppService:
         if not patient:
             raise ValueError(f"Patient {message.patient_id} not found")
 
-        if not patient.phone:
+        # LGPD: Use decrypted phone accessor
+        if not patient.phone_decrypted:
             raise ValueError(f"Patient {message.patient_id} has no phone number")
 
         # Map legacy message types to queue types
@@ -433,7 +434,7 @@ class UnifiedWhatsAppService:
 
         return MessageRequest(
             instance_name=instance_name,
-            to=patient.phone,
+            to=patient.phone_decrypted,  # LGPD: Use decrypted phone
             message_type=queue_type,
             text=message.content,
             media_url=media_url,

@@ -307,8 +307,8 @@ class QuestionHumanizer:
                 next_pattern = patterns[(last_index + 1) % len(patterns)]
                 logger.info(f"All patterns used, rotating from {last_used} to {next_pattern}")
                 return next_pattern
-            except ValueError:
-                pass
+            except ValueError as e:
+                logger.debug(f"Last used pattern not found in available patterns: {e}")
 
         # Fallback to first pattern
         logger.info(f"Fallback to first pattern: {patterns[0]}")

@@ -278,6 +278,35 @@ Using **Hive Mind** (ADR-0008) for coordinated AI-assisted development:
 - CDN for static assets
 - Kubernetes orchestration
 
+## Repository Refactoring Projects
+
+### Patient Repository Refactoring (Active)
+
+**Status**: 📋 Ready for Implementation
+**Effort**: 8 weeks (4 developers)
+**ROI**: 12-18 months
+
+The Patient Repository has grown to a 1,015-line God Class that violates Single Responsibility Principle. We're refactoring it into 4 specialized repositories following the Repository Segregation Pattern.
+
+**Documentation Suite** (2,711 lines total):
+- **[Executive Summary](./PATIENT_REPOSITORY_REFACTORING_SUMMARY.md)** (557 lines) - Business case, ROI, timeline
+- **[Refactoring Plan](./PATIENT_REPOSITORY_REFACTORING_PLAN.md)** (770 lines) - Complete architecture and migration strategy
+- **[Implementation Guide](./PATIENT_REPOSITORY_IMPLEMENTATION_GUIDE.md)** (885 lines) - Step-by-step code examples
+- **[Method Matrix](./PATIENT_REPOSITORY_METHOD_MATRIX.md)** (499 lines) - Reference guide and migration mapping
+
+**Key Benefits**:
+- 75% complexity reduction per file (1,015 → ~250 lines avg)
+- 73% reduction in cyclomatic complexity (158 → ~42 avg)
+- $125K annual savings (maintenance + infrastructure)
+- 50% faster bug fixes and feature development
+
+**Quick Start**:
+1. **Stakeholders**: Read [Executive Summary](./PATIENT_REPOSITORY_REFACTORING_SUMMARY.md)
+2. **Developers**: Read [Implementation Guide](./PATIENT_REPOSITORY_IMPLEMENTATION_GUIDE.md)
+3. **Reference**: Bookmark [Method Matrix](./PATIENT_REPOSITORY_METHOD_MATRIX.md)
+
+---
+
 ## Related Documentation
 
 - **[API Documentation](../api/README.md)** - REST API specifications

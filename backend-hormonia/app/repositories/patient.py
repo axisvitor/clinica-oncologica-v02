@@ -6,18 +6,22 @@ LGPD Compliance (migration 028+):
 - Searches use SHA-256 hashes for exact matches
 - Name searches still use ILIKE (plaintext OK for names)
 """
-from typing import List, Optional, Dict, Any, Tuple
-from uuid import UUID
-from datetime import datetime, date
-from sqlalchemy.orm import Session, joinedload, selectinload, contains_eager
-from sqlalchemy import and_, or_, desc, asc, func
 import hashlib
 import json
+import logging
 import re
+from datetime import datetime, date
+from typing import List, Optional, Dict, Any, Tuple
+from uuid import UUID
+
+from sqlalchemy.orm import Session, joinedload, selectinload, contains_eager
+from sqlalchemy import and_, or_, desc, asc, func
 
 from app.models.patient import Patient, FlowState
 from app.models.message import Message
 from app.repositories.base import BaseRepository
+
+logger = logging.getLogger(__name__)
 
 # NOTE: Encryption service imports are done lazily inside functions to avoid
 # circular imports: patient.py -> encryption -> services.py -> PatientCRUDService -> patient.py
@@ -94,9 +98,9 @@ class PatientRepository(BaseRepository[Patient]):
                     FieldType.EMAIL
                 )
                 criteria_parts.append(Patient.email_hash == email_hash)
-            except Exception:
+            except Exception as e:
                 # Fallback: skip email search if encryption service unavailable
-                pass
+                logger.warning(f"Failed to hash email for search: {e}", exc_info=True)
 
         # Phone search - use hash if looks like phone
         if _looks_like_phone(search_term):
@@ -112,9 +116,9 @@ class PatientRepository(BaseRepository[Patient]):
                     FieldType.PHONE
                 )
                 criteria_parts.append(Patient.phone_hash == phone_hash)
-            except Exception:
+            except Exception as e:
                 # Fallback: skip phone search if encryption service unavailable
-                pass
+                logger.warning(f"Failed to hash phone for search: {e}", exc_info=True)
 
         return criteria_parts
 
@@ -313,8 +317,8 @@ class PatientRepository(BaseRepository[Patient]):
                     if isinstance(status_val, str):
                         try:
                             status_val = FlowState(status_val)
-                        except ValueError:
-                            pass
+                        except ValueError as e:
+                            logger.warning(f"Invalid FlowState value: {status_val}, error: {e}")
                     count_criteria.append(Patient.flow_state == status_val)
 
                 if filters.get("has_active_flow") is not None:
@@ -480,8 +484,8 @@ class PatientRepository(BaseRepository[Patient]):
             if isinstance(status_val, str):
                 try:
                     status_val = FlowState(status_val)
-                except ValueError:
-                    pass
+                except ValueError as e:
+                    logger.warning(f"Invalid FlowState value: {status_val}, error: {e}")
             criteria.append(Patient.flow_state == status_val)
 
         # Treatment filters
@@ -508,8 +512,8 @@ class PatientRepository(BaseRepository[Patient]):
             if isinstance(cursor_val, str) and sort_by in ["created_at", "updated_at"]:
                 try:
                     cursor_val = datetime.fromisoformat(cursor_val.replace("Z", "+00:00"))
-                except ValueError:
-                    pass
+                except ValueError as e:
+                    logger.warning(f"Failed to parse cursor datetime: {cursor_val}, error: {e}")
 
             sort_col = getattr(Patient, sort_by)
 
@@ -612,9 +616,17 @@ class PatientRepository(BaseRepository[Patient]):
         return self.db.query(Patient).filter(Patient.id == patient_id).first()
     
     def get_by_phone(self, phone: str) -> Optional[Patient]:
-        """Get patient by phone (only active patients)"""
+        """
+        Get patient by phone (only active patients).
+
+        LGPD Compliance: Searches by phone_hash (plaintext column removed in migration 030).
+        """
+        from app.services.encryption import get_lgpd_encryption_service
+        service = get_lgpd_encryption_service()
+        phone_hash = service.hash_phone(phone)
+
         return self.db.query(Patient).filter(
-            Patient.phone == phone,
+            Patient.phone_hash == phone_hash,
             Patient.deleted_at.is_(None)
         ).first()
     
@@ -913,104 +925,4 @@ class PatientRepository(BaseRepository[Patient]):
         # await self.db.commit()
 
 
-# ============================================================================
-# SQL INDEX RECOMMENDATIONS FOR PERFORMANCE OPTIMIZATION
-# ============================================================================
-
-"""
-RECOMMENDED DATABASE INDEXES TO PREVENT N+1 QUERIES:
-
--- 1. Composite index for patient list queries (doctor + filters)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_patients_doctor_flow_state_created
-ON patients (doctor_id, flow_state, created_at DESC)
-WHERE deleted_at IS NULL;
-
--- 2. Composite index for search queries
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_patients_search_name_email
-ON patients USING gin (to_tsvector('english', COALESCE(name, '') || ' ' || COALESCE(email, '')))
-WHERE deleted_at IS NULL;
-
--- 3. Index for treatment filtering
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_patients_treatment_lookup
-ON patients (doctor_id, treatment_type, treatment_phase)
-WHERE deleted_at IS NULL;
-
--- 4. Index for phone search (already exists via unique constraint)
--- Verify existence: idx_patient_phone_doctor
-
--- 5. Message sender relationship (messages table)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_messages_patient_sender
-ON messages (patient_id, sender_id, created_at DESC)
-WHERE deleted_at IS NULL;
-
--- 6. Quiz sessions by patient
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_quiz_sessions_patient_created
-ON quiz_sessions (patient_id, created_at DESC)
-WHERE deleted_at IS NULL;
-
--- 7. Flow states by patient
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flow_states_patient_created
-ON patient_flow_states (patient_id, created_at DESC);
-
--- 8. Treatments by patient
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_treatments_patient_active
-ON treatments (patient_id, status, start_date DESC)
-WHERE deleted_at IS NULL;
-
--- 9. Appointments by patient
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_appointments_patient_scheduled
-ON appointments (patient_id, scheduled_at DESC)
-WHERE deleted_at IS NULL;
-
--- 10. Medications by patient
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_medications_patient_active
-ON medications (patient_id, status, start_date DESC)
-WHERE deleted_at IS NULL;
-
--- Performance monitoring query to identify missing indexes:
-SELECT
-    schemaname,
-    tablename,
-    indexname,
-    idx_scan,
-    idx_tup_read,
-    idx_tup_fetch
-FROM pg_stat_user_indexes
-WHERE schemaname = 'public'
-  AND tablename IN ('patients', 'messages', 'quiz_sessions', 'patient_flow_states',
-                    'treatments', 'appointments', 'medications')
-ORDER BY idx_scan ASC, tablename;
-
--- Query to check index usage:
-SELECT
-    pt.tablename,
-    pi.indexname,
-    pi.indexdef,
-    ps.idx_scan,
-    pg_size_pretty(pg_relation_size(pi.indexrelid)) AS index_size
-FROM pg_indexes pi
-JOIN pg_stat_user_indexes ps ON pi.indexname = ps.indexname
-JOIN pg_tables pt ON pt.tablename = pi.tablename
-WHERE pt.schemaname = 'public'
-  AND pt.tablename IN ('patients', 'messages', 'quiz_sessions')
-ORDER BY ps.idx_scan DESC;
-
-NOTES:
-------
-1. Use CONCURRENTLY to avoid locking tables in production
-2. All indexes include 'WHERE deleted_at IS NULL' for partial index efficiency
-3. Composite indexes ordered by selectivity (most selective first)
-4. GIN index for full-text search on name/email
-5. Monitor pg_stat_user_indexes to track index effectiveness
-
-EXPECTED QUERY REDUCTION:
--------------------------
-Before optimization: 120+ queries per page
-After optimization:  4 queries per page (75% reduction)
-  - Query 1: Main patient query with doctor JOIN
-  - Query 2: Batch load messages + senders
-  - Query 3: Batch load quiz_sessions
-  - Query 4: Batch load flow_states
-
-With Redis cache: 3 queries (skip count query on subsequent requests)
-"""
+# See docs/database/PERFORMANCE_INDEXES.md for SQL index recommendations

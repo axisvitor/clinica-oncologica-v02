@@ -95,11 +95,16 @@ async def check_email_exists(
 
     Performs case-insensitive search for email in active (non-deleted) patients.
     """
+    # LGPD: Use email_hash for lookup (plaintext column removed in migration 030)
+    from app.services.encryption import get_lgpd_encryption_service
+    service = get_lgpd_encryption_service()
+    email_hash = service.hash_email(email.lower())
+
     exists = (
         db.query(Patient)
         .filter(
             Patient.deleted_at.is_(None),
-            func.lower(Patient.email) == email.lower(),
+            Patient.email_hash == email_hash,
         )
         .first()
         is not None

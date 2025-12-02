@@ -192,8 +192,8 @@ class QuestionPresenter:
             try:
                 template_response = self.quiz_template_service.get_template_by_name(template_name)
                 return self.quiz_template_service.template_repository.get(template_response.id)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to get quiz template '{template_name}': {e}", exc_info=True)
 
             # Create new template if needed - use existing logic from quiz_flow_integration.py
             # For now, return None to use default template creation

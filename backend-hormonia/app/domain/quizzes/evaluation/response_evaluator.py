@@ -163,8 +163,8 @@ class QuizResponseEvaluator:
             if isinstance(value, str) and value.replace(".", "", 1).isdigit():
                 try:
                     value = float(value)
-                except ValueError:
-                    pass
+                except ValueError as e:
+                    logger.debug(f"Failed to convert string to float: {value}, error: {e}")
 
             # Normalize boolean strings
             if isinstance(value, str):

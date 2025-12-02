@@ -301,9 +301,12 @@ async def import_patients(
             # Ensure E.164 format
             e164_phone = normalized_phone if normalized_phone.startswith('+') else f"+{normalized_phone}"
 
-            # Check for duplicate phone
+            # Check for duplicate phone (LGPD: use hash lookup)
+            from app.services.encryption import get_lgpd_encryption_service
+            phone_service = get_lgpd_encryption_service()
+            phone_hash = phone_service.hash_phone(e164_phone)
             existing_phone = db.query(Patient).filter(
-                Patient.phone == e164_phone,
+                Patient.phone_hash == phone_hash,
                 Patient.deleted_at.is_(None)
             ).first()
             if existing_phone:
@@ -344,10 +347,13 @@ async def import_patients(
                 failed_count += 1
                 continue
 
-            # Check for duplicate CPF
+            # Check for duplicate CPF (LGPD: use hash lookup)
             if cpf:
+                from app.services.encryption import get_cpf_encryption_service
+                cpf_service = get_cpf_encryption_service()
+                cpf_hash = cpf_service.hash_cpf(cpf)
                 existing_cpf = db.query(Patient).filter(
-                    Patient.cpf == cpf,
+                    Patient.cpf_hash == cpf_hash,
                     Patient.deleted_at.is_(None)
                 ).first()
                 if existing_cpf:
@@ -355,10 +361,13 @@ async def import_patients(
                     failed_count += 1
                     continue
 
-            # Check for duplicate email
+            # Check for duplicate email (LGPD: use hash lookup)
             if email:
+                from app.services.encryption import get_lgpd_encryption_service
+                lgpd_service = get_lgpd_encryption_service()
+                email_hash = lgpd_service.hash_email(email.lower())
                 existing_email = db.query(Patient).filter(
-                    Patient.email == email,
+                    Patient.email_hash == email_hash,
                     Patient.deleted_at.is_(None)
                 ).first()
                 if existing_email:
@@ -366,13 +375,10 @@ async def import_patients(
                     failed_count += 1
                     continue
 
-            # Create patient
+            # Create patient (LGPD: use encrypted fields)
             new_patient = Patient(
                 name=name,
-                phone=e164_phone,
-                email=email,
                 birth_date=birth_date,
-                cpf=cpf,
                 treatment_type=treatment_type,
                 treatment_start_date=treatment_start_date,
                 diagnosis=diagnosis,
@@ -382,6 +388,14 @@ async def import_patients(
                 flow_state=FlowState.ONBOARDING,
                 current_day=0,
             )
+
+            # LGPD: Set encrypted fields using proper methods
+            if e164_phone:
+                new_patient.set_phone(e164_phone)
+            if email:
+                new_patient.set_email(email)
+            if cpf:
+                new_patient.set_cpf(cpf)
 
             db.add(new_patient)
             db.flush()  # Flush to get the ID but don't commit yet

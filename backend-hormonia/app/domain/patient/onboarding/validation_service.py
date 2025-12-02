@@ -149,10 +149,15 @@ class ValidationService:
         Returns:
             Patient object or None
         """
+        # LGPD: Use cpf_hash for lookup (plaintext column removed in migration 030)
+        from app.services.encryption import get_cpf_encryption_service
+        service = get_cpf_encryption_service()
+        cpf_hash = service.hash_cpf(cpf)
+
         return (
             self.db.query(Patient)
             .filter(
-                Patient.cpf == cpf,
+                Patient.cpf_hash == cpf_hash,
                 Patient.doctor_id == doctor_id,
                 Patient.deleted_at.is_(None)  # Only active patients
             )
@@ -163,6 +168,8 @@ class ValidationService:
         """
         Query patient by email and doctor ID.
 
+        LGPD Compliance: Uses email_hash for lookup (plaintext column removed in migration 030).
+
         Args:
             email: Patient's email
             doctor_id: Doctor's ID
@@ -170,10 +177,14 @@ class ValidationService:
         Returns:
             Patient object or None
         """
+        from app.services.encryption import get_lgpd_encryption_service
+        service = get_lgpd_encryption_service()
+        email_hash = service.hash_email(email.lower())
+
         return (
             self.db.query(Patient)
             .filter(
-                Patient.email == email,
+                Patient.email_hash == email_hash,
                 Patient.doctor_id == doctor_id,
                 Patient.deleted_at.is_(None)
             )
@@ -191,10 +202,15 @@ class ValidationService:
         Returns:
             Patient object or None
         """
+        # LGPD: Use phone_hash for lookup (plaintext column removed in migration 030)
+        from app.services.encryption import get_lgpd_encryption_service
+        service = get_lgpd_encryption_service()
+        phone_hash = service.hash_phone(phone)
+
         return (
             self.db.query(Patient)
             .filter(
-                Patient.phone == phone,
+                Patient.phone_hash == phone_hash,
                 Patient.doctor_id == doctor_id,
                 Patient.deleted_at.is_(None)
             )

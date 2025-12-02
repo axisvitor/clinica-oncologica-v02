@@ -6,7 +6,7 @@ Pydantic schemas for monthly quiz via link functionality.
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from uuid import UUID
-from pydantic import BaseModel, Field, HttpUrl, validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 from enum import Enum
 
 
@@ -136,7 +136,7 @@ class MonthlyQuizStats(BaseModel):
 
 class BulkQuizLinkCreate(BaseModel):
     """Schema for bulk creating quiz links."""
-    patient_ids: List[UUID] = Field(..., min_items=1, description="List of patient IDs")
+    patient_ids: List[UUID] = Field(..., min_length=1, description="List of patient IDs")
     quiz_template_id: UUID = Field(..., description="Quiz template ID")
     delivery_method: DeliveryMethod = Field(
         default=DeliveryMethod.WHATSAPP,
@@ -155,7 +155,8 @@ class BulkQuizLinkCreate(BaseModel):
         description="Automatically send each quiz link after creation"
     )
 
-    @validator('patient_ids')
+    @field_validator('patient_ids')
+    @classmethod
     def validate_patient_ids(cls, v):
         """Ensure patient_ids list is not empty and has unique values."""
         if not v:

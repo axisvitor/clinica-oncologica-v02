@@ -608,8 +608,8 @@ class FlowValidator:
             # Allow sequential transitions
             if to_index == from_index + 1:
                 return True
-        except ValueError:
-            pass
+        except ValueError as e:
+            logger.debug(f"Step not found in template transition validation: {e}")
 
         return False
 

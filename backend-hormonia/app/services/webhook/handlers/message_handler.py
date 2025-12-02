@@ -15,7 +15,7 @@ from app.domain.messaging.core import MessageService
 from app.repositories.patient import PatientRepository
 from app.repositories.flow import FlowStateRepository
 from app.services.flow import FlowEngine
-from app.services.enhanced_flow_engine import EnhancedFlowEngine
+# NOTE: EnhancedFlowEngine imported lazily to avoid circular import
 from app.services.websocket_events import websocket_events
 from app.schemas.websocket import WebSocketEventType
 from app.schemas.message import MessageCreate
@@ -52,6 +52,8 @@ class MessageWebhookHandler:
         self.message_service = MessageService(db)
         self.patient_repo = PatientRepository(db)
         self.flow_engine = FlowEngine(db)
+        # Lazy import to avoid circular dependency
+        from app.services.enhanced_flow_engine import EnhancedFlowEngine
         self.enhanced_flow_engine = EnhancedFlowEngine(db)
         self.flow_state_repo = FlowStateRepository(db)
         self.ai_client = get_langchain_orchestrator()
@@ -497,8 +499,8 @@ class MessageWebhookHandler:
             logger.error(f"Error sending response: {e}", exc_info=True)
             try:
                 self.db.rollback()
-            except Exception:
-                pass
+            except Exception as rollback_error:
+                logger.error(f"Failed to rollback transaction after error: {rollback_error}", exc_info=True)
             return None
     
     async def _send_unauthorized_response(self, phone: str, attempt_count: int = 1) -> None:

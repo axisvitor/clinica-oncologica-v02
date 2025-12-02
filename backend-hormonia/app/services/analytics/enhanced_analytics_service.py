@@ -182,7 +182,8 @@ class EnhancedAnalyticsService:
         if cursor:
             try:
                 base_query = base_query.filter(Patient.id > UUID(cursor))
-            except ValueError: pass
+            except ValueError as e:
+                logger.warning(f"Invalid cursor UUID: {cursor}, error: {e}")
 
         total_count = base_query.count()
         cohort_patients = base_query.order_by(Patient.id).limit(limit).all()

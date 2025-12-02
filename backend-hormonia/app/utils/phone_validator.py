@@ -229,9 +229,9 @@ def format_phone_display(phone: str, format_type: str = "national") -> str:
                 return phonenumbers.format_number(
                     parsed, phonenumbers.PhoneNumberFormat.INTERNATIONAL
                 )
-                
-        except NumberParseException:
-            pass
+
+        except NumberParseException as e:
+            logger.debug(f"Failed to parse phone number '{phone}': {e}")
     
     # Fallback: Simple Brazilian formatting
     if phone.startswith("+55"):

@@ -145,8 +145,8 @@ class ReportGenerator:
                         expired += 1
                     else:
                         active += 1
-                except ValueError:
-                    pass
+                except ValueError as e:
+                    logger.debug(f"Failed to parse expires_at from session metadata: {e}")
 
         # Calculate average score
         avg_score = round((total_score_sum / scored_sessions), 2) if scored_sessions > 0 else 0

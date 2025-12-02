@@ -61,7 +61,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.get(
-    "",
+    "/",
     response_model=PatientV2List,
     summary="List patients with pagination",
     description="Get paginated list of patients with optional field selection and eager loading"
@@ -193,7 +193,7 @@ async def get_patient(
 
 
 @router.post(
-    "",
+    "/",
     response_model=PatientV2Response,
     status_code=status.HTTP_201_CREATED,
     summary="Create new patient"

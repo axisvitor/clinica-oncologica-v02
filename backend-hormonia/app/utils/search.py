@@ -135,7 +135,7 @@ def hybrid_search(
         >>> hybrid_search(Patient.name, 'maria', 'portuguese', use_gin=True)
         >>>
         >>> # Fallback to ILIKE (for testing or columns without GIN)
-        >>> hybrid_search(Patient.phone, '555-1234', use_gin=False)
+        >>> hybrid_search(Patient.diagnosis, 'cancer', use_gin=False)
     """
     if use_gin:
         return gin_search(column, search_term, language)

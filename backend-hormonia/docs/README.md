@@ -1,10 +1,57 @@
-**Documentation Index**
+# 📚 Backend Hormonia - Documentação
 
-This guide provides quick access to all documentation resources for the Hormonia Backend.
+> **Última atualização:** 2025-12-02
+> **Arquivos:** 115 | **Tamanho:** 2.0MB
 
 ---
 
-## 📚 Essential Documentation (Read First!)
+## 🗂️ Estrutura de Documentação
+
+```
+docs/
+├── README.md                              # Este índice
+├── api/                                   # Documentação da API
+│   ├── EXAMPLES.md                        # Exemplos de requisições
+│   └── guides/                            # Guias de API
+├── architecture/                          # Arquitetura
+│   ├── decisions/                         # ADRs (Architecture Decision Records)
+│   └── database/                          # Arquitetura de banco
+├── database/                              # Banco de dados
+│   ├── reference/                         # Schema e tabelas
+│   ├── guides/                            # Guias de migração
+│   └── LGPD_COMPLIANCE.md                 # Conformidade LGPD
+├── deployment/                            # Deploy e operações
+├── development/                           # Padrões de desenvolvimento
+├── operations/                            # Monitoramento e ops
+├── performance/                           # Otimização e benchmarks
+├── security/                              # Segurança
+└── testing/                               # Guias de testes
+```
+
+---
+
+## 📋 Documentação Principal (Raiz)
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `ANALYTICS_REFACTORING_SUMMARY.md` | Refatoração do módulo Analytics |
+| `ARCHITECTURE_ANALYSIS_REPORT.md` | Análise arquitetural completa |
+| `CODE_QUALITY_ANALYSIS_REPORT.md` | Relatório de qualidade de código |
+| `CONSOLIDACAO_SERVICOS_ENCRYPTION.md` | **Criptografia unificada (LGPD/CPF/Email/Phone)** |
+| `ENTROPY_VALIDATION_IMPLEMENTATION.md` | Validação de entropia de chaves |
+| `LGPD_DEVELOPER_GUIDE.md` | Guia LGPD para desenvolvedores |
+| `LGPD_IMPLEMENTATION_SUMMARY.md` | Resumo da implementação LGPD |
+| `N1_OPTIMIZATION_SUMMARY.md` | Otimização de queries N+1 |
+| `OPTIMIZATION_IMPLEMENTATION_REPORT.md` | Relatório de otimizações |
+| `PATIENT_FLOW_HARDENING_REPORT.md` | Hardening do fluxo de pacientes |
+| `PATIENT_REPOSITORY_N+1_FIXES.md` | Correções N+1 no repositório |
+| `POOL_OPTIMIZATION_SUMMARY.md` | Otimização de connection pool |
+| `WHATSAPP_SECURITY_FIXES.md` | Correções de segurança WhatsApp |
+| `WHATSAPP_SERVICE_FIXES.md` | Correções do serviço WhatsApp |
+
+---
+
+## 📚 Leitura Essencial (Comece Aqui!)
 
 ### 1. Database Migrations
 

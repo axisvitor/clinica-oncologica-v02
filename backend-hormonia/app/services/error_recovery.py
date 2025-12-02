@@ -361,8 +361,8 @@ class ErrorRecoveryService:
         try:
             await self.redis.incr(circuit_key)
             await self.redis.expire(circuit_key, 3600)  # Reset after 1 hour
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to increment circuit breaker for '{circuit_key}': {e}", exc_info=True)
     
     async def _activate_fallback_mode(self, service_name: str, context: dict[str, Any]) -> None:
         """Activate fallback mode for failed service."""
@@ -382,9 +382,9 @@ class ErrorRecoveryService:
                 patient = self.db.query(Patient).filter(Patient.id == patient_id).first()
                 if patient:
                     template = template.replace("{patient_name}", patient.name)
-            except Exception:
-                pass
-        
+            except Exception as e:
+                logger.warning(f"Failed to fetch patient data for fallback message (patient_id={patient_id}): {e}", exc_info=True)
+
         return template
     
     async def _get_last_good_flow_state(self, patient_id: UUID) -> Optional[dict[str, Any]]:

@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any, Union
 from uuid import UUID
 
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from enum import Enum
 
 from app.models.ab_experiment import ExperimentStatus, VariantType, PatientSafetyLevel
@@ -59,10 +59,11 @@ class ExperimentTargetPopulation(BaseModel):
         description="Safety levels to include in experiment"
     )
 
-    @validator('max_age')
-    def validate_age_range(cls, v, values):
-        if v is not None and 'min_age' in values and values['min_age'] is not None:
-            if v <= values['min_age']:
+    @field_validator('max_age')
+    @classmethod
+    def validate_age_range(cls, v, info):
+        if v is not None and 'min_age' in info.data and info.data['min_age'] is not None:
+            if v <= info.data['min_age']:
                 raise ValueError('max_age must be greater than min_age')
         return v
 
@@ -99,7 +100,8 @@ class CreateExperimentRequest(BaseModel):
     statistical_config: Optional[ExperimentStatisticalConfig] = Field(None, description="Statistical configuration")
     safety_config: Optional[ExperimentSafetyConfig] = Field(None, description="Safety configuration")
 
-    @validator('name')
+    @field_validator('name')
+    @classmethod
     def validate_name(cls, v):
         if not v.strip():
             raise ValueError('Experiment name cannot be empty')
@@ -109,7 +111,8 @@ class CreateExperimentRequest(BaseModel):
             raise ValueError(f'Experiment name should not contain: {", ".join(forbidden_words)}')
         return v.strip()
 
-    @validator('message_template')
+    @field_validator('message_template')
+    @classmethod
     def validate_message_template(cls, v):
         # Validate against allowed templates
         allowed_templates = [
@@ -120,7 +123,8 @@ class CreateExperimentRequest(BaseModel):
             raise ValueError(f'Message template must be one of: {", ".join(allowed_templates)}')
         return v
 
-    @validator('secondary_metrics')
+    @field_validator('secondary_metrics')
+    @classmethod
     def validate_secondary_metrics(cls, v):
         allowed_metrics = [
             'response_rate', 'delivery_rate', 'engagement_score',
@@ -139,13 +143,13 @@ class StartExperimentRequest(BaseModel):
     confirm_patient_population: bool = Field(..., description="Confirm target patient population is appropriate")
     override_warnings: bool = Field(False, description="Override non-critical warnings")
 
-    @root_validator(skip_on_failure=True)
-    def validate_confirmations(cls, values):
+    @model_validator(mode='after')
+    def validate_confirmations(self):
         required_confirmations = ['confirm_safety_review', 'confirm_hipaa_compliance', 'confirm_patient_population']
         for confirmation in required_confirmations:
-            if not values.get(confirmation, False):
+            if not getattr(self, confirmation, False):
                 raise ValueError(f'{confirmation} must be confirmed to start experiment')
-        return values
+        return self
 
 
 class EmergencyStopRequest(BaseModel):

@@ -303,8 +303,8 @@ class EvolutionClient:
                 error_data = None
                 try:
                     error_data = response.json()
-                except (json.JSONDecodeError, ValueError):
-                    pass
+                except (json.JSONDecodeError, ValueError) as e:
+                    logger.debug(f"Failed to parse error response as JSON: {e}")
 
                 error_msg = f"HTTP {response.status_code}: {response.text[:200]}..."
 

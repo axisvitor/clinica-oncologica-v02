@@ -263,7 +263,9 @@ class TestQuizResponseValueType:
         # Create necessary dependencies
         doctor = User(id=uuid4(), email="doc@ex.com", role="physician", is_active=True)
         db.add(doctor)
-        patient = Patient(doctor_id=doctor.id, name="Pat", phone="+5511999999992")
+        db.flush()
+        patient = Patient(doctor_id=doctor.id, name="Pat")
+        patient.set_phone("+5511999999992")
         db.add(patient)
         db.commit()
 
@@ -299,7 +301,9 @@ class TestQuizResponseValueType:
 
         doctor = User(id=uuid4(), email="doc2@ex.com", role="physician", is_active=True)
         db.add(doctor)
-        patient = Patient(doctor_id=doctor.id, name="Pat2", phone="+5511999999991")
+        db.flush()
+        patient = Patient(doctor_id=doctor.id, name="Pat2")
+        patient.set_phone("+5511999999991")
         db.add(patient)
         db.commit()
 

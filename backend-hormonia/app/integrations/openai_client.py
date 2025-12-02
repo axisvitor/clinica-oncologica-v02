@@ -269,8 +269,8 @@ class LangChainOrchestrator:
                 elif line.startswith('Confidence:'):
                     try:
                         confidence = float(line.split(':', 1)[1].strip())
-                    except ValueError:
-                        pass
+                    except ValueError as e:
+                        logger.debug(f"Failed to parse confidence value: {e}")
                 elif line.startswith('Key Phrases:'):
                     phrases_str = line.split(':', 1)[1].strip()
                     if phrases_str and phrases_str != '[]':

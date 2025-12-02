@@ -8,6 +8,7 @@ session state tracking, and patient session queries.
 NOTE: Renamed from SessionManager to QuizSessionManager to avoid name collision
 with core.session_manager.SessionManager (database session management).
 """
+import asyncio
 import secrets
 import hashlib
 import time

@@ -6,7 +6,7 @@ from typing import List, Optional, Any, Union, Dict
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class QuestionType(str, Enum):
@@ -50,10 +50,11 @@ class QuizQuestion(BaseModel):
     metadata: Optional[dict[str, Any]] = Field(default_factory=dict, description="Additional question metadata")
     allow_other: bool = Field(False, description="Whether question allows 'other' option with custom text")
     
-    @validator('options')
-    def validate_options(cls, v, values):
+    @field_validator('options')
+    @classmethod
+    def validate_options(cls, v, info):
         """Validate that choice questions have options."""
-        question_type = values.get('type')
+        question_type = info.data.get('type')
         if question_type in [QuestionType.MULTIPLE_CHOICE, QuestionType.SINGLE_CHOICE] and (not v or len(v) == 0):
             raise ValueError("Choice questions must have at least one option")
         return v
@@ -63,10 +64,11 @@ class QuizTemplateCreate(BaseModel):
     """Schema for creating quiz templates."""
     name: str = Field(..., min_length=1, max_length=255, description="Template name")
     version: str = Field(..., min_length=1, max_length=50, description="Template version")
-    questions: List[QuizQuestion] = Field(..., min_items=1, description="List of questions")
+    questions: List[QuizQuestion] = Field(..., min_length=1, description="List of questions")
     is_active: bool = Field(True, description="Whether template is active")
-    
-    @validator('questions')
+
+    @field_validator('questions')
+    @classmethod
     def validate_questions(cls, v):
         """Validate questions have unique IDs."""
         question_ids = [q.id for q in v]
@@ -79,10 +81,11 @@ class QuizTemplateUpdate(BaseModel):
     """Schema for updating quiz templates."""
     name: Optional[str] = Field(None, min_length=1, max_length=255, description="Template name")
     version: Optional[str] = Field(None, min_length=1, max_length=50, description="Template version")
-    questions: Optional[List[QuizQuestion]] = Field(None, min_items=1, description="List of questions")
+    questions: Optional[List[QuizQuestion]] = Field(None, min_length=1, description="List of questions")
     is_active: Optional[bool] = Field(None, description="Whether template is active")
-    
-    @validator('questions')
+
+    @field_validator('questions')
+    @classmethod
     def validate_questions(cls, v):
         """Validate questions have unique IDs."""
         if v is not None:
@@ -120,7 +123,8 @@ class QuizResponseCreate(BaseModel):
     responded_at: datetime = Field(..., description="Response timestamp")
     other_text: Optional[str] = Field(None, description="Custom text for 'other' option")
 
-    @validator('response_value')
+    @field_validator('response_value')
+    @classmethod
     def validate_response_value(cls, v):
         """Validate response_value handles both single and multiple selections."""
         if isinstance(v, list):
@@ -132,10 +136,11 @@ class QuizResponseCreate(BaseModel):
             # Single select
             return str(v).strip()
 
-    @validator('other_text')
-    def validate_other_text(cls, v, values):
+    @field_validator('other_text')
+    @classmethod
+    def validate_other_text(cls, v, info):
         """Validate other_text when 'Outra' is selected."""
-        response_value = values.get('response_value')
+        response_value = info.data.get('response_value')
         if response_value and v:
             # Check if "other" option selected
             other_aliases = ['other', 'outro', 'outra', 'otra', 'autre', 'altro']
@@ -180,19 +185,21 @@ class QuizSessionCreate(BaseModel):
     quiz_template_id: Optional[UUID] = Field(None, description="Quiz template ID")
     template_id: Optional[UUID] = Field(None, description="Template ID (alias for quiz_template_id)")
 
-    @validator('quiz_template_id', pre=True)
-    def set_quiz_template_id(cls, v, values):
+    @field_validator('quiz_template_id', mode='before')
+    @classmethod
+    def set_quiz_template_id(cls, v, info):
         """Accept both 'template_id' and 'quiz_template_id' for backwards compatibility."""
         # If quiz_template_id is already set, use it
         if v is not None:
             return v
-        # Otherwise, check if template_id is in values
-        if 'template_id' in values and values['template_id'] is not None:
-            return values['template_id']
+        # Otherwise, check if template_id is in info.data
+        if hasattr(info, 'data') and 'template_id' in info.data and info.data['template_id'] is not None:
+            return info.data['template_id']
         # Will be validated by the required field validator
         return v
 
-    @validator('quiz_template_id')
+    @field_validator('quiz_template_id')
+    @classmethod
     def validate_template_required(cls, v):
         """Ensure at least one template ID is provided."""
         if v is None:

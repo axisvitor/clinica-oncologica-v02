@@ -141,8 +141,8 @@ class EncryptionService:
                     plaintext_bytes = self.previous_fernet.decrypt(ciphertext.encode('ascii'))
                     logger.warning("Decrypted with previous key (key rotation needed)")
                     return plaintext_bytes.decode('utf-8')
-                except InvalidToken:
-                    pass
+                except InvalidToken as e:
+                    logger.debug(f"Previous key also failed to decrypt: {e}")
 
             logger.error("Decryption failed: Invalid token or tampered data")
             raise DecryptionError("Failed to decrypt data: invalid token or corrupted data")

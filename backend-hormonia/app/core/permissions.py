@@ -8,7 +8,7 @@ import logging
 from typing import Dict, List, Set, Optional, Tuple, Union, Any
 from enum import Enum
 from datetime import datetime, timedelta
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 from functools import wraps
 import re
 
@@ -119,7 +119,8 @@ class RoleDefinition(BaseModel):
     allowed_domains: Optional[List[str]] = None
     restricted_domains: Optional[List[str]] = None
 
-    @validator('permissions')
+    @field_validator('permissions')
+    @classmethod
     def validate_permissions(cls, v):
         """Ensure permissions are valid."""
         if not v:

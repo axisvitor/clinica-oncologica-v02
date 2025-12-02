@@ -1,19 +1,6 @@
 """
-Physicians API v2
-Enhanced physician endpoints with statistics, workload tracking, and patient assignments.
-
-This module provides:
-- List physicians with filtering (specialty, status, workload)
-- Get physician profile with comprehensive statistics
-- Update physician information (Admin only)
-
-Features:
-- Cursor-based pagination
-- Redis caching (list: 30min, profile: 15min, stats: 10min)
-- Rate limiting (60 req/min)
-- Field selection (?fields=id,name,email)
-- Eager loading (?include=statistics,patients)
-- RBAC enforcement (Admin, Physician, Patient roles)
+Physicians API v2 - Enhanced physician endpoints with statistics and patient assignments.
+Features: Cursor pagination, Redis caching, rate limiting, field selection, RBAC.
 """
 
 from typing import Optional, List, Dict, Any
@@ -97,15 +84,7 @@ def _is_admin(current_user) -> bool:
 
 
 def _calculate_workload_level(patient_count: int) -> WorkloadLevel:
-    """
-    Calculate workload level based on patient count.
-
-    Args:
-        patient_count: Number of assigned patients
-
-    Returns:
-        WorkloadLevel enum value
-    """
+    """Calculate workload level based on patient count."""
     if patient_count == 0:
         return WorkloadLevel.LOW
     elif patient_count <= 20:
@@ -123,17 +102,7 @@ def _calculate_physician_statistics(
     physician_id: UUID,
     cache_ttl: int = 600
 ) -> PhysicianStatistics:
-    """
-    Calculate comprehensive statistics for a physician.
-
-    Args:
-        db: Database session
-        physician_id: Physician UUID
-        cache_ttl: Cache TTL in seconds (default 10 minutes)
-
-    Returns:
-        PhysicianStatistics model with all metrics
-    """
+    """Calculate comprehensive physician statistics with caching."""
     # Check Redis cache first
     cache_key = f"physician:stats:{physician_id}"
     try:
@@ -416,17 +385,7 @@ def _serialize_physician(
     db,
     include_statistics: bool = False
 ) -> Dict[str, Any]:
-    """
-    Serialize physician User model to API response dict.
-
-    Args:
-        physician: User model instance
-        db: Database session
-        include_statistics: Whether to include detailed statistics
-
-    Returns:
-        Dictionary with physician data
-    """
+    """Serialize physician User model to API response dict."""
     # Count assigned patients
     total_patients = db.query(Patient).filter(
         Patient.doctor_id == physician.id,
@@ -489,24 +448,7 @@ def _serialize_physician(
     "",
     response_model=PhysicianList,
     summary="List physicians with filtering",
-    description="""
-    Get paginated list of physicians with optional filtering and statistics.
-
-    **Features**:
-    - Cursor-based pagination for efficient large datasets
-    - Filter by specialty, status, workload level
-    - Search by name or email
-    - Field selection (?fields=id,email,full_name)
-    - Eager loading statistics (?include=statistics)
-
-    **RBAC**:
-    - Admin: View all physicians
-    - Physician: View self and colleagues
-    - Patient: View assigned physician
-
-    **Caching**: 30 minutes Redis cache
-    **Rate Limit**: 60 requests/minute
-    """
+    description="Paginated physician list with filtering, field selection, and caching (30min TTL)."
 )
 @limiter.limit("60/minute")
 async def list_physicians(
@@ -663,23 +605,7 @@ async def list_physicians(
     "/{physician_id}",
     response_model=PhysicianResponse,
     summary="Get physician profile by ID",
-    description="""
-    Get detailed physician profile with optional statistics.
-
-    **Features**:
-    - Complete physician information
-    - Patient assignment counts
-    - Optional detailed statistics (?include=statistics)
-    - Field selection support
-
-    **RBAC**:
-    - Admin: View any physician
-    - Physician: View self
-    - Patient: View assigned physician
-
-    **Caching**: 15 minutes Redis cache
-    **Rate Limit**: 60 requests/minute
-    """
+    description="Detailed physician profile with optional statistics. Cached for 15 minutes."
 )
 @limiter.limit("60/minute")
 async def get_physician(
@@ -778,18 +704,7 @@ async def get_physician(
     "/{physician_id}",
     response_model=PhysicianResponse,
     summary="Update physician information",
-    description="""
-    Update physician profile information (Admin only).
-
-    **Features**:
-    - Partial updates (only provided fields)
-    - Update specialties, status, contact info
-    - Automatic cache invalidation
-
-    **RBAC**: Admin only
-
-    **Rate Limit**: 60 requests/minute
-    """
+    description="Update physician profile (Admin only). Automatic cache invalidation."
 )
 @limiter.limit("60/minute")
 async def update_physician(

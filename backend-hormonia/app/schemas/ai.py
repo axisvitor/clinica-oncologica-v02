@@ -4,7 +4,7 @@ AI service request/response schemas for the Hormonia Backend System.
 Provides Pydantic models for AI-powered features including chat, sentiment analysis,
 patient insights, and recommendations.
 """
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from uuid import UUID
@@ -113,7 +113,8 @@ class AnalysisRequest(BaseModel):
     include_medical_history: bool = Field(True, description="Include medical history in analysis")
     include_messages: bool = Field(True, description="Include message history in analysis")
 
-    @validator("analysis_type")
+    @field_validator("analysis_type")
+    @classmethod
     def validate_analysis_type(cls, v):
         valid_types = ["comprehensive", "treatment", "adherence", "risk", "sentiment"]
         if v not in valid_types:
@@ -195,14 +196,16 @@ class GenerateResponseRequest(BaseModel):
     )
     max_length: Optional[int] = Field(500, ge=50, le=2000, description="Maximum response length")
 
-    @validator("message_type")
+    @field_validator("message_type")
+    @classmethod
     def validate_message_type(cls, v):
         valid_types = ["general", "welcome", "check_in", "reminder", "support", "education"]
         if v not in valid_types:
             raise ValueError(f"message_type must be one of: {', '.join(valid_types)}")
         return v
 
-    @validator("tone")
+    @field_validator("tone")
+    @classmethod
     def validate_tone(cls, v):
         valid_tones = ["empathetic", "professional", "encouraging", "neutral", "caring"]
         if v not in valid_tones:

@@ -355,8 +355,13 @@ class PatientIntegrityService:
             race conditions.
         """
         try:
+            # LGPD: Use cpf_hash for lookup (plaintext column removed in migration 030)
+            from app.services.encryption import get_cpf_encryption_service
+            service = get_cpf_encryption_service()
+            cpf_hash = service.hash_cpf(cpf)
+
             query = self.db.query(Patient).filter(
-                Patient.cpf == cpf,
+                Patient.cpf_hash == cpf_hash,
                 Patient.deleted_at.is_(None)
             )
 
@@ -390,8 +395,13 @@ class PatientIntegrityService:
             exclude_patient_id: Exclude this patient ID (for updates)
         """
         try:
+            # LGPD: Use email_hash for lookup (plaintext column removed in migration 030)
+            from app.services.encryption import get_lgpd_encryption_service
+            service = get_lgpd_encryption_service()
+            email_hash = service.hash_email(email.lower())
+
             query = self.db.query(Patient).filter(
-                func.lower(Patient.email) == email.lower(),
+                Patient.email_hash == email_hash,
                 Patient.deleted_at.is_(None)
             )
 
@@ -425,8 +435,13 @@ class PatientIntegrityService:
             exclude_patient_id: Exclude this patient ID (for updates)
         """
         try:
+            # LGPD: Use phone_hash for lookup (plaintext column removed in migration 030)
+            from app.services.encryption import get_lgpd_encryption_service
+            service = get_lgpd_encryption_service()
+            phone_hash = service.hash_phone(phone)
+
             query = self.db.query(Patient).filter(
-                Patient.phone == phone,
+                Patient.phone_hash == phone_hash,
                 Patient.deleted_at.is_(None)
             )
 

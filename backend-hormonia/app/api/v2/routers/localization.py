@@ -1,28 +1,6 @@
 """
-Localization API v2 - Internationalization (i18n) System
-
-Enhanced i18n endpoints with:
-- Cursor-based pagination for translation lists
-- Redis caching with LONG TTLs (translations rarely change)
-- Rate limiting: 100 req/min (read-heavy)
-- Eager loading for language metadata
-- Field selection via ?fields= for sparse fieldsets
-- RBAC: All users can read, Admin can write
-- Fallback logic (pt-BR → pt → en-US)
-- Pluralization support
-- Variable substitution ({name}, {count})
-- Context-aware translations (formal/informal)
-- JSON import/export for translations
-
-SUPPORTED LANGUAGES:
-- pt-BR: Portuguese (Brazil)
-- pt-PT: Portuguese (Portugal)
-- en-US: English (United States)
-- es-ES: Spanish (Spain)
-
-FALLBACK CHAIN:
-pt-BR → pt-PT → en-US (default)
-es-ES → en-US (default)
+Localization API v2 - i18n system with Redis caching, fallback chains, pluralization.
+Supports: pt-BR, pt-PT, en-US, es-ES. Rate limit: 100 req/min.
 """
 
 from typing import Optional, List, Dict, Any, Tuple
@@ -189,19 +167,7 @@ def _check_admin(current_user: Dict[str, Any]) -> None:
 
 
 def _resolve_fallback_chain(language: str) -> List[str]:
-    """
-    Resolve fallback chain for a language.
-
-    Args:
-        language: Language code (e.g., 'pt-BR')
-
-    Returns:
-        List of language codes in fallback order
-
-    Example:
-        pt-BR → [pt-BR, pt-PT, en-US]
-        es-ES → [es-ES, en-US]
-    """
+    """Resolve fallback chain for a language (e.g., pt-BR → pt-PT → en-US)."""
     chain = [language]
     current = language
 
@@ -221,20 +187,7 @@ def _resolve_fallback_chain(language: str) -> List[str]:
 
 
 def _apply_pluralization(text: str, count: int, language: str = "en-US") -> str:
-    """
-    Apply pluralization rules to text.
-
-    Supports format: {singular|plural}
-    Example: "You have {0|1} {message|messages}" with count=2 → "You have 2 messages"
-
-    Args:
-        text: Text with pluralization markers
-        count: Count for pluralization
-        language: Language code for language-specific rules
-
-    Returns:
-        Text with correct plural form
-    """
+    """Apply pluralization rules. Format: {singular|plural}."""
     # Simple pluralization: {singular|plural}
     pattern = r'\{([^|]+)\|([^}]+)\}'
 
@@ -252,18 +205,7 @@ def _apply_pluralization(text: str, count: int, language: str = "en-US") -> str:
 
 
 def _substitute_variables(text: str, variables: Optional[Dict[str, Any]] = None) -> str:
-    """
-    Substitute variables in text.
-
-    Supports {variable_name} format.
-
-    Args:
-        text: Text with variable placeholders
-        variables: Dictionary of variable values
-
-    Returns:
-        Text with variables substituted
-    """
+    """Substitute variables in text. Format: {variable_name}."""
     if not variables:
         return text
 
@@ -285,20 +227,7 @@ def _get_translation_with_fallback(
     variables: Optional[Dict[str, Any]] = None,
     count: Optional[int] = None
 ) -> str:
-    """
-    Get translation with fallback chain support.
-
-    Args:
-        key: Translation key (e.g., 'auth.login.title')
-        language: Requested language
-        namespace: Translation namespace
-        context: Context for context-aware translations (formal/informal)
-        variables: Variables for substitution
-        count: Count for pluralization
-
-    Returns:
-        Translated text or key if not found
-    """
+    """Get translation with fallback chain, pluralization, and variable substitution."""
     localization_service = get_localization_service()
     fallback_chain = _resolve_fallback_chain(language)
 
@@ -346,17 +275,7 @@ async def list_languages(
     redis_cache = Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> LanguageV2List:
-    """
-    List all available languages.
-
-    Features:
-    - Lists all supported languages with metadata
-    - Redis caching with 24-hour TTL (languages rarely change)
-    - Field selection for bandwidth optimization
-    - Filter by enabled status
-
-    Rate limit: 100 requests/minute
-    """
+    """List supported languages with metadata. Cached for 24 hours."""
     try:
         # Build cache key
         cache_key = f"i18n:languages:enabled:{enabled_only}:fields:{','.join(fields) if fields else 'all'}"
@@ -418,18 +337,7 @@ async def get_translations_for_language(
     redis_cache = Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> TranslationV2List:
-    """
-    Get all translations for a specific language.
-
-    Features:
-    - Retrieves all translation keys for a language
-    - Optional namespace filtering
-    - Search functionality
-    - Redis caching with 4-hour TTL
-    - Fallback to default language if requested language not found
-
-    Rate limit: 100 requests/minute
-    """
+    """Get all translations for language with namespace filtering and search. Cached for 4 hours."""
     try:
         # Validate language
         if language not in SUPPORTED_LANGUAGES:
@@ -511,17 +419,7 @@ def _flatten_translations(
     prefix: str = "",
     separator: str = "."
 ) -> Dict[str, str]:
-    """
-    Flatten nested translation dictionary to dot notation.
-
-    Args:
-        translations: Nested translation dictionary
-        prefix: Key prefix (namespace)
-        separator: Key separator (default: '.')
-
-    Returns:
-        Flattened dictionary with dot-notation keys
-    """
+    """Flatten nested translation dictionary to dot notation."""
     flat = {}
 
     for key, value in translations.items():
@@ -547,19 +445,7 @@ async def get_translation_by_key(
     redis_cache = Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> Dict[str, Any]:
-    """
-    Get a specific translation by key.
-
-    Features:
-    - Retrieves translation for specific key
-    - Fallback chain support (pt-BR → pt-PT → en-US)
-    - Context-aware translations (formal/informal)
-    - Variable substitution support
-    - Pluralization support
-    - Redis caching with 4-hour TTL
-
-    Rate limit: 100 requests/minute
-    """
+    """Get translation by key with fallback chain, context, variables, and pluralization."""
     try:
         # Validate language
         if language not in SUPPORTED_LANGUAGES:
@@ -661,20 +547,7 @@ async def update_translation(
     redis_cache = Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> Dict[str, Any]:
-    """
-    Update a translation (Admin only).
-
-    Features:
-    - RBAC: Only admins can update translations
-    - Updates translation in memory cache
-    - Invalidates Redis cache
-    - Logs changes for audit trail
-
-    Note: This updates the in-memory cache only. For persistent updates,
-    translations should be updated in the JSON files directly.
-
-    Rate limit: 30 requests/minute
-    """
+    """Update translation (Admin only). Updates in-memory cache and invalidates Redis."""
     try:
         # Check admin permission
         _check_admin(current_user)
@@ -753,16 +626,7 @@ async def get_user_language_preference(
     redis_cache = Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> UserLanguagePreferenceV2:
-    """
-    Get current user's language preference.
-
-    Features:
-    - Retrieves user's preferred language
-    - Redis caching with 1-hour TTL
-    - Returns system default if no preference set
-
-    Rate limit: 100 requests/minute
-    """
+    """Get user's language preference. Cached for 1 hour."""
     try:
         user_id = current_user.get("id")
 
@@ -816,17 +680,7 @@ async def set_user_language_preference(
     redis_cache = Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> UserLanguagePreferenceV2:
-    """
-    Set current user's language preference.
-
-    Features:
-    - Updates user's preferred language
-    - Validates language is supported
-    - Invalidates user preference cache
-    - Stores in Redis for persistence
-
-    Rate limit: 30 requests/minute
-    """
+    """Set user's language preference with validation and cache invalidation."""
     try:
         user_id = current_user.get("id")
 

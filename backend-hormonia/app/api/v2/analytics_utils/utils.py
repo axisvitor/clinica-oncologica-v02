@@ -8,9 +8,12 @@ from uuid import UUID
 from datetime import datetime, timedelta
 import hashlib
 import json
+import logging
 
 from app.models.user import UserRole
 from app.schemas.v2.enhanced_analytics import TimeRange
+
+logger = logging.getLogger(__name__)
 
 # Cache TTL configurations (aggressive caching for expensive queries)
 REALTIME_CACHE_TTL = 300  # 5 minutes
@@ -95,9 +98,9 @@ async def get_cached_result(cache_key: str):
         cached_data = redis_client.get(cache_key)
         if cached_data:
             return json.loads(cached_data)
-    except Exception:
+    except Exception as e:
         # Cache failure should not break functionality
-        pass
+        logger.warning(f"Cache retrieval failed for key '{cache_key}': {e}", exc_info=True)
 
     return None
 
@@ -119,9 +122,9 @@ async def set_cached_result(cache_key: str, data: dict, ttl: int):
             ttl,
             json.dumps(data, default=str)
         )
-    except Exception:
+    except Exception as e:
         # Cache failure should not break functionality
-        pass
+        logger.warning(f"Cache storage failed for key '{cache_key}': {e}", exc_info=True)
 
 
 def parse_date_range(

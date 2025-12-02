@@ -114,8 +114,8 @@ def _parse_date(date_input: Union[date, datetime, str]) -> Optional[date]:
                         return datetime.strptime(date_input, fmt).date()
                     except ValueError:
                         continue
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to parse date with alternative formats: {e}", exc_info=True)
 
     return None
 

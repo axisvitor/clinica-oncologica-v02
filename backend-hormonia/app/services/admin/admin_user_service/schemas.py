@@ -7,13 +7,15 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.models.user import UserRole
 
 
 class UserCreateRequest(BaseModel):
     """Request model for creating a new user with enhanced validation."""
+    model_config = ConfigDict(use_enum_values=True)
+
     email: EmailStr
     password: str = Field(
         ...,
@@ -25,19 +27,15 @@ class UserCreateRequest(BaseModel):
     role: UserRole = UserRole.DOCTOR
     is_active: bool = True
 
-    class Config:
-        use_enum_values = True
-
 
 class UserUpdateRequest(BaseModel):
     """Request model for updating a user."""
+    model_config = ConfigDict(use_enum_values=True)
+
     email: Optional[EmailStr] = None
     full_name: Optional[str] = None
     role: Optional[UserRole] = None
     is_active: Optional[bool] = None
-
-    class Config:
-        use_enum_values = True
 
 
 class UserPasswordUpdateRequest(BaseModel):
@@ -50,16 +48,19 @@ class UserPasswordUpdateRequest(BaseModel):
     )
     confirm_password: str
 
-    @validator('confirm_password')
-    def passwords_match(cls, v, values):
+    @field_validator('confirm_password')
+    @classmethod
+    def passwords_match(cls, v, info):
         """Ensure passwords match."""
-        if 'new_password' in values and v != values['new_password']:
+        if 'new_password' in info.data and v != info.data['new_password']:
             raise ValueError('Passwords do not match')
         return v
 
 
 class UserSearchFilters(BaseModel):
     """Search filters for user queries with enhanced options."""
+    model_config = ConfigDict(use_enum_values=True)
+
     email: Optional[str] = None
     full_name: Optional[str] = None
     role: Optional[UserRole] = None
@@ -70,12 +71,11 @@ class UserSearchFilters(BaseModel):
     last_login_before: Optional[datetime] = None
     has_patients: Optional[bool] = None
 
-    class Config:
-        use_enum_values = True
-
 
 class UserSummary(BaseModel):
     """Summary model for user data."""
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
+
     id: UUID
     email: str
     full_name: Optional[str]
@@ -87,10 +87,6 @@ class UserSummary(BaseModel):
     total_patients: int = 0
     last_login: Optional[datetime] = None
     failed_login_attempts: int = 0
-
-    class Config:
-        from_attributes = True
-        use_enum_values = True
 
 
 class PaginatedUsersResponse(BaseModel):
@@ -130,7 +126,7 @@ class PasswordResetResult(BaseModel):
 
 class BulkUserOperationRequest(BaseModel):
     """Request model for bulk user operations."""
-    user_ids: List[UUID] = Field(..., min_items=1, max_items=100)
+    user_ids: List[UUID] = Field(..., min_length=1, max_length=100)
     operation: str = Field(..., pattern="^(activate|deactivate|delete)$")
     reason: Optional[str] = Field(None, max_length=500)
 

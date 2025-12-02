@@ -103,25 +103,7 @@ class FlowTemplateV2Base(BaseModel):
 
 class FlowTemplateV2Create(FlowTemplateV2Base):
     """Schema for creating a flow template"""
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "name": "Hormonal Treatment Flow",
-                "flow_type": "hormonal_treatment",
-                "version": "2.1.0",
-                "description": "30-day personalized hormonal treatment journey",
-                "duration_days": 30,
-                "is_active": True,
-                "template_data": {
-                    "steps": [
-                        {"day": 1, "message": "Welcome to your treatment"},
-                        {"day": 7, "message": "Week 1 check-in"}
-                    ],
-                    "triggers": ["daily_check", "quiz_completion"]
-                }
-            }
-        }
+    pass
 
 
 class FlowTemplateV2Update(BaseModel):
@@ -135,21 +117,10 @@ class FlowTemplateV2Update(BaseModel):
 
     @validator("template_data")
     def validate_template_data(cls, v):
-        """Validate template data if provided"""
-        if v is not None:
-            if "steps" in v:
-                steps = v["steps"]
-                if not isinstance(steps, list) or len(steps) == 0:
-                    raise ValueError("template_data.steps must be a non-empty list")
+        if v is not None and "steps" in v:
+            if not isinstance(v["steps"], list) or len(v["steps"]) == 0:
+                raise ValueError("template_data.steps must be a non-empty list")
         return v
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "description": "Updated 30-day treatment with new messaging",
-                "is_active": True
-            }
-        }
 
 
 class FlowTemplateV2Response(FlowTemplateV2Base):
@@ -158,54 +129,17 @@ class FlowTemplateV2Response(FlowTemplateV2Base):
     id: str
     created_at: datetime
     updated_at: datetime
-    created_by: Optional[str] = Field(None, description="User ID who created template")
-
-    # Analytics (optional, computed fields)
-    active_patients: Optional[int] = Field(None, description="Number of patients using this template")
-    completion_rate: Optional[float] = Field(None, ge=0, le=100, description="Completion rate percentage")
+    created_by: Optional[str] = None
+    active_patients: Optional[int] = None
+    completion_rate: Optional[float] = Field(None, ge=0, le=100)
 
     class Config:
         from_attributes = True
-        json_schema_extra = {
-            "example": {
-                "id": "123e4567-e89b-12d3-a456-426614174000",
-                "name": "Hormonal Treatment Flow",
-                "flow_type": "hormonal_treatment",
-                "version": "2.1.0",
-                "description": "30-day personalized treatment journey",
-                "duration_days": 30,
-                "is_active": True,
-                "template_data": {"steps": [], "triggers": []},
-                "created_at": "2025-01-01T10:00:00Z",
-                "updated_at": "2025-11-07T09:00:00Z",
-                "created_by": "user_123",
-                "active_patients": 45,
-                "completion_rate": 78.5
-            }
-        }
 
 
 class FlowTemplateV2List(CursorPaginatedResponse[FlowTemplateV2Response]):
     """Paginated list of flow templates"""
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "data": [
-                    {
-                        "id": "123e4567-e89b-12d3-a456-426614174000",
-                        "name": "Hormonal Treatment Flow",
-                        "flow_type": "hormonal_treatment",
-                        "version": "2.1.0",
-                        "is_active": True,
-                        "created_at": "2025-01-01T10:00:00Z"
-                    }
-                ],
-                "next_cursor": "eyJpZCI6IjEyM2U0NTY3In0=",
-                "has_more": True,
-                "total": 12
-            }
-        }
+    pass
 
 
 # ============================================================================
@@ -219,52 +153,24 @@ class FlowStateV2Response(BaseModel):
     patient_id: str
     flow_type: str
     template_version: str
-    current_step: int = Field(..., ge=0, description="Current step in flow (0-based)")
+    current_step: int = Field(..., ge=0)
     status: FlowStatusV2
     started_at: datetime
     completed_at: Optional[datetime] = None
     paused_at: Optional[datetime] = None
-    state_data: Dict[str, Any] = Field(default_factory=dict, description="Flow state data")
-
-    # Optional eager-loaded relationships
+    state_data: Dict[str, Any] = Field(default_factory=dict)
     patient: Optional[PatientV2Brief] = None
     template: Optional[FlowTemplateV2Brief] = None
 
     class Config:
         from_attributes = True
-        json_schema_extra = {
-            "example": {
-                "id": "flow_123abc",
-                "patient_id": "pat_456def",
-                "flow_type": "hormonal_treatment",
-                "template_version": "2.1.0",
-                "current_step": 7,
-                "status": "active",
-                "started_at": "2025-01-01T10:00:00Z",
-                "completed_at": None,
-                "state_data": {"last_interaction": "2025-11-07T08:00:00Z"},
-                "patient": {
-                    "id": "pat_456def",
-                    "name": "João Silva",
-                    "current_day": 7
-                }
-            }
-        }
 
 
 class FlowAdvanceV2Request(BaseModel):
     """Request to advance a flow"""
 
-    force_day: Optional[int] = Field(None, ge=1, le=365, description="Force advance to specific day")
-    reason: Optional[str] = Field(None, max_length=500, description="Reason for manual advancement")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "force_day": 15,
-                "reason": "Patient requested to skip to week 3"
-            }
-        }
+    force_day: Optional[int] = Field(None, ge=1, le=365)
+    reason: Optional[str] = Field(None, max_length=500)
 
 
 class FlowAdvanceV2Response(BaseModel):
@@ -274,42 +180,21 @@ class FlowAdvanceV2Response(BaseModel):
     patient_id: str
     previous_step: int
     current_step: int
-    next_actions: List[str] = Field(default_factory=list, description="Scheduled actions")
+    next_actions: List[str] = Field(default_factory=list)
     message: str
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": True,
-                "patient_id": "pat_456def",
-                "previous_step": 7,
-                "current_step": 15,
-                "next_actions": ["send_message", "schedule_quiz"],
-                "message": "Flow advanced to day 15"
-            }
-        }
 
 
 class FlowPauseV2Request(BaseModel):
     """Request to pause a flow"""
 
-    reason: Optional[str] = Field(None, max_length=500, description="Reason for pausing")
-    duration_hours: Optional[int] = Field(None, ge=1, le=168, description="Auto-resume after hours (1-168)")
+    reason: Optional[str] = Field(None, max_length=500)
+    duration_hours: Optional[int] = Field(None, ge=1, le=168)
 
     @validator("reason")
     def validate_reason(cls, v):
-        """Validate reason is not empty if provided"""
         if v is not None and not v.strip():
             raise ValueError("Reason cannot be empty if provided")
         return v.strip() if v else None
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "reason": "Patient requested temporary break",
-                "duration_hours": 24
-            }
-        }
 
 
 class FlowPauseV2Response(BaseModel):
@@ -322,18 +207,6 @@ class FlowPauseV2Response(BaseModel):
     auto_resume_at: Optional[datetime] = None
     message: str
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": True,
-                "patient_id": "pat_456def",
-                "paused_at": "2025-11-07T10:00:00Z",
-                "reason": "Patient requested break",
-                "auto_resume_at": "2025-11-08T10:00:00Z",
-                "message": "Flow paused for 24 hours"
-            }
-        }
-
 
 class FlowResumeV2Response(BaseModel):
     """Response after resuming a flow"""
@@ -345,49 +218,12 @@ class FlowResumeV2Response(BaseModel):
     next_message_at: Optional[datetime] = None
     message: str
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": True,
-                "patient_id": "pat_456def",
-                "resumed_at": "2025-11-08T10:00:00Z",
-                "paused_duration_hours": 24.0,
-                "next_message_at": "2025-11-08T12:00:00Z",
-                "message": "Flow resumed successfully"
-            }
-        }
-
 
 class FlowHistoryV2Response(CursorPaginatedResponse[FlowStateV2Response]):
     """Flow history for a patient with cursor pagination"""
 
     patient_id: str
     current_flow: Optional[FlowStateV2Response] = None
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "patient_id": "pat_456def",
-                "data": [
-                    {
-                        "id": "flow_123",
-                        "flow_type": "hormonal_treatment",
-                        "status": "completed",
-                        "started_at": "2024-12-01T10:00:00Z",
-                        "completed_at": "2024-12-31T10:00:00Z"
-                    }
-                ],
-                "next_cursor": "eyJpZCI6ImZsb3dfMTIzIn0=",
-                "has_more": False,
-                "total": 3,
-                "current_flow": {
-                    "id": "flow_456",
-                    "flow_type": "hormonal_treatment",
-                    "status": "active",
-                    "current_step": 7
-                }
-            }
-        }
 
 
 # ============================================================================
@@ -397,25 +233,11 @@ class FlowHistoryV2Response(CursorPaginatedResponse[FlowStateV2Response]):
 class FlowCustomizationV2Request(BaseModel):
     """Request to create flow customization"""
 
-    customization_type: str = Field(..., max_length=50, description="Type of customization")
-    customization_data: Dict[str, Any] = Field(..., description="Customization configuration")
-    priority: int = Field(1, ge=1, le=10, description="Customization priority (1-10)")
-    conditions: Optional[Dict[str, Any]] = Field(None, description="Application conditions")
-    expires_at: Optional[datetime] = Field(None, description="Expiration timestamp")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "customization_type": "message_timing",
-                "customization_data": {
-                    "preferred_time": "09:00",
-                    "timezone": "America/Sao_Paulo"
-                },
-                "priority": 5,
-                "conditions": {"days": [1, 7, 14, 21]},
-                "expires_at": "2025-12-31T23:59:59Z"
-            }
-        }
+    customization_type: str = Field(..., max_length=50)
+    customization_data: Dict[str, Any]
+    priority: int = Field(1, ge=1, le=10)
+    conditions: Optional[Dict[str, Any]] = None
+    expires_at: Optional[datetime] = None
 
 
 class FlowCustomizationV2Response(BaseModel):

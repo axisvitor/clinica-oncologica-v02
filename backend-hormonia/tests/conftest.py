@@ -491,36 +491,54 @@ def create_test_patient(
     doctor: User,
     name: str = "Test Patient",
     email: str = None,
-    phone: str = "11999999999",
+    phone: str = "+5511999999999",
     **kwargs
 ):
     """
     Create a test patient in the database.
-    
+
+    LGPD Compliance: Uses set_email(), set_phone(), set_cpf() methods
+    to properly encrypt and hash sensitive data.
+
     Args:
         db_session: Database session
         doctor: Doctor user who owns this patient
         name: Patient name
         email: Patient email (optional)
-        phone: Patient phone
-        **kwargs: Additional patient attributes
-        
+        phone: Patient phone (E.164 format recommended)
+        **kwargs: Additional patient attributes (cpf, birth_date, etc.)
+
     Returns:
-        Created Patient instance
+        Created Patient instance with encrypted PII fields
     """
     from app.models.patient import Patient
-    
+
+    # Generate default email if not provided
+    actual_email = email or f"patient_{uuid4().hex[:8]}@test.com"
+
+    # Normalize phone to E.164 format
+    actual_phone = phone
+    if phone and not phone.startswith('+'):
+        actual_phone = f"+55{phone}"
+
+    # Create patient without PII columns (removed in migration 030)
     patient = Patient(
         id=kwargs.get('id', uuid4()),
         name=name,
-        email=email or f"patient_{uuid4().hex[:8]}@test.com",
-        phone=phone,
         doctor_id=doctor.id,
-        cpf=kwargs.get('cpf'),
         birth_date=kwargs.get('birth_date'),
         created_at=kwargs.get('created_at', datetime.utcnow()),
         updated_at=kwargs.get('updated_at', datetime.utcnow())
     )
+
+    # LGPD: Set encrypted fields using proper methods
+    if actual_phone:
+        patient.set_phone(actual_phone)
+    if actual_email:
+        patient.set_email(actual_email)
+    if kwargs.get('cpf'):
+        patient.set_cpf(kwargs['cpf'])
+
     db_session.add(patient)
     db_session.commit()
     db_session.refresh(patient)

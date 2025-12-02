@@ -128,7 +128,7 @@ def _serialize_physician(
 
 
 @router.get(
-    "",
+    "/",
     response_model=PhysicianList,
     summary="List physicians with filtering",
     description="Get paginated list of physicians with optional filtering and statistics."
