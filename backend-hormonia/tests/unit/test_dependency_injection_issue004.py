@@ -8,7 +8,7 @@ import pytest
 from unittest.mock import Mock, MagicMock, patch
 from sqlalchemy.orm import Session
 
-from app.services.patient.onboarding_service import PatientOnboardingService
+from app.domain.patient.onboarding.coordinator import PatientOnboardingService
 from app.services.patient.integrity_service import PatientIntegrityService
 from app.services.patient.flow_service import PatientFlowService
 from app.services.message import MessageService

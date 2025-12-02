@@ -32,7 +32,7 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.coordination.saga_orchestrator import SagaOrchestrator
+from app.orchestration.saga_orchestrator import SagaOrchestrator
 from app.models.patient import Patient, FlowState as PatientFlowStateEnum
 from app.models.flow import PatientFlowState
 from app.models.message import Message

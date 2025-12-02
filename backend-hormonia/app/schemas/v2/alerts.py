@@ -20,7 +20,7 @@ from datetime import datetime, date as date_type
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, Field, validator, constr, conint, confloat
+from pydantic import BaseModel, Field, field_validator, ConfigDict, constr, conint, confloat
 
 from app.models.alert import AlertSeverity, AlertStatus
 from .common import CursorPaginatedResponse
@@ -83,14 +83,16 @@ class AlertV2Base(BaseModel):
         description="Additional structured data (JSONB field)"
     )
 
-    @validator("description")
+    @field_validator("description")
+    @classmethod
     def validate_description(cls, v):
         """Ensure description is not just whitespace."""
         if not v or not v.strip():
             raise ValueError("Description cannot be empty or whitespace only")
         return v.strip()
 
-    @validator("data")
+    @field_validator("data")
+    @classmethod
     def validate_data(cls, v):
         """Ensure data field doesn't contain PII without proper handling."""
         if v:
@@ -109,8 +111,7 @@ class PatientV2Brief(BaseModel):
     name: str
     email: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserV2Brief(BaseModel):
@@ -120,8 +121,7 @@ class UserV2Brief(BaseModel):
     name: str
     email: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -136,7 +136,9 @@ class AlertV2Create(AlertV2Base):
         description="UUID of the patient this alert is for"
     )
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -150,6 +152,7 @@ class AlertV2Create(AlertV2Base):
                 }
             }
         }
+    )
 
 
 class AlertV2Update(BaseModel):
@@ -160,13 +163,16 @@ class AlertV2Update(BaseModel):
     description: Optional[constr(max_length=2000)] = None
     data: Optional[Dict[str, Any]] = None
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "severity": "MEDIUM",
                 "description": "Updated: Patient took medication at 15:00 (delayed)"
             }
         }
+    )
 
 
 class AlertV2Acknowledge(BaseModel):
@@ -177,12 +183,15 @@ class AlertV2Acknowledge(BaseModel):
         description="Optional notes about the acknowledgment"
     )
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "notes": "Reviewed with patient. Patient confirmed medication taken."
             }
         }
+    )
 
 
 class AlertV2Resolve(BaseModel):
@@ -193,7 +202,8 @@ class AlertV2Resolve(BaseModel):
         description="Required notes explaining the resolution"
     )
 
-    @validator("notes")
+    @field_validator("notes")
+    @classmethod
     def validate_notes(cls, v):
         """Ensure resolution notes are meaningful."""
         if not v or not v.strip():
@@ -202,12 +212,15 @@ class AlertV2Resolve(BaseModel):
             raise ValueError("Resolution notes must be at least 10 characters")
         return v.strip()
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "notes": "Patient contacted. Confirmed medication adherence plan. Will monitor for next 48 hours."
             }
         }
+    )
 
 
 class AlertV2Dismiss(BaseModel):
@@ -218,19 +231,23 @@ class AlertV2Dismiss(BaseModel):
         description="Required reason for dismissal (for audit trail)"
     )
 
-    @validator("reason")
+    @field_validator("reason")
+    @classmethod
     def validate_reason(cls, v):
         """Ensure dismissal reason is meaningful."""
         if not v or not v.strip():
             raise ValueError("Dismissal reason is required")
         return v.strip()
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "reason": "False positive: Patient had taken medication earlier than scheduled with physician approval."
             }
         }
+    )
 
 
 # ============================================================================
@@ -253,8 +270,8 @@ class AlertV2Response(AlertV2Base):
     patient: Optional[PatientV2Brief] = None
     acknowledged_by_user: Optional[UserV2Brief] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(
+        from_attributes=True,
         json_schema_extra = {
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
@@ -279,6 +296,7 @@ class AlertV2Response(AlertV2Base):
                 }
             }
         }
+    )
 
 
 class AlertV2List(CursorPaginatedResponse[AlertV2Response]):
@@ -306,7 +324,9 @@ class PatientAlertSummaryV2(BaseModel):
     risk_level: str = Field(description="Risk level (LOW, MEDIUM, HIGH, CRITICAL)")
     risk_factors: List[str] = Field(default_factory=list, description="Contributing risk factors")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "patient_id": "223e4567-e89b-12d3-a456-426614174001",
@@ -327,6 +347,7 @@ class PatientAlertSummaryV2(BaseModel):
                 ]
             }
         }
+    )
 
 
 class AlertStatisticsV2(BaseModel):
@@ -347,7 +368,9 @@ class AlertStatisticsV2(BaseModel):
     )
     analysis_period_days: conint(ge=1) = Field(description="Analysis period in days")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "total_alerts": 450,
@@ -367,6 +390,7 @@ class AlertStatisticsV2(BaseModel):
                 "analysis_period_days": 30
             }
         }
+    )
 
 
 # ============================================================================
@@ -391,7 +415,9 @@ class PatientRiskScoreV2(BaseModel):
     alert_count_30d: conint(ge=0) = Field(description="Alert count in last 30 days")
     unresolved_count: conint(ge=0) = Field(description="Current unresolved alerts")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "patient_id": "223e4567-e89b-12d3-a456-426614174001",
@@ -412,6 +438,7 @@ class PatientRiskScoreV2(BaseModel):
                 "unresolved_count": 3
             }
         }
+    )
 
 
 # ============================================================================
@@ -441,8 +468,8 @@ class AlertRuleV2(BaseModel):
     updated_at: datetime = Field(description="When rule was last updated")
     created_by: str = Field(description="UUID of user who created rule")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(
+        from_attributes=True,
         json_schema_extra = {
             "example": {
                 "id": "423e4567-e89b-12d3-a456-426614174003",
@@ -461,6 +488,7 @@ class AlertRuleV2(BaseModel):
                 "created_by": "323e4567-e89b-12d3-a456-426614174002"
             }
         }
+    )
 
 
 class AlertRuleV2Create(BaseModel):
@@ -476,7 +504,8 @@ class AlertRuleV2Create(BaseModel):
         description="Alert description template"
     )
 
-    @validator("conditions")
+    @field_validator("conditions")
+    @classmethod
     def validate_conditions(cls, v):
         """Validate that conditions have required fields."""
         if not v:
@@ -505,8 +534,8 @@ class BulkAlertOperation(BaseModel):
 
     alert_ids: List[UUID] = Field(
         ...,
-        min_items=1,
-        max_items=100,
+        min_length=1,
+        max_length=100,
         description="List of alert UUIDs to operate on (max 100)"
     )
     notes: Optional[constr(max_length=1000)] = Field(
@@ -514,14 +543,17 @@ class BulkAlertOperation(BaseModel):
         description="Optional notes for the bulk operation"
     )
 
-    @validator("alert_ids")
+    @field_validator("alert_ids")
+    @classmethod
     def validate_alert_ids(cls, v):
         """Ensure no duplicate alert IDs."""
         if len(v) != len(set(v)):
             raise ValueError("Duplicate alert IDs are not allowed")
         return v
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "alert_ids": [
@@ -532,6 +564,7 @@ class BulkAlertOperation(BaseModel):
                 "notes": "Bulk acknowledged after patient phone consultation"
             }
         }
+    )
 
 
 class BulkAlertResult(BaseModel):
@@ -544,7 +577,9 @@ class BulkAlertResult(BaseModel):
         description="UUIDs of alerts that failed to process"
     )
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "success_count": 3,
@@ -552,6 +587,7 @@ class BulkAlertResult(BaseModel):
                 "failed_ids": []
             }
         }
+    )
 
 
 # ============================================================================
@@ -568,7 +604,9 @@ class AlertTrendV2(BaseModel):
     medium_alerts: conint(ge=0) = Field(description="Medium severity alerts")
     low_alerts: conint(ge=0) = Field(description="Low severity alerts")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "date": "2025-01-17",
@@ -579,6 +617,7 @@ class AlertTrendV2(BaseModel):
                 "low_alerts": 12
             }
         }
+    )
 
 
 # ============================================================================
@@ -599,7 +638,9 @@ class AlertEscalationV2(BaseModel):
         description="Deadline for resolution (based on severity)"
     )
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "alert_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -611,3 +652,4 @@ class AlertEscalationV2(BaseModel):
                 "resolution_deadline": "2025-01-17T18:00:00Z"
             }
         }
+    )

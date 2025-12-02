@@ -16,7 +16,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from app.services.patient.onboarding_service import PatientOnboardingService, _thread_pool
+from app.domain.patient.onboarding.coordinator import PatientOnboardingService, _thread_pool
 from app.services.patient.integrity_service import PatientIntegrityService
 from app.services.patient.flow_service import PatientFlowService
 from app.models.patient import Patient, FlowState

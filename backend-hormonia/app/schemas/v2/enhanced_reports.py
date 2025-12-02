@@ -15,7 +15,7 @@ from datetime import datetime, date, time
 from typing import Optional, List, Dict, Any, Literal
 from uuid import UUID
 from enum import Enum
-from pydantic import BaseModel, Field, validator, model_validator
+from pydantic import BaseModel, Field, validator, model_validator, field_validator
 
 
 # ============================================================================
@@ -123,7 +123,8 @@ class ReportBuilderCreate(BaseModel):
     save_as_template: bool = False
     template_name: Optional[str] = None
 
-    @validator("date_range")
+    @field_validator("date_range")
+    @classmethod
     def validate_date_range(cls, v):
         """Ensure valid date range."""
         if v and "start" in v and "end" in v:
@@ -229,7 +230,8 @@ class DeliverySchedule(BaseModel):
     # For custom: cron expression
     cron_expression: Optional[str] = None
 
-    @validator("end_date")
+    @field_validator("end_date")
+    @classmethod
     def validate_end_date(cls, v, values):
         """Ensure end_date is after start_date."""
         if v and "start_date" in values and values["start_date"]:
@@ -338,7 +340,8 @@ class ReportShareCreate(BaseModel):
     expires_at: Optional[datetime] = None
     message: Optional[str] = Field(None, max_length=500)
 
-    @validator("expires_at")
+    @field_validator("expires_at")
+    @classmethod
     def validate_expiration(cls, v):
         """Ensure expiration is in the future."""
         if v and v <= datetime.utcnow():

@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from app.models.patient import Patient, FlowState
 from app.models.user import User
 from app.schemas.patient import PatientCreate
-from app.coordination.saga_orchestrator import SagaOrchestrator, SagaStatus
+from app.orchestration.saga_orchestrator import SagaOrchestrator, SagaStatus
 
 
 @pytest.fixture

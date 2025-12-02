@@ -2,7 +2,7 @@
 AI Service Schemas for API v2
 Enhanced schemas with modern patterns, validation, and cost tracking.
 """
-from pydantic import BaseModel, Field, validator, constr, conint
+from pydantic import BaseModel, Field, field_validator, ConfigDict, constr, conint
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from uuid import UUID
@@ -57,7 +57,9 @@ class TokenUsage(BaseModel):
     estimated_cost_usd: float = Field(0.0, ge=0.0, description="Estimated cost in USD")
     model: Optional[AIModelType] = Field(None, description="AI model used")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "prompt_tokens": 150,
@@ -67,6 +69,7 @@ class TokenUsage(BaseModel):
                 "model": "gemini-pro"
             }
         }
+    )
 
 
 class CacheInfo(BaseModel):
@@ -76,7 +79,9 @@ class CacheInfo(BaseModel):
     ttl_seconds: Optional[int] = Field(None, description="TTL in seconds")
     cached_at: Optional[datetime] = Field(None, description="When data was cached")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "hit": True,
@@ -85,6 +90,7 @@ class CacheInfo(BaseModel):
                 "cached_at": "2025-01-17T10:00:00Z"
             }
         }
+    )
 
 
 # ============================================================================
@@ -112,21 +118,25 @@ class HumanizeRequest(BaseModel):
     )
     use_cache: bool = Field(True, description="Whether to use cached responses")
 
-    @validator("message_type")
+    @field_validator("message_type")
+    @classmethod
     def validate_message_type(cls, v):
         valid = ["welcome", "check_in", "reminder", "support", "education", "general"]
         if v not in valid:
             raise ValueError(f"message_type must be one of: {', '.join(valid)}")
         return v
 
-    @validator("tone")
+    @field_validator("tone")
+    @classmethod
     def validate_tone(cls, v):
         valid = ["empathetic", "professional", "encouraging", "caring", "neutral"]
         if v not in valid:
             raise ValueError(f"tone must be one of: {', '.join(valid)}")
         return v
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "message": "Time to take your medication",
@@ -137,6 +147,7 @@ class HumanizeRequest(BaseModel):
                 "use_cache": True
             }
         }
+    )
 
 
 class HumanizeResponse(BaseModel):
@@ -159,7 +170,9 @@ class HumanizeResponse(BaseModel):
     cache_info: Optional[CacheInfo] = Field(None, description="Cache information")
     generated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "original_message": "Time to take your medication",
@@ -178,18 +191,21 @@ class HumanizeResponse(BaseModel):
                 "generated_at": "2025-01-17T10:00:00Z"
             }
         }
+    )
 
 
 class BatchHumanizeRequest(BaseModel):
     """Batch humanize request."""
     messages: List[HumanizeRequest] = Field(
         ...,
-        min_items=1,
-        max_items=10,
+        min_length=1,
+        max_length=10,
         description="Messages to humanize (max 10)"
     )
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "messages": [
@@ -206,6 +222,7 @@ class BatchHumanizeRequest(BaseModel):
                 ]
             }
         }
+    )
 
 
 class BatchHumanizeResponse(BaseModel):
@@ -218,7 +235,9 @@ class BatchHumanizeResponse(BaseModel):
     )
     processed_at: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "results": [],
@@ -230,6 +249,7 @@ class BatchHumanizeResponse(BaseModel):
                 "processed_at": "2025-01-17T10:00:00Z"
             }
         }
+    )
 
 
 # ============================================================================
@@ -248,14 +268,17 @@ class GenerateInsightsRequest(BaseModel):
     include_messages: bool = Field(True, description="Include message analysis")
     force_refresh: bool = Field(False, description="Force cache refresh")
 
-    @validator("analysis_type")
+    @field_validator("analysis_type")
+    @classmethod
     def validate_analysis_type(cls, v):
         valid = ["comprehensive", "treatment", "adherence", "risk", "sentiment"]
         if v not in valid:
             raise ValueError(f"analysis_type must be one of: {', '.join(valid)}")
         return v
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -266,6 +289,7 @@ class GenerateInsightsRequest(BaseModel):
                 "force_refresh": False
             }
         }
+    )
 
 
 class TrendData(BaseModel):
@@ -335,7 +359,9 @@ class SentimentAnalysisRequest(BaseModel):
         description="Detect urgency indicators"
     )
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "message": "I've been feeling very tired lately",
@@ -344,6 +370,7 @@ class SentimentAnalysisRequest(BaseModel):
                 "include_urgency": True
             }
         }
+    )
 
 
 class SentimentAnalysisResponse(BaseModel):
@@ -379,7 +406,9 @@ class RiskAnalysisRequest(BaseModel):
     days: conint(ge=1, le=90) = Field(30, description="Days to analyze")
     include_historical: bool = Field(True, description="Include historical data")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -387,6 +416,7 @@ class RiskAnalysisRequest(BaseModel):
                 "include_historical": True
             }
         }
+    )
 
 
 class RiskAnalysisResponse(BaseModel):
@@ -420,13 +450,16 @@ class ResponseQualityRequest(BaseModel):
     )
     context: Optional[str] = Field(None, description="Message context")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "message": "Hi! Hope you're doing well today.",
                 "context": "greeting"
             }
         }
+    )
 
 
 class ResponseQualityResponse(BaseModel):
@@ -462,7 +495,9 @@ class AIHealthResponse(BaseModel):
     response_time_ms: float = Field(description="Health check response time")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "status": "healthy",
@@ -484,6 +519,7 @@ class AIHealthResponse(BaseModel):
                 "timestamp": "2025-01-17T10:00:00Z"
             }
         }
+    )
 
 
 class UsageStatsResponse(BaseModel):
@@ -510,7 +546,9 @@ class UsageStatsResponse(BaseModel):
     )
     generated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "period": "day",
@@ -536,6 +574,7 @@ class UsageStatsResponse(BaseModel):
                 "generated_at": "2025-01-17T10:00:00Z"
             }
         }
+    )
 
 
 class CacheStatsResponse(BaseModel):
@@ -556,7 +595,9 @@ class CacheStatsResponse(BaseModel):
     )
     generated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "total_keys": 3450,
@@ -576,6 +617,7 @@ class CacheStatsResponse(BaseModel):
                 "generated_at": "2025-01-17T10:00:00Z"
             }
         }
+    )
 
 
 # ============================================================================
@@ -594,7 +636,9 @@ class AIErrorResponse(BaseModel):
     request_id: Optional[str] = Field(None, description="Request ID for tracking")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "error": "ai_service_error",
@@ -605,3 +649,4 @@ class AIErrorResponse(BaseModel):
                 "timestamp": "2025-01-17T10:00:00Z"
             }
         }
+    )

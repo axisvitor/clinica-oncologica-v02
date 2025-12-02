@@ -5,7 +5,7 @@ Enhanced appointment models with field selection and eager loading support.
 
 from typing import Optional, List
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from .common import CursorPaginatedResponse
 
@@ -18,8 +18,7 @@ class PatientV2Brief(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PractitionerV2Brief(BaseModel):
@@ -30,8 +29,7 @@ class PractitionerV2Brief(BaseModel):
     email: Optional[str] = None
     specialty: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AppointmentV2Base(BaseModel):
@@ -55,21 +53,25 @@ class AppointmentV2Create(AppointmentV2Base):
     scheduled_at: datetime = Field(..., description="Scheduled date and time")
     duration_minutes: int = Field(default=30, ge=15, le=480, description="Duration in minutes")
 
-    @validator("appointment_type")
+    @field_validator("appointment_type")
+    @classmethod
     def validate_appointment_type(cls, v):
         valid_types = ["consultation", "followup", "treatment", "exam", "emergency", "telemedicine"]
         if v not in valid_types:
             raise ValueError(f"appointment_type must be one of: {', '.join(valid_types)}")
         return v
 
-    @validator("status")
+    @field_validator("status")
+    @classmethod
     def validate_status(cls, v):
         valid_statuses = ["scheduled", "confirmed", "in_progress", "completed", "cancelled", "no_show"]
         if v and v not in valid_statuses:
             raise ValueError(f"status must be one of: {', '.join(valid_statuses)}")
         return v or "scheduled"
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -81,6 +83,7 @@ class AppointmentV2Create(AppointmentV2Base):
                 "pre_appointment_notes": "First consultation for new patient"
             }
         }
+    )
 
 
 class AppointmentV2Update(BaseModel):
@@ -94,7 +97,8 @@ class AppointmentV2Update(BaseModel):
     pre_appointment_notes: Optional[str] = None
     post_appointment_notes: Optional[str] = None
 
-    @validator("appointment_type")
+    @field_validator("appointment_type")
+    @classmethod
     def validate_appointment_type(cls, v):
         if v:
             valid_types = ["consultation", "followup", "treatment", "exam", "emergency", "telemedicine"]
@@ -102,7 +106,8 @@ class AppointmentV2Update(BaseModel):
                 raise ValueError(f"appointment_type must be one of: {', '.join(valid_types)}")
         return v
 
-    @validator("status")
+    @field_validator("status")
+    @classmethod
     def validate_status(cls, v):
         if v:
             valid_statuses = ["scheduled", "confirmed", "in_progress", "completed", "cancelled", "no_show"]
@@ -134,8 +139,7 @@ class AppointmentV2Response(BaseModel):
     patient: Optional[PatientV2Brief] = None
     practitioner: Optional[PractitionerV2Brief] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AppointmentV2List(CursorPaginatedResponse):

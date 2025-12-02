@@ -3,7 +3,7 @@ from datetime import date, datetime, timedelta
 from uuid import UUID
 import re
 
-from pydantic import BaseModel, Field, validator, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from app.models.patient import FlowState
 
@@ -68,7 +68,8 @@ class PatientBase(BaseModel):
     emergency_contact_phone: Optional[str] = Field(None, description="Emergency contact phone")
     timezone: str = Field("America/Sao_Paulo", description="Patient timezone (e.g., America/Sao_Paulo)")
 
-    @validator('email')
+    @field_validator('email')
+    @classmethod
     def validate_email_format(cls, v):
         if v:
             # Basic email validation
@@ -77,20 +78,23 @@ class PatientBase(BaseModel):
                 raise ValueError('Invalid email format')
         return v
 
-    @validator('phone')
+    @field_validator('phone')
+    @classmethod
     def validate_phone(cls, v):
         # Basic phone validation - can be enhanced
         if not v.startswith('+'):
             raise ValueError('Phone number must start with country code (+)')
         return v
 
-    @validator('emergency_contact_phone')
+    @field_validator('emergency_contact_phone')
+    @classmethod
     def validate_emergency_phone(cls, v):
         if v and not v.startswith('+'):
             raise ValueError('Emergency contact phone must start with country code (+)')
         return v
 
-    @validator('birth_date')
+    @field_validator('birth_date')
+    @classmethod
     def validate_min_age(cls, v: Optional[date]) -> Optional[date]:
         """
         Validate patient is at least 18 years old.
@@ -133,14 +137,16 @@ class PatientBase(BaseModel):
 
         return v
 
-    @validator('treatment_phase', pre=True)
+    @field_validator('treatment_phase', mode='before')
+    @classmethod
     def normalize_treatment_phase(cls, v):
         # Normalize to lowercase to satisfy pattern and handle legacy uppercase values
         if isinstance(v, str):
             return v.strip().lower()
         return v
 
-    @validator('cpf')
+    @field_validator('cpf')
+    @classmethod
     def validate_cpf_number(cls, v):
         """Validate Brazilian CPF format and check digits."""
         if v and not validate_cpf(v):
@@ -159,7 +165,8 @@ class PatientCreate(PatientBase):
         description="Additional patient metadata"
     )
 
-    @validator('metadata')
+    @field_validator('metadata')
+    @classmethod
     def validate_metadata_schema(cls, v: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """
         Validate metadata against JSON schema.
@@ -214,7 +221,8 @@ class PatientUpdate(BaseModel):
     # Additional metadata
     metadata: Optional[Dict[str, Any]] = None
 
-    @validator('email')
+    @field_validator('email')
+    @classmethod
     def validate_email_format(cls, v):
         if v:
             email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
@@ -222,19 +230,22 @@ class PatientUpdate(BaseModel):
                 raise ValueError('Invalid email format')
         return v
 
-    @validator('emergency_contact_phone')
+    @field_validator('emergency_contact_phone')
+    @classmethod
     def validate_emergency_phone(cls, v):
         if v and not v.startswith('+'):
             raise ValueError('Emergency contact phone must start with country code (+)')
         return v
 
-    @validator('phone')
+    @field_validator('phone')
+    @classmethod
     def validate_phone(cls, v):
         if v and not v.startswith('+'):
             raise ValueError('Phone number must start with country code (+)')
         return v
 
-    @validator('birth_date')
+    @field_validator('birth_date')
+    @classmethod
     def validate_min_age(cls, v: Optional[date]) -> Optional[date]:
         """
         Validate patient is at least 18 years old.
@@ -267,7 +278,8 @@ class PatientUpdate(BaseModel):
 
         return v
 
-    @validator('cpf')
+    @field_validator('cpf')
+    @classmethod
     def validate_cpf_number(cls, v):
         """Validate Brazilian CPF format and check digits."""
         if v and not validate_cpf(v):
@@ -277,7 +289,8 @@ class PatientUpdate(BaseModel):
             v = re.sub(r'\D', '', v)
         return v
 
-    @validator('metadata')
+    @field_validator('metadata')
+    @classmethod
     def validate_metadata_schema(cls, v: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """
         Validate metadata against JSON schema.
@@ -311,16 +324,15 @@ class PatientResponse(PatientBase):
         description="Additional patient metadata"
     )
 
-    @validator('created_at', 'updated_at', pre=True)
+    @field_validator('created_at', 'updated_at', mode='before')
+    @classmethod
     def coerce_datetime_to_date(cls, v):
         # Convert datetime to date for response schema compatibility
         if isinstance(v, datetime):
             return v.date()
         return v
 
-    class Config:
-        from_attributes = True
-        populate_by_name = True  # Allow both field name and alias
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class PatientListResponse(BaseModel):
@@ -333,5 +345,4 @@ class PatientListResponse(BaseModel):
     has_more: bool = Field(..., description="Whether additional pages are available")
     has_previous: bool = Field(..., description="Whether a previous page exists")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

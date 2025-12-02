@@ -6,7 +6,7 @@ Pydantic models for multi-platform synchronization with conflict resolution.
 from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field, HttpUrl, validator, model_validator
+from pydantic import BaseModel, Field, HttpUrl, validator, model_validator, field_validator
 from uuid import UUID
 
 
@@ -76,7 +76,8 @@ class SyncJobCreate(BaseModel):
     batch_size: int = Field(1000, ge=1, le=10000, description="Items per batch")
     dry_run: bool = Field(False, description="Simulate without applying changes")
 
-    @validator("entity_ids")
+    @field_validator("entity_ids")
+    @classmethod
     def validate_selective_sync(cls, v, values):
         """Validate entity_ids for selective sync"""
         if values.get("strategy") == SyncStrategy.SELECTIVE and not v:
@@ -288,7 +289,8 @@ class SyncConfigCreate(BaseModel):
     custom_headers: Optional[Dict[str, str]] = Field(None, description="Custom HTTP headers")
     custom_settings: Optional[Dict[str, Any]] = Field(None, description="Platform-specific settings")
 
-    @validator("auth_type")
+    @field_validator("auth_type")
+    @classmethod
     def validate_auth_type(cls, v):
         """Validate authentication type"""
         allowed = {"bearer", "api_key", "oauth2", "basic"}

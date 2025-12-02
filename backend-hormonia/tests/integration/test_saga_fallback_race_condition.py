@@ -23,10 +23,10 @@ from sqlalchemy.exc import IntegrityError
 from app.models.patient import Patient, FlowState
 from app.models.user import User
 from app.schemas.patient import PatientCreate
-from app.services.patient.onboarding_service import PatientOnboardingService
+from app.domain.patient.onboarding.coordinator import PatientOnboardingService
 from app.services.patient.integrity_service import PatientIntegrityService
 from app.services.patient.flow_service import PatientFlowService
-from app.coordination.saga_orchestrator import SagaOrchestrator
+from app.orchestration.saga_orchestrator import SagaOrchestrator
 
 
 @pytest.fixture

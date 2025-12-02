@@ -6,7 +6,7 @@ Enhanced flow models with cursor pagination, field selection, and eager loading 
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, field_validator
 
 from .common import CursorPaginatedResponse, ErrorResponse
 
@@ -76,7 +76,8 @@ class FlowTemplateV2Base(BaseModel):
     is_active: bool = Field(True, description="Whether template is active")
     template_data: Dict[str, Any] = Field(..., description="Template configuration data")
 
-    @validator("version")
+    @field_validator("version")
+    @classmethod
     def validate_version(cls, v):
         """Validate semantic versioning format"""
         parts = v.split(".")
@@ -86,7 +87,8 @@ class FlowTemplateV2Base(BaseModel):
             raise ValueError("Version parts must be numeric")
         return v
 
-    @validator("template_data")
+    @field_validator("template_data")
+    @classmethod
     def validate_template_data(cls, v):
         """Validate template data structure"""
         required_fields = ["steps", "triggers"]
@@ -115,7 +117,8 @@ class FlowTemplateV2Update(BaseModel):
     is_active: Optional[bool] = None
     template_data: Optional[Dict[str, Any]] = None
 
-    @validator("template_data")
+    @field_validator("template_data")
+    @classmethod
     def validate_template_data(cls, v):
         if v is not None and "steps" in v:
             if not isinstance(v["steps"], list) or len(v["steps"]) == 0:
@@ -190,7 +193,8 @@ class FlowPauseV2Request(BaseModel):
     reason: Optional[str] = Field(None, max_length=500)
     duration_hours: Optional[int] = Field(None, ge=1, le=168)
 
-    @validator("reason")
+    @field_validator("reason")
+    @classmethod
     def validate_reason(cls, v):
         if v is not None and not v.strip():
             raise ValueError("Reason cannot be empty if provided")
@@ -401,7 +405,8 @@ class ABTestV2Base(BaseModel):
     duration_days: int = Field(..., ge=1, le=90, description="Test duration")
     description: Optional[str] = Field(None, max_length=500)
 
-    @validator("variants")
+    @field_validator("variants")
+    @classmethod
     def validate_variants(cls, v):
         """Validate variant allocations sum to 100"""
         total = sum(variant.allocation_percentage for variant in v)
@@ -566,7 +571,8 @@ class RiskAssessmentV2Response(BaseModel):
     recommended_actions: List[str]
     assessed_at: datetime
 
-    @validator("risk_level")
+    @field_validator("risk_level")
+    @classmethod
     def validate_risk_level(cls, v):
         """Validate risk level"""
         allowed = ["low", "medium", "high"]

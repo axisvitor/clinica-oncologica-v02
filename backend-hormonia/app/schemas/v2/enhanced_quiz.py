@@ -6,7 +6,7 @@ Advanced quiz models with branching logic, risk scoring, and adaptive flows.
 from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field, validator, model_validator
+from pydantic import BaseModel, Field, validator, model_validator, field_validator
 from uuid import UUID
 
 from .common import CursorPaginatedResponse
@@ -60,7 +60,8 @@ class BranchingCondition(BaseModel):
     operator: str = Field(..., description="Comparison operator (eq, neq, gt, lt, gte, lte, in, contains)")
     value: Union[str, int, float, bool, List[Any]] = Field(..., description="Value to compare against")
 
-    @validator("operator")
+    @field_validator("operator")
+    @classmethod
     def validate_operator(cls, v):
         allowed = ["eq", "neq", "gt", "lt", "gte", "lte", "in", "contains"]
         if v not in allowed:
@@ -86,7 +87,8 @@ class BranchingRule(BaseModel):
     skip_to_section: Optional[str] = Field(None, description="Skip to section if condition matches")
     show_alert: Optional[str] = Field(None, description="Alert message to display")
 
-    @validator("logic")
+    @field_validator("logic")
+    @classmethod
     def validate_logic(cls, v):
         if v not in ["AND", "OR"]:
             raise ValueError("Logic must be AND or OR")
@@ -120,7 +122,8 @@ class QuizQuestion(BaseModel):
     branching_rules: Optional[List[BranchingRule]] = Field(None, description="Branching logic rules")
     risk_factors: Optional[Dict[str, float]] = Field(None, description="Risk factor mappings")
 
-    @validator("options")
+    @field_validator("options")
+    @classmethod
     def validate_options(cls, v, values):
         question_type = values.get("question_type")
         if question_type in [QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE]:
@@ -170,7 +173,8 @@ class AdvancedQuizTemplate(BaseModel):
     risk_thresholds: Optional[Dict[str, float]] = Field(None, description="Risk level thresholds")
     adaptive_flow_enabled: bool = Field(default=False, description="Enable adaptive question flow")
 
-    @validator("questions")
+    @field_validator("questions")
+    @classmethod
     def validate_questions(cls, v):
         if not v:
             raise ValueError("Template must have at least one question")
@@ -471,7 +475,8 @@ class BulkQuizOperation(BaseModel):
     update_data: Optional[Dict[str, Any]] = Field(None, description="Update data for update operation")
     scheduled_for: Optional[datetime] = Field(None, description="Schedule time for operations")
 
-    @validator("operation")
+    @field_validator("operation")
+    @classmethod
     def validate_operation(cls, v):
         allowed = ["assign", "delete", "update"]
         if v not in allowed:
@@ -536,7 +541,8 @@ class QuizExportRequest(BaseModel):
     include_responses: bool = Field(default=True, description="Include response details")
     include_analytics: bool = Field(default=False, description="Include analytics")
 
-    @validator("format")
+    @field_validator("format")
+    @classmethod
     def validate_format(cls, v):
         allowed = ["pdf", "csv", "json", "xlsx"]
         if v not in allowed:

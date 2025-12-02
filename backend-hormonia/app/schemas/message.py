@@ -2,7 +2,7 @@ from typing import Optional, Any
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from app.models.message import MessageDirection, MessageType, MessageStatus
 from app.security.data_protection import get_data_protection_service, SensitiveDataType
@@ -16,7 +16,8 @@ class MessageBase(BaseModel):
     content: Optional[str] = Field(None, description="Message content")
     message_metadata: Optional[dict[str, Any]] = Field(default_factory=dict, description="Message metadata")
 
-    @validator('content')
+    @field_validator('content')
+    @classmethod
     def sanitize_content(cls, v):
         """Sanitize message content for data protection."""
         if v:
@@ -24,7 +25,8 @@ class MessageBase(BaseModel):
             return protection_service.sanitize_for_logging(v)
         return v
 
-    @validator('message_metadata')
+    @field_validator('message_metadata')
+    @classmethod
     def sanitize_metadata(cls, v):
         """Sanitize metadata for data protection."""
         if v:
@@ -50,7 +52,8 @@ class MessageUpdate(BaseModel):
     delivered_at: Optional[datetime] = None
     read_at: Optional[datetime] = None
 
-    @validator('content')
+    @field_validator('content')
+    @classmethod
     def sanitize_content(cls, v):
         """Sanitize message content for data protection."""
         if v:
@@ -58,7 +61,8 @@ class MessageUpdate(BaseModel):
             return protection_service.sanitize_for_logging(v)
         return v
 
-    @validator('message_metadata')
+    @field_validator('message_metadata')
+    @classmethod
     def sanitize_metadata(cls, v):
         """Sanitize metadata for data protection."""
         if v:
@@ -79,12 +83,11 @@ class MessageResponse(MessageBase):
     created_at: datetime
     updated_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
-    def dict(self, **kwargs):
-        """Override dict method to apply data protection."""
-        data = super().dict(**kwargs)
+    def model_dump(self, **kwargs):
+        """Override model_dump method to apply data protection."""
+        data = super().model_dump(**kwargs)
         protection_service = get_data_protection_service()
         return protection_service.sanitize_for_logging(data)
 
@@ -105,7 +108,8 @@ class ScheduleMessageRequest(BaseModel):
     type: MessageType = MessageType.TEXT
     message_metadata: Optional[dict[str, Any]] = None
 
-    @validator('content')
+    @field_validator('content')
+    @classmethod
     def sanitize_content(cls, v):
         """Sanitize message content for data protection."""
         if v:
@@ -122,7 +126,8 @@ class InboundMessageRequest(BaseModel):
     type: MessageType = MessageType.TEXT
     message_metadata: Optional[dict[str, Any]] = None
 
-    @validator('patient_phone')
+    @field_validator('patient_phone')
+    @classmethod
     def mask_phone(cls, v):
         """Mask phone number for security."""
         if v:
@@ -130,7 +135,8 @@ class InboundMessageRequest(BaseModel):
             return protection_service.mask_phone(v)
         return v
 
-    @validator('content')
+    @field_validator('content')
+    @classmethod
     def sanitize_content(cls, v):
         """Sanitize message content for data protection."""
         if v:
@@ -148,7 +154,8 @@ class BulkMessageCreate(BaseModel):
     scheduled_for: Optional[datetime] = None
     message_metadata: Optional[dict[str, Any]] = None
 
-    @validator('content')
+    @field_validator('content')
+    @classmethod
     def sanitize_content(cls, v):
         """Sanitize message content for data protection."""
         if v:
@@ -167,10 +174,10 @@ class MessageTemplate(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
-    @validator('content')
+    @field_validator('content')
+    @classmethod
     def sanitize_content(cls, v):
         """Sanitize template content for data protection."""
         if v:

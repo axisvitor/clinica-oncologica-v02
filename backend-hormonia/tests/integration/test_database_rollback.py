@@ -25,7 +25,7 @@ from app.models.patient import Patient, FlowState
 from app.models.user import User
 from app.models.message import Message, MessageDirection
 from app.schemas.patient import PatientCreate
-from app.services.patient.onboarding_service import PatientOnboardingService
+from app.domain.patient.onboarding.coordinator import PatientOnboardingService
 
 
 @pytest.fixture

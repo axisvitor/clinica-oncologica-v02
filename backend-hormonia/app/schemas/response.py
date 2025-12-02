@@ -6,7 +6,7 @@ from datetime import datetime
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.message import MessageType
 
@@ -37,14 +37,16 @@ class InboundMessageRequest(BaseModel):
     message_type: MessageType = Field(default=MessageType.TEXT, description="Message type")
     metadata: Optional[dict[str, Any]] = Field(default_factory=dict, description="Message metadata")
     timestamp: Optional[datetime] = Field(None, description="Message timestamp")
-    
-    @validator('patient_phone')
+
+    @field_validator('patient_phone')
+    @classmethod
     def validate_phone(cls, v):
         if not v or not v.strip():
             raise ValueError('Patient phone cannot be empty')
         return v.strip()
-    
-    @validator('content')
+
+    @field_validator('content')
+    @classmethod
     def validate_content(cls, v):
         if not v or not v.strip():
             raise ValueError('Message content cannot be empty')
@@ -60,8 +62,9 @@ class InteractiveResponseRequest(BaseModel):
     response_type: ResponseTypeEnum = Field(..., description="Response type")
     original_message_id: Optional[UUID] = Field(None, description="Original message ID")
     metadata: Optional[dict[str, Any]] = Field(default_factory=dict, description="Response metadata")
-    
-    @validator('response_value')
+
+    @field_validator('response_value')
+    @classmethod
     def validate_response_value(cls, v):
         if not v or not v.strip():
             raise ValueError('Response value cannot be empty')
@@ -198,8 +201,9 @@ class BulkResponseProcessingRequest(BaseModel):
     responses: List[InboundMessageRequest] = Field(..., description="Responses to process")
     batch_id: Optional[str] = Field(None, description="Batch identifier")
     priority: str = Field(default="normal", description="Processing priority")
-    
-    @validator('responses')
+
+    @field_validator('responses')
+    @classmethod
     def validate_responses(cls, v):
         if not v:
             raise ValueError('At least one response required')

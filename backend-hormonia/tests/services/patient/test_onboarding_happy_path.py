@@ -18,7 +18,7 @@ from datetime import datetime
 from uuid import uuid4
 from unittest.mock import Mock, patch, AsyncMock, MagicMock
 
-from app.services.patient.onboarding_service import PatientOnboardingService
+from app.domain.patient.onboarding.coordinator import PatientOnboardingService
 from app.schemas.patient import PatientCreate
 from app.models.patient import Patient, FlowState
 from app.models.user import User

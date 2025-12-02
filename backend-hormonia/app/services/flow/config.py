@@ -13,7 +13,7 @@ Migration Note:
 """
 
 from typing import Dict, Any, Optional
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -78,7 +78,8 @@ class FlowExecutionConfig(BaseSettings):
         description="TTL for step result cache (5 minutes)",
     )
 
-    @validator("max_step_retries")
+    @field_validator("max_step_retries")
+    @classmethod
     def validate_max_retries(cls, v):
         """Ensure max retries is reasonable."""
         if v < 0:
@@ -87,8 +88,7 @@ class FlowExecutionConfig(BaseSettings):
             raise ValueError("max_step_retries must be <= 10")
         return v
 
-    class Config:
-        env_prefix = "FLOW_EXECUTION_"
+    model_config = {"env_prefix": "FLOW_EXECUTION_"}
 
 
 class FlowTemplateConfig(BaseSettings):
@@ -124,8 +124,7 @@ class FlowTemplateConfig(BaseSettings):
         description="Use strict validation (fail on warnings)",
     )
 
-    class Config:
-        env_prefix = "FLOW_TEMPLATE_"
+    model_config = {"env_prefix": "FLOW_TEMPLATE_"}
 
 
 class FlowAnalyticsConfig(BaseSettings):
@@ -171,8 +170,7 @@ class FlowAnalyticsConfig(BaseSettings):
         description="Dashboard data refresh interval (10 seconds)",
     )
 
-    class Config:
-        env_prefix = "FLOW_ANALYTICS_"
+    model_config = {"env_prefix": "FLOW_ANALYTICS_"}
 
 
 class FlowIntegrationConfig(BaseSettings):
@@ -216,8 +214,7 @@ class FlowIntegrationConfig(BaseSettings):
         description="Message rate limit per patient (10/min)",
     )
 
-    class Config:
-        env_prefix = "FLOW_INTEGRATION_"
+    model_config = {"env_prefix": "FLOW_INTEGRATION_"}
 
 
 class FlowErrorHandlingConfig(BaseSettings):
@@ -253,7 +250,8 @@ class FlowErrorHandlingConfig(BaseSettings):
         description="Log detailed error information",
     )
 
-    @validator("log_level")
+    @field_validator("log_level")
+    @classmethod
     def validate_log_level(cls, v):
         """Ensure log level is valid."""
         valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -262,8 +260,7 @@ class FlowErrorHandlingConfig(BaseSettings):
             raise ValueError(f"log_level must be one of {valid_levels}")
         return v_upper
 
-    class Config:
-        env_prefix = "FLOW_ERROR_"
+    model_config = {"env_prefix": "FLOW_ERROR_"}
 
 
 class FlowFeatureFlags(BaseSettings):
@@ -303,15 +300,15 @@ class FlowFeatureFlags(BaseSettings):
         description="Show warnings when legacy flow services are used",
     )
 
-    @validator("consolidated_flows_rollout_percentage")
+    @field_validator("consolidated_flows_rollout_percentage")
+    @classmethod
     def validate_percentage(cls, v):
         """Ensure percentage is between 0-100."""
         if v < 0 or v > 100:
             raise ValueError("rollout_percentage must be between 0-100")
         return v
 
-    class Config:
-        env_prefix = "FLOW_FEATURE_"
+    model_config = {"env_prefix": "FLOW_FEATURE_"}
 
 
 class FlowConfig:

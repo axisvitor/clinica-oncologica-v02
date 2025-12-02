@@ -17,7 +17,7 @@ from app.models.patient import Patient, FlowState
 from app.models.flow import PatientFlowState
 from app.models.message import Message, MessageStatus, MessageDirection, MessageType
 from app.models.patient_onboarding_saga import PatientOnboardingSaga, SagaStatus
-from app.coordination.saga_orchestrator import SagaOrchestrator
+from app.orchestration.saga_orchestrator import SagaOrchestrator
 
 
 @pytest.fixture

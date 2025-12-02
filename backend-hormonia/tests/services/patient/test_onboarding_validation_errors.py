@@ -18,7 +18,7 @@ from uuid import uuid4
 from unittest.mock import Mock, patch, AsyncMock
 from sqlalchemy.exc import IntegrityError
 
-from app.services.patient.onboarding_service import PatientOnboardingService
+from app.domain.patient.onboarding.coordinator import PatientOnboardingService
 from app.schemas.patient import PatientCreate
 from app.models.patient import Patient
 from app.exceptions import ValidationError

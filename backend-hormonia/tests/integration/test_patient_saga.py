@@ -22,7 +22,7 @@ from unittest.mock import Mock, AsyncMock, patch, MagicMock
 
 from sqlalchemy.orm import Session
 
-from app.coordination.saga_orchestrator import SagaOrchestrator
+from app.orchestration.saga_orchestrator import SagaOrchestrator
 from app.models.patient import Patient
 from app.models.patient_onboarding_saga import PatientOnboardingSaga, SagaStatus
 from app.schemas.patient import PatientCreate
