@@ -15,7 +15,7 @@ from datetime import datetime, date, time
 from typing import Optional, List, Dict, Any, Literal
 from uuid import UUID
 from enum import Enum
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, validator, model_validator
 
 
 # ============================================================================
@@ -282,15 +282,14 @@ class DeliveryConfigCreate(BaseModel):
     is_active: bool = True
     send_on_error: bool = False
 
-    @root_validator(skip_on_failure=True)
-    def validate_config(cls, values):
+    @model_validator(mode='after')
+    def validate_config(self):
         """Ensure method-specific config is provided."""
-        method = values.get("method")
-        if method == DeliveryMethod.EMAIL and not values.get("email_config"):
+        if self.method == DeliveryMethod.EMAIL and not self.email_config:
             raise ValueError("email_config is required for email delivery")
-        if method == DeliveryMethod.WEBHOOK and not values.get("webhook_config"):
+        if self.method == DeliveryMethod.WEBHOOK and not self.webhook_config:
             raise ValueError("webhook_config is required for webhook delivery")
-        return values
+        return self
 
 
 class DeliveryConfigResponse(BaseModel):
@@ -355,12 +354,12 @@ class PublicLinkCreate(BaseModel):
     password: Optional[str] = Field(None, min_length=8, max_length=50)
     max_views: Optional[int] = Field(None, ge=1, le=10000)
 
-    @root_validator(skip_on_failure=True)
-    def validate_password(cls, values):
+    @model_validator(mode='after')
+    def validate_password(self):
         """Ensure password is provided if password_protected."""
-        if values.get("password_protected") and not values.get("password"):
+        if self.password_protected and not self.password:
             raise ValueError("password required when password_protected is True")
-        return values
+        return self
 
 
 class ReportShareResponse(BaseModel):

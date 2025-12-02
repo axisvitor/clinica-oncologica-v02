@@ -6,7 +6,7 @@ Enhanced message models with cursor pagination, field selection, and eager loadi
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 from .common import CursorPaginatedResponse, ErrorResponse
 
@@ -90,7 +90,8 @@ class MessageV2Base(BaseModel):
     direction: MessageDirectionV2 = Field(..., description="Message direction")
     message_metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Message metadata")
 
-    @validator("content")
+    @field_validator("content")
+    @classmethod
     def validate_content(cls, v):
         """Validate content is not empty"""
         if not v or not v.strip():
@@ -106,7 +107,8 @@ class MessageV2Create(MessageV2Base):
     template_variables: Optional[Dict[str, str]] = Field(None, description="Template variable values")
     priority: str = Field("normal", description="Message priority: low, normal, high, urgent")
 
-    @validator("priority")
+    @field_validator("priority")
+    @classmethod
     def validate_priority(cls, v):
         """Validate priority level"""
         allowed = ["low", "normal", "high", "urgent"]
@@ -338,7 +340,8 @@ class ScheduleMessageV2Request(BaseModel):
     type: MessageTypeV2 = MessageTypeV2.TEXT
     message_metadata: Optional[Dict[str, Any]] = None
 
-    @validator("scheduled_for")
+    @field_validator("scheduled_for")
+    @classmethod
     def validate_scheduled_for(cls, v):
         """Validate scheduled time is in the future"""
         if v <= datetime.utcnow():
@@ -533,7 +536,8 @@ class InboundMessageV2Request(BaseModel):
     received_at: Optional[datetime] = Field(None, description="When message was received")
     message_metadata: Optional[Dict[str, Any]] = None
 
-    @validator("patient_phone")
+    @field_validator("patient_phone")
+    @classmethod
     def validate_phone(cls, v):
         """Validate phone number format"""
         # Basic E.164 validation
@@ -600,7 +604,7 @@ class InboundMessageV2Response(BaseModel):
 class BulkMessageV2Request(BaseModel):
     """Request to send bulk messages"""
 
-    patient_ids: List[str] = Field(..., min_items=1, max_items=1000, description="List of patient IDs")
+    patient_ids: List[str] = Field(..., min_length=1, max_length=1000, description="List of patient IDs")
     content: str = Field(..., min_length=1, max_length=4096)
     type: MessageTypeV2 = MessageTypeV2.TEXT
     scheduled_for: Optional[datetime] = None

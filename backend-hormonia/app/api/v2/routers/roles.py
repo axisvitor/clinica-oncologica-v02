@@ -28,7 +28,11 @@ from app.models.audit_log import AuditLog
 from app.services.audit import AuditService
 from app.utils.cache import cache
 from app.utils.rate_limiter import limiter
-from app.dependencies.auth_dependencies import get_redis_cache, get_permissions_for_role
+from app.dependencies.auth_dependencies import (
+    get_redis_cache,
+    get_permissions_for_role,
+    get_current_user_from_session,
+)
 from app.middleware.admin_permissions import get_client_info
 from app.schemas.v2.roles import (
     # Role schemas
@@ -68,35 +72,52 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 async def get_admin_user(
-    db = Depends(get_db),
-    redis_cache = Depends(get_redis_cache)
+    current_user: dict = Depends(get_current_user_from_session),
+    db = Depends(get_db)
 ) -> User:
     """
-    Dependency to verify admin access.
+    Dependency to verify admin access using session-based authentication.
 
-    TODO: Integrate with proper session-based authentication.
-    For now, this retrieves the first active admin user.
+    Validates that the current authenticated user has ADMIN role.
+    This replaces the insecure placeholder that returned any admin user.
 
     Args:
+        current_user: Current authenticated user from session (dict with role, email, etc.)
         db: Database session
-        redis_cache: Redis cache instance
 
     Returns:
-        Admin user
+        Admin User object from database
 
     Raises:
-        HTTPException: If no admin user is found
+        HTTPException 401: If not authenticated
+        HTTPException 403: If user is not an admin or inactive
+        HTTPException 404: If user not found in database
     """
-    # TODO: Replace with actual session-based authentication
+    # Verify admin role from session data
+    role = current_user.get("role", "").upper()
+    if role != "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+
+    # Get full User object from database for operations that need it
+    firebase_uid = current_user.get("firebase_uid")
+    if not firebase_uid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid session data"
+        )
+
     user = db.query(User).filter(
-        User.role == UserRole.ADMIN,
+        User.firebase_uid == firebase_uid,
         User.is_active == True
     ).first()
 
     if not user:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
+            detail="Admin user not found or inactive"
         )
 
     return user

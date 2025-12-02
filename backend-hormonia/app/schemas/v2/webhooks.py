@@ -6,7 +6,7 @@ Pydantic models for webhook management with validation.
 from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field, HttpUrl, validator, root_validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
 from uuid import UUID
 
 
@@ -47,7 +47,7 @@ class DeliveryStatus(str, Enum):
 class WebhookCreate(BaseModel):
     """Create new webhook configuration"""
     url: HttpUrl = Field(..., description="Webhook endpoint URL")
-    events: List[WebhookEventType] = Field(..., min_items=1, description="Events to subscribe to")
+    events: List[WebhookEventType] = Field(..., min_length=1, description="Events to subscribe to")
     description: Optional[str] = Field(None, max_length=500, description="Webhook description")
     secret: Optional[str] = Field(None, min_length=16, max_length=256, description="Custom HMAC secret (auto-generated if not provided)")
     headers: Optional[Dict[str, str]] = Field(default_factory=dict, description="Custom HTTP headers")
@@ -55,7 +55,8 @@ class WebhookCreate(BaseModel):
     retry_enabled: bool = Field(True, description="Enable automatic retries")
     max_retries: int = Field(3, ge=0, le=10, description="Maximum retry attempts")
 
-    @validator("headers")
+    @field_validator("headers")
+    @classmethod
     def validate_headers(cls, v):
         """Prevent setting authentication headers"""
         forbidden = {"authorization", "x-webhook-signature", "x-webhook-timestamp", "x-webhook-id"}
@@ -82,7 +83,7 @@ class WebhookCreate(BaseModel):
 class WebhookUpdate(BaseModel):
     """Update webhook configuration"""
     url: Optional[HttpUrl] = Field(None, description="Webhook endpoint URL")
-    events: Optional[List[WebhookEventType]] = Field(None, min_items=1, description="Events to subscribe to")
+    events: Optional[List[WebhookEventType]] = Field(None, min_length=1, description="Events to subscribe to")
     description: Optional[str] = Field(None, max_length=500, description="Webhook description")
     status: Optional[WebhookStatus] = Field(None, description="Webhook status")
     headers: Optional[Dict[str, str]] = Field(None, description="Custom HTTP headers")
@@ -90,7 +91,8 @@ class WebhookUpdate(BaseModel):
     retry_enabled: Optional[bool] = Field(None, description="Enable automatic retries")
     max_retries: Optional[int] = Field(None, ge=0, le=10, description="Maximum retry attempts")
 
-    @validator("headers")
+    @field_validator("headers")
+    @classmethod
     def validate_headers(cls, v):
         """Prevent setting authentication headers"""
         if v:

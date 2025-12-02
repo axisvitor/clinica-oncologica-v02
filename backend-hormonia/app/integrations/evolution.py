@@ -15,7 +15,7 @@ from urllib.parse import urljoin
 import structlog
 
 import httpx
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.config import settings
 from app.exceptions import ExternalServiceError

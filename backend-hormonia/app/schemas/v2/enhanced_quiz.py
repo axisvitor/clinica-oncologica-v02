@@ -6,7 +6,7 @@ Advanced quiz models with branching logic, risk scoring, and adaptive flows.
 from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, validator, model_validator
 from uuid import UUID
 
 from .common import CursorPaginatedResponse
@@ -478,14 +478,13 @@ class BulkQuizOperation(BaseModel):
             raise ValueError(f"Operation must be one of: {allowed}")
         return v
 
-    @root_validator(skip_on_failure=True)
-    def validate_operation_data(cls, values):
-        operation = values.get("operation")
-        if operation == "assign" and not values.get("template_id"):
+    @model_validator(mode='after')
+    def validate_operation_data(self):
+        if self.operation == "assign" and not self.template_id:
             raise ValueError("template_id required for assign operation")
-        if operation == "update" and not values.get("update_data"):
+        if self.operation == "update" and not self.update_data:
             raise ValueError("update_data required for update operation")
-        return values
+        return self
 
     class Config:
         json_schema_extra = {

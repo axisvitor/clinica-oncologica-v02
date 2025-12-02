@@ -20,7 +20,7 @@ from datetime import datetime
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, Field, validator, constr, conint, confloat
+from pydantic import BaseModel, Field, field_validator, constr, conint, confloat
 
 from .common import CursorPaginatedResponse
 
@@ -97,7 +97,8 @@ class TaskV2Base(BaseModel):
         description="Additional task metadata"
     )
 
-    @validator("task_name")
+    @field_validator("task_name")
+    @classmethod
     def validate_task_name(cls, v):
         """Ensure task name is meaningful."""
         if not v or not v.strip():
@@ -548,8 +549,8 @@ class BulkTaskOperation(BaseModel):
 
     task_ids: List[str] = Field(
         ...,
-        min_items=1,
-        max_items=100,
+        min_length=1,
+        max_length=100,
         description="List of task IDs to operate on (max 100)"
     )
     operation: constr(pattern="^(cancel|retry|delete)$") = Field(
@@ -561,7 +562,8 @@ class BulkTaskOperation(BaseModel):
         description="Reason for bulk operation"
     )
 
-    @validator("task_ids")
+    @field_validator("task_ids")
+    @classmethod
     def validate_task_ids(cls, v):
         """Ensure no duplicate task IDs."""
         if len(v) != len(set(v)):

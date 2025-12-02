@@ -7,7 +7,7 @@ from datetime import datetime, date
 from typing import Optional, List, Dict, Any, Literal
 from uuid import UUID
 from enum import Enum
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ReportFormat(str, Enum):
@@ -72,15 +72,17 @@ class ReportGenerateRequest(BaseModel):
     # Template
     template_id: Optional[UUID] = None
 
-    @validator("date_to")
-    def validate_dates(cls, v, values):
+    @field_validator("date_to")
+    @classmethod
+    def validate_dates(cls, v, info):
         """Ensure date_to is after date_from."""
-        if v and "date_from" in values and values["date_from"]:
-            if v < values["date_from"]:
+        if v and info.data.get("date_from"):
+            if v < info.data["date_from"]:
                 raise ValueError("date_to must be after date_from")
         return v
 
-    @validator("patient_ids")
+    @field_validator("patient_ids")
+    @classmethod
     def validate_patient_ids_unique(cls, v):
         """Ensure patient IDs are unique."""
         if v and len(v) != len(set(v)):
@@ -249,11 +251,12 @@ class ScheduledReportCreate(BaseModel):
     include_charts: bool = True
     is_active: bool = True
 
-    @validator("end_date")
-    def validate_end_date(cls, v, values):
+    @field_validator("end_date")
+    @classmethod
+    def validate_end_date(cls, v, info):
         """Ensure end_date is after start_date."""
-        if v and "start_date" in values and values["start_date"]:
-            if v <= values["start_date"]:
+        if v and info.data.get("start_date"):
+            if v <= info.data["start_date"]:
                 raise ValueError("end_date must be after start_date")
         return v
 

@@ -36,7 +36,7 @@ Usage:
 """
 
 from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field, validator, ValidationError as PydanticValidationError
+from pydantic import BaseModel, Field, field_validator, ValidationError as PydanticValidationError
 from app.core.exceptions import ValidationError
 
 
@@ -61,7 +61,8 @@ class EmergencyContactSchema(BaseModel):
     relationship: Optional[str] = Field(None, max_length=100, description="Relationship to patient")
     email: Optional[str] = Field(None, description="Emergency contact email")
 
-    @validator('phone')
+    @field_validator('phone')
+    @classmethod
     def validate_phone(cls, v: str) -> str:
         """Validate phone number in E.164 format."""
         if not v.startswith('+'):
@@ -89,7 +90,8 @@ class MedicalHistorySchema(BaseModel):
     family_history: Optional[List[str]] = Field(None, description="Family medical history")
     surgeries: Optional[List[Dict[str, Any]]] = Field(None, description="Past surgical procedures")
 
-    @validator('allergies', 'medications', 'conditions', 'family_history')
+    @field_validator('allergies', 'medications', 'conditions', 'family_history')
+    @classmethod
     def validate_unique_items(cls, v: Optional[List[str]]) -> Optional[List[str]]:
         """Ensure list items are unique."""
         if v is None:

@@ -6,7 +6,7 @@ Pydantic models for multi-platform synchronization with conflict resolution.
 from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field, HttpUrl, validator, root_validator
+from pydantic import BaseModel, Field, HttpUrl, validator, model_validator
 from uuid import UUID
 
 
@@ -477,12 +477,12 @@ class ConflictResolutionRequest(BaseModel):
     merged_data: Optional[Dict[str, Any]] = Field(None, description="Merged data (for merge strategy)")
     notes: Optional[str] = Field(None, max_length=1000, description="Resolution notes")
 
-    @validator("merged_data")
-    def validate_merge_data(cls, v, values):
+    @model_validator(mode='after')
+    def validate_merge_data(self):
         """Validate merged_data for merge strategy"""
-        if values.get("resolution_strategy") == ConflictResolutionStrategy.MERGE and not v:
+        if self.resolution_strategy == ConflictResolutionStrategy.MERGE and not self.merged_data:
             raise ValueError("merged_data required for merge strategy")
-        return v
+        return self
 
     class Config:
         json_schema_extra = {

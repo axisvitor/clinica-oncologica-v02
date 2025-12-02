@@ -5,7 +5,7 @@ Enhanced template models for flow templates, quiz templates, and version managem
 
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from uuid import UUID
 
 from .common import CursorPaginatedResponse
@@ -32,10 +32,11 @@ class FlowTemplateV2Create(FlowTemplateV2Base):
     display_name: Optional[str] = Field(None, max_length=255, description="Display name (for new kinds)")
     version_number: int = Field(..., ge=1, description="Version number")
 
-    @validator("flow_kind_id", "kind_key")
-    def validate_kind_reference(cls, v, values):
+    @field_validator("flow_kind_id", "kind_key")
+    @classmethod
+    def validate_kind_reference(cls, v, info):
         """Ensure either flow_kind_id or kind_key is provided."""
-        if "flow_kind_id" in values and values.get("flow_kind_id") is None and v is None:
+        if info.data.get("flow_kind_id") is None and v is None:
             raise ValueError("Either flow_kind_id or kind_key must be provided")
         return v
 
@@ -187,9 +188,10 @@ class QuizTemplateV2Base(BaseModel):
 class QuizTemplateV2Create(QuizTemplateV2Base):
     """Schema for creating a quiz template."""
 
-    questions: List[Dict[str, Any]] = Field(..., min_items=1, description="Quiz questions")
+    questions: List[Dict[str, Any]] = Field(..., min_length=1, description="Quiz questions")
 
-    @validator("questions")
+    @field_validator("questions")
+    @classmethod
     def validate_questions(cls, v):
         """Ensure questions is not empty."""
         if not v or len(v) == 0:

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from datetime import datetime, timedelta
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from app.schemas.jsonb_validators import validate_flow_template_data
 
 logger = logging.getLogger(__name__)
