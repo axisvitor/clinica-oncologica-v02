@@ -7,7 +7,7 @@ Pydantic schemas for audit logging and privacy management.
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class AuditLogBase(BaseModel):
@@ -55,8 +55,7 @@ class AuditLogResponse(AuditLogBase):
     legal_basis: Optional[str] = None
     retention_until: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ConsentRecordBase(BaseModel):
@@ -81,8 +80,7 @@ class ConsentRecordResponse(ConsentRecordBase):
     given_at: Optional[datetime] = None
     revoked_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ConsentStatus(BaseModel):

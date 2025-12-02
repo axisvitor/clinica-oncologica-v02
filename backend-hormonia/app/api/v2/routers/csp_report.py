@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Request, HTTPException, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from app.middleware.csp_nonce import csp_report_handler
 from app.utils.logging import get_logger
@@ -33,16 +33,14 @@ class CSPViolationReport(BaseModel):
     line_number: Optional[int] = Field(None, alias="line-number")
     column_number: Optional[int] = Field(None, alias="column-number")
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class CSPReportWrapper(BaseModel):
     """Wrapper for CSP report (browser sends 'csp-report' key)"""
     csp_report: CSPViolationReport = Field(..., alias="csp-report")
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 @router.post("")

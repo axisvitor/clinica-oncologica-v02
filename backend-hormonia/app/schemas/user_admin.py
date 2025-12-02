@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 
 from app.models.admin import SystemStatsResponse as AdminSystemStatsResponse
 
@@ -106,8 +106,7 @@ class UserResponse(BaseModel):
     updated_at: datetime = Field(..., description="User last update timestamp")
     last_login: Optional[datetime] = Field(None, description="Last login timestamp")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserListResponse(BaseModel):
@@ -160,8 +159,7 @@ class UserActivityRecord(BaseModel):
     ip_address: str = Field(..., description="IP address")
     user_agent: Optional[str] = Field(None, description="User agent")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserActivityResponse(BaseModel):
@@ -174,8 +172,7 @@ class UserActivityResponse(BaseModel):
     has_next: bool = Field(..., description="Whether there is a next page")
     has_previous: bool = Field(..., description="Whether there is a previous page")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Backward compatibility aliases for V1 tests

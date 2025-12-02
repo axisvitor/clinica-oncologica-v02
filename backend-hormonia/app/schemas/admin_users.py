@@ -9,7 +9,7 @@ from datetime import datetime
 from uuid import UUID
 import enum
 
-from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator, ConfigDict
 from app.schemas.common import PaginatedResponse
 
 
@@ -53,8 +53,8 @@ class UserCreate(BaseModel):
                 raise ValueError('Phone number must contain at least 10 digits')
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "Dr. João Silva",
                 "email": "joao.silva@clinica.com",
@@ -63,6 +63,7 @@ class UserCreate(BaseModel):
                 "phone_number": "+55 11 99999-9999"
             }
         }
+    )
 
 
 class UserUpdate(BaseModel):
@@ -91,8 +92,8 @@ class UserUpdate(BaseModel):
             raise ValueError('At least one field must be provided for update')
         return self
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "Dr. João Silva Santos",
                 "email": "joao.santos@clinica.com",
@@ -101,6 +102,7 @@ class UserUpdate(BaseModel):
                 "is_active": True
             }
         }
+    )
 
 
 class UserResponse(BaseModel):
@@ -118,9 +120,9 @@ class UserResponse(BaseModel):
     total_patients: Optional[int] = Field(None, description="Total patients for doctors")
     last_login: Optional[datetime] = Field(None, description="Last login timestamp")
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "name": "Dr. João Silva",
@@ -134,14 +136,15 @@ class UserResponse(BaseModel):
                 "last_login": "2024-01-20T14:30:00Z"
             }
         }
+    )
 
 
 class UserListResponse(PaginatedResponse):
     """Schema for paginated user list response."""
     data: List[UserResponse] = Field(..., description="List of users")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "data": [
                     {
@@ -164,6 +167,7 @@ class UserListResponse(PaginatedResponse):
                 "has_previous": False
             }
         }
+    )
 
 
 # Specialized Update Schemas
@@ -172,12 +176,13 @@ class RoleUpdate(BaseModel):
     """Schema for updating user role."""
     role: UserRole = Field(..., description="New role to assign to the user")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "role": "admin"
             }
         }
+    )
 
 
 class PermissionsUpdate(BaseModel):
@@ -206,8 +211,8 @@ class PermissionsUpdate(BaseModel):
 
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "permissions": [
                     "read_patients",
@@ -217,6 +222,7 @@ class PermissionsUpdate(BaseModel):
                 ]
             }
         }
+    )
 
 
 class PasswordReset(BaseModel):
@@ -235,12 +241,13 @@ class PasswordReset(BaseModel):
             raise ValueError('Password must contain at least one letter')
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "new_password": "NewSecurePass123"
             }
         }
+    )
 
 
 # Filtering and Search Schemas
@@ -256,8 +263,8 @@ class UserFilter(BaseModel):
     created_before: Optional[datetime] = Field(None, description="Filter users created before this date")
     has_patients: Optional[bool] = Field(None, description="Filter doctors by whether they have patients")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "João",
                 "role": "doctor",
@@ -266,6 +273,7 @@ class UserFilter(BaseModel):
                 "has_patients": True
             }
         }
+    )
 
 
 # Additional Response Schemas
@@ -279,8 +287,8 @@ class UserStatsResponse(BaseModel):
     recent_registrations: int = Field(..., description="Recent registrations count")
     recent_logins: int = Field(..., description="Recent logins count")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "total_users": 150,
                 "active_users": 142,
@@ -298,6 +306,7 @@ class UserStatsResponse(BaseModel):
                 "recent_logins": 89
             }
         }
+    )
 
 
 class UserActivityResponse(BaseModel):
@@ -308,9 +317,9 @@ class UserActivityResponse(BaseModel):
     last_activity: Optional[datetime] = Field(None, description="Last activity timestamp")
     active_sessions: int = Field(0, description="Number of active sessions")
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "user_id": "123e4567-e89b-12d3-a456-426614174000",
                 "last_login": "2024-01-20T14:30:00Z",
@@ -319,6 +328,7 @@ class UserActivityResponse(BaseModel):
                 "active_sessions": 1
             }
         }
+    )
 
 
 class BulkUserOperation(BaseModel):
@@ -335,8 +345,8 @@ class BulkUserOperation(BaseModel):
             raise ValueError(f'Invalid operation. Must be one of: {valid_operations}')
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "user_ids": [
                     "123e4567-e89b-12d3-a456-426614174000",
@@ -345,6 +355,7 @@ class BulkUserOperation(BaseModel):
                 "operation": "activate"
             }
         }
+    )
 
 
 class BulkOperationResult(BaseModel):
@@ -353,8 +364,8 @@ class BulkOperationResult(BaseModel):
     failed: List[Dict[str, Any]] = Field(..., description="Failed operations with error details")
     total_processed: int = Field(..., description="Total number of users processed")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "successful": [
                     "123e4567-e89b-12d3-a456-426614174000"
@@ -368,6 +379,7 @@ class BulkOperationResult(BaseModel):
                 "total_processed": 2
             }
         }
+    )
 
 
 # Export all schemas

@@ -6,7 +6,7 @@ Pydantic V2 models for unified performance monitoring.
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from uuid import UUID
 
 
@@ -55,8 +55,7 @@ class CacheMetrics(BaseModel):
     invalidations: int = Field(0, description="Total invalidations")
     warming_operations: int = Field(0, description="Cache warming operations")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "hits": 15420,
                 "misses": 2340,
@@ -67,7 +66,7 @@ class CacheMetrics(BaseModel):
                 "invalidations": 45,
                 "warming_operations": 12
             }
-        }
+        })
 
 
 class CacheStats(BaseModel):
@@ -81,8 +80,7 @@ class CacheStats(BaseModel):
     avg_response_time_ms: Optional[float] = Field(None, description="Average response time")
     status: HealthStatus = Field(..., description="Cache health status")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "hits": 15420,
                 "misses": 2340,
@@ -92,7 +90,7 @@ class CacheStats(BaseModel):
                 "avg_response_time_ms": 2.4,
                 "status": "healthy"
             }
-        }
+        })
 
 
 class CacheInvalidationRequest(BaseModel):
@@ -103,14 +101,13 @@ class CacheInvalidationRequest(BaseModel):
     keys: Optional[List[str]] = Field(None, description="Specific keys to invalidate")
     pattern: Optional[str] = Field(None, description="Pattern for bulk invalidation")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "cache_type": "analytics",
                 "doctor_id": "123e4567-e89b-12d3-a456-426614174000",
                 "pattern": "dashboard:*"
             }
-        }
+        })
 
 
 class CacheInvalidationResponse(BaseModel):
@@ -122,15 +119,14 @@ class CacheInvalidationResponse(BaseModel):
     doctor_id: Optional[str] = Field(None, description="Doctor ID")
     invalidated_count: int = Field(..., description="Number of keys invalidated")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "success": True,
                 "message": "Cache invalidated successfully",
                 "cache_type": "analytics",
                 "invalidated_count": 42
             }
-        }
+        })
 
 
 class CacheClearResponse(BaseModel):
@@ -140,14 +136,13 @@ class CacheClearResponse(BaseModel):
     message: str = Field(..., description="Result message")
     cleared_count: int = Field(..., description="Number of keys cleared")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "success": True,
                 "message": "Cache cleared successfully",
                 "cleared_count": 342
             }
-        }
+        })
 
 
 # Performance Schemas
@@ -160,8 +155,7 @@ class ComponentPerformance(BaseModel):
     response_time_ms: Optional[float] = Field(None, description="Average response time")
     error_rate_percent: float = Field(0, ge=0, le=100, description="Error rate percentage")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "name": "cache",
                 "status": "excellent",
@@ -169,7 +163,7 @@ class ComponentPerformance(BaseModel):
                 "response_time_ms": 2.3,
                 "error_rate_percent": 0.1
             }
-        }
+        })
 
 
 class PerformanceOverview(BaseModel):
@@ -181,8 +175,7 @@ class PerformanceOverview(BaseModel):
     recommendations: List[str] = Field(default_factory=list, description="Optimization recommendations")
     timestamp: datetime = Field(..., description="Metrics timestamp")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "score": 88.5,
                 "status": "good",
@@ -198,7 +191,7 @@ class PerformanceOverview(BaseModel):
                 "recommendations": ["Consider increasing cache TTL"],
                 "timestamp": "2025-11-07T15:30:00Z"
             }
-        }
+        })
 
 
 class DatabasePerformance(BaseModel):
@@ -212,8 +205,7 @@ class DatabasePerformance(BaseModel):
     pool_healthy: bool = Field(..., description="Connection pool health")
     total_queries: int = Field(..., description="Total queries executed")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "avg_query_time_ms": 45.2,
                 "slow_query_count": 12,
@@ -223,7 +215,7 @@ class DatabasePerformance(BaseModel):
                 "pool_healthy": True,
                 "total_queries": 342
             }
-        }
+        })
 
 
 class APIPerformance(BaseModel):
@@ -237,8 +229,7 @@ class APIPerformance(BaseModel):
     p95_latency_ms: Optional[float] = Field(None, description="95th percentile latency")
     p99_latency_ms: Optional[float] = Field(None, description="99th percentile latency")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "endpoint": "/api/v2/patients",
                 "avg_latency_ms": 125.5,
@@ -248,7 +239,7 @@ class APIPerformance(BaseModel):
                 "p95_latency_ms": 250.0,
                 "p99_latency_ms": 450.0
             }
-        }
+        })
 
 
 class SlowQuery(BaseModel):
@@ -261,8 +252,7 @@ class SlowQuery(BaseModel):
     suggestion: Optional[str] = Field(None, description="Optimization suggestion")
     tables_involved: List[str] = Field(default_factory=list, description="Tables used in query")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "query_text": "SELECT * FROM patients WHERE doctor_id = ?",
                 "avg_duration_ms": 1250.5,
@@ -271,7 +261,7 @@ class SlowQuery(BaseModel):
                 "suggestion": "Add index on doctor_id column",
                 "tables_involved": ["patients"]
             }
-        }
+        })
 
 
 class OptimizationRecommendation(BaseModel):
@@ -285,8 +275,7 @@ class OptimizationRecommendation(BaseModel):
     effort: str = Field(..., description="Implementation effort")
     action_items: List[str] = Field(default_factory=list, description="Action items")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "type": "index",
                 "severity": "high",
@@ -296,7 +285,7 @@ class OptimizationRecommendation(BaseModel):
                 "effort": "low",
                 "action_items": ["CREATE INDEX idx_patients_doctor_id ON patients(doctor_id)"]
             }
-        }
+        })
 
 
 # Database Health Schemas
@@ -311,8 +300,7 @@ class ConnectionPoolStatus(BaseModel):
     utilization_percent: float = Field(..., ge=0, le=100, description="Utilization percentage")
     health_status: HealthStatus = Field(..., description="Pool health status")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "pool_size": 20,
                 "max_overflow": 10,
@@ -322,7 +310,7 @@ class ConnectionPoolStatus(BaseModel):
                 "utilization_percent": 43.3,
                 "health_status": "healthy"
             }
-        }
+        })
 
 
 class ActiveConnection(BaseModel):
@@ -336,8 +324,7 @@ class ActiveConnection(BaseModel):
     query: Optional[str] = Field(None, description="Current query")
     duration_ms: Optional[float] = Field(None, description="Query duration")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "pid": 12345,
                 "user": "app_user",
@@ -347,7 +334,7 @@ class ActiveConnection(BaseModel):
                 "query": "SELECT * FROM patients WHERE...",
                 "duration_ms": 125.5
             }
-        }
+        })
 
 
 class DatabaseLock(BaseModel):
@@ -360,8 +347,7 @@ class DatabaseLock(BaseModel):
     pid: int = Field(..., description="Process ID holding lock")
     query: Optional[str] = Field(None, description="Query holding lock")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "lock_type": "relation",
                 "relation": "patients",
@@ -370,7 +356,7 @@ class DatabaseLock(BaseModel):
                 "pid": 12345,
                 "query": "SELECT * FROM patients"
             }
-        }
+        })
 
 
 class DatabaseHealth(BaseModel):
@@ -384,8 +370,7 @@ class DatabaseHealth(BaseModel):
     timestamp: datetime = Field(..., description="Check timestamp")
     issues: List[str] = Field(default_factory=list, description="Detected issues")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "status": "healthy",
                 "connection_pool": {
@@ -399,7 +384,7 @@ class DatabaseHealth(BaseModel):
                 "timestamp": "2025-11-07T15:30:00Z",
                 "issues": []
             }
-        }
+        })
 
 
 # Database Optimization Schemas
@@ -415,8 +400,7 @@ class IndexRecommendation(BaseModel):
     existing_index: Optional[str] = Field(None, description="Existing similar index")
     create_sql: Optional[str] = Field(None, description="SQL to create index")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "table_name": "patients",
                 "columns": ["doctor_id"],
@@ -426,7 +410,7 @@ class IndexRecommendation(BaseModel):
                 "query_patterns": ["WHERE doctor_id = ?", "JOIN ON doctor_id"],
                 "create_sql": "CREATE INDEX idx_patients_doctor_id ON patients(doctor_id)"
             }
-        }
+        })
 
 
 class IndexAnalysis(BaseModel):
@@ -442,8 +426,7 @@ class IndexAnalysis(BaseModel):
     is_redundant: bool = Field(..., description="Whether index might be redundant")
     recommendation: Optional[str] = Field(None, description="Recommendation")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "table_name": "patients",
                 "index_name": "idx_patients_email",
@@ -455,7 +438,7 @@ class IndexAnalysis(BaseModel):
                 "is_redundant": False,
                 "recommendation": "Keep - highly effective"
             }
-        }
+        })
 
 
 class VacuumRequest(BaseModel):
@@ -466,15 +449,14 @@ class VacuumRequest(BaseModel):
     analyze: bool = Field(True, description="Also run ANALYZE")
     confirm: bool = Field(False, description="Confirmation required for FULL VACUUM")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "table_name": "patients",
                 "full": False,
                 "analyze": True,
                 "confirm": True
             }
-        }
+        })
 
 
 class VacuumResponse(BaseModel):
@@ -486,8 +468,7 @@ class VacuumResponse(BaseModel):
     reclaimed_space_mb: Optional[float] = Field(None, description="Space reclaimed in MB")
     duration_ms: float = Field(..., description="Operation duration")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "success": True,
                 "message": "VACUUM completed successfully",
@@ -495,7 +476,7 @@ class VacuumResponse(BaseModel):
                 "reclaimed_space_mb": 125.5,
                 "duration_ms": 2500.0
             }
-        }
+        })
 
 
 class TableStatistics(BaseModel):
@@ -512,8 +493,7 @@ class TableStatistics(BaseModel):
     last_analyze: Optional[datetime] = Field(None, description="Last analyze time")
     needs_vacuum: bool = Field(..., description="Whether table needs VACUUM")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "table_name": "patients",
                 "row_count": 15420,
@@ -526,7 +506,7 @@ class TableStatistics(BaseModel):
                 "last_analyze": "2025-11-06T10:30:00Z",
                 "needs_vacuum": False
             }
-        }
+        })
 
 
 class OptimizationSuggestion(BaseModel):
@@ -540,8 +520,7 @@ class OptimizationSuggestion(BaseModel):
     priority: int = Field(..., ge=1, le=5, description="Priority (1=highest)")
     sql_commands: List[str] = Field(default_factory=list, description="SQL commands to execute")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "category": "indexes",
                 "table": "patients",
@@ -551,7 +530,7 @@ class OptimizationSuggestion(BaseModel):
                 "priority": 1,
                 "sql_commands": ["CREATE INDEX idx_patients_doctor_id ON patients(doctor_id)"]
             }
-        }
+        })
 
 
 # List response schemas with cursor pagination
@@ -564,8 +543,7 @@ class SlowQueriesResponse(BaseModel):
     offset: int = Field(..., description="Result offset")
     has_more: bool = Field(..., description="Whether more results exist")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "queries": [],
                 "total": 45,
@@ -573,7 +551,7 @@ class SlowQueriesResponse(BaseModel):
                 "offset": 0,
                 "has_more": True
             }
-        }
+        })
 
 
 class ActiveConnectionsResponse(BaseModel):
@@ -585,8 +563,7 @@ class ActiveConnectionsResponse(BaseModel):
     offset: int = Field(..., description="Result offset")
     has_more: bool = Field(..., description="Whether more results exist")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "connections": [],
                 "total": 13,
@@ -594,7 +571,7 @@ class ActiveConnectionsResponse(BaseModel):
                 "offset": 0,
                 "has_more": False
             }
-        }
+        })
 
 
 class DatabaseLocksResponse(BaseModel):
@@ -606,8 +583,7 @@ class DatabaseLocksResponse(BaseModel):
     offset: int = Field(..., description="Result offset")
     has_more: bool = Field(..., description="Whether more results exist")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "locks": [],
                 "total": 2,
@@ -615,4 +591,4 @@ class DatabaseLocksResponse(BaseModel):
                 "offset": 0,
                 "has_more": False
             }
-        }
+        })

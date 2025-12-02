@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any, Union
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from enum import Enum
 
 from app.models.ab_experiment import ExperimentStatus, VariantType, PatientSafetyLevel
@@ -198,8 +198,7 @@ class ExperimentInfo(BaseModel):
     control_participants: int
     treatment_participants: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ExperimentStatistics(BaseModel):

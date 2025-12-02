@@ -7,7 +7,7 @@ from datetime import datetime, date
 from typing import Optional, List, Dict, Any, Literal
 from uuid import UUID
 from enum import Enum
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 
 
 class ReportFormat(str, Enum):
@@ -118,8 +118,7 @@ class ReportResponse(BaseModel):
     error_message: Optional[str] = None
     error_details: Optional[Dict[str, Any]] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ReportStatusResponse(BaseModel):
@@ -309,8 +308,7 @@ class ScheduledReportResponse(BaseModel):
     created_at: datetime
     created_by: UUID
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ScheduledReportListResponse(BaseModel):
@@ -382,8 +380,7 @@ class ReportTemplateResponse(BaseModel):
     updated_at: datetime
     usage_count: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ReportTemplateListResponse(BaseModel):

@@ -15,7 +15,7 @@ from datetime import datetime, date, time
 from typing import Optional, List, Dict, Any, Literal
 from uuid import UUID
 from enum import Enum
-from pydantic import BaseModel, Field, validator, model_validator, field_validator
+from pydantic import BaseModel, Field, validator, model_validator, field_validator, ConfigDict
 
 
 # ============================================================================
@@ -84,8 +84,7 @@ class ReportFieldConfig(BaseModel):
     sortable: bool = True
     format_string: Optional[str] = None
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "field_name": "patient_count",
                 "display_name": "Total Patients",
@@ -95,7 +94,7 @@ class ReportFieldConfig(BaseModel):
                 "filter_enabled": True,
                 "sortable": True
             }
-        }
+        })
 
 
 class ReportBuilderCreate(BaseModel):
@@ -146,8 +145,7 @@ class ReportBuilderResponse(BaseModel):
     generation_time_seconds: float
     download_url: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -197,8 +195,7 @@ class VisualizationResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class VisualizationListResponse(BaseModel):
@@ -313,8 +310,7 @@ class DeliveryConfigResponse(BaseModel):
     created_at: datetime
     created_by: UUID
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeliveryHistoryEntry(BaseModel):
@@ -376,8 +372,7 @@ class ReportShareResponse(BaseModel):
     expires_at: Optional[datetime]
     is_active: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PublicLinkResponse(BaseModel):
@@ -394,8 +389,7 @@ class PublicLinkResponse(BaseModel):
     created_by: UUID
     is_active: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -448,8 +442,7 @@ class ExportResponse(BaseModel):
     file_sizes: Dict[str, int]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -473,8 +466,7 @@ class ReportHistoryResponse(BaseModel):
     versions: List[ReportVersion]
     total_versions: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ReportRestoreRequest(BaseModel):
@@ -558,8 +550,7 @@ class DashboardResponse(BaseModel):
     updated_at: datetime
     view_count: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DashboardListResponse(BaseModel):
@@ -588,5 +579,4 @@ class DashboardSnapshotResponse(BaseModel):
     created_at: datetime
     created_by: UUID
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

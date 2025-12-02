@@ -4,7 +4,7 @@ AI service request/response schemas for the Hormonia Backend System.
 Provides Pydantic models for AI-powered features including chat, sentiment analysis,
 patient insights, and recommendations.
 """
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from uuid import UUID
@@ -52,8 +52,8 @@ class ChatRequest(BaseModel):
         description="Additional context for the conversation"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "message": "What are the common side effects of hormone therapy?",
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -63,6 +63,7 @@ class ChatRequest(BaseModel):
                 ]
             }
         }
+    )
 
 
 class ChatResponse(BaseModel):
@@ -80,8 +81,8 @@ class ChatResponse(BaseModel):
     context_used: bool = Field(..., description="Whether patient context was used")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "message": "Common side effects of hormone therapy include hot flashes, mood changes, and fatigue...",
                 "confidence": 0.92,
@@ -91,6 +92,7 @@ class ChatResponse(BaseModel):
                 "timestamp": "2024-01-01T12:00:00Z"
             }
         }
+    )
 
 
 # ============================================================================
@@ -121,8 +123,8 @@ class AnalysisRequest(BaseModel):
             raise ValueError(f"analysis_type must be one of: {', '.join(valid_types)}")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
                 "analysis_type": "comprehensive",
@@ -131,6 +133,7 @@ class AnalysisRequest(BaseModel):
                 "include_messages": True
             }
         }
+    )
 
 
 class AnalysisResponse(BaseModel):
@@ -155,8 +158,8 @@ class AnalysisResponse(BaseModel):
     )
     analyzed_at: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
                 "analysis_type": "comprehensive",
@@ -176,6 +179,7 @@ class AnalysisResponse(BaseModel):
                 "analyzed_at": "2024-01-01T12:00:00Z"
             }
         }
+    )
 
 
 # ============================================================================
@@ -212,8 +216,8 @@ class GenerateResponseRequest(BaseModel):
             raise ValueError(f"tone must be one of: {', '.join(valid_tones)}")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "template_message": "Time to take your medication",
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -222,6 +226,7 @@ class GenerateResponseRequest(BaseModel):
                 "max_length": 300
             }
         }
+    )
 
 
 class GenerateResponseResponse(BaseModel):
@@ -244,8 +249,8 @@ class GenerateResponseResponse(BaseModel):
     )
     generated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "original_message": "Time to take your medication",
                 "generated_message": "Hi Maria! Just a gentle reminder about your medication. You've been doing great with your routine! 💊",
@@ -259,6 +264,7 @@ class GenerateResponseResponse(BaseModel):
                 "generated_at": "2024-01-01T12:00:00Z"
             }
         }
+    )
 
 
 # ============================================================================
@@ -274,14 +280,15 @@ class SentimentAnalysisRequest(BaseModel):
         description="Include medical concern detection"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "message": "I've been feeling very tired lately and having trouble sleeping",
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
                 "include_medical_concerns": True
             }
         }
+    )
 
 
 class SentimentAnalysisResponse(BaseModel):
@@ -312,8 +319,8 @@ class SentimentAnalysisResponse(BaseModel):
     )
     analyzed_at: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "message": "I've been feeling very tired lately",
                 "sentiment": "concerning",
@@ -327,6 +334,7 @@ class SentimentAnalysisResponse(BaseModel):
                 "analyzed_at": "2024-01-01T12:00:00Z"
             }
         }
+    )
 
 
 # ============================================================================
@@ -371,8 +379,8 @@ class InsightResponse(BaseModel):
     last_contact: Optional[datetime] = Field(None, description="Last contact datetime")
     insights_generated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
                 "overall_status": "Patient is responding well to treatment with minor side effects",
@@ -399,6 +407,7 @@ class InsightResponse(BaseModel):
                 "insights_generated_at": "2024-01-01T12:00:00Z"
             }
         }
+    )
 
 
 # ============================================================================
@@ -450,8 +459,8 @@ class RecommendationResponse(BaseModel):
     )
     generated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
                 "recommendations_summary": "Patient showing good progress, minor adjustments suggested",
@@ -482,6 +491,7 @@ class RecommendationResponse(BaseModel):
                 "generated_at": "2024-01-01T12:00:00Z"
             }
         }
+    )
 
 
 # ============================================================================
@@ -524,8 +534,8 @@ class PatientSummaryResponse(BaseModel):
     )
     summary_generated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
                 "summary_text": "Maria is a 45-year-old patient undergoing hormone therapy showing excellent adherence...",
@@ -563,6 +573,7 @@ class PatientSummaryResponse(BaseModel):
                 "summary_generated_at": "2024-01-01T12:00:00Z"
             }
         }
+    )
 
 
 # ============================================================================
@@ -576,8 +587,8 @@ class AIErrorResponse(BaseModel):
     details: Optional[Dict[str, Any]] = Field(None, description="Additional error details")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "error": "ai_service_error",
                 "message": "Failed to generate AI response",
@@ -585,3 +596,4 @@ class AIErrorResponse(BaseModel):
                 "timestamp": "2024-01-01T12:00:00Z"
             }
         }
+    )

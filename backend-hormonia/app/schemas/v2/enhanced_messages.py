@@ -8,7 +8,7 @@ A/B testing, and performance tracking.
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 from enum import Enum
-from pydantic import BaseModel, Field, validator, field_validator
+from pydantic import BaseModel, Field, validator, field_validator, ConfigDict
 from uuid import UUID
 
 from .common import CursorPaginatedResponse, ErrorResponse
@@ -80,8 +80,7 @@ class TemplateVariableV2(BaseModel):
     default_value: Optional[str] = Field(None, description="Default value if not provided")
     validation_regex: Optional[str] = Field(None, description="Regex for validation")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "name": "patient_name",
                 "description": "Patient's full name",
@@ -90,7 +89,7 @@ class TemplateVariableV2(BaseModel):
                 "default_value": None,
                 "validation_regex": "^[A-Za-z\\s]+$"
             }
-        }
+        })
 
 
 class TemplateConditionalV2(BaseModel):
@@ -100,14 +99,13 @@ class TemplateConditionalV2(BaseModel):
     content: str = Field(..., description="Content to show if condition is true")
     else_content: Optional[str] = Field(None, description="Content to show if condition is false")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "condition": "{{treatment_phase}} == 'active'",
                 "content": "Continue with your current treatment.",
                 "else_content": "Please consult your doctor."
             }
-        }
+        })
 
 
 class MessageTemplateV2Create(BaseModel):
@@ -148,8 +146,7 @@ class MessageTemplateV2Create(BaseModel):
 
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "name": "Medication Reminder V2",
                 "content": "Olá {{patient_name}}, lembre-se de tomar seu medicamento {{medication_name}} às {{time}}.",
@@ -177,7 +174,7 @@ class MessageTemplateV2Create(BaseModel):
                 ],
                 "tags": ["medication", "reminder", "daily"]
             }
-        }
+        })
 
 
 class MessageTemplateV2Update(BaseModel):
@@ -193,13 +190,12 @@ class MessageTemplateV2Update(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "name": "Updated Template Name",
                 "is_active": True
             }
-        }
+        })
 
 
 class MessageTemplateV2Response(BaseModel):
@@ -222,9 +218,9 @@ class MessageTemplateV2Response(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "id": "tpl_123abc",
                 "name": "Medication Reminder V2",
@@ -243,6 +239,7 @@ class MessageTemplateV2Response(BaseModel):
                 "updated_at": "2025-11-07T10:00:00Z"
             }
         }
+    )
 
 
 class MessageTemplateV2List(CursorPaginatedResponse[MessageTemplateV2Response]):
@@ -250,8 +247,7 @@ class MessageTemplateV2List(CursorPaginatedResponse[MessageTemplateV2Response]):
 
     total_active: int = Field(0, description="Total active templates")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "data": [],
                 "next_cursor": None,
@@ -259,7 +255,7 @@ class MessageTemplateV2List(CursorPaginatedResponse[MessageTemplateV2Response]):
                 "total": 25,
                 "total_active": 20
             }
-        }
+        })
 
 
 # ============================================================================
@@ -295,8 +291,7 @@ class RecurrenceRuleV2(BaseModel):
                 raise ValueError("Days of week must be between 0 (Monday) and 6 (Sunday)")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "type": "weekly",
                 "interval": 1,
@@ -305,7 +300,7 @@ class RecurrenceRuleV2(BaseModel):
                 "end_date": "2025-12-31T00:00:00Z",
                 "max_occurrences": 50
             }
-        }
+        })
 
 
 class ScheduledMessageV2Create(BaseModel):
@@ -330,8 +325,7 @@ class ScheduledMessageV2Create(BaseModel):
             raise ValueError("Scheduled time must be in the future")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "patient_id": "pat_456def",
                 "content": "Lembre-se da consulta amanhã!",
@@ -348,7 +342,7 @@ class ScheduledMessageV2Create(BaseModel):
                 },
                 "optimization_strategy": "best_time"
             }
-        }
+        })
 
 
 class ScheduledMessageV2Response(BaseModel):
@@ -370,9 +364,9 @@ class ScheduledMessageV2Response(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "id": "sched_789xyz",
                 "message_id": "msg_123abc",
@@ -387,6 +381,7 @@ class ScheduledMessageV2Response(BaseModel):
                 "updated_at": "2025-11-10T09:00:15Z"
             }
         }
+    )
 
 
 class ScheduledMessageV2List(CursorPaginatedResponse[ScheduledMessageV2Response]):
@@ -395,8 +390,7 @@ class ScheduledMessageV2List(CursorPaginatedResponse[ScheduledMessageV2Response]
     total_pending: int = Field(0, description="Total pending scheduled messages")
     total_recurring: int = Field(0, description="Total recurring messages")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "data": [],
                 "next_cursor": None,
@@ -405,7 +399,7 @@ class ScheduledMessageV2List(CursorPaginatedResponse[ScheduledMessageV2Response]
                 "total_pending": 30,
                 "total_recurring": 10
             }
-        }
+        })
 
 
 # ============================================================================
@@ -420,14 +414,13 @@ class ABTestVariantV2(BaseModel):
     template_id: Optional[str] = None
     weight: float = Field(..., ge=0, le=100, description="Traffic percentage (0-100)")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "name": "Variant A",
                 "content": "Olá! Lembre-se da sua consulta amanhã.",
                 "weight": 50.0
             }
-        }
+        })
 
 
 class ABTestV2Create(BaseModel):
@@ -460,8 +453,7 @@ class ABTestV2Create(BaseModel):
             raise ValueError("End date must be after start date")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "name": "Reminder Message Test",
                 "description": "Testing different reminder message formats",
@@ -482,7 +474,7 @@ class ABTestV2Create(BaseModel):
                 "end_date": "2025-11-15T23:59:59Z",
                 "success_metric": "read_rate"
             }
-        }
+        })
 
 
 class ABTestResultsV2(BaseModel):
@@ -498,8 +490,7 @@ class ABTestResultsV2(BaseModel):
     response_rate: float = Field(..., ge=0, le=100)
     average_response_time_minutes: Optional[float] = None
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "variant_name": "Variant A",
                 "messages_sent": 100,
@@ -511,7 +502,7 @@ class ABTestResultsV2(BaseModel):
                 "response_rate": 49.4,
                 "average_response_time_minutes": 35.2
             }
-        }
+        })
 
 
 class ABTestV2Response(BaseModel):
@@ -531,9 +522,9 @@ class ABTestV2Response(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "id": "test_123abc",
                 "name": "Reminder Message Test",
@@ -541,7 +532,7 @@ class ABTestV2Response(BaseModel):
                 "winning_variant": "Variant A",
                 "confidence_level": 95.5
             }
-        }
+        })
 
 
 class ABTestV2List(CursorPaginatedResponse[ABTestV2Response]):
@@ -549,8 +540,7 @@ class ABTestV2List(CursorPaginatedResponse[ABTestV2Response]):
 
     total_running: int = Field(0, description="Total running tests")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "data": [],
                 "next_cursor": None,
@@ -558,7 +548,7 @@ class ABTestV2List(CursorPaginatedResponse[ABTestV2Response]):
                 "total": 15,
                 "total_running": 3
             }
-        }
+        })
 
 
 # ============================================================================
@@ -579,8 +569,7 @@ class MessageEngagementV2Response(BaseModel):
     response_time_seconds: Optional[float]
     engagement_score: float = Field(..., ge=0, le=100, description="Overall engagement score")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "message_id": "msg_123abc",
                 "patient_id": "pat_456def",
@@ -593,7 +582,7 @@ class MessageEngagementV2Response(BaseModel):
                 "response_time_seconds": 900.0,
                 "engagement_score": 85.5
             }
-        }
+        })
 
 
 class MessagePerformanceV2Response(BaseModel):
@@ -616,8 +605,7 @@ class MessagePerformanceV2Response(BaseModel):
     peak_hours: List[int] = Field(..., description="Hours with highest engagement (0-23)")
     best_day_of_week: Optional[int] = Field(None, description="Best day for engagement (0=Monday)")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "period_start": "2025-11-01T00:00:00Z",
                 "period_end": "2025-11-07T23:59:59Z",
@@ -636,7 +624,7 @@ class MessagePerformanceV2Response(BaseModel):
                 "peak_hours": [9, 10, 14, 15],
                 "best_day_of_week": 2
             }
-        }
+        })
 
 
 class DeliveryOptimizationV2Response(BaseModel):
@@ -650,8 +638,7 @@ class DeliveryOptimizationV2Response(BaseModel):
     average_read_time_minutes: float
     best_response_rate: float = Field(..., ge=0, le=100)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "patient_id": "pat_456def",
                 "recommended_send_time": "09:30",
@@ -661,7 +648,7 @@ class DeliveryOptimizationV2Response(BaseModel):
                 "average_read_time_minutes": 8.5,
                 "best_response_rate": 65.2
             }
-        }
+        })
 
 
 # ============================================================================
@@ -681,8 +668,7 @@ class BulkMessageV2Create(BaseModel):
     delay_between_batches_seconds: int = Field(5, ge=0, le=60, description="Delay between batches")
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "patient_ids": ["pat_1", "pat_2", "pat_3"],
                 "content": "Lembrete: consulta esta semana!",
@@ -692,7 +678,7 @@ class BulkMessageV2Create(BaseModel):
                 "batch_size": 50,
                 "delay_between_batches_seconds": 10
             }
-        }
+        })
 
 
 class BulkMessageV2Response(BaseModel):
@@ -706,8 +692,7 @@ class BulkMessageV2Response(BaseModel):
     estimated_completion: datetime
     status: str = Field(..., description="queued, processing, completed, failed")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "job_id": "bulk_789xyz",
                 "total_patients": 100,
@@ -717,7 +702,7 @@ class BulkMessageV2Response(BaseModel):
                 "estimated_completion": "2025-11-08T09:15:00Z",
                 "status": "processing"
             }
-        }
+        })
 
 
 class BulkJobStatusV2Response(BaseModel):
@@ -735,8 +720,7 @@ class BulkJobStatusV2Response(BaseModel):
     estimated_completion: Optional[datetime] = None
     error_message: Optional[str] = None
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "job_id": "bulk_789xyz",
                 "status": "processing",
@@ -748,4 +732,4 @@ class BulkJobStatusV2Response(BaseModel):
                 "started_at": "2025-11-08T09:00:00Z",
                 "estimated_completion": "2025-11-08T09:10:00Z"
             }
-        }
+        })

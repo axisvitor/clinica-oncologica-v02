@@ -4,7 +4,7 @@ Pydantic models for physician-specific endpoints.
 These models are used for API responses and requests specific to physician workflows,
 including risk assessments, patient dashboards, and aggregated views.
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
 from datetime import datetime
 from uuid import UUID
@@ -35,8 +35,7 @@ class RiskAssessment(BaseModel):
         description="Human-readable description of the risk"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "category": "medication_adherence",
                 "risk_level": "high",
@@ -44,7 +43,7 @@ class RiskAssessment(BaseModel):
                 "last_updated": "2025-10-06T14:30:00Z",
                 "description": "Patient has missed 3 consecutive medication doses"
             }
-        }
+        })
 
 
 class PatientRiskProfile(BaseModel):
@@ -81,8 +80,7 @@ class PatientRiskProfile(BaseModel):
         description="When the last assessment was performed"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
                 "patient_name": "João Silva",
@@ -100,7 +98,7 @@ class PatientRiskProfile(BaseModel):
                 "alert_count": 3,
                 "last_assessment": "2025-10-06T14:30:00Z"
             }
-        }
+        })
 
 
 class RiskAssessmentsResponse(BaseModel):
@@ -124,8 +122,7 @@ class RiskAssessmentsResponse(BaseModel):
         description="When this response was generated (ISO 8601)"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "patients": [
                     {
@@ -142,4 +139,4 @@ class RiskAssessmentsResponse(BaseModel):
                 "high_risk_count": 8,
                 "timestamp": "2025-10-06T14:30:00Z"
             }
-        }
+        })

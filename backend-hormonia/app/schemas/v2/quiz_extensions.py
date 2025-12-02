@@ -476,8 +476,7 @@ class MonthlyQuizStatisticsV2(BaseModel):
         description="Response counts by day"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "quiz_id": "123e4567-e89b-12d3-a456-426614174000",
                 "total_sent": 100,

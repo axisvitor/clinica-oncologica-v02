@@ -1,7 +1,7 @@
 """
 WebSocket event schemas for real-time communication.
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Any, Optional, Union
 from datetime import datetime
 from uuid import UUID
@@ -66,13 +66,14 @@ class WebSocketMessage(BaseModel):
     type: WebSocketEventType
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     data: dict[str, Any] = Field(default_factory=dict)
-    
-    class Config:
-        json_encoders = {
+
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat(),
             UUID: str
         }
-        
+    )
+
     def dict(self, **kwargs):
         """Override dict method to ensure UUID serialization."""
         data = super().dict(**kwargs)

@@ -5,7 +5,7 @@ Enhanced template models for flow templates, quiz templates, and version managem
 
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from uuid import UUID
 
 from .common import CursorPaginatedResponse
@@ -40,8 +40,7 @@ class FlowTemplateV2Create(FlowTemplateV2Base):
             raise ValueError("Either flow_kind_id or kind_key must be provided")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "kind_key": "hormonal_treatment",
                 "display_name": "Hormonal Treatment Flow",
@@ -59,7 +58,7 @@ class FlowTemplateV2Create(FlowTemplateV2Base):
                 "is_active": True,
                 "is_draft": False
             }
-        }
+        })
 
 
 class FlowTemplateV2Update(BaseModel):
@@ -72,14 +71,13 @@ class FlowTemplateV2Update(BaseModel):
     is_active: Optional[bool] = None
     is_draft: Optional[bool] = None
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "template_name": "Updated Template Name",
                 "description": "Updated description",
                 "is_active": True
             }
-        }
+        })
 
 
 class FlowTemplateV2Duplicate(BaseModel):
@@ -89,14 +87,13 @@ class FlowTemplateV2Duplicate(BaseModel):
     new_template_name: Optional[str] = Field(None, max_length=255, description="New template name")
     description: Optional[str] = Field(None, description="Description for new version")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "new_version_number": 2,
                 "new_template_name": "Hormonal Treatment v2",
                 "description": "Enhanced version with additional checkpoints"
             }
-        }
+        })
 
 
 class FlowTemplateV2Response(BaseModel):
@@ -118,8 +115,7 @@ class FlowTemplateV2Response(BaseModel):
     updated_at: Optional[str] = None
     created_by: Optional[str] = None
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "flow_kind_id": "223e4567-e89b-12d3-a456-426614174001",
@@ -139,7 +135,7 @@ class FlowTemplateV2Response(BaseModel):
                 "updated_at": "2025-01-15T14:30:00Z",
                 "created_by": "323e4567-e89b-12d3-a456-426614174002"
             }
-        }
+        })
 
 
 class FlowTemplateV2List(CursorPaginatedResponse[FlowTemplateV2Response]):
@@ -159,8 +155,7 @@ class QuizQuestionSchema(BaseModel):
     correct_answer: Optional[str] = Field(None, description="Correct answer (for graded quizzes)")
     points: Optional[int] = Field(None, ge=0, description="Points for this question")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "id": "q1",
                 "text": "How are you feeling today?",
@@ -168,7 +163,7 @@ class QuizQuestionSchema(BaseModel):
                 "options": ["Great", "Good", "Fair", "Poor"],
                 "points": 10
             }
-        }
+        })
 
 
 class QuizTemplateV2Base(BaseModel):
@@ -198,8 +193,7 @@ class QuizTemplateV2Create(QuizTemplateV2Base):
             raise ValueError("Quiz must have at least one question")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "name": "Weekly Health Check",
                 "version": "1.0",
@@ -219,7 +213,7 @@ class QuizTemplateV2Create(QuizTemplateV2Base):
                 "randomize_questions": False,
                 "is_active": True
             }
-        }
+        })
 
 
 class QuizTemplateV2Update(BaseModel):
@@ -236,14 +230,13 @@ class QuizTemplateV2Update(BaseModel):
     randomize_questions: Optional[bool] = None
     is_active: Optional[bool] = None
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "description": "Updated description",
                 "passing_score": 75,
                 "is_active": True
             }
-        }
+        })
 
 
 class QuizTemplateV2Duplicate(BaseModel):
@@ -253,13 +246,12 @@ class QuizTemplateV2Duplicate(BaseModel):
     new_version: str = Field(..., min_length=1, max_length=50, description="New version")
     description: Optional[str] = Field(None, description="Description for new version")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "new_version": "2.0",
                 "description": "Enhanced version with additional questions"
             }
-        }
+        })
 
 
 class QuizTemplateV2Response(BaseModel):
@@ -279,8 +271,7 @@ class QuizTemplateV2Response(BaseModel):
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "name": "Weekly Health Check",
@@ -303,7 +294,7 @@ class QuizTemplateV2Response(BaseModel):
                 "created_at": "2025-01-01T10:00:00Z",
                 "updated_at": "2025-01-15T14:30:00Z"
             }
-        }
+        })
 
 
 class QuizTemplateV2List(CursorPaginatedResponse[QuizTemplateV2Response]):
@@ -325,15 +316,14 @@ class FlowKindV2Base(BaseModel):
 class FlowKindV2Create(FlowKindV2Base):
     """Schema for creating a flow kind."""
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "kind_key": "hormonal_treatment",
                 "display_name": "Hormonal Treatment Flow",
                 "description": "Flow for patients undergoing hormonal treatment",
                 "is_active": True
             }
-        }
+        })
 
 
 class FlowKindV2Update(BaseModel):
@@ -343,13 +333,12 @@ class FlowKindV2Update(BaseModel):
     description: Optional[str] = None
     is_active: Optional[bool] = None
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "display_name": "Updated Display Name",
                 "is_active": True
             }
-        }
+        })
 
 
 class FlowKindV2Response(BaseModel):
@@ -369,8 +358,7 @@ class FlowKindV2Response(BaseModel):
     draft_versions: Optional[int] = Field(None, description="Draft version count")
     active_version: Optional[str] = Field(None, description="Active version ID")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "kind_key": "hormonal_treatment",
@@ -384,7 +372,7 @@ class FlowKindV2Response(BaseModel):
                 "draft_versions": 2,
                 "active_version": "223e4567-e89b-12d3-a456-426614174001"
             }
-        }
+        })
 
 
 class FlowKindV2List(BaseModel):
@@ -393,13 +381,12 @@ class FlowKindV2List(BaseModel):
     data: List[FlowKindV2Response]
     total: int
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "data": [],
                 "total": 10
             }
-        }
+        })
 
 
 # ==================== Version Management Schemas ====================
@@ -411,14 +398,13 @@ class TemplateVersionV2Create(BaseModel):
     description: Optional[str] = Field(None, description="Version description")
     based_on_version_id: Optional[UUID] = Field(None, description="Base version to copy from")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "version_number": 2,
                 "description": "Enhanced version with new features",
                 "based_on_version_id": "123e4567-e89b-12d3-a456-426614174000"
             }
-        }
+        })
 
 
 class TemplateVersionV2Response(FlowTemplateV2Response):
@@ -426,14 +412,13 @@ class TemplateVersionV2Response(FlowTemplateV2Response):
 
     changelog: Optional[str] = Field(None, description="Version changelog")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "version_number": 2,
                 "changelog": "Added new checkpoints at days 15 and 30"
             }
-        }
+        })
 
 
 class TemplateVersionV2List(BaseModel):
@@ -443,14 +428,13 @@ class TemplateVersionV2List(BaseModel):
     kind_key: Optional[str] = None
     total: int
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "data": [],
                 "kind_key": "hormonal_treatment",
                 "total": 5
             }
-        }
+        })
 
 
 class TemplateVersionCompareChange(BaseModel):
@@ -459,13 +443,12 @@ class TemplateVersionCompareChange(BaseModel):
     type: str = Field(..., description="Change type (added, removed, modified)")
     content: str = Field(..., description="Changed content")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "type": "added",
                 "content": "New step added at day 15"
             }
-        }
+        })
 
 
 class TemplateVersionCompareResponse(BaseModel):
@@ -477,8 +460,7 @@ class TemplateVersionCompareResponse(BaseModel):
     changes: List[Dict[str, str]] = Field(..., description="List of changes")
     total_changes: int = Field(..., description="Total number of changes")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "version1": {"id": "v1", "version_number": 1},
                 "version2": {"id": "v2", "version_number": 2},
@@ -488,7 +470,7 @@ class TemplateVersionCompareResponse(BaseModel):
                 ],
                 "total_changes": 1
             }
-        }
+        })
 
 
 class TemplateVersionHistoryResponse(BaseModel):
@@ -498,14 +480,13 @@ class TemplateVersionHistoryResponse(BaseModel):
     kind_key: str
     total_versions: int
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "versions": [],
                 "kind_key": "hormonal_treatment",
                 "total_versions": 5
             }
-        }
+        })
 
 
 class TemplateVersionRollbackRequest(BaseModel):
@@ -514,13 +495,12 @@ class TemplateVersionRollbackRequest(BaseModel):
     reason: Optional[str] = Field(None, description="Reason for rollback")
     set_as_active: Optional[bool] = Field(False, description="Set rolled back version as active")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "reason": "Reverting to previous stable version due to issues",
                 "set_as_active": True
             }
-        }
+        })
 
 
 # ==================== Template Preview & Validation ====================
@@ -531,8 +511,7 @@ class TemplatePreviewRequest(BaseModel):
     template_id: UUID = Field(..., description="Template ID to preview")
     context_data: Optional[Dict[str, Any]] = Field(None, description="Context data for rendering")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "template_id": "123e4567-e89b-12d3-a456-426614174000",
                 "context_data": {
@@ -540,7 +519,7 @@ class TemplatePreviewRequest(BaseModel):
                     "current_day": 7
                 }
             }
-        }
+        })
 
 
 class TemplatePreviewResponse(BaseModel):
@@ -550,8 +529,7 @@ class TemplatePreviewResponse(BaseModel):
     rendered_content: Dict[str, Any] = Field(..., description="Rendered template content")
     variables_used: List[str] = Field(..., description="Variables used in rendering")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "template_id": "123e4567-e89b-12d3-a456-426614174000",
                 "rendered_content": {
@@ -559,7 +537,7 @@ class TemplatePreviewResponse(BaseModel):
                 },
                 "variables_used": ["patient_name", "current_day"]
             }
-        }
+        })
 
 
 class TemplateValidationError(BaseModel):
@@ -569,14 +547,13 @@ class TemplateValidationError(BaseModel):
     message: str = Field(..., description="Error message")
     severity: str = Field(..., description="Error severity (error, warning)")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "field": "steps",
                 "message": "Missing required field",
                 "severity": "error"
             }
-        }
+        })
 
 
 class TemplateValidationResponse(BaseModel):
@@ -586,14 +563,13 @@ class TemplateValidationResponse(BaseModel):
     errors: List[str] = Field(..., description="Validation errors")
     warnings: List[str] = Field(..., description="Validation warnings")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "valid": False,
                 "errors": ["Missing required field: steps"],
                 "warnings": ["Consider adding description field"]
             }
-        }
+        })
 
 
 # ==================== Search & Filter ====================
@@ -606,14 +582,13 @@ class TemplateSearchFilters(BaseModel):
     category: Optional[str] = Field(None, description="Category filter")
     tags: Optional[List[str]] = Field(None, description="Tags filter")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "template_type": "flow",
                 "is_active": True,
                 "tags": ["hormonal", "treatment"]
             }
-        }
+        })
 
 
 class TemplateSearchResult(BaseModel):
@@ -625,8 +600,7 @@ class TemplateSearchResult(BaseModel):
     description: Optional[str] = Field(None, description="Template description")
     relevance_score: float = Field(..., ge=0, le=1, description="Search relevance score")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "type": "flow",
                 "id": "123e4567-e89b-12d3-a456-426614174000",
@@ -634,7 +608,7 @@ class TemplateSearchResult(BaseModel):
                 "description": "Standard flow for hormonal treatment",
                 "relevance_score": 0.95
             }
-        }
+        })
 
 
 class TemplateSearchResponse(BaseModel):
@@ -644,14 +618,13 @@ class TemplateSearchResponse(BaseModel):
     results: List[TemplateSearchResult] = Field(..., description="Search results")
     total: int = Field(..., description="Total results")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "query": "hormonal",
                 "results": [],
                 "total": 5
             }
-        }
+        })
 
 
 # ==================== Import/Export ====================
@@ -663,14 +636,13 @@ class TemplateExportFormat(BaseModel):
     include_metadata: bool = Field(True, description="Include metadata")
     include_history: bool = Field(False, description="Include version history")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "format": "json",
                 "include_metadata": True,
                 "include_history": False
             }
-        }
+        })
 
 
 class TemplateExportResponse(BaseModel):
@@ -682,8 +654,7 @@ class TemplateExportResponse(BaseModel):
     export_format: str
     exported_at: str
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "template_id": "123e4567-e89b-12d3-a456-426614174000",
                 "template_type": "flow",
@@ -691,7 +662,7 @@ class TemplateExportResponse(BaseModel):
                 "export_format": "json",
                 "exported_at": "2025-01-17T15:00:00Z"
             }
-        }
+        })
 
 
 class TemplateImportRequest(BaseModel):
@@ -702,15 +673,14 @@ class TemplateImportRequest(BaseModel):
     import_format: str = Field("json", description="Import format (json, yaml)")
     merge_strategy: str = Field("create_new", description="Merge strategy (create_new, overwrite, merge)")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "template_type": "flow",
                 "import_data": {},
                 "import_format": "json",
                 "merge_strategy": "create_new"
             }
-        }
+        })
 
 
 class TemplateImportResponse(BaseModel):
@@ -721,12 +691,11 @@ class TemplateImportResponse(BaseModel):
     message: str
     warnings: Optional[List[str]] = None
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "success": True,
                 "template_id": "123e4567-e89b-12d3-a456-426614174000",
                 "message": "Template imported successfully",
                 "warnings": []
             }
-        }
+        })

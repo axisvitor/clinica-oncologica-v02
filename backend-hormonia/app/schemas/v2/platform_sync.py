@@ -6,7 +6,7 @@ Pydantic models for multi-platform synchronization with conflict resolution.
 from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field, HttpUrl, validator, model_validator, field_validator
+from pydantic import BaseModel, Field, HttpUrl, validator, model_validator, field_validator, ConfigDict
 from uuid import UUID
 
 
@@ -84,8 +84,7 @@ class SyncJobCreate(BaseModel):
             raise ValueError("entity_ids required for selective sync")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "platform": "ehr",
                 "strategy": "incremental",
@@ -94,7 +93,7 @@ class SyncJobCreate(BaseModel):
                 "batch_size": 1000,
                 "dry_run": False
             }
-        }
+        })
 
 
 class SyncJobUpdate(BaseModel):
@@ -102,13 +101,12 @@ class SyncJobUpdate(BaseModel):
     status: Optional[SyncJobStatus] = Field(None, description="Job status")
     cancel_reason: Optional[str] = Field(None, max_length=500, description="Cancellation reason")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "status": "cancelled",
                 "cancel_reason": "Manual cancellation by admin"
             }
-        }
+        })
 
 
 class SyncJobResponse(BaseModel):
@@ -133,9 +131,9 @@ class SyncJobResponse(BaseModel):
     duration_seconds: Optional[float] = Field(None, description="Duration in seconds")
     error_message: Optional[str] = Field(None, description="Error message if failed")
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "id": "550e8400-e29b-41d4-a716-446655440000",
                 "platform": "ehr",
@@ -158,6 +156,7 @@ class SyncJobResponse(BaseModel):
                 "error_message": None
             }
         }
+    )
 
 
 class SyncJobList(BaseModel):
@@ -167,15 +166,14 @@ class SyncJobList(BaseModel):
     has_more: bool = Field(..., description="More items available")
     total: Optional[int] = Field(None, description="Total count")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "data": [],
                 "next_cursor": "eyJpZCI6MTIzfQ==",
                 "has_more": True,
                 "total": 50
             }
-        }
+        })
 
 
 # ============================================================================
@@ -195,8 +193,7 @@ class SyncTriggerRequest(BaseModel):
     )
     dry_run: bool = Field(False, description="Simulate without applying changes")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "platform": "ehr",
                 "strategy": "incremental",
@@ -206,7 +203,7 @@ class SyncTriggerRequest(BaseModel):
                 "conflict_strategy": "last_write_wins",
                 "dry_run": False
             }
-        }
+        })
 
 
 class SyncTriggerResponse(BaseModel):
@@ -218,8 +215,7 @@ class SyncTriggerResponse(BaseModel):
     estimated_items: int = Field(..., description="Estimated items to sync")
     started_at: datetime = Field(..., description="Start timestamp")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "job_id": "550e8400-e29b-41d4-a716-446655440000",
                 "transaction_id": "sync_txn_abc123",
@@ -228,7 +224,7 @@ class SyncTriggerResponse(BaseModel):
                 "estimated_items": 500,
                 "started_at": "2025-01-01T10:00:00Z"
             }
-        }
+        })
 
 
 class SyncStatusResponse(BaseModel):
@@ -246,8 +242,7 @@ class SyncStatusResponse(BaseModel):
     errors: List[str] = Field(default_factory=list, description="Recent errors")
     warnings: List[str] = Field(default_factory=list, description="Warnings")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "job_id": "550e8400-e29b-41d4-a716-446655440000",
                 "status": "running",
@@ -262,7 +257,7 @@ class SyncStatusResponse(BaseModel):
                 "errors": [],
                 "warnings": ["3 items skipped due to validation errors"]
             }
-        }
+        })
 
 
 # ============================================================================
@@ -298,8 +293,7 @@ class SyncConfigCreate(BaseModel):
             raise ValueError(f"auth_type must be one of: {', '.join(allowed)}")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "platform": "ehr",
                 "name": "Main EHR System",
@@ -314,7 +308,7 @@ class SyncConfigCreate(BaseModel):
                 "batch_size": 1000,
                 "timeout_seconds": 30
             }
-        }
+        })
 
 
 class SyncConfigUpdate(BaseModel):
@@ -334,14 +328,13 @@ class SyncConfigUpdate(BaseModel):
     custom_headers: Optional[Dict[str, str]] = Field(None, description="Custom headers")
     custom_settings: Optional[Dict[str, Any]] = Field(None, description="Custom settings")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "enabled": False,
                 "sync_interval_minutes": 120,
                 "description": "Updated configuration"
             }
-        }
+        })
 
 
 class SyncConfigResponse(BaseModel):
@@ -369,9 +362,9 @@ class SyncConfigResponse(BaseModel):
     successful_syncs: int = Field(0, description="Successful syncs")
     failed_syncs: int = Field(0, description="Failed syncs")
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "id": "550e8400-e29b-41d4-a716-446655440000",
                 "platform": "ehr",
@@ -396,7 +389,7 @@ class SyncConfigResponse(BaseModel):
                 "successful_syncs": 148,
                 "failed_syncs": 2
             }
-        }
+        })
 
 
 class SyncConfigList(BaseModel):
@@ -406,15 +399,14 @@ class SyncConfigList(BaseModel):
     has_more: bool = Field(..., description="More items available")
     total: Optional[int] = Field(None, description="Total count")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "data": [],
                 "next_cursor": "eyJpZCI6MTIzfQ==",
                 "has_more": True,
                 "total": 10
             }
-        }
+        })
 
 
 # ============================================================================
@@ -429,8 +421,7 @@ class PlatformTestRequest(BaseModel):
     timeout_seconds: int = Field(10, ge=1, le=60, description="Test timeout")
     custom_headers: Optional[Dict[str, str]] = Field(None, description="Custom headers")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "platform": "ehr",
                 "endpoint_url": "https://ehr.example.com/api/v2/health",
@@ -438,7 +429,7 @@ class PlatformTestRequest(BaseModel):
                 "auth_token": "test_token_123",
                 "timeout_seconds": 10
             }
-        }
+        })
 
 
 class PlatformTestResponse(BaseModel):
@@ -451,8 +442,7 @@ class PlatformTestResponse(BaseModel):
     errors: List[str] = Field(default_factory=list, description="Error messages")
     warnings: List[str] = Field(default_factory=list, description="Warnings")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "success": True,
                 "status_code": 200,
@@ -466,7 +456,7 @@ class PlatformTestResponse(BaseModel):
                 "errors": [],
                 "warnings": []
             }
-        }
+        })
 
 
 # ============================================================================
@@ -486,14 +476,13 @@ class ConflictResolutionRequest(BaseModel):
             raise ValueError("merged_data required for merge strategy")
         return self
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "conflict_id": "550e8400-e29b-41d4-a716-446655440000",
                 "resolution_strategy": "use_local",
                 "notes": "Local version is more accurate"
             }
-        }
+        })
 
 
 class ConflictResolutionResponse(BaseModel):
@@ -505,8 +494,7 @@ class ConflictResolutionResponse(BaseModel):
     message: str = Field(..., description="Status message")
     resolved_at: datetime = Field(..., description="Resolution timestamp")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "conflict_id": "550e8400-e29b-41d4-a716-446655440000",
                 "status": "resolved",
@@ -515,7 +503,7 @@ class ConflictResolutionResponse(BaseModel):
                 "message": "Conflict resolved successfully",
                 "resolved_at": "2025-01-01T10:00:00Z"
             }
-        }
+        })
 
 
 # ============================================================================
@@ -538,9 +526,9 @@ class SyncHistoryResponse(BaseModel):
     error_summary: Optional[str] = Field(None, description="Error summary")
     detailed_logs: List[Dict[str, Any]] = Field(default_factory=list, description="Detailed logs")
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "id": "550e8400-e29b-41d4-a716-446655440001",
                 "job_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -557,7 +545,7 @@ class SyncHistoryResponse(BaseModel):
                 "error_summary": "5 items failed validation",
                 "detailed_logs": []
             }
-        }
+        })
 
 
 class SyncHistoryList(BaseModel):
@@ -567,15 +555,14 @@ class SyncHistoryList(BaseModel):
     has_more: bool = Field(..., description="More items available")
     total: Optional[int] = Field(None, description="Total count")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "data": [],
                 "next_cursor": "eyJpZCI6MTIzfQ==",
                 "has_more": True,
                 "total": 200
             }
-        }
+        })
 
 
 # ============================================================================
@@ -587,14 +574,13 @@ class SyncRollbackRequest(BaseModel):
     reason: str = Field(..., min_length=1, max_length=500, description="Rollback reason")
     dry_run: bool = Field(False, description="Simulate rollback without applying")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "transaction_id": "sync_txn_abc123",
                 "reason": "Data corruption detected in sync batch",
                 "dry_run": False
             }
-        }
+        })
 
 
 class SyncRollbackResponse(BaseModel):
@@ -606,8 +592,7 @@ class SyncRollbackResponse(BaseModel):
     estimated_items_to_revert: int = Field(..., description="Estimated items to revert")
     started_at: datetime = Field(..., description="Rollback start time")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "rollback_job_id": "550e8400-e29b-41d4-a716-446655440002",
                 "original_transaction_id": "sync_txn_abc123",
@@ -616,5 +601,5 @@ class SyncRollbackResponse(BaseModel):
                 "estimated_items_to_revert": 495,
                 "started_at": "2025-01-01T11:00:00Z"
             }
-        }
+        })
 

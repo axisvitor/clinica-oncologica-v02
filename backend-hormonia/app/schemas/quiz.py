@@ -6,7 +6,7 @@ from typing import List, Optional, Any, Union, Dict
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class QuestionType(str, Enum):
@@ -106,9 +106,8 @@ class QuizTemplateResponse(BaseModel):
     description: Optional[str] = Field(None, description="Template description")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class QuizResponseCreate(BaseModel):
@@ -174,9 +173,8 @@ class QuizResponseResponse(BaseModel):
     responded_at: datetime = Field(..., description="Response timestamp")
     created_at: datetime = Field(..., description="Creation timestamp")
     other_text: Optional[str] = Field(None, description="Custom text for 'other' option")
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class QuizSessionCreate(BaseModel):
@@ -206,9 +204,7 @@ class QuizSessionCreate(BaseModel):
             raise ValueError("Either 'quiz_template_id' or 'template_id' must be provided")
         return v
 
-    class Config:
-        # Allow extra fields to be ignored
-        extra = 'allow'
+    model_config = ConfigDict(extra='allow')
 
 
 class QuizSessionResponse(BaseModel):
@@ -230,8 +226,7 @@ class QuizSessionResponse(BaseModel):
         description="Humanized variations of quiz questions for patient delivery"
     )
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class QuizAnalytics(BaseModel):

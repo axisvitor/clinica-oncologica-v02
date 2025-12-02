@@ -6,7 +6,7 @@ from typing import List, Optional, Any, Union
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class FlowTemplateBase(BaseModel):
@@ -74,9 +74,8 @@ class FlowTemplateResponse(FlowTemplateBase):
     id: UUID = Field(..., description="Template ID")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PatientFlowStateBase(BaseModel):
@@ -107,9 +106,8 @@ class PatientFlowStateResponse(PatientFlowStateBase):
     completed_at: Optional[datetime] = Field(None, description="Flow completion timestamp")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FlowProgressionRequest(BaseModel):
@@ -237,10 +235,11 @@ class BaseFlowResponse(BaseModel):
     patient_id: UUID = Field(..., description="Patient ID")
     message: str = Field(..., description="Result message")
 
-    class Config:
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )
 
 
 # Response models for flow state endpoints
@@ -251,10 +250,11 @@ class FlowStateResponse(BaseModel):
     flow_state: Optional[FlowStateData] = Field(None, description="Current flow state data")
     message: Optional[str] = Field(None, description="Additional message")
 
-    class Config:
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )
 
 
 class FlowAdvancementResponse(BaseFlowResponse):
@@ -290,10 +290,11 @@ class FlowHistoryItem(BaseModel):
     is_paused: bool = Field(..., description="Whether flow is paused")
     state_data: FlowStateData = Field(default_factory=dict, description="Flow state data")
 
-    class Config:
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )
 
 
 class FlowHistoryResponse(BaseModel):
@@ -304,10 +305,11 @@ class FlowHistoryResponse(BaseModel):
     total_flows: int = Field(..., description="Total number of flows")
     pagination: dict[str, Any] = Field(..., description="Pagination information")
 
-    class Config:
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )
 
 
 # Request models for improved validation
@@ -391,9 +393,8 @@ class FlowTemplateResponse(FlowTemplateBase):
     updated_at: Optional[datetime] = None
     created_by: UUID
     updated_by: Optional[UUID] = None
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FlowCustomizationRequest(BaseModel):
@@ -419,9 +420,8 @@ class FlowCustomizationResponse(BaseModel):
     updated_at: Optional[datetime] = None
     created_by: UUID
     updated_by: Optional[UUID] = None
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FlowRuleRequest(BaseModel):
@@ -449,9 +449,8 @@ class FlowRuleResponse(BaseModel):
     updated_at: Optional[datetime] = None
     created_by: UUID
     updated_by: Optional[UUID] = None
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ABTestVariant(BaseModel):
@@ -511,9 +510,8 @@ class ABTestConfigResponse(BaseModel):
     updated_at: Optional[datetime] = None
     created_by: UUID
     updated_by: Optional[UUID] = None
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FlowAdvanceRequest(BaseModel):

@@ -6,7 +6,7 @@ Pydantic schemas for monthly quiz via link functionality.
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from uuid import UUID
-from pydantic import BaseModel, Field, HttpUrl, field_validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator, ConfigDict
 from enum import Enum
 
 
@@ -83,8 +83,7 @@ class MonthlyQuizLinkResponse(BaseModel):
     sent_at: Optional[datetime] = Field(None, description="Sent timestamp (alias for created_at)")
     session_id: Optional[UUID] = Field(None, description="Session ID for tracking")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MonthlyQuizAccessRequest(BaseModel):

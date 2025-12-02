@@ -1,7 +1,7 @@
 """
 Analytics response models for API endpoints.
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
 from datetime import datetime
 
@@ -21,8 +21,7 @@ class TreatmentDistributionResponse(BaseModel):
     total_patients: int = Field(..., description="Total number of patients in analysis")
     timestamp: str = Field(..., description="Timestamp of data generation (ISO 8601)")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "data": [
                     {
@@ -42,4 +41,4 @@ class TreatmentDistributionResponse(BaseModel):
                 "total_patients": 126,
                 "timestamp": "2025-10-06T14:30:00Z"
             }
-        }
+        })

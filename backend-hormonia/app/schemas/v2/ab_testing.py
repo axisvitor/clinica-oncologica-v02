@@ -15,7 +15,7 @@ from datetime import datetime, date
 from typing import Optional, List, Dict, Any, Literal
 from uuid import UUID
 from enum import Enum
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 
 
 # ============================================================================
@@ -92,8 +92,7 @@ class VariantConfig(BaseModel):
     traffic_weight: float = Field(..., gt=0, le=1, description="Traffic allocation (0-1)")
     configuration: Dict[str, Any] = Field(default_factory=dict, description="Variant-specific config")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "name": "Treatment - AI Humanized",
                 "type": "treatment",
@@ -101,7 +100,7 @@ class VariantConfig(BaseModel):
                 "traffic_weight": 0.5,
                 "configuration": {"use_ai": True, "model": "gpt-4"}
             }
-        }
+        })
 
 
 class VariantPerformance(BaseModel):
@@ -116,8 +115,7 @@ class VariantPerformance(BaseModel):
     error_rate: float = Field(0.0, ge=0, le=1)
     confidence_interval: Optional[Dict[str, float]] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -132,8 +130,7 @@ class ConversionGoal(BaseModel):
     target_value: Optional[float] = Field(None, description="Target value for goal")
     is_primary: bool = Field(False, description="Is this the primary goal?")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "goal_name": "message_response",
                 "goal_type": "response",
@@ -141,7 +138,7 @@ class ConversionGoal(BaseModel):
                 "target_value": 0.3,
                 "is_primary": True
             }
-        }
+        })
 
 
 class ConversionEventCreate(BaseModel):
@@ -174,8 +171,7 @@ class ConversionEventResponse(BaseModel):
     value: Optional[float]
     recorded_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -191,8 +187,7 @@ class StatisticalConfig(BaseModel):
     power: float = Field(0.8, gt=0, lt=1)
     early_stopping_enabled: bool = Field(True)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "confidence_level": "95",
                 "statistical_test": "chi_square",
@@ -201,7 +196,7 @@ class StatisticalConfig(BaseModel):
                 "power": 0.8,
                 "early_stopping_enabled": True
             }
-        }
+        })
 
 
 class ConfidenceInterval(BaseModel):
@@ -211,15 +206,14 @@ class ConfidenceInterval(BaseModel):
     confidence_level: float
     margin_of_error: float
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "lower_bound": 0.23,
                 "upper_bound": 0.37,
                 "confidence_level": 0.95,
                 "margin_of_error": 0.07
             }
-        }
+        })
 
 
 class StatisticalTestResult(BaseModel):
@@ -233,8 +227,7 @@ class StatisticalTestResult(BaseModel):
     effect_size: Optional[float] = None
     effect_size_interpretation: Optional[Literal["negligible", "small", "medium", "large"]] = None
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "test_type": "chi_square",
                 "test_statistic": 4.32,
@@ -244,7 +237,7 @@ class StatisticalTestResult(BaseModel):
                 "effect_size": 0.15,
                 "effect_size_interpretation": "small"
             }
-        }
+        })
 
 
 class ExperimentStatistics(BaseModel):
@@ -259,8 +252,7 @@ class ExperimentStatistics(BaseModel):
     relative_improvement: Optional[float] = None
     absolute_improvement: Optional[float] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -273,14 +265,13 @@ class SegmentCriteria(BaseModel):
     operator: Literal["equals", "not_equals", "greater_than", "less_than", "contains", "in"] = "equals"
     value: Any = Field(..., description="Value to compare against")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "attribute_name": "age",
                 "operator": "greater_than",
                 "value": 40
             }
-        }
+        })
 
 
 class Segment(BaseModel):
@@ -290,8 +281,7 @@ class Segment(BaseModel):
     criteria: List[SegmentCriteria] = Field(..., min_length=1)
     is_exclusive: bool = Field(False, description="Mutually exclusive with other segments")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "name": "Age 40+",
                 "description": "Users aged 40 and above",
@@ -300,7 +290,7 @@ class Segment(BaseModel):
                 ],
                 "is_exclusive": False
             }
-        }
+        })
 
 
 # ============================================================================
@@ -407,8 +397,7 @@ class ExperimentResponse(BaseModel):
     winner_declared_at: Optional[datetime] = None
     winner_confidence: Optional[float] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ExperimentListResponse(BaseModel):
@@ -449,8 +438,7 @@ class VariantAssignmentResponse(BaseModel):
     is_eligible: bool
     assignment_reason: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -492,8 +480,7 @@ class ExperimentResults(BaseModel):
     confidence_level: float
     is_conclusive: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -519,8 +506,7 @@ class WinnerDeclarationResponse(BaseModel):
     status_change: ExperimentStatus
     rollout_recommendation: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -577,8 +563,7 @@ class ExperimentDashboard(BaseModel):
     experiments_needing_review: int
     experiments_ready_for_winner: int
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "total_experiments": 25,
                 "active_experiments": 3,
@@ -592,7 +577,7 @@ class ExperimentDashboard(BaseModel):
                 "experiments_needing_review": 2,
                 "experiments_ready_for_winner": 1
             }
-        }
+        })
 
 
 # ============================================================================
@@ -618,8 +603,7 @@ class ExportResponse(BaseModel):
     created_at: datetime
     expires_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -644,8 +628,7 @@ class SampleSizeCalculationResponse(BaseModel):
     confidence_level: float
     power: float
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "total_sample_size": 2000,
                 "sample_size_per_variant": 1000,
@@ -654,4 +637,4 @@ class SampleSizeCalculationResponse(BaseModel):
                 "confidence_level": 0.95,
                 "power": 0.8
             }
-        }
+        })
