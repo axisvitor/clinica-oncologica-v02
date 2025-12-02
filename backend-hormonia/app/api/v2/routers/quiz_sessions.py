@@ -22,6 +22,7 @@ from app.api.v2.dependencies import (
 )
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.utils.rate_limiter import limiter
+from app.core.distributed_lock import acquire_lock_sync, LockAcquisitionError, LockKeys
 
 router = APIRouter()
 
@@ -195,34 +196,57 @@ async def create_quiz(
     db = Depends(get_db),
     current_user = Depends(get_current_user_from_session),
 ):
+    """
+    Create a new quiz session for a patient.
+
+    Uses distributed lock to prevent race condition where concurrent requests
+    could both pass the "existing session" check and create duplicate sessions.
+    """
     from datetime import datetime
     try:
         pid = UUID(quiz_data.patient_id)
         tid = UUID(quiz_data.quiz_template_id)
-    except (ValueError, TypeError): raise HTTPException(status_code=400, detail="Invalid UUID format")
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid UUID format")
 
     patient = db.query(Patient).get(pid)
-    if not patient: raise HTTPException(status_code=404, detail="Patient not found")
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
     _ensure_patient_owner(current_user, patient.doctor_id)
 
     template = db.query(QuizTemplate).get(tid)
-    if not template: raise HTTPException(status_code=404, detail="Template not found")
-    if not template.is_active: raise HTTPException(status_code=400, detail="Template inactive")
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    if not template.is_active:
+        raise HTTPException(status_code=400, detail="Template inactive")
 
-    existing = db.query(QuizSession).filter(
-        QuizSession.patient_id == pid,
-        QuizSession.quiz_template_id == tid,
-        QuizSession.status == "started"
-    ).first()
-    if existing: raise HTTPException(status_code=409, detail="Active session exists")
+    # Acquire distributed lock per patient+template to prevent duplicate sessions
+    lock_key = LockKeys.quiz_session(str(pid))
+    try:
+        with acquire_lock_sync(lock_key, timeout=5.0, ttl=30):
+            # Re-check for existing session within lock (double-check pattern)
+            existing = db.query(QuizSession).filter(
+                QuizSession.patient_id == pid,
+                QuizSession.quiz_template_id == tid,
+                QuizSession.status == "started"
+            ).first()
+            if existing:
+                raise HTTPException(status_code=409, detail="Active session exists")
 
-    new_quiz = QuizSession(
-        patient_id=pid, quiz_template_id=tid,
-        status=quiz_data.status or "started", started_at=datetime.utcnow()
-    )
-    db.add(new_quiz)
-    db.commit()
-    db.refresh(new_quiz)
+            new_quiz = QuizSession(
+                patient_id=pid, quiz_template_id=tid,
+                status=quiz_data.status or "started", started_at=datetime.utcnow()
+            )
+            db.add(new_quiz)
+            db.commit()
+            db.refresh(new_quiz)
+
+    except LockAcquisitionError:
+        raise HTTPException(
+            status_code=503,
+            detail="Service busy, please retry",
+            headers={"Retry-After": "5"}
+        )
 
     return {
         "id": str(new_quiz.id), "patient_id": str(new_quiz.patient_id),

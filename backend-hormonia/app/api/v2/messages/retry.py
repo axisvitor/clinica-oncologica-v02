@@ -9,14 +9,14 @@ from uuid import UUID
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.database import get_db
 from app.models.message import Message, MessageStatus
 from app.models.patient import Patient
 from app.models.user import UserRole
 from app.domain.messaging.core import MessageService
-from app.domain.messaging.delivery import MessageSender
-from app.services.unified_whatsapp_service import MessagingMode
+from app.tasks.messaging import send_scheduled_message, retry_failed_messages as retry_failed_messages_task
 from app.schemas.v2.messages import (
     MessageV2Response,
     RetryMessageV2Request,
@@ -87,15 +87,20 @@ async def retry_message(
         message.content = retry_request.new_content
         db.commit()
 
-    # Retry the message in background
-    message_sender = MessageSender(db, messaging_mode=MessagingMode.QUEUE)  # type: ignore[call-arg]
-    background_tasks.add_task(message_sender.send_message, message)  # type: ignore[call-arg]
-
-    # Update status to pending
-    message.status = MessageStatus.PENDING
-    message.retry_count = (message.retry_count or 0) + 1
+    # Update status to pending with atomic increment (prevents race condition)
+    # Uses pessimistic locking to ensure retry_count is atomically incremented
+    db.query(Message).filter(Message.id == message.id).with_for_update().update(
+        {
+            Message.status: MessageStatus.PENDING,
+            Message.retry_count: func.coalesce(Message.retry_count, 0) + 1
+        },
+        synchronize_session="fetch"
+    )
     db.commit()
     db.refresh(message)
+
+    # Retry the message via Celery task (after atomic update to avoid race condition)
+    send_scheduled_message.delay(str(message.id))
 
     return _serialize_message(message)
 
@@ -106,20 +111,18 @@ async def retry_message(
     description="Retry sending all failed messages (batch operation)"
 )
 async def retry_failed_messages(
-    background_tasks: BackgroundTasks,
     limit: int = Query(50, ge=1, le=100, description="Max messages to retry"),
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user_from_session),
 ):
-    """Retry all failed messages."""
-    message_sender = MessageSender(db, messaging_mode=MessagingMode.QUEUE)  # type: ignore[call-arg]
-
-    retry_count = await message_sender.retry_failed_messages(limit)  # type: ignore[attr-defined]
+    """Retry all failed messages via Celery task."""
+    # Dispatch Celery task for async processing
+    task_result = retry_failed_messages_task.delay(limit=limit, max_retries=3)
 
     return {
         "success": True,
         "message": "Retry process initiated",
-        "retried_count": retry_count,
+        "task_id": task_result.id,
         "limit": limit,
     }
 

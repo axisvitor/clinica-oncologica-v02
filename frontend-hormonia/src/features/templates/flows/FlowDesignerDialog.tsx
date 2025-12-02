@@ -17,7 +17,7 @@ import { FlowDesigner } from '@/features/flow-designer/FlowDesigner';
 import { useTemplates, type FlowTemplate } from '@/hooks/useTemplates';
 import { useToast } from '@/components/ui/use-toast';
 import { convertTemplateToDesign, convertDesignToTemplate } from '../utils/templateConverters';
-import type { FlowDesign } from '@/lib/types/flow-designer';
+import type { FlowDesign } from '@/types/flow-designer';
 
 interface FlowDesignerDialogProps {
   open: boolean;

@@ -10,7 +10,7 @@ import type {
   PatientSummaryResponse,
   PatientSummaryListResponse,
   GenerateSummaryRequest,
-} from '@/lib/types/patient-summary';
+} from '@/types/api';
 
 // Query keys
 export const patientSummaryKeys = {

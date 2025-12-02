@@ -12,7 +12,7 @@ import json
 from datetime import datetime
 from unittest.mock import Mock, AsyncMock, patch
 
-from app.services.whatsapp_unified import WhatsAppUnifiedService
+from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 from app.services.whatsapp.security import WhatsAppSecurity
 from app.exceptions import ValidationError, ServiceError
 from app.config import settings
@@ -21,7 +21,9 @@ from app.config import settings
 @pytest.fixture
 def whatsapp_service():
     """Create WhatsApp unified service instance for testing."""
-    service = WhatsAppUnifiedService()
+    from unittest.mock import MagicMock
+    mock_db = MagicMock()
+    service = UnifiedWhatsAppService(db=mock_db)
     return service
 
 

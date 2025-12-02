@@ -235,7 +235,7 @@ class TestDatabaseRollbackOnExternalAPIFailure:
         initial_patient_count = db_session.query(Patient).count()
 
         # Mock WhatsApp to fail
-        with patch('app.services.whatsapp_unified.UnifiedWhatsAppService.send_message') as mock_whatsapp:
+        with patch('app.services.unified_whatsapp_service.UnifiedWhatsAppService.send_message') as mock_whatsapp:
             mock_whatsapp.side_effect = Exception("WhatsApp API timeout")
 
             # Act

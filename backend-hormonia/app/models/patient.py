@@ -149,20 +149,28 @@ class Patient(BaseModel):
 
     # Constraints and indexes to match DB uniques
     # After migrations 009, 020 (CPF encryption), 024 (CPF plaintext removal), 028 (email/phone encryption)
+    #
+    # LGPD Compliance Note:
+    # - email and phone plaintext columns will be dropped in migration 030
+    # - All unique constraints now use hash columns for encrypted data
+    # - Legacy plaintext constraints kept temporarily for backward compatibility during migration
     __table_args__ = (
-        # Composite unique constraints to prevent duplicates per doctor
-        UniqueConstraint('email', 'doctor_id', name='uq_patient_email_doctor'),
-        UniqueConstraint('cpf_hash', 'doctor_id', name='uq_patient_cpf_hash_doctor'),  # LGPD: uses hash
+        # LGPD: Hash-based unique constraints (primary - used after migration 030)
+        UniqueConstraint('cpf_hash', 'doctor_id', name='uq_patient_cpf_hash_doctor'),
+        # Note: email_hash and phone_hash uniqueness enforced via partial unique indexes below
+
+        # Legacy plaintext constraints (to be removed in migration 030)
+        # Kept for backward compatibility during migration transition
         UniqueConstraint('phone', 'doctor_id', name='uq_patient_phone_doctor'),
 
         # Composite indexes for faster lookups
         Index('idx_patient_phone_doctor', 'phone', 'doctor_id'),
-        Index('idx_patient_email_doctor', 'email', 'doctor_id', postgresql_where=sa.text('email IS NOT NULL')),
         Index('ix_patients_cpf_hash_doctor', 'cpf_hash', 'doctor_id', postgresql_where=sa.text('cpf_hash IS NOT NULL')),
 
-        # LGPD: Email/Phone encryption indexes (migration 028)
+        # LGPD: Email/Phone hash indexes (primary search indexes after migration 030)
         Index('ix_patients_email_hash', 'email_hash'),
         Index('ix_patients_phone_hash', 'phone_hash'),
+        # Unique partial indexes on hash columns (replaces plaintext unique constraints)
         Index('ix_patients_email_hash_doctor', 'email_hash', 'doctor_id', unique=True, postgresql_where=sa.text('email_hash IS NOT NULL AND deleted_at IS NULL')),
         Index('ix_patients_phone_hash_doctor', 'phone_hash', 'doctor_id', unique=True, postgresql_where=sa.text('phone_hash IS NOT NULL AND deleted_at IS NULL')),
 

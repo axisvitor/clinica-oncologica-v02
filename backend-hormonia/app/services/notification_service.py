@@ -474,22 +474,26 @@ class NotificationService:
         if not recipients:
             raise ValueError("No WhatsApp recipients provided")
 
-        from app.services.whatsapp_unified import get_whatsapp_service, MessageType, MessagePriority
+        from app.services.unified_whatsapp_service import create_unified_whatsapp_service
+        from app.integrations.whatsapp.services.message_service import MessageQueue
+        from app.config import settings
+        from uuid import uuid4
 
-        whatsapp = get_whatsapp_service()
+        # Create message queue and send via queue-based service
+        message_queue = MessageQueue(settings.REDIS_URL)
 
         # Send to each recipient
         message_ids = []
         for phone in recipients:
-            result = await whatsapp.send_message(
+            # Queue message for delivery
+            msg_id = str(uuid4())
+            await message_queue.enqueue_message(
+                message_id=msg_id,
                 phone_number=phone,
-                message_type=MessageType.TEXT,
-                content={"text": message},
-                priority=MessagePriority.HIGH
+                content=message,
+                priority="high"
             )
-
-            if result.get("status") == "sent":
-                message_ids.append(result.get("message_id", "unknown"))
+            message_ids.append(msg_id)
 
         logger.info(f"WhatsApp notifications sent to {len(recipients)} recipients")
 

@@ -3,14 +3,20 @@ Retry logic and backoff strategy for DLQ Service.
 
 This module handles retry scheduling, backoff calculation,
 and error categorization for intelligent retry.
+
+QW-004: Enhanced with atomic retry counter support.
 """
 
 import logging
-from typing import Optional
+from typing import Optional, Tuple
+
 from datetime import datetime, timedelta
+
+from redis.asyncio import Redis
 
 from app.models.failed_message import FailedMessage, DLQStatus
 from .base import ErrorCategory, RetryConfig
+from .atomic_retry import AtomicRetryCounter, AtomicRetryScheduler
 
 logger = logging.getLogger(__name__)
 
@@ -24,17 +30,27 @@ class DLQRetryHandler:
     - Exponential backoff
     - Automatic retry scheduling
     - Max retry enforcement
+    - QW-004: Atomic retry counter for distributed safety
     """
 
-    def __init__(self, db):
+    def __init__(self, db, redis_client: Optional[Redis] = None):
         """
         Initialize retry handler.
 
         Args:
             db: Database session
+            redis_client: Optional Redis client for atomic operations
         """
         self.db = db
+        self.redis = redis_client
         self.config = RetryConfig()
+
+        # QW-004: Initialize atomic helpers if Redis available
+        self._atomic_counter: Optional[AtomicRetryCounter] = None
+        self._atomic_scheduler: Optional[AtomicRetryScheduler] = None
+        if redis_client:
+            self._atomic_counter = AtomicRetryCounter(redis_client, db)
+            self._atomic_scheduler = AtomicRetryScheduler(redis_client, db)
 
     def categorize_error(
         self,
@@ -184,15 +200,87 @@ class DLQRetryHandler:
 
     def mark_retry_started(self, failed_message: FailedMessage) -> None:
         """
-        Mark message as being retried.
+        Mark message as being retried (LEGACY - non-atomic).
 
         Args:
             failed_message: Message being retried
+
+        DEPRECATED: Use mark_retry_started_atomic for distributed safety.
         """
         failed_message.retry_count += 1
         failed_message.status = DLQStatus.RETRYING
         failed_message.last_retry_at = datetime.utcnow()
         self.db.commit()
+
+    async def mark_retry_started_atomic(
+        self,
+        failed_message: FailedMessage
+    ) -> Tuple[bool, int]:
+        """
+        Mark message as being retried with atomic increment.
+
+        QW-004: Uses atomic retry counter for distributed safety.
+
+        Args:
+            failed_message: Message being retried
+
+        Returns:
+            Tuple of (can_retry, new_count)
+        """
+        if not self._atomic_counter:
+            # Fallback to legacy if no Redis
+            self.mark_retry_started(failed_message)
+            return True, failed_message.retry_count
+
+        # Atomic increment
+        success, new_count = await self._atomic_counter.atomic_increment_retry(
+            failed_message.message_id,
+            self.config.MAX_RETRY_ATTEMPTS
+        )
+
+        if not success:
+            # Max retries exceeded
+            await self._atomic_counter.mark_max_retries_exceeded(
+                failed_message.message_id,
+                failed_message
+            )
+            return False, new_count
+
+        # Update database (non-blocking, for consistency)
+        failed_message.retry_count = new_count
+        failed_message.status = DLQStatus.RETRYING
+        failed_message.last_retry_at = datetime.utcnow()
+        self.db.commit()
+
+        return True, new_count
+
+    async def try_acquire_for_retry(
+        self,
+        failed_message: FailedMessage,
+        lock_ttl: int = 120
+    ) -> Tuple[bool, int, Optional[str]]:
+        """
+        Attempt to acquire message for retry processing.
+
+        QW-004: Combines lock acquisition with atomic retry increment.
+
+        Args:
+            failed_message: Message to process
+            lock_ttl: Lock time-to-live
+
+        Returns:
+            Tuple of (can_process, retry_count, lock_id)
+        """
+        if not self._atomic_counter:
+            # Fallback without atomic support
+            self.mark_retry_started(failed_message)
+            return True, failed_message.retry_count, None
+
+        return await self._atomic_counter.atomic_try_process(
+            failed_message.message_id,
+            self.config.MAX_RETRY_ATTEMPTS,
+            lock_ttl
+        )
 
     def mark_retry_success(self, failed_message: FailedMessage) -> None:
         """

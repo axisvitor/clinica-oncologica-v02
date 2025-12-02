@@ -6,6 +6,8 @@
 import { useForm, UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useRef } from 'react'
+import { v4 as uuidv4 } from 'uuid'
 import { useToast } from '@/components/ui/use-toast'
 import { apiClient } from '@/lib/api-client'
 import { getErrorMessage } from '@/lib/utils/type-guards'
@@ -45,6 +47,10 @@ export function usePatientForm({
 }: UsePatientFormProps): UsePatientFormReturn {
   const { toast } = useToast()
   const queryClient = useQueryClient()
+
+  // Idempotency key for preventing duplicate patient creation
+  // QW-004: Reset after successful creation for next patient
+  const idempotencyKeyRef = useRef<string>(uuidv4())
 
   // Configuração do form baseada no modo
   const form = useForm<CreatePatientFormData | UpdatePatientFormData>({
@@ -91,9 +97,19 @@ export function usePatientForm({
       if (data.treatment_start_date) cleanData.treatment_start_date = data.treatment_start_date
       if (data.doctor_notes) cleanData.doctor_notes = data.doctor_notes
 
-      return apiClient.patients.create(cleanData as Parameters<typeof apiClient.patients.create>[0])
+      // QW-004: Include idempotency key to prevent duplicate patient creation
+      // The key is sent as custom header and as part of the payload
+      const payloadWithIdempotency = {
+        ...cleanData,
+        idempotency_key: idempotencyKeyRef.current
+      }
+
+      return apiClient.patients.create(payloadWithIdempotency as Parameters<typeof apiClient.patients.create>[0])
     },
     onSuccess: () => {
+      // QW-004: Reset idempotency key for next patient creation
+      idempotencyKeyRef.current = uuidv4()
+
       queryClient.invalidateQueries({ queryKey: ['patients'] })
       toast({
         title: 'Paciente criado com sucesso',

@@ -7,12 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { AlertTriangle, Settings } from 'lucide-react'
-import { 
-  FlowDesign, 
-  FlowNode, 
+import {
+  FlowDesign,
+  FlowNode,
   FlowValidationResult,
-  FlowNodeType 
-} from '@/lib/types/flow-designer'
+  FlowNodeType
+} from '@/types/flow-designer'
 
 interface PropertyPanelProps {
   design: FlowDesign

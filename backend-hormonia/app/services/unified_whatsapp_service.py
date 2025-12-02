@@ -30,7 +30,7 @@ from app.integrations.whatsapp.models.message import (
 )
 from app.models.message import Message, MessageType, MessageStatus, MessageDirection
 from app.models.patient import Patient
-from app.domain.messaging.core import MessageService
+# MessageService import removed - not used after cleanup
 from app.services.websocket_events import websocket_events
 from app.schemas.websocket import WebSocketEventType
 from app.exceptions import ExternalServiceError, NotFoundError
@@ -97,15 +97,6 @@ class UnifiedWhatsAppService:
 
         self.redis_url = redis_url or settings.REDIS_URL
         self.default_instance_name = default_instance_name
-
-        # Legacy components (only initialize for sync sessions)
-        self.message_service = None
-        if self._db_sync:
-            try:
-                self.message_service = MessageService(self._db_sync)
-                logger.info("Legacy MessageService initialized successfully")
-            except Exception as e:
-                logger.warning(f"Could not initialize legacy MessageService: {e}")
 
         self.flow_message_callbacks: Dict[str, Callable] = {}
 
@@ -513,74 +504,8 @@ class UnifiedWhatsAppService:
         """
         return await self.send_message(message, flow_context=flow_context)
 
-    async def retry_failed_messages(self, limit: int = 50) -> int:
-        """
-        Retry failed messages using unified retry policies.
-
-        Args:
-            limit: Maximum number of messages to retry
-
-        Returns:
-            Number of messages successfully retried
-        """
-        failed_messages = self.message_service.get_failed_messages(limit=limit)
-        retry_count = 0
-
-        for message in failed_messages:
-            try:
-                # Get retry policy for this message
-                metadata = message.message_metadata or {}
-                retry_policy_name = metadata.get('retry_policy', 'default')
-                retry_policy = self.retry_policies.get(retry_policy_name, self.retry_policies['default'])
-
-                retry_attempts = metadata.get('retry_attempts', 0)
-                max_retries = retry_policy['max_retries']
-
-                if retry_attempts >= max_retries:
-                    logger.info(f"Message {message.id} exceeded max retries ({max_retries}), skipping")
-                    continue
-
-                # Calculate backoff delay
-                base_delay = retry_policy['base_delay']
-                backoff_factor = retry_policy['backoff_factor']
-                delay = base_delay * (backoff_factor ** retry_attempts)
-
-                # Check if enough time has passed since last retry
-                last_retry_str = metadata.get('last_retry_at')
-                if last_retry_str:
-                    last_retry = datetime.fromisoformat(last_retry_str)
-                    time_since_retry = (datetime.utcnow() - last_retry).total_seconds()
-                    if time_since_retry < delay:
-                        logger.debug(f"Message {message.id} not ready for retry")
-                        continue
-
-                # Update retry metadata
-                metadata['retry_attempts'] = retry_attempts + 1
-                metadata['last_retry_at'] = datetime.utcnow().isoformat()
-                metadata['retry_policy_used'] = retry_policy_name
-
-                # Update message
-                self.message_service.update_message(message.id, {
-                    'message_metadata': metadata,
-                    'status': MessageStatus.PENDING
-                })
-
-                # Attempt retry
-                flow_context = metadata.get('flow_context')
-                success = await self.send_message(message, flow_context=flow_context)
-
-                if success:
-                    retry_count += 1
-                    self.metrics['retries_attempted'] += 1
-                    logger.info(f"Successfully retried message {message.id} (attempt {retry_attempts + 1})")
-                else:
-                    logger.warning(f"Failed to retry message {message.id} (attempt {retry_attempts + 1})")
-
-            except Exception as e:
-                logger.error(f"Error retrying message {message.id}: {e}", exc_info=True)
-
-        logger.info(f"Retry process: {retry_count}/{len(failed_messages)} messages successfully retried")
-        return retry_count
+    # NOTE: retry_failed_messages() removed - use Celery task retry_failed_messages_task instead
+    # See: app/tasks/messaging.py and beat_schedule["retry-failed-messages"]
 
     async def get_unified_metrics(self) -> Dict[str, Any]:
         """

@@ -2,6 +2,11 @@
 Test suite for OnboardingCoordinator.
 
 Tests the high-level orchestration of patient onboarding workflow.
+
+Phase 2 Simplification:
+- Removed SagaIntegrationService wrapper tests
+- Now tests direct SagaOrchestrator usage
+- Removed fallback tests (fallback behavior removed in Phase 1)
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -41,12 +46,11 @@ def mock_validation_service():
 
 
 @pytest.fixture
-def mock_saga_service():
-    """Mock SagaIntegrationService."""
-    service = MagicMock()
-    service.is_enabled = MagicMock(return_value=False)
-    service.create_patient_via_saga = AsyncMock(return_value=None)
-    return service
+def mock_saga_orchestrator():
+    """Mock SagaOrchestrator (direct usage - Phase 2 simplification)."""
+    orchestrator = MagicMock()
+    orchestrator.execute_patient_onboarding_saga = AsyncMock(return_value=None)
+    return orchestrator
 
 
 @pytest.fixture
@@ -80,7 +84,7 @@ def coordinator(
     mock_db,
     mock_integrity_service,
     mock_validation_service,
-    mock_saga_service,
+    mock_saga_orchestrator,
     mock_notification_service,
     mock_completion_service,
     mock_creation_service,
@@ -90,7 +94,7 @@ def coordinator(
         db=mock_db,
         integrity_service=mock_integrity_service,
         validation_service=mock_validation_service,
-        saga_service=mock_saga_service,
+        saga_orchestrator=mock_saga_orchestrator,
         notification_service=mock_notification_service,
         completion_service=mock_completion_service,
         creation_service=mock_creation_service,
@@ -126,7 +130,7 @@ def sample_patient():
 
 
 class TestOnboardingCoordinatorSaga:
-    """Test saga orchestration flow."""
+    """Test saga orchestration flow (Phase 2: direct SagaOrchestrator usage)."""
 
     @pytest.mark.asyncio
     async def test_create_patient_saga_success(
@@ -134,120 +138,95 @@ class TestOnboardingCoordinatorSaga:
         coordinator,
         sample_patient_data,
         sample_patient,
-        mock_saga_service,
+        mock_saga_orchestrator,
         mock_integrity_service,
     ):
         """
         GIVEN: Saga is enabled and succeeds
         WHEN: create_patient is called
-        THEN: Patient is created via saga, direct creation not called
+        THEN: Patient is created via saga orchestrator directly
         """
         # Setup
         doctor_id = uuid4()
-        mock_saga_service.is_enabled.return_value = True
-        mock_saga_service.create_patient_via_saga.return_value = sample_patient
+        mock_saga_orchestrator.execute_patient_onboarding_saga.return_value = sample_patient
 
         # Execute
-        result = await coordinator.create_patient(sample_patient_data, doctor_id)
+        with patch.object(coordinator, '_is_saga_enabled', return_value=True):
+            result = await coordinator.create_patient(sample_patient_data, doctor_id)
 
         # Assert
         assert result == sample_patient
         mock_integrity_service.validate_patient_data.assert_called_once()
-        mock_saga_service.create_patient_via_saga.assert_called_once()
+        mock_saga_orchestrator.execute_patient_onboarding_saga.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_create_patient_saga_fallback(
+    async def test_create_patient_saga_returns_none_raises_error(
         self,
         coordinator,
         sample_patient_data,
-        sample_patient,
-        mock_saga_service,
-        mock_creation_service,
-        mock_validation_service,
+        mock_saga_orchestrator,
     ):
         """
-        GIVEN: Saga is enabled but fails
+        GIVEN: Saga is enabled but returns None
         WHEN: create_patient is called
-        THEN: Fallback to direct creation is triggered
+        THEN: ValidationError is raised (no fallback - Phase 1 change)
         """
         # Setup
         doctor_id = uuid4()
-        mock_saga_service.is_enabled.return_value = True
-        mock_saga_service.create_patient_via_saga.return_value = None  # Saga failed
-        mock_validation_service.find_existing_patient.return_value = None
-        mock_creation_service.create_patient_direct.return_value = sample_patient
+        mock_saga_orchestrator.execute_patient_onboarding_saga.return_value = None
 
-        # Execute
-        result = await coordinator.create_patient(sample_patient_data, doctor_id)
+        # Execute & Assert
+        with patch.object(coordinator, '_is_saga_enabled', return_value=True):
+            with pytest.raises(ValidationError) as exc_info:
+                await coordinator.create_patient(sample_patient_data, doctor_id)
 
-        # Assert
-        assert result == sample_patient
-        mock_saga_service.create_patient_via_saga.assert_called_once()
-        mock_creation_service.create_patient_direct.assert_called_once()
-
-
-class TestOnboardingCoordinatorDirect:
-    """Test direct creation flow."""
+        assert "não retornou paciente" in str(exc_info.value)
+        mock_saga_orchestrator.execute_patient_onboarding_saga.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_create_patient_direct_new(
+    async def test_create_patient_saga_exception_raises_error(
         self,
         coordinator,
         sample_patient_data,
-        sample_patient,
-        mock_saga_service,
-        mock_validation_service,
-        mock_creation_service,
+        mock_saga_orchestrator,
     ):
         """
-        GIVEN: Saga disabled, no existing patient
+        GIVEN: Saga is enabled but raises exception
         WHEN: create_patient is called
-        THEN: New patient is created directly
+        THEN: ValidationError is raised wrapping the original exception
         """
         # Setup
         doctor_id = uuid4()
-        mock_saga_service.is_enabled.return_value = False
-        mock_validation_service.find_existing_patient.return_value = None
-        mock_creation_service.create_patient_direct.return_value = sample_patient
+        mock_saga_orchestrator.execute_patient_onboarding_saga.side_effect = Exception("Saga failed")
 
-        # Execute
-        result = await coordinator.create_patient(sample_patient_data, doctor_id)
+        # Execute & Assert
+        with patch.object(coordinator, '_is_saga_enabled', return_value=True):
+            with pytest.raises(ValidationError) as exc_info:
+                await coordinator.create_patient(sample_patient_data, doctor_id)
 
-        # Assert
-        assert result == sample_patient
-        mock_validation_service.find_existing_patient.assert_called_once()
-        mock_creation_service.create_patient_direct.assert_called_once()
+        assert "Saga Pattern" in str(exc_info.value)
+        mock_saga_orchestrator.execute_patient_onboarding_saga.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_create_patient_direct_existing(
+    async def test_create_patient_saga_disabled_raises_error(
         self,
         coordinator,
         sample_patient_data,
-        sample_patient,
-        mock_saga_service,
-        mock_validation_service,
-        mock_completion_service,
-        mock_creation_service,
     ):
         """
-        GIVEN: Saga disabled, existing patient found
+        GIVEN: Saga is disabled
         WHEN: create_patient is called
-        THEN: Existing patient onboarding is completed, not created
+        THEN: ValidationError is raised (saga is mandatory)
         """
         # Setup
         doctor_id = uuid4()
-        mock_saga_service.is_enabled.return_value = False
-        mock_validation_service.find_existing_patient.return_value = sample_patient
-        mock_completion_service.complete_partial_onboarding.return_value = sample_patient
 
-        # Execute
-        result = await coordinator.create_patient(sample_patient_data, doctor_id)
+        # Execute & Assert
+        with patch.object(coordinator, '_is_saga_enabled', return_value=False):
+            with pytest.raises(ValidationError) as exc_info:
+                await coordinator.create_patient(sample_patient_data, doctor_id)
 
-        # Assert
-        assert result == sample_patient
-        mock_validation_service.find_existing_patient.assert_called_once()
-        mock_completion_service.complete_partial_onboarding.assert_called_once()
-        mock_creation_service.create_patient_direct.assert_not_called()
+        assert "desabilitado" in str(exc_info.value)
 
 
 class TestOnboardingCoordinatorValidation:
@@ -279,76 +258,6 @@ class TestOnboardingCoordinatorValidation:
         mock_integrity_service.validate_patient_data.assert_called_once()
 
 
-class TestOnboardingCoordinatorIntegration:
-    """Integration tests for complete workflow."""
-
-    @pytest.mark.asyncio
-    async def test_complete_workflow_saga_to_direct(
-        self,
-        coordinator,
-        sample_patient_data,
-        sample_patient,
-        mock_integrity_service,
-        mock_saga_service,
-        mock_validation_service,
-        mock_creation_service,
-    ):
-        """
-        GIVEN: Complete workflow from validation to creation
-        WHEN: Saga fails and fallback triggers
-        THEN: All services are called in correct order
-        """
-        # Setup
-        doctor_id = uuid4()
-        mock_saga_service.is_enabled.return_value = True
-        mock_saga_service.create_patient_via_saga.return_value = None
-        mock_validation_service.find_existing_patient.return_value = None
-        mock_creation_service.create_patient_direct.return_value = sample_patient
-
-        # Execute
-        result = await coordinator.create_patient(sample_patient_data, doctor_id)
-
-        # Assert - verify call order
-        assert result == sample_patient
-        assert mock_integrity_service.validate_patient_data.call_count == 1
-        assert mock_saga_service.create_patient_via_saga.call_count == 1
-        assert mock_validation_service.find_existing_patient.call_count == 1
-        assert mock_creation_service.create_patient_direct.call_count == 1
-
-    @pytest.mark.asyncio
-    async def test_complete_workflow_existing_patient(
-        self,
-        coordinator,
-        sample_patient_data,
-        sample_patient,
-        mock_integrity_service,
-        mock_saga_service,
-        mock_validation_service,
-        mock_completion_service,
-    ):
-        """
-        GIVEN: Existing patient scenario
-        WHEN: Patient already exists
-        THEN: Completion service is called instead of creation
-        """
-        # Setup
-        doctor_id = uuid4()
-        mock_saga_service.is_enabled.return_value = False
-        mock_validation_service.find_existing_patient.return_value = sample_patient
-        mock_completion_service.complete_partial_onboarding.return_value = sample_patient
-
-        # Execute
-        result = await coordinator.create_patient(sample_patient_data, doctor_id)
-
-        # Assert
-        assert result == sample_patient
-        mock_completion_service.complete_partial_onboarding.assert_called_once_with(
-            existing_patient=sample_patient,
-            patient_data=sample_patient_data,
-            current_user=None,
-        )
-
-
 class TestOnboardingCoordinatorCurrentUser:
     """Test current_user parameter propagation."""
 
@@ -358,54 +267,59 @@ class TestOnboardingCoordinatorCurrentUser:
         coordinator,
         sample_patient_data,
         sample_patient,
-        mock_saga_service,
+        mock_saga_orchestrator,
     ):
         """
         GIVEN: current_user is provided
         WHEN: Saga is called
-        THEN: current_user is propagated to saga service
+        THEN: current_user is propagated to saga orchestrator
         """
         # Setup
         doctor_id = uuid4()
         current_user = MagicMock(id=uuid4(), email="doctor@example.com")
-        mock_saga_service.is_enabled.return_value = True
-        mock_saga_service.create_patient_via_saga.return_value = sample_patient
+        mock_saga_orchestrator.execute_patient_onboarding_saga.return_value = sample_patient
 
         # Execute
-        await coordinator.create_patient(sample_patient_data, doctor_id, current_user)
+        with patch.object(coordinator, '_is_saga_enabled', return_value=True):
+            await coordinator.create_patient(sample_patient_data, doctor_id, current_user)
 
         # Assert
-        call_args = mock_saga_service.create_patient_via_saga.call_args
+        call_args = mock_saga_orchestrator.execute_patient_onboarding_saga.call_args
         assert call_args[1]["current_user"] == current_user
 
+
+class TestOnboardingCoordinatorIdempotency:
+    """Test idempotency key propagation (QW-004)."""
+
     @pytest.mark.asyncio
-    async def test_current_user_propagated_to_creation(
+    async def test_idempotency_key_propagated_to_saga(
         self,
         coordinator,
         sample_patient_data,
         sample_patient,
-        mock_saga_service,
-        mock_validation_service,
-        mock_creation_service,
+        mock_saga_orchestrator,
     ):
         """
-        GIVEN: current_user is provided
-        WHEN: Direct creation is called
-        THEN: current_user is propagated to creation service
+        GIVEN: idempotency_key is provided
+        WHEN: Saga is called
+        THEN: idempotency_key is propagated to saga orchestrator
         """
         # Setup
         doctor_id = uuid4()
-        current_user = MagicMock(id=uuid4(), email="doctor@example.com")
-        mock_saga_service.is_enabled.return_value = False
-        mock_validation_service.find_existing_patient.return_value = None
-        mock_creation_service.create_patient_direct.return_value = sample_patient
+        idempotency_key = "unique-key-12345"
+        mock_saga_orchestrator.execute_patient_onboarding_saga.return_value = sample_patient
 
         # Execute
-        await coordinator.create_patient(sample_patient_data, doctor_id, current_user)
+        with patch.object(coordinator, '_is_saga_enabled', return_value=True):
+            await coordinator.create_patient(
+                sample_patient_data,
+                doctor_id,
+                idempotency_key=idempotency_key
+            )
 
         # Assert
-        call_args = mock_creation_service.create_patient_direct.call_args
-        assert call_args[1]["current_user"] == current_user
+        call_args = mock_saga_orchestrator.execute_patient_onboarding_saga.call_args
+        assert call_args[1]["idempotency_key"] == idempotency_key
 
 
 class TestOnboardingCoordinatorLogging:
@@ -417,7 +331,7 @@ class TestOnboardingCoordinatorLogging:
         coordinator,
         sample_patient_data,
         sample_patient,
-        mock_saga_service,
+        mock_saga_orchestrator,
         caplog,
     ):
         """
@@ -427,42 +341,126 @@ class TestOnboardingCoordinatorLogging:
         """
         # Setup
         doctor_id = uuid4()
-        mock_saga_service.is_enabled.return_value = True
-        mock_saga_service.create_patient_via_saga.return_value = sample_patient
+        mock_saga_orchestrator.execute_patient_onboarding_saga.return_value = sample_patient
 
         # Execute
-        with caplog.at_level("INFO"):
-            await coordinator.create_patient(sample_patient_data, doctor_id)
+        with patch.object(coordinator, '_is_saga_enabled', return_value=True):
+            with caplog.at_level("INFO"):
+                await coordinator.create_patient(sample_patient_data, doctor_id)
 
         # Assert
         assert "Patient created successfully via Saga" in caplog.text
 
     @pytest.mark.asyncio
-    async def test_saga_fallback_logging(
+    async def test_saga_failure_logging(
         self,
         coordinator,
         sample_patient_data,
-        sample_patient,
-        mock_saga_service,
-        mock_validation_service,
-        mock_creation_service,
+        mock_saga_orchestrator,
         caplog,
     ):
         """
         GIVEN: Saga fails
-        WHEN: Fallback triggers
-        THEN: Fallback is logged
+        WHEN: create_patient is called
+        THEN: Failure is logged
         """
         # Setup
         doctor_id = uuid4()
-        mock_saga_service.is_enabled.return_value = True
-        mock_saga_service.create_patient_via_saga.return_value = None
-        mock_validation_service.find_existing_patient.return_value = None
-        mock_creation_service.create_patient_direct.return_value = sample_patient
+        mock_saga_orchestrator.execute_patient_onboarding_saga.side_effect = Exception("Test error")
 
-        # Execute
-        with caplog.at_level("WARNING"):
-            await coordinator.create_patient(sample_patient_data, doctor_id)
+        # Execute & Assert
+        with patch.object(coordinator, '_is_saga_enabled', return_value=True):
+            with caplog.at_level("ERROR"):
+                with pytest.raises(ValidationError):
+                    await coordinator.create_patient(sample_patient_data, doctor_id)
 
         # Assert
-        assert "falling back to direct creation" in caplog.text
+        assert "Saga Pattern execution failed" in caplog.text
+
+
+class TestOnboardingCoordinatorIsSagaEnabled:
+    """Test _is_saga_enabled method."""
+
+    def test_is_saga_enabled_true(
+        self,
+        mock_db,
+        mock_integrity_service,
+        mock_validation_service,
+        mock_saga_orchestrator,
+        mock_notification_service,
+        mock_completion_service,
+        mock_creation_service,
+    ):
+        """
+        GIVEN: saga_orchestrator is not None and setting is True
+        WHEN: _is_saga_enabled is called
+        THEN: Returns True
+        """
+        coordinator = OnboardingCoordinator(
+            db=mock_db,
+            integrity_service=mock_integrity_service,
+            validation_service=mock_validation_service,
+            saga_orchestrator=mock_saga_orchestrator,
+            notification_service=mock_notification_service,
+            completion_service=mock_completion_service,
+            creation_service=mock_creation_service,
+        )
+
+        with patch('app.domain.patient.onboarding.coordinator.settings') as mock_settings:
+            mock_settings.ENABLE_SAGA_PATTERN = True
+            assert coordinator._is_saga_enabled() is True
+
+    def test_is_saga_enabled_false_no_orchestrator(
+        self,
+        mock_db,
+        mock_integrity_service,
+        mock_validation_service,
+        mock_notification_service,
+        mock_completion_service,
+        mock_creation_service,
+    ):
+        """
+        GIVEN: saga_orchestrator is None
+        WHEN: _is_saga_enabled is called
+        THEN: Returns False
+        """
+        coordinator = OnboardingCoordinator(
+            db=mock_db,
+            integrity_service=mock_integrity_service,
+            validation_service=mock_validation_service,
+            saga_orchestrator=None,  # No orchestrator
+            notification_service=mock_notification_service,
+            completion_service=mock_completion_service,
+            creation_service=mock_creation_service,
+        )
+
+        assert coordinator._is_saga_enabled() is False
+
+    def test_is_saga_enabled_false_setting_disabled(
+        self,
+        mock_db,
+        mock_integrity_service,
+        mock_validation_service,
+        mock_saga_orchestrator,
+        mock_notification_service,
+        mock_completion_service,
+        mock_creation_service,
+    ):
+        """
+        GIVEN: saga_orchestrator exists but setting is False
+        WHEN: _is_saga_enabled is called
+        THEN: Returns False
+        """
+        coordinator = OnboardingCoordinator(
+            db=mock_db,
+            integrity_service=mock_integrity_service,
+            validation_service=mock_validation_service,
+            saga_orchestrator=mock_saga_orchestrator,
+            notification_service=mock_notification_service,
+            completion_service=mock_completion_service,
+            creation_service=mock_creation_service,
+        )
+
+        with patch('app.domain.patient.onboarding.coordinator.settings') as mock_settings:
+            mock_settings.ENABLE_SAGA_PATTERN = False
+            assert coordinator._is_saga_enabled() is False

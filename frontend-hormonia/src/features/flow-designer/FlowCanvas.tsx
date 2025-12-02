@@ -1,11 +1,11 @@
 import React, { useRef, useCallback, useState, useEffect } from 'react'
-import { 
-  FlowDesign, 
-  FlowNode, 
-  FlowConnection, 
+import {
+  FlowDesign,
+  FlowNode,
+  FlowConnection,
   DesignerMode,
-  FlowValidationResult 
-} from '@/lib/types/flow-designer'
+  FlowValidationResult
+} from '@/types/flow-designer'
 import { FlowNodeComponent } from './FlowNodeComponent'
 import { FlowConnectionComponent } from './FlowConnectionComponent'
 

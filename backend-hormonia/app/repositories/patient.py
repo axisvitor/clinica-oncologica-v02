@@ -1,5 +1,10 @@
 """
-Patient repository with soft delete support and N+1 query optimizations
+Patient repository with soft delete support and N+1 query optimizations.
+
+LGPD Compliance (migration 028+):
+- Email and phone are encrypted in the database
+- Searches use SHA-256 hashes for exact matches
+- Name searches still use ILIKE (plaintext OK for names)
 """
 from typing import List, Optional, Dict, Any, Tuple
 from uuid import UUID
@@ -8,10 +13,26 @@ from sqlalchemy.orm import Session, joinedload, selectinload, contains_eager
 from sqlalchemy import and_, or_, desc, asc, func
 import hashlib
 import json
+import re
 
 from app.models.patient import Patient, FlowState
 from app.models.message import Message
 from app.repositories.base import BaseRepository
+
+# NOTE: Encryption service imports are done lazily inside functions to avoid
+# circular imports: patient.py -> encryption -> services.py -> PatientCRUDService -> patient.py
+
+
+def _looks_like_email(search_term: str) -> bool:
+    """Check if search term looks like an email address."""
+    return '@' in search_term and '.' in search_term
+
+
+def _looks_like_phone(search_term: str) -> bool:
+    """Check if search term looks like a phone number."""
+    # Remove common separators and check if mostly digits
+    cleaned = re.sub(r'[\s\-\(\)\+]', '', search_term)
+    return len(cleaned) >= 8 and cleaned.replace('+', '').isdigit()
 
 
 class PatientRepository(BaseRepository[Patient]):
@@ -40,6 +61,62 @@ class PatientRepository(BaseRepository[Patient]):
                 # Redis optional - gracefully degrade if unavailable
                 self._redis_client = False
         return self._redis_client if self._redis_client else None
+
+    def _build_search_criteria(self, search_term: str) -> list:
+        """
+        Build search criteria for patient search using LGPD-compliant hash lookups.
+
+        LGPD Compliance (migration 028+):
+        - Email and phone are encrypted - use hash for exact match
+        - Name is not encrypted - use ILIKE for partial match
+
+        Args:
+            search_term: The search term to look for
+
+        Returns:
+            List of SQLAlchemy filter criteria
+        """
+        criteria_parts = []
+        search_val = f"%{search_term}%"
+
+        # Name search - always use ILIKE (plaintext OK)
+        criteria_parts.append(Patient.name.ilike(search_val))
+
+        # Email search - use hash if looks like email
+        if _looks_like_email(search_term):
+            try:
+                # Lazy import to avoid circular dependency
+                from app.services.encryption import get_unified_encryption_service
+                from app.services.encryption.unified_encryption_service import FieldType
+                encryption_service = get_unified_encryption_service()
+                email_hash = encryption_service.generate_hash(
+                    search_term.lower().strip(),
+                    FieldType.EMAIL
+                )
+                criteria_parts.append(Patient.email_hash == email_hash)
+            except Exception:
+                # Fallback: skip email search if encryption service unavailable
+                pass
+
+        # Phone search - use hash if looks like phone
+        if _looks_like_phone(search_term):
+            try:
+                # Lazy import to avoid circular dependency
+                from app.services.encryption import get_unified_encryption_service
+                from app.services.encryption.unified_encryption_service import FieldType
+                encryption_service = get_unified_encryption_service()
+                # Normalize phone for hash lookup
+                normalized_phone = ''.join(c for c in search_term if c.isdigit() or c == '+')
+                phone_hash = encryption_service.generate_hash(
+                    normalized_phone,
+                    FieldType.PHONE
+                )
+                criteria_parts.append(Patient.phone_hash == phone_hash)
+            except Exception:
+                # Fallback: skip phone search if encryption service unavailable
+                pass
+
+        return criteria_parts
 
     def _get_cache_key(self, prefix: str, filters: Dict[str, Any]) -> str:
         """Generate deterministic cache key from filters"""
@@ -137,15 +214,11 @@ class PatientRepository(BaseRepository[Patient]):
         if filters.get("doctor_id"):
             criteria.append(Patient.doctor_id == filters["doctor_id"])
             
-        # Search (Name or Email)
+        # Search (Name, Email hash, or Phone hash) - LGPD compliant
         if filters.get("search"):
-            search_val = f"%{filters['search']}%"
-            criteria.append(
-                or_(
-                    Patient.name.ilike(search_val),
-                    Patient.email.ilike(search_val)
-                )
-            )
+            search_criteria = self._build_search_criteria(filters['search'])
+            if search_criteria:
+                criteria.append(or_(*search_criteria))
             
         # Status Filter
         if filters.get("status"):
@@ -230,13 +303,10 @@ class PatientRepository(BaseRepository[Patient]):
                     count_criteria.append(Patient.doctor_id == filters["doctor_id"])
 
                 if filters.get("search"):
-                    search_val = f"%{filters['search']}%"
-                    count_criteria.append(
-                        or_(
-                            Patient.name.ilike(search_val),
-                            Patient.email.ilike(search_val)
-                        )
-                    )
+                    # LGPD compliant search using hash lookups
+                    search_criteria = self._build_search_criteria(filters['search'])
+                    if search_criteria:
+                        count_criteria.append(or_(*search_criteria))
 
                 if filters.get("status"):
                     status_val = filters["status"]
@@ -398,16 +468,11 @@ class PatientRepository(BaseRepository[Patient]):
         criteria = [Patient.deleted_at.is_(None)]
         criteria.append(Patient.doctor_id == doctor_id)
 
-        # Search filter
+        # Search filter - LGPD compliant with hash lookups
         if filters.get("search"):
-            search_val = f"%{filters['search']}%"
-            criteria.append(
-                or_(
-                    Patient.name.ilike(search_val),
-                    Patient.email.ilike(search_val),
-                    Patient.phone.ilike(search_val)
-                )
-            )
+            search_criteria = self._build_search_criteria(filters['search'])
+            if search_criteria:
+                criteria.append(or_(*search_criteria))
 
         # Status filter
         if filters.get("status"):
@@ -644,15 +709,22 @@ class PatientRepository(BaseRepository[Patient]):
         return self.db.query(Patient).filter(Patient.deleted_at.isnot(None)).count()
     
     def search_active(self, search_term: str, skip: int = 0, limit: int = 100) -> List[Patient]:
-        """Search active patients by name, email, or phone"""
-        search_pattern = f"%{search_term}%"
-        return self.db.query(Patient).filter(
-            Patient.deleted_at.is_(None)
-        ).filter(
-            (Patient.name.ilike(search_pattern)) |
-            (Patient.email.ilike(search_pattern)) |
-            (Patient.phone.ilike(search_pattern))
-        ).offset(skip).limit(limit).all()
+        """
+        Search active patients by name, email hash, or phone hash.
+
+        LGPD Compliance (migration 028+):
+        - Name: uses ILIKE for partial match (plaintext OK)
+        - Email: uses SHA-256 hash for exact match (encrypted storage)
+        - Phone: uses SHA-256 hash for exact match (encrypted storage)
+        """
+        search_criteria = self._build_search_criteria(search_term)
+
+        query = self.db.query(Patient).filter(Patient.deleted_at.is_(None))
+
+        if search_criteria:
+            query = query.filter(or_(*search_criteria))
+
+        return query.offset(skip).limit(limit).all()
 
     def get_by_idempotency_key(self, idempotency_key: str) -> Optional[Patient]:
         """

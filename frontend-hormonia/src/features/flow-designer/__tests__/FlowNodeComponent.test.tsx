@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import '@testing-library/jest-dom/vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { FlowNodeComponent } from '../FlowNodeComponent'
-import { FlowNode, FlowNodeType, DesignerMode } from '@/lib/types/flow-designer'
+import { FlowNode, FlowNodeType, DesignerMode } from '@/types/flow-designer'
 
 // Helper to create a test node
 function createTestNode(

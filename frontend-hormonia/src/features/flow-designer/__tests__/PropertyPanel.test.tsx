@@ -6,7 +6,7 @@ import '@testing-library/jest-dom/vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PropertyPanel } from '../PropertyPanel'
-import { FlowDesign, FlowNode, FlowNodeType, FlowValidationResult } from '@/lib/types/flow-designer'
+import { FlowDesign, FlowNode, FlowNodeType, FlowValidationResult } from '@/types/flow-designer'
 
 // Helper to create a test design
 function createTestDesign(): FlowDesign {

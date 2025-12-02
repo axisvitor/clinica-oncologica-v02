@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest'
 import { FlowValidator } from '../FlowValidator'
-import { FlowDesign, FlowNode, FlowNodeType, FlowConnection } from '@/lib/types/flow-designer'
+import { FlowDesign, FlowNode, FlowNodeType, FlowConnection } from '@/types/flow-designer'
 
 // Helper to create a minimal valid flow design
 function createEmptyDesign(): FlowDesign {

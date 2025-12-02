@@ -7,7 +7,7 @@ import {
   type ResponseResult,
   type FlowEvent,
   type FlowStateMachine
-} from '../types/flow'
+} from '@/lib/api-client/types'
 import type {
   FlowExecutionContext,
   FlowExecutionStep,

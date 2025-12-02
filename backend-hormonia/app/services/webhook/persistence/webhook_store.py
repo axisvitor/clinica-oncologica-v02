@@ -1,10 +1,13 @@
 """
 Webhook event persistence store.
 Extracted from webhook_processor.py for modularity.
+
+QW-006: Enhanced with atomic INSERT ON CONFLICT for database-level
+idempotency protection.
 """
 import hashlib
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -40,17 +43,19 @@ class WebhookEventStore:
         related_patient_id: Optional[UUID] = None
     ) -> Optional[UUID]:
         """
-        Persist webhook event to database with idempotency check.
-        
-        Uses SHA-256 hash of payload for duplicate detection.
-        
+        Persist webhook event to database with atomic idempotency check.
+
+        QW-006: Uses INSERT ON CONFLICT DO NOTHING for atomic check-and-insert.
+        This prevents race conditions where two workers could both see
+        "no existing event" and both attempt to insert.
+
         Args:
             event_type: Type of webhook event
             source: Source of webhook (e.g., 'evolution_api')
             payload: Raw webhook payload
             related_message_id: Optional related message ID
             related_patient_id: Optional related patient ID
-            
+
         Returns:
             UUID of created event, or None if duplicate/failed
         """
@@ -58,23 +63,9 @@ class WebhookEventStore:
             # Generate event hash for idempotency
             payload_str = str(sorted(payload.items()))
             event_hash = hashlib.sha256(payload_str.encode()).hexdigest()
-            
-            # Check if event already exists
-            stmt = text("""
-                SELECT id FROM webhook_events
-                WHERE event_hash = :event_hash
-                LIMIT 1
-            """)
-            result = self.db.execute(stmt, {"event_hash": event_hash}).fetchone()
-            
-            if result:
-                logger.info(
-                    f"Duplicate webhook event detected via hash",
-                    extra={"event_hash": event_hash[:16], "event_type": event_type}
-                )
-                return UUID(result[0]) if result[0] else None
-            
-            # Create new webhook event record
+
+            # QW-006: Atomic INSERT ON CONFLICT for idempotency
+            # This is a single atomic operation that either inserts or does nothing
             event_id = uuid4()
             insert_stmt = text("""
                 INSERT INTO webhook_events (
@@ -87,10 +78,11 @@ class WebhookEventStore:
                     :related_message_id, :related_patient_id, :event_hash, :is_duplicate,
                     NOW()
                 )
+                ON CONFLICT (event_hash) DO NOTHING
                 RETURNING id
             """)
-            
-            self.db.execute(insert_stmt, {
+
+            result = self.db.execute(insert_stmt, {
                 "id": str(event_id),
                 "event_type": event_type,
                 "source": source,
@@ -103,21 +95,37 @@ class WebhookEventStore:
                 "event_hash": event_hash,
                 "is_duplicate": False
             })
-            
+
+            row = result.fetchone()
             self.db.commit()
-            
-            logger.info(
-                f"Persisted webhook event",
-                extra={
-                    "event_id": str(event_id),
-                    "event_type": event_type,
-                    "source": source,
-                    "event_hash": event_hash[:16]
-                }
-            )
-            
-            return event_id
-            
+
+            if row:
+                # Successfully inserted new event
+                logger.info(
+                    f"Persisted webhook event",
+                    extra={
+                        "event_id": str(event_id),
+                        "event_type": event_type,
+                        "source": source,
+                        "event_hash": event_hash[:16]
+                    }
+                )
+                return event_id
+            else:
+                # Duplicate detected via ON CONFLICT
+                logger.info(
+                    f"Duplicate webhook event detected (atomic)",
+                    extra={"event_hash": event_hash[:16], "event_type": event_type}
+                )
+
+                # Optionally fetch the existing event ID
+                existing = self.db.execute(
+                    text("SELECT id FROM webhook_events WHERE event_hash = :hash LIMIT 1"),
+                    {"hash": event_hash}
+                ).fetchone()
+
+                return UUID(existing[0]) if existing else None
+
         except IntegrityError as e:
             self.db.rollback()
             logger.warning(f"Duplicate webhook event (integrity error): {e}")
@@ -126,6 +134,89 @@ class WebhookEventStore:
             self.db.rollback()
             logger.error(f"Failed to persist webhook event: {e}", exc_info=True)
             return None
+
+    async def persist_event_atomic(
+        self,
+        event_id: str,
+        event_type: str,
+        source: str,
+        payload: Dict[str, Any],
+        related_message_id: Optional[UUID] = None,
+        related_patient_id: Optional[UUID] = None
+    ) -> Tuple[bool, Optional[UUID]]:
+        """
+        Atomic event persistence with explicit event ID.
+
+        QW-006: Uses INSERT ON CONFLICT for atomic idempotency using event_id.
+
+        Args:
+            event_id: Explicit event identifier
+            event_type: Type of webhook event
+            source: Source of webhook
+            payload: Raw webhook payload
+            related_message_id: Optional related message ID
+            related_patient_id: Optional related patient ID
+
+        Returns:
+            Tuple of (is_new, db_uuid)
+            - (True, UUID) if new event was created
+            - (False, UUID) if duplicate exists
+            - (False, None) if error occurred
+        """
+        try:
+            db_uuid = uuid4()
+
+            # Atomic INSERT ON CONFLICT using event_id
+            insert_stmt = text("""
+                INSERT INTO webhook_events (
+                    id, event_id, event_type, source, payload, processed,
+                    retry_count, max_retries, related_message_id, related_patient_id,
+                    is_duplicate, created_at
+                )
+                VALUES (
+                    :id, :event_id, :event_type, :source, :payload, :processed,
+                    :retry_count, :max_retries, :related_message_id, :related_patient_id,
+                    :is_duplicate, NOW()
+                )
+                ON CONFLICT (event_id) DO NOTHING
+                RETURNING id
+            """)
+
+            result = self.db.execute(insert_stmt, {
+                "id": str(db_uuid),
+                "event_id": event_id,
+                "event_type": event_type,
+                "source": source,
+                "payload": payload,
+                "processed": False,
+                "retry_count": 0,
+                "max_retries": 3,
+                "related_message_id": str(related_message_id) if related_message_id else None,
+                "related_patient_id": str(related_patient_id) if related_patient_id else None,
+                "is_duplicate": False
+            })
+
+            row = result.fetchone()
+            self.db.commit()
+
+            if row:
+                logger.info(f"Persisted new webhook event: {event_id}")
+                return True, db_uuid
+            else:
+                # Duplicate - fetch existing
+                existing = self.db.execute(
+                    text("SELECT id FROM webhook_events WHERE event_id = :eid LIMIT 1"),
+                    {"eid": event_id}
+                ).fetchone()
+
+                existing_uuid = UUID(existing[0]) if existing else None
+                logger.info(f"Duplicate webhook event: {event_id}")
+                return False, existing_uuid
+
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Failed atomic persist: {e}", exc_info=True)
+            return False, None
     
     async def mark_processed(
         self,

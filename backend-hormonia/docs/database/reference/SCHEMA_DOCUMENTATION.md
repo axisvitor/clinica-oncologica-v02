@@ -39,6 +39,11 @@
 | `doctor_notes` | `text` | ✓ | - |
 | `cpf_encrypted` | `text` | ✓ | - |
 | `cpf_hash` | `character varying(64)` | ✓ | - |
+| `email_encrypted` | `bytea` | ✓ | - |
+| `email_hash` | `character varying(64)` | ✓ | - |
+| `phone_encrypted` | `bytea` | ✓ | - |
+| `phone_hash` | `character varying(64)` | ✓ | - |
+| `idempotency_key` | `character varying(64)` | ✓ | - |
 | `created_at` | `timestamp with time zone` | ✗ | now() |
 | `updated_at` | `timestamp with time zone` | ✗ | now() |
 | `metadata` | `jsonb` | ✓ | '{}'::jsonb |
@@ -47,9 +52,14 @@
 **Foreign Keys:**
 - `doctor_id` → `users.id`
 
-**LGPD Compliance:**
+**LGPD Compliance (Migrations 020, 024, 025, 028):**
 - `cpf_encrypted`: AES-256-GCM encrypted CPF (Migration 020)
 - `cpf_hash`: SHA-256 hash for searchable queries without decryption
+- `email_encrypted`: AES-256-GCM encrypted email (Migration 028)
+- `email_hash`: HMAC-SHA256 hash for email search
+- `phone_encrypted`: AES-256-GCM encrypted phone (Migration 028)
+- `phone_hash`: HMAC-SHA256 hash for phone search
+- `idempotency_key`: Unique key for request deduplication (Migration 025)
 - Original plaintext `cpf` column removed in Migration 024
 
 **Indexes:** 26

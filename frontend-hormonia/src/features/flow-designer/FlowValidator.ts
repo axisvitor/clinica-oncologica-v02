@@ -1,12 +1,12 @@
-import { 
-  FlowDesign, 
-  FlowNode, 
-  FlowConnection, 
-  FlowValidationResult, 
+import {
+  FlowDesign,
+  FlowNode,
+  FlowConnection,
+  FlowValidationResult,
   FlowValidationError,
   FlowValidationWarning,
-  FlowNodeType 
-} from '@/lib/types/flow-designer'
+  FlowNodeType
+} from '@/types/flow-designer'
 
 export class FlowValidator {
   validate(design: FlowDesign): FlowValidationResult {

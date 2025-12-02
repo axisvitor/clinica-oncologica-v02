@@ -2,7 +2,7 @@
 
 Welcome to the Hormonia Backend database documentation.
 
-> **Last Updated:** 2025-11-25 11:47:15
+> **Last Updated:** 2025-11-30 00:00:00
 
 ## 📂 Directory Structure
 
@@ -45,7 +45,7 @@ alembic upgrade head
 |--------|-------|
 | **Type** | PostgreSQL 14+ on **Amazon RDS** (sa-east-1) |
 | **ORM** | SQLAlchemy 2.0+ (async support) |
-| **Migration Tool** | Alembic (29 migrations) |
+| **Migration Tool** | Alembic (28 migrations) |
 | **Total Tables** | 56 |
 | **Total Columns** | ~820 |
 | **Total Indexes** | ~350 |
@@ -93,10 +93,12 @@ user_role: doctor, admin
 
 ## 🔐 Security & Compliance Features
 
-### LGPD Compliance (Migrations 020, 024)
-- **CPF Encryption:** AES-256-GCM encryption for CPF data
-- **Searchable Hash:** SHA-256 hash enables queries without decryption
+### LGPD Compliance (Migrations 020, 024, 025, 028)
+- **CPF Encryption:** AES-256-GCM encryption for CPF data (Migration 020)
+- **Email/Phone Encryption:** AES-256-GCM for email and phone (Migration 028)
+- **Searchable Hash:** SHA-256/HMAC hash enables queries without decryption
 - **Plaintext Removal:** Original CPF column permanently deleted (Migration 024)
+- **Idempotency:** Request deduplication via unique key (Migration 025)
 - **Encryption Key:** Stored securely in environment variable `ENCRYPTION_KEY`
 
 ### Security Features
@@ -115,9 +117,11 @@ user_role: doctor, admin
 
 | # | Migration | Description |
 |---|-----------|-------------|
+| 023 | add_user_permissions | Adiciona coluna `permissions` JSONB para RBAC |
+| 024 | drop_plaintext_cpf | Remove CPF plaintext (LGPD - irreversível) |
+| 025 | add_patient_idempotency_key | Chave de idempotência para pacientes (QW-004) |
 | 027 | consolidate_duplicates | Documenta migrations duplicadas (005/013, 014/022) |
 | 028 | encrypt_email_phone | Adiciona criptografia LGPD para email e telefone |
-| 029 | (próxima) | Planejada conforme necessidade |
 
 ## 📈 Current Data Statistics
 

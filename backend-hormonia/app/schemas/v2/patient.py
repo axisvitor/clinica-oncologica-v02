@@ -3,11 +3,15 @@ Patient schemas for API v2
 Enhanced patient models with field selection and eager loading support.
 """
 
+import re
 from typing import Optional, List
 from datetime import datetime, date
 from pydantic import BaseModel, Field, EmailStr, validator
 
 from .common import CursorPaginatedResponse
+
+# Import robust CPF validator from v1 schema
+from app.schemas.patient import validate_cpf as validate_cpf_check_digits
 
 
 class DoctorV2Brief(BaseModel):
@@ -37,7 +41,7 @@ class QuizV2Brief(BaseModel):
 
 class PatientV2Base(BaseModel):
     """Base patient schema"""
-    
+
     name: str = Field(..., min_length=1, max_length=200)
     email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=20)
@@ -49,11 +53,48 @@ class PatientV2Base(BaseModel):
     diagnosis: Optional[str] = Field(None, max_length=500)
     treatment_phase: Optional[str] = Field(None, max_length=100)
     timezone: str = Field("America/Sao_Paulo", description="Patient timezone (e.g., America/Sao_Paulo)")
-    
+
     @validator("cpf")
     def validate_cpf(cls, v):
-        if v and not v.replace(".", "").replace("-", "").isdigit():
-            raise ValueError("CPF must contain only digits, dots, and dashes")
+        """Validate CPF with check digits verification."""
+        if not v:
+            return v
+
+        # Check format: only digits, dots, dashes
+        if not v.replace(".", "").replace("-", "").isdigit():
+            raise ValueError("CPF deve conter apenas dígitos, pontos e traços")
+
+        # Validate check digits
+        if not validate_cpf_check_digits(v):
+            raise ValueError("CPF inválido: dígitos verificadores incorretos")
+
+        return v
+
+    @validator("phone")
+    def validate_phone_format(cls, v):
+        """Validate phone number for E.164 or Brazilian format."""
+        if not v:
+            return v
+
+        # Remove common formatting characters
+        cleaned = re.sub(r'[\s\-\(\)]', '', v)
+
+        # Check if it's E.164 format (starts with +)
+        if cleaned.startswith('+'):
+            # E.164 should be 10-15 digits after the +
+            digits_only = cleaned[1:]
+            if not digits_only.isdigit():
+                raise ValueError("Telefone E.164 deve conter apenas + e dígitos")
+            if len(digits_only) < 10 or len(digits_only) > 15:
+                raise ValueError("Telefone E.164 deve ter entre 10-15 dígitos")
+            return cleaned  # Return normalized E.164
+
+        # Brazilian format (without +55)
+        digits_only = re.sub(r'\D', '', v)
+        if len(digits_only) < 10 or len(digits_only) > 11:
+            raise ValueError("Telefone brasileiro deve ter 10-11 dígitos (DDD + número)")
+
+        # Return original format for backwards compatibility
         return v
 
 

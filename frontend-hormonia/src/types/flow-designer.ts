@@ -1,4 +1,4 @@
-// Flow Designer Types
+// Flow Designer Types - Centralized definitions for the visual flow designer
 
 export interface FlowNode {
   id: string
@@ -270,7 +270,7 @@ export interface FlowImportResult {
   warnings?: string[]
 }
 
-// Additional exports for missing types
+// Additional exports for chart compatibility
 export interface ChartData {
   [key: string]: unknown
 }
@@ -280,5 +280,3 @@ export interface TreatmentType {
   name: string
   description?: string
 }
-
-// All types are already exported above

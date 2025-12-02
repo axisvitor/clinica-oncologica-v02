@@ -23,15 +23,15 @@ logger = logging.getLogger(__name__)
 # MessageTask is now imported from app.tasks.base
 
 
-from app.services.whatsapp_unified import get_whatsapp_service, MessageType, MessagePriority
+from app.services.unified_whatsapp_service import create_unified_whatsapp_service
 
 @celery_app.task(bind=True, base=MessageTask, name="send_scheduled_message")
 def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
     """Send a scheduled message to a patient.
-    
+
     Args:
         message_id (str): UUID of the message to send
-        
+
     Returns:
         dict[str, Any]: Dictionary containing:
             - success (bool): Whether the message was sent successfully
@@ -40,7 +40,7 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
             - sent_at (str): ISO timestamp of when sent (if successful)
             - error (str): Error message (if failed)
             - status (str): Message status (if already processed)
-            
+
     Raises:
         Retry: If the task should be retried due to transient failures
     """
@@ -70,50 +70,37 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
                     "message_id": message_id,
                     "status": message.status.value
                 }
-            
+
             # Get patient phone number
             patient = message.patient
             if not patient or not patient.phone:
                  logger.error(f"Patient phone not found for message {message_id}")
                  return {
-                    "success": False, 
+                    "success": False,
                     "error": "Patient phone number missing",
                     "message_id": message_id
                  }
 
             # Send using Unified WhatsApp Service
-            whatsapp_service = get_whatsapp_service()
-            
-            # Map internal MessageType to Unified MessageType if needed, or use TEXT as default
-            # Assuming simple text for now based on legacy usage
-            
-            import asyncio
-            result = asyncio.run(whatsapp_service.send_message(
-                phone_number=patient.phone,
-                message_type=MessageType.TEXT,
-                content={"text": message.content},
-                priority=MessagePriority.NORMAL,
-                metadata=message.message_metadata
-            ))
+            whatsapp_service = create_unified_whatsapp_service(db)
 
-            success = result.get("status") in ["queued", "sent", "delivered", "read"] or result.get("key", {}).get("id")
-            
-            # Update status locally based on result (MessageService/WhatsAppService might handle this, 
-            # but we ensure consistency here)
+            import asyncio
+            # UnifiedWhatsAppService.send_message() accepts Message object directly
+            success = asyncio.run(whatsapp_service.send_message(message))
+
+            # Update status locally based on result
             if success:
-                message_service.mark_as_sent(message_id, result.get("key", {}).get("id") or "queued")
+                message_service.mark_as_sent(message_id, "queued")
                 logger.info(f"Successfully sent scheduled message {message_id}")
             else:
-                logger.error(f"Failed to send scheduled message {message_id}: {result}")
-                # Fail will be handled by exception block or manual update
-                raise ExternalServiceError(f"Provider returned failure: {result}")
+                logger.error(f"Failed to send scheduled message {message_id}")
+                raise ExternalServiceError(f"WhatsApp service returned failure")
 
             return {
                 "success": True,
                 "message_id": message_id,
                 "patient_id": str(message.patient_id),
-                "sent_at": datetime.utcnow().isoformat(),
-                "provider_result": result
+                "sent_at": datetime.utcnow().isoformat()
             }
 
     except Exception as exc:

@@ -6,7 +6,7 @@ import '@testing-library/jest-dom/vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { FlowDesigner } from '../FlowDesigner'
-import { FlowDesign, FlowNodeType } from '@/lib/types/flow-designer'
+import { FlowDesign, FlowNodeType } from '@/types/flow-designer'
 
 // Mock useToast
 vi.mock('@/components/ui/use-toast', () => ({

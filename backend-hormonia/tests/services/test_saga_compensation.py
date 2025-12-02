@@ -1,373 +1,555 @@
 """
-Tests for saga compensation (rollback) scenarios
+Tests for saga compensation (rollback) scenarios.
+
+QW-002: Tests for atomic saga compensation with proper error propagation.
 """
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+import json
+from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 from datetime import datetime
+from uuid import uuid4, UUID
+
+from app.orchestration.saga_orchestrator import (
+    SagaOrchestrator,
+    SagaCompensationError
+)
+from app.models.patient_onboarding_saga import PatientOnboardingSaga, SagaStatus
+from app.models.patient import Patient, FlowState
+from app.models.message import Message, MessageStatus
 
 
-class TestSagaCompensation:
-    """Test saga rollback when steps fail."""
+class TestSagaCompensationStepWithRetry:
+    """Test compensation step retry logic."""
 
-    @pytest.mark.asyncio
-    async def test_rollback_on_whatsapp_failure(self):
-        """Test saga rollback when WhatsApp step fails."""
-        from app.orchestration.saga_orchestrator import SagaOrchestrator
+    @pytest.fixture
+    def mock_db(self):
+        """Create mock database session."""
+        db = MagicMock()
+        db.query = MagicMock(return_value=MagicMock())
+        db.add = MagicMock()
+        db.commit = MagicMock()
+        db.delete = MagicMock()
+        return db
 
-        orchestrator = SagaOrchestrator()
+    @pytest.fixture
+    def mock_saga(self):
+        """Create mock saga object."""
+        saga = MagicMock(spec=PatientOnboardingSaga)
+        saga.id = uuid4()
+        saga.patient_id = uuid4()
+        saga.doctor_id = uuid4()
+        saga.current_step = 4
+        saga.status = SagaStatus.COMPENSATING
+        saga.execution_log = []
+        saga.add_log_entry = MagicMock()
+        return saga
 
-        # Mock steps
-        orchestrator._step_create_patient = AsyncMock(return_value={"id": "123"})
-        orchestrator._step_init_flow = AsyncMock()
-        orchestrator._step_send_whatsapp = AsyncMock(side_effect=Exception("WhatsApp failed"))
-        orchestrator._compensate_create_patient = AsyncMock()
-        orchestrator._compensate_init_flow = AsyncMock()
-
-        with pytest.raises(Exception):
-            await orchestrator.execute_saga({})
-
-        # Compensation should be called in reverse order
-        orchestrator._compensate_init_flow.assert_called_once()
-        orchestrator._compensate_create_patient.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_compensation_errors_tracked(self):
-        """Test compensation errors are tracked in Redis."""
-        from app.orchestration.saga_orchestrator import SagaOrchestrator
-
-        orchestrator = SagaOrchestrator()
-        orchestrator._redis = AsyncMock()
-
-        # Mock compensation failure
-        await orchestrator._track_compensation_failure(
-            saga_id="saga_123",
-            step=3,
-            error=Exception("Compensation failed")
-        )
-
-        orchestrator._redis.setex.assert_called_once()
-        call_args = orchestrator._redis.setex.call_args
-        assert "saga_123" in str(call_args)
-
-    @pytest.mark.asyncio
-    async def test_partial_compensation_on_multiple_failures(self):
-        """Test compensation continues even if one compensation fails."""
-        from app.orchestration.saga_orchestrator import SagaOrchestrator
-
-        orchestrator = SagaOrchestrator()
-
-        # Mock steps
-        orchestrator._step_1 = AsyncMock(return_value={"step": 1})
-        orchestrator._step_2 = AsyncMock(return_value={"step": 2})
-        orchestrator._step_3 = AsyncMock(side_effect=Exception("Step 3 failed"))
-
-        # Mock compensations - one fails
-        orchestrator._compensate_1 = AsyncMock()
-        orchestrator._compensate_2 = AsyncMock(side_effect=Exception("Compensation 2 failed"))
-
-        orchestrator._steps = [
-            (orchestrator._step_1, orchestrator._compensate_1),
-            (orchestrator._step_2, orchestrator._compensate_2),
-            (orchestrator._step_3, None)
-        ]
-
-        with pytest.raises(Exception):
-            await orchestrator.execute_saga({})
-
-        # Both compensations should be attempted
-        orchestrator._compensate_2.assert_called_once()
-        orchestrator._compensate_1.assert_called_once()
+    @pytest.fixture
+    def orchestrator(self, mock_db):
+        """Create orchestrator with mocked dependencies."""
+        with patch('app.orchestration.saga_orchestrator.get_redis_client'):
+            with patch('app.orchestration.saga_orchestrator.PatientRepository'):
+                with patch('app.orchestration.saga_orchestrator.PatientFlowService'):
+                    with patch('app.orchestration.saga_orchestrator.UnifiedWhatsAppService'):
+                        with patch('app.orchestration.saga_orchestrator.MessageService'):
+                            orch = SagaOrchestrator(mock_db)
+                            orch.redis = AsyncMock()
+                            return orch
 
     @pytest.mark.asyncio
-    async def test_saga_state_persisted_on_failure(self):
-        """Test saga state is persisted when failure occurs."""
-        from app.orchestration.saga_orchestrator import SagaOrchestrator
+    async def test_compensation_step_succeeds_first_try(self, orchestrator, mock_saga):
+        """Test compensation succeeds on first attempt."""
+        compensation_errors = []
+        compensate_fn = AsyncMock()
 
-        orchestrator = SagaOrchestrator()
-        orchestrator._redis = AsyncMock()
-
-        saga_id = "saga_456"
-        saga_state = {
-            "saga_id": saga_id,
-            "status": "failed",
-            "completed_steps": 2,
-            "total_steps": 5,
-            "error": "Database connection failed"
-        }
-
-        await orchestrator._persist_saga_state(saga_id, saga_state)
-
-        orchestrator._redis.setex.assert_called_once()
-
-
-class TestSagaRecovery:
-    """Test saga recovery mechanisms."""
-
-    @pytest.mark.asyncio
-    async def test_saga_can_be_resumed_after_failure(self):
-        """Test saga can be resumed from last successful step."""
-        from app.orchestration.saga_orchestrator import SagaOrchestrator
-        import json
-
-        orchestrator = SagaOrchestrator()
-        orchestrator._redis = AsyncMock()
-
-        # Mock persisted state
-        saga_state = {
-            "saga_id": "saga_789",
-            "completed_steps": 2,
-            "status": "failed",
-            "context": {"patient_id": "123"}
-        }
-        orchestrator._redis.get.return_value = json.dumps(saga_state)
-
-        recovered_state = await orchestrator.recover_saga("saga_789")
-
-        assert recovered_state["completed_steps"] == 2
-        assert recovered_state["context"]["patient_id"] == "123"
-
-    @pytest.mark.asyncio
-    async def test_saga_recovery_with_retry(self):
-        """Test saga can retry failed steps."""
-        from app.orchestration.saga_orchestrator import SagaOrchestrator
-
-        orchestrator = SagaOrchestrator()
-
-        # Mock step that fails first time, succeeds second time
-        call_count = 0
-
-        async def flaky_step(context):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                raise Exception("Temporary failure")
-            return {"success": True}
-
-        orchestrator._step_flaky = flaky_step
-
-        # Should retry and succeed
-        result = await orchestrator.execute_with_retry(
-            orchestrator._step_flaky,
-            context={},
+        await orchestrator._compensate_step_with_retry(
+            saga=mock_saga,
+            step_num=3,
+            step_name="test_compensation",
+            compensate_fn=compensate_fn,
+            compensation_errors=compensation_errors,
             max_retries=3
         )
 
-        assert result["success"] is True
-        assert call_count == 2
+        compensate_fn.assert_called_once_with(mock_saga)
+        mock_saga.add_log_entry.assert_called_once_with(3, "test_compensation", "compensated")
+        assert len(compensation_errors) == 0
 
     @pytest.mark.asyncio
-    async def test_saga_timeout_triggers_compensation(self):
-        """Test saga timeout triggers compensation."""
-        from app.orchestration.saga_orchestrator import SagaOrchestrator
-        import asyncio
+    async def test_compensation_step_succeeds_after_retry(self, orchestrator, mock_saga):
+        """Test compensation succeeds after initial failures."""
+        compensation_errors = []
+        # Fail twice, succeed on third
+        compensate_fn = AsyncMock(side_effect=[
+            Exception("Transient error 1"),
+            Exception("Transient error 2"),
+            None  # Success
+        ])
 
-        orchestrator = SagaOrchestrator()
+        await orchestrator._compensate_step_with_retry(
+            saga=mock_saga,
+            step_num=3,
+            step_name="test_compensation",
+            compensate_fn=compensate_fn,
+            compensation_errors=compensation_errors,
+            max_retries=3
+        )
 
-        # Mock slow step
-        async def slow_step(context):
-            await asyncio.sleep(10)
-            return {"done": True}
-
-        orchestrator._step_slow = slow_step
-        orchestrator._compensate_slow = AsyncMock()
-
-        # Execute with short timeout
-        with pytest.raises(asyncio.TimeoutError):
-            await asyncio.wait_for(
-                orchestrator._step_slow({}),
-                timeout=0.1
-            )
-
-        # Compensation should be triggered
-        # In actual implementation
-
-
-class TestSagaPatientCreation:
-    """Test saga for patient creation workflow."""
+        assert compensate_fn.call_count == 3
+        mock_saga.add_log_entry.assert_called_with(3, "test_compensation", "compensated")
+        assert len(compensation_errors) == 0
 
     @pytest.mark.asyncio
-    async def test_patient_creation_saga_success(self):
-        """Test complete patient creation saga succeeds."""
-        from app.orchestration.saga_orchestrator import SagaOrchestrator
+    async def test_compensation_step_fails_after_max_retries(self, orchestrator, mock_saga):
+        """Test compensation failure after exhausting retries."""
+        compensation_errors = []
+        error = Exception("Persistent failure")
+        compensate_fn = AsyncMock(side_effect=error)
 
-        orchestrator = SagaOrchestrator()
-
-        # Mock all steps to succeed
-        orchestrator._create_patient_record = AsyncMock(
-            return_value={"patient_id": "patient_123"}
-        )
-        orchestrator._init_whatsapp_flow = AsyncMock(
-            return_value={"flow_id": "flow_456"}
-        )
-        orchestrator._send_welcome_message = AsyncMock(
-            return_value={"message_id": "msg_789"}
-        )
-        orchestrator._create_initial_tasks = AsyncMock(
-            return_value={"tasks_created": 3}
+        await orchestrator._compensate_step_with_retry(
+            saga=mock_saga,
+            step_num=3,
+            step_name="test_compensation",
+            compensate_fn=compensate_fn,
+            compensation_errors=compensation_errors,
+            max_retries=3
         )
 
-        result = await orchestrator.execute_patient_creation_saga({
-            "name": "Test Patient",
-            "phone": "+5511999999999"
-        })
+        assert compensate_fn.call_count == 3
+        mock_saga.add_log_entry.assert_called_with(
+            3, "test_compensation", "compensation_failed", "Persistent failure"
+        )
+        assert len(compensation_errors) == 1
+        assert compensation_errors[0][0] == 3
+        assert str(compensation_errors[0][1]) == "Persistent failure"
 
-        assert result["patient_id"] == "patient_123"
-        assert result["flow_id"] == "flow_456"
+
+class TestSagaCompensateMessage:
+    """Test message compensation step."""
+
+    @pytest.fixture
+    def mock_db(self):
+        """Create mock database session."""
+        db = MagicMock()
+        return db
+
+    @pytest.fixture
+    def mock_saga(self):
+        """Create mock saga object."""
+        saga = MagicMock(spec=PatientOnboardingSaga)
+        saga.id = uuid4()
+        saga.patient_id = uuid4()
+        return saga
+
+    @pytest.fixture
+    def orchestrator(self, mock_db):
+        """Create orchestrator with mocked dependencies."""
+        with patch('app.orchestration.saga_orchestrator.get_redis_client'):
+            with patch('app.orchestration.saga_orchestrator.PatientRepository'):
+                with patch('app.orchestration.saga_orchestrator.PatientFlowService'):
+                    with patch('app.orchestration.saga_orchestrator.UnifiedWhatsAppService'):
+                        with patch('app.orchestration.saga_orchestrator.MessageService'):
+                            return SagaOrchestrator(mock_db)
 
     @pytest.mark.asyncio
-    async def test_patient_creation_saga_rollback_on_whatsapp_failure(self):
-        """Test patient creation rollback when WhatsApp fails."""
-        from app.orchestration.saga_orchestrator import SagaOrchestrator
+    async def test_compensate_message_marks_as_cancelled(self, orchestrator, mock_saga, mock_db):
+        """Test message compensation marks messages as cancelled."""
+        # Create mock messages
+        message1 = MagicMock(spec=Message)
+        message1.message_metadata = {"saga_id": str(mock_saga.id)}
+        message2 = MagicMock(spec=Message)
+        message2.message_metadata = {"saga_id": str(mock_saga.id)}
 
-        orchestrator = SagaOrchestrator()
+        mock_query = MagicMock()
+        mock_query.filter.return_value.all.return_value = [message1, message2]
+        mock_db.query.return_value = mock_query
 
-        # Patient creation succeeds
-        orchestrator._create_patient_record = AsyncMock(
-            return_value={"patient_id": "patient_123"}
-        )
-        # WhatsApp fails
-        orchestrator._init_whatsapp_flow = AsyncMock(
-            side_effect=Exception("WhatsApp API unavailable")
-        )
-        # Compensation
-        orchestrator._delete_patient_record = AsyncMock()
+        await orchestrator._compensate_message(mock_saga)
 
-        with pytest.raises(Exception):
-            await orchestrator.execute_patient_creation_saga({
-                "name": "Test Patient",
-                "phone": "+5511999999999"
-            })
-
-        # Patient should be deleted
-        orchestrator._delete_patient_record.assert_called_once()
+        assert message1.status == MessageStatus.CANCELLED
+        assert message2.status == MessageStatus.CANCELLED
+        assert "cancelled_by" in message1.message_metadata
+        assert message1.message_metadata["cancelled_by"] == "saga_compensation"
 
     @pytest.mark.asyncio
-    async def test_patient_creation_saga_partial_rollback(self):
-        """Test partial rollback when later steps fail."""
-        from app.orchestration.saga_orchestrator import SagaOrchestrator
+    async def test_compensate_message_handles_no_messages(self, orchestrator, mock_saga, mock_db):
+        """Test message compensation handles case with no messages."""
+        mock_query = MagicMock()
+        mock_query.filter.return_value.all.return_value = []
+        mock_db.query.return_value = mock_query
 
-        orchestrator = SagaOrchestrator()
+        # Should not raise
+        await orchestrator._compensate_message(mock_saga)
 
-        # First two steps succeed
-        orchestrator._create_patient_record = AsyncMock(
-            return_value={"patient_id": "patient_123"}
+
+class TestSagaCompensateFlow:
+    """Test flow compensation step."""
+
+    @pytest.fixture
+    def mock_db(self):
+        """Create mock database session."""
+        db = MagicMock()
+        return db
+
+    @pytest.fixture
+    def mock_saga(self):
+        """Create mock saga object."""
+        saga = MagicMock(spec=PatientOnboardingSaga)
+        saga.id = uuid4()
+        saga.patient_id = uuid4()
+        return saga
+
+    @pytest.fixture
+    def orchestrator(self, mock_db):
+        """Create orchestrator with mocked dependencies."""
+        with patch('app.orchestration.saga_orchestrator.get_redis_client'):
+            with patch('app.orchestration.saga_orchestrator.PatientRepository'):
+                with patch('app.orchestration.saga_orchestrator.PatientFlowService'):
+                    with patch('app.orchestration.saga_orchestrator.UnifiedWhatsAppService'):
+                        with patch('app.orchestration.saga_orchestrator.MessageService'):
+                            return SagaOrchestrator(mock_db)
+
+    @pytest.mark.asyncio
+    async def test_compensate_flow_deletes_flow_states(self, orchestrator, mock_saga, mock_db):
+        """Test flow compensation deletes flow states."""
+        flow_state1 = MagicMock(spec=FlowState)
+        flow_state2 = MagicMock(spec=FlowState)
+
+        mock_query = MagicMock()
+        mock_query.filter.return_value.all.return_value = [flow_state1, flow_state2]
+        mock_db.query.return_value = mock_query
+
+        await orchestrator._compensate_flow(mock_saga)
+
+        assert mock_db.delete.call_count == 2
+        mock_db.delete.assert_any_call(flow_state1)
+        mock_db.delete.assert_any_call(flow_state2)
+
+    @pytest.mark.asyncio
+    async def test_compensate_flow_handles_no_patient_id(self, orchestrator, mock_db):
+        """Test flow compensation handles missing patient_id."""
+        saga = MagicMock(spec=PatientOnboardingSaga)
+        saga.id = uuid4()
+        saga.patient_id = None
+
+        # Should not raise and not query
+        await orchestrator._compensate_flow(saga)
+        mock_db.query.assert_not_called()
+
+
+class TestSagaCompensatePatient:
+    """Test patient compensation step."""
+
+    @pytest.fixture
+    def mock_db(self):
+        """Create mock database session."""
+        db = MagicMock()
+        return db
+
+    @pytest.fixture
+    def mock_saga(self):
+        """Create mock saga object."""
+        saga = MagicMock(spec=PatientOnboardingSaga)
+        saga.id = uuid4()
+        saga.patient_id = uuid4()
+        return saga
+
+    @pytest.fixture
+    def orchestrator(self, mock_db):
+        """Create orchestrator with mocked dependencies."""
+        with patch('app.orchestration.saga_orchestrator.get_redis_client'):
+            with patch('app.orchestration.saga_orchestrator.PatientRepository') as MockRepo:
+                with patch('app.orchestration.saga_orchestrator.PatientFlowService'):
+                    with patch('app.orchestration.saga_orchestrator.UnifiedWhatsAppService'):
+                        with patch('app.orchestration.saga_orchestrator.MessageService'):
+                            orch = SagaOrchestrator(mock_db)
+                            orch.patient_repo = MagicMock()
+                            return orch
+
+    @pytest.mark.asyncio
+    async def test_compensate_patient_deletes_patient(self, orchestrator, mock_saga, mock_db):
+        """Test patient compensation deletes patient record."""
+        patient = MagicMock(spec=Patient)
+        orchestrator.patient_repo.get_by_id.return_value = patient
+
+        await orchestrator._compensate_patient(mock_saga)
+
+        orchestrator.patient_repo.get_by_id.assert_called_once_with(mock_saga.patient_id)
+        mock_db.delete.assert_called_once_with(patient)
+
+    @pytest.mark.asyncio
+    async def test_compensate_patient_handles_already_deleted(self, orchestrator, mock_saga, mock_db):
+        """Test patient compensation handles already deleted patient."""
+        orchestrator.patient_repo.get_by_id.return_value = None
+
+        # Should not raise
+        await orchestrator._compensate_patient(mock_saga)
+        mock_db.delete.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_compensate_patient_handles_no_patient_id(self, orchestrator, mock_db):
+        """Test patient compensation handles missing patient_id."""
+        saga = MagicMock(spec=PatientOnboardingSaga)
+        saga.id = uuid4()
+        saga.patient_id = None
+
+        await orchestrator._compensate_patient(saga)
+        orchestrator.patient_repo.get_by_id.assert_not_called()
+
+
+class TestSagaCompensationInternal:
+    """Test full internal compensation flow."""
+
+    @pytest.fixture
+    def mock_db(self):
+        """Create mock database session."""
+        db = MagicMock()
+        db.commit = MagicMock()
+        return db
+
+    @pytest.fixture
+    def mock_saga(self):
+        """Create mock saga object."""
+        saga = MagicMock(spec=PatientOnboardingSaga)
+        saga.id = uuid4()
+        saga.patient_id = uuid4()
+        saga.doctor_id = uuid4()
+        saga.current_step = 4
+        saga.status = SagaStatus.FAILED
+        saga.execution_log = []
+        saga.add_log_entry = MagicMock()
+        return saga
+
+    @pytest.fixture
+    def orchestrator(self, mock_db):
+        """Create orchestrator with mocked dependencies."""
+        with patch('app.orchestration.saga_orchestrator.get_redis_client'):
+            with patch('app.orchestration.saga_orchestrator.PatientRepository') as MockRepo:
+                with patch('app.orchestration.saga_orchestrator.PatientFlowService'):
+                    with patch('app.orchestration.saga_orchestrator.UnifiedWhatsAppService'):
+                        with patch('app.orchestration.saga_orchestrator.MessageService'):
+                            orch = SagaOrchestrator(mock_db)
+                            orch.patient_repo = MagicMock()
+                            return orch
+
+    @pytest.mark.asyncio
+    async def test_compensate_saga_internal_all_steps_succeed(self, orchestrator, mock_saga, mock_db):
+        """Test compensation succeeds for all steps."""
+        # Mock all compensation methods
+        orchestrator._compensate_message = AsyncMock()
+        orchestrator._compensate_flow = AsyncMock()
+        orchestrator._compensate_patient = AsyncMock()
+        orchestrator._compensate_step_with_retry = AsyncMock()
+
+        await orchestrator._compensate_saga_internal(mock_saga)
+
+        # Should call compensation for steps 4, 3, 1 (step 2 is skipped)
+        assert orchestrator._compensate_step_with_retry.call_count == 3
+        mock_db.commit.assert_called_once()
+        assert mock_saga.status == SagaStatus.FAILED
+
+    @pytest.mark.asyncio
+    async def test_compensate_saga_internal_raises_on_failure(self, orchestrator, mock_saga, mock_db):
+        """Test compensation raises SagaCompensationError on failure."""
+        error = Exception("Compensation failed")
+
+        async def mock_compensate_with_retry(saga, step_num, step_name, compensate_fn, compensation_errors, max_retries=3):
+            compensation_errors.append((step_num, error))
+
+        orchestrator._compensate_step_with_retry = mock_compensate_with_retry
+        orchestrator._track_compensation_failure = AsyncMock()
+
+        with pytest.raises(SagaCompensationError) as exc_info:
+            await orchestrator._compensate_saga_internal(mock_saga)
+
+        assert mock_saga.id in str(exc_info.value.saga_id)
+
+
+class TestSagaCompensationError:
+    """Test SagaCompensationError exception."""
+
+    def test_saga_compensation_error_attributes(self):
+        """Test SagaCompensationError has correct attributes."""
+        original = ValueError("Original error")
+        saga_id = uuid4()
+
+        error = SagaCompensationError(
+            message="Compensation failed",
+            original_error=original,
+            saga_id=saga_id
         )
-        orchestrator._init_whatsapp_flow = AsyncMock(
-            return_value={"flow_id": "flow_456"}
-        )
-        # Third step fails
-        orchestrator._send_welcome_message = AsyncMock(
-            side_effect=Exception("Message send failed")
-        )
 
-        # Compensations
-        orchestrator._cancel_whatsapp_flow = AsyncMock()
-        orchestrator._delete_patient_record = AsyncMock()
-
-        with pytest.raises(Exception):
-            await orchestrator.execute_patient_creation_saga({})
-
-        # Both compensations should run
-        orchestrator._cancel_whatsapp_flow.assert_called_once()
-        orchestrator._delete_patient_record.assert_called_once()
+        assert error.message == "Compensation failed"
+        assert error.original_error == original
+        assert error.saga_id == saga_id
+        assert str(error) == "Compensation failed"
 
 
-class TestSagaLogging:
-    """Test saga logging and audit trail."""
+class TestTrackCompensationFailure:
+    """Test compensation failure tracking."""
 
-    @pytest.mark.asyncio
-    async def test_saga_logs_each_step(self):
-        """Test each saga step is logged."""
-        from app.orchestration.saga_orchestrator import SagaOrchestrator
+    @pytest.fixture
+    def mock_db(self):
+        """Create mock database session."""
+        return MagicMock()
 
-        orchestrator = SagaOrchestrator()
-        orchestrator._logger = MagicMock()
-
-        step_name = "create_patient"
-        context = {"data": "test"}
-
-        await orchestrator._log_step_execution(step_name, context, success=True)
-
-        orchestrator._logger.info.assert_called_once()
-        call_args = orchestrator._logger.info.call_args[0][0]
-        assert step_name in call_args
+    @pytest.fixture
+    def orchestrator(self, mock_db):
+        """Create orchestrator with mocked dependencies."""
+        with patch('app.orchestration.saga_orchestrator.get_redis_client'):
+            with patch('app.orchestration.saga_orchestrator.PatientRepository'):
+                with patch('app.orchestration.saga_orchestrator.PatientFlowService'):
+                    with patch('app.orchestration.saga_orchestrator.UnifiedWhatsAppService'):
+                        with patch('app.orchestration.saga_orchestrator.MessageService'):
+                            orch = SagaOrchestrator(mock_db)
+                            orch.redis = MagicMock()
+                            orch.redis.setex = MagicMock()
+                            return orch
 
     @pytest.mark.asyncio
-    async def test_saga_logs_compensation(self):
-        """Test compensation is logged."""
-        from app.orchestration.saga_orchestrator import SagaOrchestrator
+    async def test_track_compensation_failure_stores_in_redis(self, orchestrator):
+        """Test compensation failure is stored in Redis."""
+        saga_id = uuid4()
+        error = Exception("Test error")
 
-        orchestrator = SagaOrchestrator()
-        orchestrator._logger = MagicMock()
+        await orchestrator._track_compensation_failure(saga_id, 3, error)
 
-        step_name = "create_patient"
-        error = Exception("Database error")
+        orchestrator.redis.setex.assert_called_once()
+        call_args = orchestrator.redis.setex.call_args
+        key = call_args[0][0]
+        ttl = call_args[0][1]
+        data = json.loads(call_args[0][2])
 
-        await orchestrator._log_compensation(step_name, error)
-
-        orchestrator._logger.warning.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_saga_creates_audit_trail(self):
-        """Test saga creates complete audit trail."""
-        from app.orchestration.saga_orchestrator import SagaOrchestrator
-
-        orchestrator = SagaOrchestrator()
-        orchestrator._redis = AsyncMock()
-
-        saga_id = "saga_audit_123"
-        audit_entry = {
-            "saga_id": saga_id,
-            "timestamp": datetime.utcnow().isoformat(),
-            "step": "create_patient",
-            "status": "success",
-            "duration_ms": 150
-        }
-
-        await orchestrator._append_audit_trail(saga_id, audit_entry)
-
-        # Should append to list in Redis
-        orchestrator._redis.rpush.assert_called_once()
-
-
-class TestSagaMetrics:
-    """Test saga performance metrics."""
+        assert f"saga:compensation_failure:{saga_id}" == key
+        assert ttl == 86400 * 7  # 7 days
+        assert data["saga_id"] == str(saga_id)
+        assert data["step"] == 3
+        assert data["error"] == "Test error"
+        assert data["error_type"] == "Exception"
 
     @pytest.mark.asyncio
-    async def test_saga_tracks_execution_time(self):
-        """Test saga tracks total execution time."""
-        from app.orchestration.saga_orchestrator import SagaOrchestrator
-        import time
+    async def test_track_compensation_failure_handles_redis_error(self, orchestrator):
+        """Test tracking handles Redis errors gracefully."""
+        saga_id = uuid4()
+        orchestrator.redis.setex.side_effect = Exception("Redis connection error")
 
-        orchestrator = SagaOrchestrator()
+        # Should not raise
+        await orchestrator._track_compensation_failure(saga_id, 3, Exception("Test"))
 
-        start_time = time.time()
 
-        # Simulate saga execution
-        await orchestrator._track_metrics(
-            saga_id="saga_metrics_123",
-            start_time=start_time,
-            end_time=time.time()
-        )
+class TestGetSagaStatus:
+    """Test get_saga_status method."""
 
-        # Metrics should be recorded
-        # In actual implementation, verify metrics storage
+    @pytest.fixture
+    def mock_db(self):
+        """Create mock database session."""
+        return MagicMock()
+
+    @pytest.fixture
+    def orchestrator(self, mock_db):
+        """Create orchestrator with mocked dependencies."""
+        with patch('app.orchestration.saga_orchestrator.get_redis_client'):
+            with patch('app.orchestration.saga_orchestrator.PatientRepository'):
+                with patch('app.orchestration.saga_orchestrator.PatientFlowService'):
+                    with patch('app.orchestration.saga_orchestrator.UnifiedWhatsAppService'):
+                        with patch('app.orchestration.saga_orchestrator.MessageService'):
+                            return SagaOrchestrator(mock_db)
 
     @pytest.mark.asyncio
-    async def test_saga_tracks_step_durations(self):
-        """Test saga tracks individual step durations."""
-        from app.orchestration.saga_orchestrator import SagaOrchestrator
+    async def test_get_saga_status_returns_status(self, orchestrator, mock_db):
+        """Test get_saga_status returns correct status."""
+        saga_id = uuid4()
+        saga = MagicMock(spec=PatientOnboardingSaga)
+        saga.id = saga_id
+        saga.status = SagaStatus.COMPLETED
+        saga.current_step = 4
+        saga.patient_id = uuid4()
+        saga.doctor_id = uuid4()
+        saga.started_at = datetime.utcnow()
+        saga.completed_at = datetime.utcnow()
+        saga.failed_at = None
+        saga.error_message = None
+        saga.error_type = None
+        saga.execution_log = []
 
-        orchestrator = SagaOrchestrator()
-        orchestrator._metrics = []
+        mock_db.query.return_value.filter.return_value.first.return_value = saga
 
-        step_metric = {
-            "step": "create_patient",
-            "duration_ms": 125,
-            "status": "success"
-        }
+        result = await orchestrator.get_saga_status(saga_id)
 
-        orchestrator._metrics.append(step_metric)
+        assert result["id"] == str(saga_id)
+        assert result["status"] == SagaStatus.COMPLETED.value
+        assert result["current_step"] == 4
 
-        assert len(orchestrator._metrics) == 1
-        assert orchestrator._metrics[0]["duration_ms"] == 125
+    @pytest.mark.asyncio
+    async def test_get_saga_status_returns_none_when_not_found(self, orchestrator, mock_db):
+        """Test get_saga_status returns None when saga not found."""
+        mock_db.query.return_value.filter.return_value.first.return_value = None
+
+        result = await orchestrator.get_saga_status(uuid4())
+
+        assert result is None
+
+
+class TestListFailedSagas:
+    """Test list_failed_sagas method."""
+
+    @pytest.fixture
+    def mock_db(self):
+        """Create mock database session."""
+        return MagicMock()
+
+    @pytest.fixture
+    def orchestrator(self, mock_db):
+        """Create orchestrator with mocked dependencies."""
+        with patch('app.orchestration.saga_orchestrator.get_redis_client'):
+            with patch('app.orchestration.saga_orchestrator.PatientRepository'):
+                with patch('app.orchestration.saga_orchestrator.PatientFlowService'):
+                    with patch('app.orchestration.saga_orchestrator.UnifiedWhatsAppService'):
+                        with patch('app.orchestration.saga_orchestrator.MessageService'):
+                            return SagaOrchestrator(mock_db)
+
+    @pytest.mark.asyncio
+    async def test_list_failed_sagas_returns_list(self, orchestrator, mock_db):
+        """Test list_failed_sagas returns list of failed sagas."""
+        saga1 = MagicMock(spec=PatientOnboardingSaga)
+        saga1.id = uuid4()
+        saga1.doctor_id = uuid4()
+        saga1.current_step = 2
+        saga1.error_message = "Error 1"
+        saga1.error_type = "Exception"
+        saga1.failed_at = datetime.utcnow()
+        saga1.retry_count = 1
+
+        saga2 = MagicMock(spec=PatientOnboardingSaga)
+        saga2.id = uuid4()
+        saga2.doctor_id = uuid4()
+        saga2.current_step = 3
+        saga2.error_message = "Error 2"
+        saga2.error_type = "ValueError"
+        saga2.failed_at = datetime.utcnow()
+        saga2.retry_count = 0
+
+        mock_db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = [saga1, saga2]
+
+        result = await orchestrator.list_failed_sagas()
+
+        assert len(result) == 2
+        assert result[0]["id"] == str(saga1.id)
+        assert result[1]["error_type"] == "ValueError"
+
+    @pytest.mark.asyncio
+    async def test_list_failed_sagas_filters_by_doctor(self, orchestrator, mock_db):
+        """Test list_failed_sagas filters by doctor_id."""
+        doctor_id = uuid4()
+
+        mock_query = MagicMock()
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.order_by.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+        mock_query.all.return_value = []
+
+        await orchestrator.list_failed_sagas(doctor_id=doctor_id, limit=10)
+
+        # Verify filter was called twice (once for status, once for doctor_id)
+        assert mock_query.filter.call_count == 2

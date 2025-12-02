@@ -6,7 +6,7 @@ import '@testing-library/jest-dom/vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { NodePalette } from '../NodePalette'
-import { FlowNodeType } from '@/lib/types/flow-designer'
+import { FlowNodeType } from '@/types/flow-designer'
 
 describe('NodePalette', () => {
   const defaultProps = {

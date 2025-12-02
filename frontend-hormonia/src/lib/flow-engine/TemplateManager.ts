@@ -4,7 +4,7 @@ import {
   type FlowTemplate,
   type MessageTemplate,
   type Condition
-} from '../types/flow'
+} from '@/lib/api-client/types'
 import { apiClient } from '../api-client'
 import { createLogger } from '../logger'
 import { CreateFlowTemplateRequest } from '../api-client/types'

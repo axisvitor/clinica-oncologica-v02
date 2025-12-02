@@ -2,5 +2,5 @@
 export { MessagesList } from './MessagesList';
 export { MessageComposer } from './MessageComposer';
 
-// Re-export types if needed
-export type { MessageType } from '@/lib/types/messages';
+// Re-export types from centralized location
+export { MessageType } from '@/types/api';

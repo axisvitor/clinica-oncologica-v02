@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import '@testing-library/jest-dom/vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { FlowCanvas } from '../FlowCanvas'
-import { FlowDesign, FlowNodeType, DesignerMode, FlowValidationResult } from '@/lib/types/flow-designer'
+import { FlowDesign, FlowNodeType, DesignerMode, FlowValidationResult } from '@/types/flow-designer'
 
 // Helper to create a minimal design
 function createTestDesign(): FlowDesign {

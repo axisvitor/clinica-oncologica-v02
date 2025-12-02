@@ -3,19 +3,21 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../lib/api-client'
 import { createLogger } from '../lib/logger'
 import {
-  ChatMessage,
+  AIChatMessage as ChatMessage,
   ChatSession,
   ChatResponse,
-  AIInsight,
   AIRecommendation,
   SentimentAnalysis,
   UseAIChatOptions,
   UseAIAnalyticsOptions,
   UseAIInsightsOptions,
   PatientEngagementMetrics,
-  AIGeneratedMessage
-} from '../lib/types/ai'
-import { ChatRole, SentimentLabel } from '@/types/api'
+  AIGeneratedMessage,
+  ChatRole,
+  SentimentLabel,
+  InsightType
+} from '@/types/api'
+import type { AIInsight } from '@/lib/api-client/types'
 import { FEATURES } from '../config'
 
 const logger = createLogger('useAI')
@@ -631,7 +633,7 @@ export function useAIInsightsAdvanced(options: UseAIInsightsOptions = {}) {
       // Filter by confidence and type
       return insightsList
         .filter((insight: AIInsight) => insight.confidence >= min_confidence)
-        .filter((insight: AIInsight) => !types || types?.includes(insight.type))
+        .filter((insight: AIInsight) => !types || types?.includes(insight.type as unknown as InsightType))
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     enabled: !!patient_id || !patient_id

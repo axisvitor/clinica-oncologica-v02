@@ -21,6 +21,7 @@ from ..models.message import (
 from app.services.circuit_breaker import CircuitBreaker, CircuitOpenError
 from app.core.retry import retry_with_backoff, RetryStrategies
 from app.core.tracing import get_tracer, trace
+from app.core.distributed_lock import acquire_lock, LockAcquisitionError, LockKeys
 
 logger = logging.getLogger(__name__)
 
@@ -283,10 +284,32 @@ class WhatsAppMessageService:
             self._processing = False
 
     async def _process_message(self, message_payload: Dict[str, Any]):
-        """Process individual message."""
+        """
+        Process individual message with distributed lock to prevent concurrent processing.
+
+        Uses distributed lock to ensure only one worker processes a given message,
+        preventing race conditions when multiple workers dequeue the same message.
+        """
         message_id = message_payload["data"]["message_id"]
         action = message_payload["data"]["action"]
 
+        # Acquire distributed lock per message to prevent concurrent processing
+        lock_key = LockKeys.message_processing(message_id)
+        try:
+            async with acquire_lock(lock_key, timeout=5.0, ttl=120):
+                await self._process_message_internal(message_payload, message_id, action)
+        except LockAcquisitionError:
+            # Another worker is processing this message, skip
+            logger.info(f"Message {message_id} already being processed by another worker")
+            return
+
+    async def _process_message_internal(
+        self,
+        message_payload: Dict[str, Any],
+        message_id: str,
+        action: str
+    ):
+        """Internal message processing (called within lock context)."""
         # Get message from database
         stmt = select(WhatsAppMessage).where(WhatsAppMessage.id == message_id)
         result = await self.db_session.execute(stmt)
@@ -294,6 +317,11 @@ class WhatsAppMessageService:
 
         if not message:
             logger.error(f"Message {message_id} not found in database")
+            return
+
+        # Check if already processed (idempotency)
+        if message.status in [MessageStatus.SENT, MessageStatus.DELIVERED]:
+            logger.info(f"Message {message_id} already processed, skipping")
             return
 
         try:
@@ -310,7 +338,7 @@ class WhatsAppMessageService:
             message.error_message = str(e)
             message.failed_at = datetime.utcnow()
             await self.db_session.commit()
-            
+
             # Sync failure status to domain if handler is present
             if self.message_status_handler and message.message_data:
                 domain_id = message.message_data.get('domain_message_id')

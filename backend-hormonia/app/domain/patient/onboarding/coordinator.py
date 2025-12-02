@@ -9,10 +9,14 @@ LOC: ~100
 Responsibility: Workflow orchestration ONLY
 
 ISSUE-005 Phase 5 (FINAL):
-- Orchestrates ValidationService, SagaIntegrationService, NotificationService, CompletionService
+- Orchestrates ValidationService, SagaOrchestrator, NotificationService, CompletionService
 - NO business logic - pure coordination
 - 100% dependency injection
 - Single point of entry for patient onboarding
+
+Phase 2 Simplification:
+- Removed SagaIntegrationService wrapper (0% business logic)
+- Now calls SagaOrchestrator directly
 """
 from typing import Optional, TYPE_CHECKING
 from uuid import UUID
@@ -24,12 +28,13 @@ from app.models.patient import Patient
 from app.schemas.patient import PatientCreate
 from app.exceptions import ValidationError
 from app.utils.db_retry import with_db_retry
+from app.config import settings
 
 if TYPE_CHECKING:
     from app.models.user import User
     from app.services.patient.integrity_service import PatientIntegrityService
     from app.domain.patient.onboarding.validation_service import ValidationService
-    from app.domain.patient.onboarding.saga_integration_service import SagaIntegrationService
+    from app.orchestration.saga_orchestrator import SagaOrchestrator
     from app.domain.patient.onboarding.notification_service import NotificationService
     from app.domain.patient.onboarding.completion_service import CompletionService
     from app.domain.patient.onboarding.creation_service import CreationService
@@ -45,13 +50,16 @@ class OnboardingCoordinator:
 
     This coordinator has NO business logic - it only:
     1. Validates patient data (via IntegrityService)
-    2. Attempts saga creation (via SagaIntegrationService)
-    3. Falls back to direct creation (via CreationService)
-    4. Sends notifications (via NotificationService)
-    5. Completes partial onboarding (via CompletionService)
+    2. Executes saga pattern (via SagaOrchestrator directly)
+    3. Sends notifications (via NotificationService)
+    4. Completes partial onboarding (via CompletionService)
 
     CRITICAL: This is a COORDINATOR, not a SERVICE.
     All business logic is delegated to specialized services.
+
+    Phase 2 Simplification:
+    - Removed SagaIntegrationService wrapper (0% business logic)
+    - Now calls SagaOrchestrator directly
     """
 
     def __init__(
@@ -59,7 +67,7 @@ class OnboardingCoordinator:
         db: Session,
         integrity_service: "PatientIntegrityService",
         validation_service: "ValidationService",
-        saga_service: "SagaIntegrationService",
+        saga_orchestrator: Optional["SagaOrchestrator"],
         notification_service: "NotificationService",
         completion_service: "CompletionService",
         creation_service: Optional["CreationService"] = None,
@@ -73,7 +81,7 @@ class OnboardingCoordinator:
             db: Database session
             integrity_service: Service for patient data validation (SINGLE SOURCE OF TRUTH)
             validation_service: Service for duplicate detection
-            saga_service: Service for saga pattern orchestration
+            saga_orchestrator: Saga orchestrator for distributed transactions (direct usage)
             notification_service: Service for notification delivery
             completion_service: Service for partial onboarding completion
             creation_service: Optional service for direct patient creation
@@ -81,10 +89,22 @@ class OnboardingCoordinator:
         self.db = db
         self.integrity_service = integrity_service
         self.validation_service = validation_service
-        self.saga_service = saga_service
+        self.saga_orchestrator = saga_orchestrator
         self.notification_service = notification_service
         self.completion_service = completion_service
         self.creation_service = creation_service
+
+    def _is_saga_enabled(self) -> bool:
+        """
+        Check if Saga Pattern is enabled and available.
+
+        Returns:
+            True if saga is enabled and orchestrator is available
+        """
+        return (
+            self.saga_orchestrator is not None
+            and getattr(settings, "ENABLE_SAGA_PATTERN", True)
+        )
 
     @with_db_retry(max_retries=3)
     async def create_patient(
@@ -123,93 +143,43 @@ class OnboardingCoordinator:
         )
         logger.info(f"Patient data validated for doctor {doctor_id}")
 
-        # Step 2: Execução obrigatória via Saga Pattern
-        if not self.saga_service.is_enabled():
+        # Step 2: Execução obrigatória via Saga Pattern (direct call to orchestrator)
+        if not self._is_saga_enabled():
             raise ValidationError("Saga Pattern desabilitado ou não configurado")
 
         logger.info(f"Attempting patient creation via Saga Pattern for doctor {doctor_id}")
-        patient = await self.saga_service.create_patient_via_saga(
-            patient_data=patient_data,
-            doctor_id=doctor_id,
-            current_user=current_user,
-            idempotency_key=idempotency_key,  # QW-004: Pass idempotency key to saga
-        )
 
-        if not patient:
-            raise ValidationError("Falha ao criar paciente via Saga Pattern")
-
-        logger.info(
-            f"Patient created successfully via Saga: {patient.id} - {patient.name}"
-        )
-        return patient
-
-    async def _create_patient_direct(
-        self,
-        patient_data: PatientCreate,
-        doctor_id: UUID,
-        current_user: Optional["User"] = None,
-    ) -> Patient:
-        """
-        Direct patient creation workflow (saga fallback).
-
-        Workflow:
-        1. Check for existing patient (ValidationService)
-        2. If exists: Complete partial onboarding (CompletionService)
-        3. If not exists: Create new patient (CreationService)
-        4. Send notifications (NotificationService)
-
-        Args:
-            patient_data: Patient creation data
-            doctor_id: Doctor ID
-            current_user: Current authenticated user
-
-        Returns:
-            Created or updated patient object
-        """
-        # Step 1: Check for existing patient (prevent duplicates)
-        existing_patient = await self.validation_service.find_existing_patient(
-            cpf=patient_data.cpf,
-            email=patient_data.email,
-            phone=patient_data.phone,
-            doctor_id=doctor_id
-        )
-
-        if existing_patient:
-            logger.warning(
-                f"Patient already exists: {existing_patient.id}, completing onboarding",
-                extra={
-                    "patient_id": str(existing_patient.id),
-                    "doctor_id": str(doctor_id)
-                }
-            )
-            # Step 2: Complete partial onboarding
-            patient = await self.completion_service.complete_partial_onboarding(
-                existing_patient=existing_patient,
+        try:
+            patient = await self.saga_orchestrator.execute_patient_onboarding_saga(
                 patient_data=patient_data,
-                current_user=current_user
+                doctor_id=doctor_id,
+                current_user=current_user,
+                idempotency_key=idempotency_key,  # QW-004: Pass idempotency key to orchestrator
+            )
+
+            if not patient:
+                raise ValidationError("Saga Pattern não retornou paciente após execução")
+
+            logger.info(
+                f"✅ Patient created successfully via Saga: {patient.id} - {patient.name}",
+                extra={
+                    "patient_id": str(patient.id),
+                    "patient_name": patient.name,
+                    "doctor_id": str(doctor_id),
+                }
             )
             return patient
 
-        # Step 3: Create new patient via CreationService
-        if not self.creation_service:
-            # Fallback to inline creation if CreationService not provided
-            from app.domain.patient.onboarding.creation_service import CreationService
-            from concurrent.futures import ThreadPoolExecutor
-
-            _executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix="coordinator_sync")
-            self.creation_service = CreationService(
-                db=self.db,
-                integrity_service=self.integrity_service,
-                completion_service=self.completion_service,
-                notification_service=self.notification_service,
-                validation_service=self.validation_service,
-                executor=_executor,
+        except Exception as e:
+            logger.error(
+                f"❌ Saga Pattern execution failed: {e}",
+                exc_info=True,
+                extra={
+                    "patient_phone": patient_data.phone,
+                    "doctor_id": str(doctor_id),
+                    "exception_type": type(e).__name__,
+                }
             )
-
-        patient = await self.creation_service.create_patient_direct(
-            patient_data=patient_data,
-            doctor_id=doctor_id,
-            current_user=current_user
-        )
-
-        return patient
+            if isinstance(e, ValidationError):
+                raise
+            raise ValidationError(f"Falha ao executar Saga Pattern: {e}") from e

@@ -28,7 +28,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { usePatientSummaryManager } from '@/hooks/usePatientSummary';
-import type { PatientSummaryResponse, SeverityLevel } from '@/lib/types/patient-summary';
+import type { PatientSummaryResponse, SeverityLevel } from '@/types/api';
 
 const logger = createLogger('PatientAISummary');
 

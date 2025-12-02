@@ -9,7 +9,7 @@
  * - id, patient_id, flow_type, status, current_day, ...
  */
 
-import type { FlowState } from '../types/flow'
+import type { FlowState } from '@/lib/api-client/types'
 
 interface FlowAdvancementResult {
   current_day: number

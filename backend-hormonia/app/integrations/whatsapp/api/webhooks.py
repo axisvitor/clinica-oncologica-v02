@@ -3,6 +3,7 @@ WhatsApp webhook handlers for Evolution API integration.
 
 SECURITY: Rate limiting added to prevent webhook flooding (HIGH-001)
 SECURITY: Idempotency protection added to prevent duplicate message processing
+QW-006: Atomic idempotency using Redis SET NX EX to prevent race conditions
 """
 import json
 import logging
@@ -21,6 +22,7 @@ from ..services.message_service import WhatsAppMessageService
 from app.database import get_db
 from app.utils.rate_limiter import limiter
 from app.config import settings
+from app.services.webhook.idempotency import AtomicWebhookIdempotency
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +30,7 @@ router = APIRouter(prefix="/webhooks/whatsapp", tags=["WhatsApp Webhooks"])
 
 # Redis client for idempotency tracking
 _redis_client: Optional[redis.Redis] = None
+_idempotency_service: Optional[AtomicWebhookIdempotency] = None
 
 
 async def get_redis() -> redis.Redis:
@@ -38,31 +41,73 @@ async def get_redis() -> redis.Redis:
     return _redis_client
 
 
-async def is_event_processed(event_id: str) -> bool:
+async def get_idempotency_service() -> AtomicWebhookIdempotency:
+    """Get or create atomic idempotency service."""
+    global _idempotency_service
+    if _idempotency_service is None:
+        redis_client = await get_redis()
+        _idempotency_service = AtomicWebhookIdempotency(redis_client)
+    return _idempotency_service
+
+
+async def is_event_processed(event_id: str, event_type: str = "webhook") -> bool:
     """
-    Check if webhook event was already processed (idempotency protection).
+    Check if webhook event was already processed (atomic idempotency protection).
+
+    QW-006: Uses atomic Redis SET NX EX to prevent race conditions where
+    multiple workers could both see 'not processed' and both attempt processing.
 
     Args:
         event_id: Unique event identifier (e.g., message_id)
+        event_type: Type of event for logging and TTL selection
 
     Returns:
         True if event was already processed, False otherwise
     """
-    redis_client = await get_redis()
-    key = f"webhook:processed:{event_id}"
+    try:
+        idempotency = await get_idempotency_service()
 
-    # Check if key exists
-    exists = await redis_client.exists(key)
-    if exists:
-        logger.info(
-            f"Duplicate webhook event detected and ignored: {event_id}",
-            extra={"event_id": event_id, "idempotency": "protected"}
+        # Atomic check-and-set using SET NX EX
+        acquired, reason = await idempotency.try_acquire(
+            event_type=event_type,
+            event_id=event_id
         )
-        return True
 
-    # Mark as processed with 24h TTL (prevents indefinite growth)
-    await redis_client.setex(key, 86400, "1")
-    return False
+        if not acquired:
+            logger.info(
+                f"Duplicate webhook event detected and ignored: {event_id}",
+                extra={"event_id": event_id, "idempotency": "protected", "reason": reason}
+            )
+            return True
+
+        # We acquired the lock - this is a new event
+        return False
+
+    except Exception as e:
+        logger.error(f"Idempotency check failed: {e}", exc_info=True)
+        # QW-006: Fallback to legacy method if atomic fails
+        return await _legacy_is_event_processed(event_id)
+
+
+async def _legacy_is_event_processed(event_id: str) -> bool:
+    """
+    Legacy idempotency check (fallback if atomic fails).
+
+    NOTE: This has a race condition but is better than dropping events.
+    """
+    try:
+        redis_client = await get_redis()
+        key = f"webhook:processed:{event_id}"
+
+        # Try atomic SET NX directly
+        result = await redis_client.set(key, "1", nx=True, ex=86400)
+        if result:
+            return False  # New event, we set it
+        else:
+            return True  # Already exists
+    except Exception as e:
+        logger.error(f"Legacy idempotency also failed: {e}")
+        return False  # Fail-open to not drop events
 
 
 @router.post("/evolution/{instance_name}")
@@ -182,8 +227,8 @@ async def handle_message_upsert(instance_name: str, data: Dict[str, Any], backgr
             chat_id = key.get('remoteJid', '')
             sender_id = key.get('participant') or key.get('remoteJid', '')
 
-            # IDEMPOTENCY: Check if this message was already processed
-            if await is_event_processed(f"message:{message_id}"):
+            # IDEMPOTENCY: Check if this message was already processed (QW-006: Atomic)
+            if await is_event_processed(message_id, event_type="message"):
                 logger.debug(f"Skipping duplicate message: {message_id}")
                 continue
 
@@ -339,9 +384,9 @@ async def handle_message_update(instance_name: str, data: Dict[str, Any], db: As
             if not message_id or not status_update:
                 continue
 
-            # IDEMPOTENCY: Check if this status update was already processed
-            event_id = f"status:{message_id}:{status_update}"
-            if await is_event_processed(event_id):
+            # IDEMPOTENCY: Check if this status update was already processed (QW-006: Atomic)
+            event_id = f"{message_id}:{status_update}"
+            if await is_event_processed(event_id, event_type="status"):
                 logger.debug(f"Skipping duplicate status update: {event_id}")
                 continue
 

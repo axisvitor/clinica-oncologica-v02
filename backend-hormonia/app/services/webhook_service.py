@@ -1,6 +1,8 @@
 """
 Webhook Service
 Business logic for webhook management, event processing, and delivery.
+
+QW-006: Enhanced with atomic idempotency using Redis SET NX EX.
 """
 
 import logging
@@ -10,7 +12,7 @@ import time
 import secrets
 import json
 import httpx
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Tuple
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -35,6 +37,7 @@ from app.services.webhook_processor import WebhookProcessor
 from app.core.redis_unified import get_async_redis
 from app.utils.logging import get_logger
 from app.schemas.v2.common import CursorEncoder
+from app.services.webhook.idempotency import AtomicWebhookIdempotency
 
 logger = get_logger(__name__)
 
@@ -53,9 +56,18 @@ class WebhookService:
 
     def __init__(self, db: Session):
         self.db = db
+        self._idempotency_service: Optional[AtomicWebhookIdempotency] = None
 
     async def _get_redis(self):
         return await get_async_redis()
+
+    async def _get_idempotency_service(self) -> Optional[AtomicWebhookIdempotency]:
+        """Get or create atomic idempotency service."""
+        if self._idempotency_service is None:
+            redis = await self._get_redis()
+            if redis:
+                self._idempotency_service = AtomicWebhookIdempotency(redis, self.db)
+        return self._idempotency_service
 
     def _generate_webhook_secret(self) -> str:
         return f"wh_secret_{secrets.token_urlsafe(32)}"
@@ -94,21 +106,51 @@ class WebhookService:
 
     async def check_idempotency(self, webhook_id: Optional[str], event_type: str) -> bool:
         """
-        Check if event was already processed (Redis + DB fallback).
+        Check if event was already processed using atomic idempotency.
 
-        WA-006 FIX: DB fallback ensures idempotency even if Redis is unavailable
+        QW-006 FIX: Uses atomic SET NX EX to prevent race conditions.
+        WA-006 FIX: DB fallback ensures idempotency even if Redis is unavailable.
+
+        Returns:
+            True if event should be processed (new event)
+            False if event was already processed (duplicate)
         """
         if not webhook_id:
             return True
 
-        # WA-006: Try Redis first (faster)
+        # QW-006: Try atomic idempotency service first
+        idempotency = await self._get_idempotency_service()
+        if idempotency:
+            try:
+                acquired, reason = await idempotency.try_acquire(
+                    event_type=event_type,
+                    event_id=webhook_id
+                )
+
+                if not acquired:
+                    logger.debug(
+                        f"Idempotency check (atomic): event {webhook_id} already processed",
+                        extra={"reason": reason}
+                    )
+                    return False
+
+                # Successfully acquired - this is a new event
+                return True
+
+            except Exception as e:
+                logger.warning(f"Atomic idempotency check failed, falling back to legacy: {e}")
+
+        # Legacy fallback: Try simple SET NX
         redis = await self._get_redis()
         if redis:
             try:
                 cache_key = f"webhook:idempotency:{webhook_id}"
-                if await redis.get(cache_key):
-                    logger.debug(f"Idempotency check (Redis): event {webhook_id} already processed")
+                # Use atomic SET NX EX even in fallback
+                result = await redis.set(cache_key, "1", nx=True, ex=REDIS_TTL_IDEMPOTENCY)
+                if not result:
+                    logger.debug(f"Idempotency check (Redis fallback): event {webhook_id} already processed")
                     return False
+                return True
             except Exception as e:
                 logger.warning(f"Redis idempotency check failed, falling back to DB: {e}")
 
@@ -124,24 +166,11 @@ class WebhookService:
 
             if existing:
                 logger.debug(f"Idempotency check (DB): event {webhook_id} already processed")
-                # Update Redis cache if available
-                if redis:
-                    try:
-                        await redis.set(cache_key, "1", expire=REDIS_TTL_IDEMPOTENCY)
-                    except Exception as e:
-                        logger.debug(f"Could not update Redis cache: {e}")
                 return False
         except Exception as e:
             logger.error(f"DB idempotency check failed: {e}")
             # Fail open: allow event if both Redis and DB fail
             return True
-
-        # Event is new - mark as processed
-        if redis:
-            try:
-                await redis.set(cache_key, "1", expire=REDIS_TTL_IDEMPOTENCY)
-            except Exception as e:
-                logger.debug(f"Could not set Redis idempotency key: {e}")
 
         return True
 

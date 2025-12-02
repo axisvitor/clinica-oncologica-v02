@@ -1,7 +1,8 @@
 import logging
 import json
 import uuid
-from typing import Optional, Dict, Any, List
+import hashlib
+from typing import Optional, Dict, Any, List, Tuple
 from datetime import datetime
 from uuid import UUID
 
@@ -18,6 +19,11 @@ from app.services.patient.flow_service import PatientFlowService
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 from app.domain.messaging.core import MessageService
 from app.core.redis_client import get_redis_client
+from app.core.distributed_lock import (
+    acquire_lock,
+    LockAcquisitionError,
+    LockKeys
+)
 from app.integrations.evolution import EvolutionClient
 from app.config.messages import DEFAULT_WELCOME_MESSAGE
 
@@ -84,75 +90,101 @@ class SagaOrchestrator:
 
         Returns:
             Created Patient object if successful, None if failed (and compensated)
+
+        Raises:
+            LockAcquisitionError: If unable to acquire distributed lock (concurrent request)
         """
-        saga_id = uuid.uuid4()
-        
-        # Initialize Saga Record
-        saga = PatientOnboardingSaga(
-            id=saga_id,
-            doctor_id=doctor_id,
-            patient_data=json.loads(patient_data.json()),
-            status=SagaStatus.STARTED,
-            current_step=0,
-            started_at=datetime.utcnow()
-        )
-        self.db.add(saga)
-        self.db.commit()
-        
-        logger.info(f"Starting patient onboarding saga {saga_id} for doctor {doctor_id}")
-        
-        try:
-            # --- STEP 1: Create Patient ---
-            patient = await self._step_create_patient(saga, patient_data, doctor_id, idempotency_key)
-            if not patient:
-                raise Exception("Failed to create patient")
-                
-            # --- STEP 2: Initialize Flow ---
-            # Note: Skipping STEP_2_FIREBASE_USER_CREATED as it's deprecated/removed
-            await self._step_initialize_flow(saga, patient, current_user)
-            
-            # --- STEP 3: Send Welcome Message ---
-            await self._step_send_welcome_message(saga, patient)
-            
-            # --- Complete Saga ---
-            saga.status = SagaStatus.COMPLETED
-            saga.completed_at = datetime.utcnow()
+        # Generate lock key based on phone number (unique identifier pre-creation)
+        # Hash to avoid PII in Redis keys
+        phone_hash = hashlib.sha256(patient_data.phone.encode()).hexdigest()[:16]
+        lock_key = f"saga:onboarding:{str(doctor_id)[:8]}:{phone_hash}"
+
+        # Acquire distributed lock to prevent concurrent saga execution for same patient
+        # TTL of 60s covers the entire saga execution with margin
+        async with acquire_lock(lock_key, timeout=5.0, ttl=60):
+            saga_id = uuid.uuid4()
+
+            # Initialize Saga Record
+            saga = PatientOnboardingSaga(
+                id=saga_id,
+                doctor_id=doctor_id,
+                patient_data=json.loads(patient_data.json()),
+                status=SagaStatus.STARTED,
+                current_step=0,
+                started_at=datetime.utcnow()
+            )
+            self.db.add(saga)
             self.db.commit()
-            
-            logger.info(f"Saga {saga_id} completed successfully")
-            return patient
-            
-        except Exception as e:
-            logger.error(f"Saga {saga_id} failed: {str(e)}", exc_info=True)
-            
-            saga.status = SagaStatus.FAILED
-            saga.error_message = str(e)
-            saga.error_type = type(e).__name__
-            saga.failed_at = datetime.utcnow()
-            self.db.commit()
-            
-            # Trigger compensation
-            await self._compensate_saga(saga)
-            return None
+
+            logger.info(f"Starting patient onboarding saga {saga_id} for doctor {doctor_id}")
+
+            try:
+                # --- STEP 1: Create Patient ---
+                patient = await self._step_create_patient(saga, patient_data, doctor_id, idempotency_key)
+                if not patient:
+                    raise Exception("Failed to create patient")
+
+                # --- STEP 2: Initialize Flow ---
+                # Note: Skipping STEP_2_FIREBASE_USER_CREATED as it's deprecated/removed
+                await self._step_initialize_flow(saga, patient, current_user)
+
+                # --- STEP 3: Send Welcome Message ---
+                await self._step_send_welcome_message(saga, patient)
+
+                # --- Complete Saga ---
+                saga.status = SagaStatus.COMPLETED
+                saga.completed_at = datetime.utcnow()
+                self.db.commit()
+
+                logger.info(f"Saga {saga_id} completed successfully")
+                return patient
+
+            except Exception as e:
+                logger.error(f"Saga {saga_id} failed: {str(e)}", exc_info=True)
+
+                saga.status = SagaStatus.FAILED
+                saga.error_message = str(e)
+                saga.error_type = type(e).__name__
+                saga.failed_at = datetime.utcnow()
+                self.db.commit()
+
+                # Trigger compensation
+                await self._compensate_saga(saga)
+                return None
 
     async def resume_saga(self, saga_id: UUID) -> Dict[str, Any]:
         """
         Resume a failed or interrupted saga.
-        
+
         Args:
             saga_id: UUID of the saga to resume
-            
+
         Returns:
             Dict with result status
+
+        Note:
+            Uses distributed lock to prevent concurrent resume attempts.
         """
         saga = self.db.query(PatientOnboardingSaga).filter(PatientOnboardingSaga.id == saga_id).first()
         if not saga:
             return {"status": "error", "error": "Saga not found"}
-            
+
+        # Acquire lock to prevent concurrent resume
+        lock_key = f"saga:resume:{saga.id}"
+        try:
+            async with acquire_lock(lock_key, timeout=5.0, ttl=60):
+                return await self._resume_saga_internal(saga)
+        except LockAcquisitionError:
+            logger.warning(f"Could not acquire lock for saga resume: {saga.id}")
+            return {"status": "error", "error": "Saga resume already in progress"}
+
+    async def _resume_saga_internal(self, saga: PatientOnboardingSaga) -> Dict[str, Any]:
+        """Internal resume logic (called within lock context)."""
+
         if saga.status == SagaStatus.COMPLETED:
             return {"status": "completed", "message": "Saga already completed"}
-            
-        logger.info(f"Resuming saga {saga_id} from step {saga.current_step}")
+
+        logger.info(f"Resuming saga {saga.id} from step {saga.current_step}")
         
         try:
             patient = None
@@ -338,71 +370,67 @@ class SagaOrchestrator:
 
     async def _compensate_saga(self, saga: PatientOnboardingSaga):
         """
-        Execute compensation steps in reverse order.
+        Execute compensation steps in reverse order with atomic transaction.
 
         QW-002: Enhanced error propagation and tracking for compensation failures.
-        Compensation failures are now properly logged, tracked, and raised to prevent
-        silent failures that could leave the system in an inconsistent state.
+
+        ATOMIC COMPENSATION:
+        - All compensation steps are executed within a single transaction
+        - If any step fails with retry exhausted, we rollback and track failure
+        - Uses distributed lock to prevent concurrent compensation
+        - Each step has its own retry logic with exponential backoff
         """
+        # Acquire compensation lock to prevent concurrent compensations
+        lock_key = f"saga:compensate:{saga.id}"
+        try:
+            async with acquire_lock(lock_key, timeout=5.0, ttl=120):
+                await self._compensate_saga_internal(saga)
+        except LockAcquisitionError:
+            logger.warning(f"Saga {saga.id}: Compensation already in progress")
+            return
+
+    async def _compensate_saga_internal(self, saga: PatientOnboardingSaga):
+        """Internal compensation logic within lock context."""
         logger.info(f"Compensating saga {saga.id} from step {saga.current_step}")
         saga.status = SagaStatus.COMPENSATING
-        self.db.commit()
+        # Don't commit yet - we want atomic transaction
 
         compensation_errors = []
 
         try:
-            # Step 3 Compensation: Delete Message (Best Effort)
+            # Step 4 Compensation: Mark Message as Cancelled (Best Effort)
+            # WhatsApp messages can't be unsent, but we mark as cancelled in DB
             if saga.current_step >= 4:
-                try:
-                    # We can't easily delete sent WhatsApp, but we can mark message as failed/deleted in DB
-                    # to avoid confusion.
-                    # Look for messages with saga_id
-                    messages = self.db.query(Message).filter(
-                        Message.patient_id == saga.patient_id,
-                        Message.message_metadata['saga_id'].astext == str(saga.id)
-                    ).all()
-                    for msg in messages:
-                        self.db.delete(msg) # Hard delete or soft delete
-                    saga.add_log_entry(4, "compensate_message", "success")
-                    logger.info(f"Saga {saga.id}: Step 4 compensation successful (message cleanup)")
-                except Exception as e:
-                    logger.error(f"Saga {saga.id}: Step 4 compensation failed: {e}", exc_info=True)
-                    saga.add_log_entry(4, "compensate_message", "failed", str(e))
-                    compensation_errors.append(("Step 4: Message cleanup", e))
-                    await self._track_compensation_failure(saga.id, 4, e)
+                await self._compensate_step_with_retry(
+                    saga=saga,
+                    step_num=4,
+                    step_name="compensate_message",
+                    compensate_fn=self._compensate_message,
+                    compensation_errors=compensation_errors
+                )
 
-            # Step 2 Compensation: Deactivate/Delete Flow
+            # Step 3 Compensation: Delete/Deactivate Flow
             if saga.current_step >= 3:
-                try:
-                    # Explicitly delete flow states
-                    await self.flow_service.delete_flow(saga.patient_id)
-                    saga.add_log_entry(3, "compensate_flow", "success")
-                    logger.info(f"Saga {saga.id}: Step 3 compensation successful (flow cleanup)")
-                except Exception as e:
-                    logger.error(f"Saga {saga.id}: Step 3 compensation failed: {e}", exc_info=True)
-                    saga.add_log_entry(3, "compensate_flow", "failed", str(e))
-                    compensation_errors.append(("Step 3: Flow cleanup", e))
-                    await self._track_compensation_failure(saga.id, 3, e)
+                await self._compensate_step_with_retry(
+                    saga=saga,
+                    step_num=3,
+                    step_name="compensate_flow",
+                    compensate_fn=self._compensate_flow,
+                    compensation_errors=compensation_errors
+                )
 
             # Step 1 Compensation: Delete Patient
             if saga.current_step >= 1 and saga.patient_id:
-                try:
-                    # Hard delete to fully clean up since onboarding failed
-                    # Using SQL directly or Repository if it supports hard delete.
-                    # PatientRepository inherits BaseRepository, assuming standard delete.
-                    # If it's soft delete, we might want hard delete here.
-                    # Let's use the repository delete which is likely soft delete.
-                    # For onboarding failure, maybe soft delete is enough.
-                    self.patient_repo.delete(saga.patient_id)
-                    saga.add_log_entry(1, "compensate_patient", "success")
-                    logger.info(f"Saga {saga.id}: Step 1 compensation successful (patient deletion)")
-                except Exception as e:
-                    logger.error(f"Saga {saga.id}: Step 1 compensation failed: {e}", exc_info=True)
-                    saga.add_log_entry(1, "compensate_patient", "failed", str(e))
-                    compensation_errors.append(("Step 1: Patient deletion", e))
-                    await self._track_compensation_failure(saga.id, 1, e)
+                await self._compensate_step_with_retry(
+                    saga=saga,
+                    step_num=1,
+                    step_name="compensate_patient",
+                    compensate_fn=self._compensate_patient,
+                    compensation_errors=compensation_errors
+                )
 
-            saga.status = SagaStatus.FAILED # End state for now
+            saga.status = SagaStatus.FAILED  # End state
+            # Atomic commit of all compensations
             self.db.commit()
 
             # QW-002: Raise compensation errors if any occurred
@@ -425,3 +453,206 @@ class SagaOrchestrator:
                 original_error=e,
                 saga_id=saga.id
             )
+
+    async def _compensate_step_with_retry(
+        self,
+        saga: PatientOnboardingSaga,
+        step_num: int,
+        step_name: str,
+        compensate_fn,
+        compensation_errors: List[Tuple[int, Exception]],
+        max_retries: int = 3
+    ):
+        """
+        Execute a compensation step with retry logic.
+
+        QW-002: Implements exponential backoff for transient failures.
+
+        Args:
+            saga: The saga being compensated
+            step_num: Step number for logging
+            step_name: Name of the compensation step
+            compensate_fn: Async function to execute for compensation
+            compensation_errors: List to append errors to
+            max_retries: Maximum number of retry attempts
+        """
+        import asyncio
+
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                await compensate_fn(saga)
+                saga.add_log_entry(step_num, step_name, "compensated")
+                logger.info(f"Saga {saga.id}: {step_name} compensation succeeded on attempt {attempt + 1}")
+                return  # Success
+            except Exception as e:
+                last_error = e
+                wait_time = (2 ** attempt) * 0.5  # 0.5s, 1s, 2s
+                logger.warning(
+                    f"Saga {saga.id}: {step_name} compensation attempt {attempt + 1}/{max_retries} "
+                    f"failed: {e}. Retrying in {wait_time}s..."
+                )
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(wait_time)
+
+        # All retries exhausted
+        logger.error(f"Saga {saga.id}: {step_name} compensation failed after {max_retries} attempts")
+        saga.add_log_entry(step_num, step_name, "compensation_failed", str(last_error))
+        compensation_errors.append((step_num, last_error))
+        await self._track_compensation_failure(saga.id, step_num, last_error)
+
+    async def _compensate_message(self, saga: PatientOnboardingSaga):
+        """
+        Compensate Step 4: Mark welcome message as cancelled.
+
+        Note: WhatsApp messages cannot be unsent, but we mark as cancelled
+        in our database for audit trail and to prevent retries.
+        """
+        try:
+            # Find messages sent by this saga
+            messages = self.db.query(Message).filter(
+                Message.patient_id == saga.patient_id,
+                Message.message_metadata.contains({"saga_id": str(saga.id)})
+            ).all()
+
+            for message in messages:
+                message.status = MessageStatus.CANCELLED
+                message.message_metadata = {
+                    **(message.message_metadata or {}),
+                    "cancelled_by": "saga_compensation",
+                    "cancelled_at": datetime.utcnow().isoformat()
+                }
+
+            if messages:
+                logger.info(f"Saga {saga.id}: Marked {len(messages)} message(s) as cancelled")
+            else:
+                logger.info(f"Saga {saga.id}: No messages found to compensate")
+
+        except Exception as e:
+            logger.error(f"Saga {saga.id}: Message compensation error: {e}")
+            raise
+
+    async def _compensate_flow(self, saga: PatientOnboardingSaga):
+        """
+        Compensate Step 3: Delete or deactivate flow state.
+
+        Removes the flow state created for the patient to ensure
+        clean state for any future retry.
+        """
+        try:
+            if not saga.patient_id:
+                logger.info(f"Saga {saga.id}: No patient_id to compensate flow")
+                return
+
+            # Find and delete flow states for this patient
+            flow_states = self.db.query(FlowState).filter(
+                FlowState.patient_id == saga.patient_id
+            ).all()
+
+            for flow_state in flow_states:
+                self.db.delete(flow_state)
+
+            if flow_states:
+                logger.info(f"Saga {saga.id}: Deleted {len(flow_states)} flow state(s)")
+            else:
+                logger.info(f"Saga {saga.id}: No flow states found to compensate")
+
+        except Exception as e:
+            logger.error(f"Saga {saga.id}: Flow compensation error: {e}")
+            raise
+
+    async def _compensate_patient(self, saga: PatientOnboardingSaga):
+        """
+        Compensate Step 1: Delete patient record.
+
+        This is a hard delete since the patient was never fully onboarded.
+        For LGPD compliance, we ensure all related data is also removed.
+        """
+        try:
+            if not saga.patient_id:
+                logger.info(f"Saga {saga.id}: No patient_id to compensate")
+                return
+
+            patient = self.patient_repo.get_by_id(saga.patient_id)
+            if not patient:
+                logger.info(f"Saga {saga.id}: Patient {saga.patient_id} already deleted")
+                return
+
+            # Use repository's delete which handles cascades properly
+            # Note: Related messages and flow_states should already be compensated
+            self.db.delete(patient)
+
+            logger.info(f"Saga {saga.id}: Deleted patient {saga.patient_id}")
+
+        except Exception as e:
+            logger.error(f"Saga {saga.id}: Patient compensation error: {e}")
+            raise
+
+    async def get_saga_status(self, saga_id: UUID) -> Optional[Dict[str, Any]]:
+        """
+        Get current status of a saga for monitoring.
+
+        Args:
+            saga_id: UUID of the saga
+
+        Returns:
+            Dict with saga status info or None if not found
+        """
+        saga = self.db.query(PatientOnboardingSaga).filter(
+            PatientOnboardingSaga.id == saga_id
+        ).first()
+
+        if not saga:
+            return None
+
+        return {
+            "id": str(saga.id),
+            "status": saga.status.value if saga.status else None,
+            "current_step": saga.current_step,
+            "patient_id": str(saga.patient_id) if saga.patient_id else None,
+            "doctor_id": str(saga.doctor_id) if saga.doctor_id else None,
+            "started_at": saga.started_at.isoformat() if saga.started_at else None,
+            "completed_at": saga.completed_at.isoformat() if saga.completed_at else None,
+            "failed_at": saga.failed_at.isoformat() if saga.failed_at else None,
+            "error_message": saga.error_message,
+            "error_type": saga.error_type,
+            "execution_log": saga.execution_log
+        }
+
+    async def list_failed_sagas(
+        self,
+        doctor_id: Optional[UUID] = None,
+        limit: int = 50
+    ) -> List[Dict[str, Any]]:
+        """
+        List failed sagas for manual review or retry.
+
+        Args:
+            doctor_id: Optional filter by doctor
+            limit: Maximum number of results
+
+        Returns:
+            List of failed saga summaries
+        """
+        query = self.db.query(PatientOnboardingSaga).filter(
+            PatientOnboardingSaga.status == SagaStatus.FAILED
+        )
+
+        if doctor_id:
+            query = query.filter(PatientOnboardingSaga.doctor_id == doctor_id)
+
+        query = query.order_by(PatientOnboardingSaga.failed_at.desc()).limit(limit)
+        sagas = query.all()
+
+        return [
+            {
+                "id": str(s.id),
+                "doctor_id": str(s.doctor_id) if s.doctor_id else None,
+                "current_step": s.current_step,
+                "error_message": s.error_message,
+                "error_type": s.error_type,
+                "failed_at": s.failed_at.isoformat() if s.failed_at else None,
+                "retry_count": s.retry_count
+            }
+            for s in sagas
+        ]

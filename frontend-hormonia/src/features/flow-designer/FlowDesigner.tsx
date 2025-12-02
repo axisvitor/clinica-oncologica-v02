@@ -21,14 +21,14 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
-import { 
-  FlowDesign, 
-  FlowNode, 
-  FlowConnection, 
-  FlowDesignerState, 
+import {
+  FlowDesign,
+  FlowNode,
+  FlowConnection,
+  FlowDesignerState,
   DesignerMode,
   FlowValidationResult
-} from '@/lib/types/flow-designer'
+} from '@/types/flow-designer'
 import { FlowCanvas } from './FlowCanvas'
 import { NodePalette } from './NodePalette'
 import { PropertyPanel } from './PropertyPanel'

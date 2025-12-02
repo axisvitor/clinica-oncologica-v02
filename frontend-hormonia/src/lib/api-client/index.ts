@@ -545,17 +545,17 @@ export class ApiClient extends ApiClientCore {
         this.get<AIRecommendations>(`/api/v2/ai/recommendations/${patientId}`),
 
       // Patient Summary API
-      generateSummary: (request: import('@/lib/types/patient-summary').GenerateSummaryRequest) =>
-        this.post<import('@/lib/types/patient-summary').PatientSummaryResponse>('/api/v2/ai/summary', request),
+      generateSummary: (request: import('@/types/api').GenerateSummaryRequest) =>
+        this.post<import('@/types/api').PatientSummaryResponse>('/api/v2/ai/summary', request),
 
       getSummaries: (patientId: string, limit = 10, offset = 0) =>
-        this.get<import('@/lib/types/patient-summary').PatientSummaryListResponse>(
+        this.get<import('@/types/api').PatientSummaryListResponse>(
           `/api/v2/ai/summary/patient/${patientId}`,
           { limit, offset }
         ),
 
       getSummary: (summaryId: string) =>
-        this.get<import('@/lib/types/patient-summary').PatientSummaryResponse>(`/api/v2/ai/summary/${summaryId}`),
+        this.get<import('@/types/api').PatientSummaryResponse>(`/api/v2/ai/summary/${summaryId}`),
 
       exportSummaryPdf: async (summaryId: string): Promise<Blob> => {
         const headers: Record<string, string> = {
@@ -845,9 +845,9 @@ interface AiApi {
   insights: (patientId: string, timeframe?: string) => Promise<AIInsights>;
   recommendations: (patientId: string) => Promise<AIRecommendations>;
   // Patient Summary API
-  generateSummary: (request: import('@/lib/types/patient-summary').GenerateSummaryRequest) => Promise<import('@/lib/types/patient-summary').PatientSummaryResponse>;
-  getSummaries: (patientId: string, limit?: number, offset?: number) => Promise<import('@/lib/types/patient-summary').PatientSummaryListResponse>;
-  getSummary: (summaryId: string) => Promise<import('@/lib/types/patient-summary').PatientSummaryResponse>;
+  generateSummary: (request: import('@/types/api').GenerateSummaryRequest) => Promise<import('@/types/api').PatientSummaryResponse>;
+  getSummaries: (patientId: string, limit?: number, offset?: number) => Promise<import('@/types/api').PatientSummaryListResponse>;
+  getSummary: (summaryId: string) => Promise<import('@/types/api').PatientSummaryResponse>;
   exportSummaryPdf: (summaryId: string) => Promise<Blob>;
 }
 

@@ -241,7 +241,7 @@ class TestSagaCompensationStep4MessageFailure:
         with patch('app.integrations.firebase.firebase_admin.auth.create_user') as mock_create, \
              patch('app.integrations.firebase.firebase_admin.auth.delete_user') as mock_delete, \
              patch('app.services.patient.flow_service.PatientFlowService.initialize_flow') as mock_flow, \
-             patch('app.services.whatsapp_unified.UnifiedWhatsAppService.send_message') as mock_whatsapp:
+             patch('app.services.unified_whatsapp_service.UnifiedWhatsAppService.send_message') as mock_whatsapp:
 
             # Firebase succeeds
             firebase_user = Mock()
@@ -310,7 +310,7 @@ class TestSagaFullRollback:
         with patch('app.integrations.firebase.firebase_admin.auth.create_user') as mock_create, \
              patch('app.integrations.firebase.firebase_admin.auth.delete_user') as mock_delete, \
              patch('app.services.patient.flow_service.PatientFlowService.initialize_flow') as mock_flow, \
-             patch('app.services.whatsapp_unified.UnifiedWhatsAppService.send_message') as mock_whatsapp:
+             patch('app.services.unified_whatsapp_service.UnifiedWhatsAppService.send_message') as mock_whatsapp:
 
             # All steps succeed except final one
             firebase_user = Mock()

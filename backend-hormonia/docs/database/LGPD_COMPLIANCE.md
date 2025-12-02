@@ -84,8 +84,9 @@ ALTER TABLE patients
 ## Serviço de Criptografia
 
 ### Localização
-- **Arquivo**: `app/services/cpf_encryption_service.py`
-- **Classe**: `CPFEncryptionService`
+- **Arquivo**: `app/services/lgpd_encryption_service.py`
+- **Classe**: `LGPDEncryptionService`
+- **Legacy (CPF apenas)**: `app/services/phi_encryption_service.py`
 
 ### Métodos Principais
 
@@ -603,10 +604,14 @@ db.commit()
 ## Documentação Técnica
 
 ### Arquivos Relacionados
-- `app/services/cpf_encryption_service.py` - Serviço de criptografia
-- `app/middleware/hipaa_middleware.py` - Middleware de auditoria
-- `alembic/versions/020_encrypt_cpf_lgpd.py` - Migration de criptografia
-- `alembic/versions/024_drop_plaintext_cpf.py` - Migration de remoção
+- `app/services/lgpd_encryption_service.py` - Serviço principal de criptografia LGPD
+- `app/services/phi_encryption_service.py` - Serviço legacy (CPF apenas)
+- `app/middleware/hipaa_audit_middleware.py` - Middleware de auditoria HIPAA/LGPD
+- `app/middleware/lgpd_middleware.py` - Middleware específico LGPD
+- `alembic/versions/020_encrypt_cpf_lgpd.py` - Migration de criptografia CPF
+- `alembic/versions/024_drop_plaintext_cpf.py` - Migration de remoção CPF plaintext
+- `alembic/versions/025_add_patient_idempotency_key.py` - Migration idempotência
+- `alembic/versions/028_encrypt_email_phone_lgpd.py` - Migration criptografia email/phone
 
 ### Diagramas
 

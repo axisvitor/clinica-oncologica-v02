@@ -199,7 +199,8 @@ export enum MessageType {
   AUDIO = 'audio',
   DOCUMENT = 'document',
   LOCATION = 'location',
-  INTERACTIVE = 'interactive'
+  INTERACTIVE = 'interactive',
+  TEMPLATE = 'template'
 }
 
 export enum MessageStatus {
@@ -458,6 +459,8 @@ export interface DashboardAnalytics {
 export interface EngagementMetrics {
   patient_id: string
   total_messages: number
+  total_messages_sent: number
+  total_messages_received: number
   response_rate: number
   avg_response_time_minutes: number
   last_interaction: string
@@ -665,4 +668,240 @@ export interface ApiClient {
     engagement: (patientId?: string) => Promise<EngagementMetrics[]>
     flows: () => Promise<FlowMetrics[]>
   }
+}
+
+// ============================================================================
+// AI ADVANCED TYPES (migrated from lib/types/ai.ts)
+// ============================================================================
+
+export interface ChatResponse {
+  message: string
+  confidence: number
+  intent?: string
+  entities?: Record<string, unknown>
+  suggestions?: string[]
+  requires_human_review?: boolean
+}
+
+export interface AIChatResponse extends ChatResponse {
+  message: string
+}
+
+export interface AIRecommendation {
+  id: string
+  type: 'treatment' | 'communication' | 'follow_up' | 'alert'
+  title: string
+  description: string
+  rationale: string
+  confidence: number
+  priority: 'low' | 'medium' | 'high'
+  actions: RecommendedAction[]
+  created_at: string
+  updated_at?: string
+  patient_id: string
+}
+
+export interface RecommendedAction {
+  id: string
+  type: 'message' | 'appointment' | 'medication' | 'test' | 'referral'
+  title: string
+  description: string
+  urgency: 'low' | 'medium' | 'high'
+  estimated_time?: string
+  resources_needed?: string[]
+}
+
+export interface PatientEngagementMetrics {
+  patient_id: string
+  response_rate: number
+  avg_response_time: number // in minutes
+  sentiment_trend: SentimentTrend[]
+  engagement_score: number // 0-100
+  last_interaction: string
+  total_interactions: number
+  preferred_communication_time?: string
+}
+
+export interface SentimentTrend {
+  date: string
+  sentiment_score: number
+  message_count: number
+}
+
+export interface AIAnalyticsDashboard {
+  overview: {
+    total_conversations: number
+    avg_sentiment: number
+    response_accuracy: number
+    human_handoff_rate: number
+  }
+  engagement_metrics: PatientEngagementMetrics[]
+  insights: AIInsight[]
+  recommendations: AIRecommendation[]
+  performance_trends: PerformanceTrend[]
+}
+
+export interface PerformanceTrend {
+  date: string
+  conversations: number
+  avg_sentiment: number
+  response_accuracy: number
+  resolution_rate: number
+  patient_id?: string
+}
+
+export interface AIFlowContext {
+  patient_id: string
+  flow_type: string
+  current_day: number
+  patient_data: Record<string, unknown>
+  conversation_history: AIChatMessage[]
+  preferences: PatientPreferences
+}
+
+export interface PatientPreferences {
+  communication_style: 'formal' | 'casual' | 'empathetic'
+  language: string
+  timezone: string
+  preferred_time: string
+  topics_of_interest: string[]
+  sensitivity_level: 'low' | 'medium' | 'high'
+}
+
+export interface AIGeneratedMessage {
+  content: string
+  confidence: number
+  personalization_applied: string[]
+  alternatives?: string[]
+  metadata: {
+    intent: string
+    tone: string
+    length: number
+    complexity_level: 'simple' | 'medium' | 'complex'
+  }
+}
+
+export interface AIEvent {
+  type: 'insight_generated' | 'recommendation_created' | 'anomaly_detected' | 'sentiment_alert'
+  patient_id?: string
+  data: unknown
+  timestamp: string
+  priority: 'low' | 'medium' | 'high' | 'critical'
+}
+
+export interface AIConfig {
+  openai_model: string
+  temperature: number
+  max_tokens: number
+  response_format: 'text' | 'json'
+  safety_filters: boolean
+  personalization_level: 'low' | 'medium' | 'high'
+  human_review_threshold: number
+}
+
+export interface AIError {
+  code: string
+  message: string
+  details?: Record<string, unknown>
+  retry_after?: number
+}
+
+export interface UseAIChatOptions {
+  patient_id?: string
+  auto_save?: boolean
+  max_messages?: number
+  enable_suggestions?: boolean
+}
+
+export interface UseAIAnalyticsOptions {
+  refresh_interval?: number
+  include_insights?: boolean
+  include_recommendations?: boolean
+}
+
+export interface UseAIInsightsOptions {
+  patient_id?: string
+  timeframe?: 'day' | 'week' | 'month' | 'quarter'
+  types?: InsightType[]
+  min_confidence?: number
+}
+
+export interface AnalysisRequest {
+  data: unknown
+  analysis_type: 'sentiment' | 'pattern' | 'anomaly' | 'trend' | 'classification'
+  parameters?: Record<string, unknown>
+}
+
+export interface AnalysisResult {
+  type: string
+  result: unknown
+  confidence: number
+  metadata: Record<string, unknown>
+  created_at: string
+}
+
+// ============================================================================
+// PATIENT SUMMARY TYPES (migrated from lib/types/patient-summary.ts)
+// ============================================================================
+
+export type SeverityLevel = 'low' | 'medium' | 'high' | 'critical'
+
+export interface HealthConcern {
+  concern: string
+  severity: SeverityLevel
+  detected_date?: string
+  source?: string
+}
+
+export interface QuizFindings {
+  total_completed: number
+  total_questions_answered: number
+  key_findings: string[]
+  symptom_trends: Record<string, string>
+  concerning_responses: string[]
+}
+
+export interface TreatmentCompliance {
+  adherence_score: number
+  missed_interactions: number
+  notes?: string
+}
+
+export interface SummaryContent {
+  overview: string
+  quiz_findings: QuizFindings
+  health_concerns: HealthConcern[]
+  engagement_metrics: EngagementMetrics
+  treatment_compliance: TreatmentCompliance
+  recommendations: string[]
+}
+
+export interface PatientSummaryResponse {
+  summary_id: string
+  patient_id: string
+  patient_name: string
+  start_date: string
+  end_date: string
+  content: SummaryContent
+  generated_at: string
+  generated_by?: string
+  token_usage?: number
+  model_used?: string
+  generation_time_ms?: number
+  from_cache: boolean
+}
+
+export interface PatientSummaryListResponse {
+  summaries: PatientSummaryResponse[]
+  total: number
+  has_more: boolean
+}
+
+export interface GenerateSummaryRequest {
+  patient_id: string
+  start_date: string
+  end_date: string
+  include_sections?: string[]
+  force_refresh?: boolean
+  save_summary?: boolean
 }

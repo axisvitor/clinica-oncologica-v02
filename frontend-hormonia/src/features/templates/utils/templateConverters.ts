@@ -5,7 +5,7 @@
  */
 
 import type { FlowTemplate, FlowTemplateStep, FlowTemplateCreate } from '@/hooks/useTemplates';
-import type { FlowDesign, FlowNode, FlowConnection } from '@/lib/types/flow-designer';
+import type { FlowDesign, FlowNode, FlowConnection, FlowNodeType } from '@/types/flow-designer';
 import { logger } from '@/lib/logger';
 
 // Valid message types based on backend enum
@@ -27,7 +27,7 @@ export function convertTemplateToDesign(template: FlowTemplate): FlowDesign {
 
   const nodes: FlowNode[] = stepsArray.map((step: FlowTemplateStep, index: number) => ({
     id: `node-${index}`,
-    type: (step.message_type || 'message') as import('@/lib/types/flow-designer').FlowNodeType,
+    type: (step.message_type || 'message') as FlowNodeType,
     position: { x: 100 + index * 250, y: 100 },
     data: {
       label: step.intent || 'Message',

@@ -42,7 +42,7 @@
 | `patient_flow_states` | 14 | 11 | 2 | Patient-specific flow states |
 | `patient_onboarding_saga` | 18 | 6 | 2 | Saga pattern for onboarding |
 | `patient_summaries` | 12 | 3 | 2 | AI-generated medical summaries |
-| `patients` | 17 | 26 | 1 | Core patient records with treatment info |
+| `patients` | 24 | 26 | 1 | Core patient records with treatment info (LGPD encrypted) |
 | `pg_stat_statements` | 49 | 0 | 0 | - |
 | `pg_stat_statements_info` | 2 | 0 | 0 | - |
 | `quiz_response_migration_log` | 7 | 3 | 0 | Migration tracking |
@@ -98,6 +98,17 @@
 - Removed deprecated plaintext `cpf` column from `patients`
 - Completes LGPD compliance for PII data
 - **Irreversible migration** - plaintext data permanently deleted
+
+### Migration 025: Patient Idempotency Key
+- Added `idempotency_key` column to `patients` table
+- Unique constraint for request deduplication (QW-004)
+- Prevents duplicate patient creation from retry scenarios
+
+### Migration 028: Email and Phone Encryption (LGPD)
+- Added `email_encrypted`, `email_hash` to `patients` table
+- Added `phone_encrypted`, `phone_hash` to `patients` table
+- Full LGPD compliance for all personal data
+- Indexes for efficient hash-based searching
 
 ## Index Summary by Table
 
