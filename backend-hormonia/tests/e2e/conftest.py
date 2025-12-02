@@ -18,10 +18,11 @@ from app.main import app
 from app.core.database import Base, get_db
 from app.models.user import User, UserRole
 from app.models.patient import Patient
-from app.models.quiz import Quiz, QuizResponse, QuizTemplate
-from app.models.flow import Flow, FlowState
+from app.models.quiz import QuizSession, QuizResponse, QuizTemplate
+from app.models.flow import PatientFlowState
+from app.models.patient import FlowState  # FlowState enum is in patient model
 from app.models.alert import Alert
-from app.core.security import get_password_hash
+from app.utils.security import get_password_hash
 
 
 # Test database URL
@@ -183,9 +184,9 @@ def quiz_template(db_session) -> QuizTemplate:
 
 
 @pytest.fixture
-def active_flow(db_session, patient_user) -> Flow:
+def active_flow(db_session, patient_user) -> PatientFlowState:
     """Create active flow for testing"""
-    flow = Flow(
+    flow = PatientFlowState(
         patient_id=patient_user.id,
         flow_type="monthly_quiz",
         state=FlowState.ACTIVE,
