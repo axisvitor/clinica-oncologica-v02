@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
 )
 @require_permission(Permission.PATIENT_READ)
 @limiter.limit("120/minute")
-async def list_patients(
+def list_patients(
     request: Request,
     db = Depends(get_db),
     current_user = Depends(get_current_user_from_session),
@@ -176,16 +176,9 @@ async def create_patient(
     current_user = Depends(get_current_user_from_session),
     x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
 ):
-    # QW-004: Database-level idempotency key support for duplicate request prevention
-    # Check database first for idempotency (more reliable than Redis cache)
+    # QW-004/QW-006: Idempotency key support - Redis first (fast), then DB (reliable)
     if x_idempotency_key:
-        repo = PatientRepository(db)
-        existing = repo.get_by_idempotency_key(x_idempotency_key)
-        if existing:
-            logger.info(f"Idempotency key {x_idempotency_key} already processed (DB), returning existing patient")
-            return _serialize_patient(existing)
-
-        # QW-006: Redis cache fallback for fast idempotency checks (secondary layer)
+        # OPTIMIZATION: Check Redis cache first (fast/in-memory)
         from app.core.redis_client import get_redis_client
         redis = get_redis_client()
         if redis:
@@ -194,10 +187,17 @@ async def create_patient(
                 cached_result = redis.get(cache_key)
                 if cached_result:
                     import json
-                    logger.info(f"Idempotency key {x_idempotency_key} found in Redis cache")
+                    logger.info(f"Idempotency hit (Redis): {x_idempotency_key}")
                     return json.loads(cached_result)
             except Exception as redis_err:
                 logger.debug(f"Idempotency cache check failed (non-critical): {redis_err}")
+
+        # Fallback: Check database (slower but authoritative)
+        repo = PatientRepository(db)
+        existing = repo.get_by_idempotency_key(x_idempotency_key)
+        if existing:
+            logger.info(f"Idempotency hit (DB): {x_idempotency_key}")
+            return _serialize_patient(existing)
 
     try:
         doctor_uuid = UUID(patient_data.doctor_id)

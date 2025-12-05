@@ -8,8 +8,6 @@ File: app/domain/patient/onboarding/creation_service.py
 LOC: ~150
 Responsibility: Database patient creation
 """
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 from uuid import UUID
@@ -17,6 +15,7 @@ import logging
 
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
+from starlette.concurrency import run_in_threadpool
 
 from app.models.patient import Patient
 from app.schemas.patient import PatientCreate
@@ -55,7 +54,6 @@ class CreationService:
         notification_service: "NotificationService",
         validation_service: Optional["ValidationService"] = None,
         flow_service: Optional["PatientFlowService"] = None,
-        executor: Optional[ThreadPoolExecutor] = None,
     ):
         """
         Initialize CreationService with dependency injection.
@@ -67,7 +65,6 @@ class CreationService:
             notification_service: Service for notification delivery
             validation_service: Optional validation service
             flow_service: Optional flow service
-            executor: Optional ThreadPoolExecutor for sync operations
         """
         self.db = db
         self.integrity_service = integrity_service
@@ -75,9 +72,6 @@ class CreationService:
         self.notification_service = notification_service
         self.validation_service = validation_service
         self.flow_service = flow_service
-        self._executor = executor or ThreadPoolExecutor(
-            max_workers=5, thread_name_prefix="creation_sync"
-        )
 
     async def create_patient_direct(
         self,
@@ -135,16 +129,12 @@ class CreationService:
                 }
             )
 
-            # Wrap blocking repository.create in executor
-            loop = asyncio.get_event_loop()
+            # Use FastAPI's global thread pool (prevents thread leak)
             try:
-                patient = await loop.run_in_executor(
-                    self._executor,
-                    lambda: repository.create(patient_dict)
-                )
+                patient = await run_in_threadpool(repository.create, patient_dict)
             except Exception as e:
                 logger.error(
-                    f"Failed to create patient in executor: {e}",
+                    f"Failed to create patient: {e}",
                     exc_info=True
                 )
                 raise
@@ -161,15 +151,13 @@ class CreationService:
             raise
         except IntegrityError as e:
             logger.error(f"Database integrity error during patient creation: {e}")
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(self._executor, self.db.rollback)
+            await run_in_threadpool(self.db.rollback)
             raise ValidationError(
                 "Patient creation failed due to data integrity constraints"
             )
         except Exception as e:
             logger.error(f"Unexpected error during patient creation: {e}")
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(self._executor, self.db.rollback)
+            await run_in_threadpool(self.db.rollback)
             raise
 
         # Publish WebSocket event
@@ -219,13 +207,3 @@ class CreationService:
         )
         logger.debug(f"Invalidated patient list cache for doctor: {doctor_id}")
 
-    def shutdown(self, wait: bool = True) -> None:
-        """
-        Shutdown the creation service gracefully.
-
-        Args:
-            wait: Whether to wait for pending operations to complete
-        """
-        if self._executor:
-            self._executor.shutdown(wait=wait)
-            logger.info(f"CreationService executor shutdown (wait={wait})")

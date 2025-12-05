@@ -110,10 +110,11 @@ class SagaOrchestrator:
             saga_id = uuid.uuid4()
 
             # Initialize Saga Record
+            # OPTIMIZATION: Use model_dump (Pydantic v2) instead of json.loads(x.json())
             saga = PatientOnboardingSaga(
                 id=saga_id,
                 doctor_id=doctor_id,
-                patient_data=json.loads(patient_data.json()),
+                patient_data=patient_data.model_dump(mode='json'),
                 status=SagaStatus.STARTED,
                 current_step=0,
                 started_at=datetime.utcnow()
