@@ -15,7 +15,7 @@ from typing import Any, Dict
 from celery import shared_task
 from datetime import datetime, timedelta
 
-from app.db.base import get_db
+from app.database import get_db
 from app.utils.async_helpers import run_async
 from app.services.webhook_dlq import get_webhook_dlq
 from app.config.settings.tasks import (
