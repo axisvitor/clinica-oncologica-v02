@@ -27,6 +27,8 @@ from .validators import ResponseValidator
 from .extractors import DataExtractor
 from .handlers import ResponseHandlers, QuizResponseHandler
 from .flow_helpers import FlowHelpers
+# FollowUpSystemService imported lazily to avoid circular import
+# (follow_up_system.context.manager imports StructuredResponse from this module)
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +71,11 @@ class ResponseProcessor:
         self.handlers = ResponseHandlers()
         self.quiz_handler = QuizResponseHandler(self.quiz_service)
         self.flow_helpers = FlowHelpers()
+
+        # Follow-up system integration (ISSUE: FollowUpSystemService não integrado)
+        # Lazy initialization to avoid circular import
+        self._follow_up_service = None
+        self._follow_up_rehydrated = False
 
         logger.info(f"Response Processor initialized with config: {self.config}")
 
@@ -153,6 +160,11 @@ class ResponseProcessor:
             # Apply state updates
             if state_updates:
                 await self._apply_state_updates(patient.id, state_updates)
+
+            # Process follow-up actions for escalation or medical concerns
+            # FIX: FollowUpSystemService was not integrated into response pipeline
+            if result.escalation_required or (structured_response and structured_response.medical_concerns):
+                await self._process_follow_up_actions(result)
 
             # Broadcast patient interaction event
             await self.flow_broadcaster.broadcast_patient_interaction(
@@ -254,6 +266,10 @@ class ResponseProcessor:
             if state_updates:
                 await self._apply_state_updates(patient_id, state_updates)
 
+            # Process follow-up actions for escalation or medical concerns
+            if result.escalation_required or (structured_response and structured_response.medical_concerns):
+                await self._process_follow_up_actions(result)
+
             logger.info(f"Processed interactive response for patient {patient_id}")
             return result
 
@@ -348,6 +364,49 @@ class ResponseProcessor:
         except Exception as e:
             logger.error(f"Error checking quiz response status: {e}")
             return False
+
+    def _get_follow_up_service(self):
+        """Lazy initialization of FollowUpSystemService to avoid circular imports."""
+        if self._follow_up_service is None:
+            from app.services.follow_up_system.service import FollowUpSystemService
+            self._follow_up_service = FollowUpSystemService(self.db)
+        return self._follow_up_service
+
+    async def _process_follow_up_actions(self, result: ResponseProcessingResult) -> None:
+        """
+        Process follow-up actions through FollowUpSystemService.
+
+        FIX: FollowUpSystemService was built but never connected to the response pipeline.
+        This integration ensures:
+        - Empathetic follow-up messages are generated
+        - Medical concerns trigger appropriate alerts
+        - Escalation notifications are sent
+        - All follow-up actions are scheduled and tracked
+        """
+        try:
+            # Get follow-up service (lazy initialization)
+            follow_up_service = self._get_follow_up_service()
+
+            # Rehydrate Redis state once per processor instance
+            if not self._follow_up_rehydrated:
+                rehydration_result = await follow_up_service.rehydrate_from_redis()
+                self._follow_up_rehydrated = True
+                logger.info(
+                    f"Follow-up service rehydrated: {rehydration_result['pending_actions']} actions, "
+                    f"{rehydration_result['active_alerts']} alerts"
+                )
+
+            # Process follow-up actions for this response
+            follow_up_actions = await follow_up_service.process_response_follow_up(result)
+
+            if follow_up_actions:
+                logger.info(
+                    f"Created {len(follow_up_actions)} follow-up actions for patient {result.patient_id}"
+                )
+
+        except Exception as e:
+            # Don't let follow-up failures break the main response flow
+            logger.error(f"Failed to process follow-up actions: {e}", exc_info=True)
 
 
 # Global service instance

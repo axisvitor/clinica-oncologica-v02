@@ -26,6 +26,7 @@ from app.core.distributed_lock import (
 )
 from app.integrations.evolution import EvolutionClient
 from app.config.messages import DEFAULT_WELCOME_MESSAGE
+from app.utils.phone_validator import normalize_phone
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,11 @@ class SagaOrchestrator:
         """
         # Generate lock key based on phone number (unique identifier pre-creation)
         # Hash to avoid PII in Redis keys
-        phone_hash = hashlib.sha256(patient_data.phone.encode()).hexdigest()[:16]
+        # FIX: Normalize phone to E.164-like format before hashing to prevent
+        # duplicate patients when phone comes in different formats (e.g.,
+        # "11 9876-54321" vs "+55 11 98765-4321" would generate same hash)
+        normalized_phone = normalize_phone(patient_data.phone) or patient_data.phone
+        phone_hash = hashlib.sha256(normalized_phone.encode()).hexdigest()[:16]
         lock_key = f"saga:onboarding:{str(doctor_id)[:8]}:{phone_hash}"
 
         # Acquire distributed lock to prevent concurrent saga execution for same patient

@@ -241,6 +241,9 @@ class NotificationService:
             from app.models.message import Message
 
             loop = asyncio.get_event_loop()
+            # FIX: Filter specifically for welcome messages using message_metadata
+            # instead of counting any TEXT message (which would incorrectly skip
+            # welcome if patient received any other text message like quiz intro)
             message_count = await loop.run_in_executor(
                 self._executor,
                 lambda: (
@@ -248,6 +251,7 @@ class NotificationService:
                     .filter(
                         Message.patient_id == patient.id,
                         Message.message_type == MessageType.TEXT,
+                        Message.message_metadata['message_type'].astext == 'welcome',
                     )
                     .count()
                 ),

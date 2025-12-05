@@ -93,9 +93,15 @@ celery_app.conf.beat_schedule = {
         "kwargs": {"limit": 100}
     },
     "retry-failed-messages": {
-        "task": "retry_failed_messages", 
+        "task": "retry_failed_messages",
         "schedule": 300.0,  # Every 5 minutes
         "kwargs": {"limit": 50, "max_retries": 3}
+    },
+    # FIX: Welcome messages can get stuck in PENDING if WhatsApp fails during registration
+    "retry-pending-welcome-messages": {
+        "task": "retry_pending_welcome_messages",
+        "schedule": 600.0,  # Every 10 minutes
+        "kwargs": {"limit": 50, "min_age_minutes": 5, "max_age_hours": 24}
     },
     "cleanup-old-messages": {
         "task": "cleanup_old_messages",

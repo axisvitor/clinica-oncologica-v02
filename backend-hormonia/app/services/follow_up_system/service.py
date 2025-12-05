@@ -68,6 +68,112 @@ class FollowUpSystemService:
 
         logger.info("Follow-up System Service initialized with modular components")
 
+    async def rehydrate_from_redis(self) -> Dict[str, int]:
+        """
+        Rehydrate in-memory state from Redis after service restart.
+
+        This method loads persisted data from Redis back into the in-memory
+        dictionaries to restore state that would otherwise be lost.
+
+        Returns:
+            Dict with counts of rehydrated items
+        """
+        rehydrated = {
+            "pending_actions": 0,
+            "active_alerts": 0,
+            "errors": 0
+        }
+
+        try:
+            # Rehydrate pending actions
+            pending_action_dicts = await self.redis_store.get_pending_actions(limit=1000)
+            for action_dict in pending_action_dicts:
+                try:
+                    action = self._dict_to_follow_up_action(action_dict)
+                    if action:
+                        self.pending_actions[action.action_id] = action
+                        rehydrated["pending_actions"] += 1
+                except Exception as e:
+                    logger.warning(f"Failed to rehydrate action {action_dict.get('action_id')}: {e}")
+                    rehydrated["errors"] += 1
+
+            # Rehydrate active alerts
+            active_alert_dicts = await self.redis_store.get_active_alerts()
+            for alert_dict in active_alert_dicts:
+                try:
+                    alert = self._dict_to_escalation_alert(alert_dict)
+                    if alert:
+                        self.active_alerts[alert.alert_id] = alert
+                        rehydrated["active_alerts"] += 1
+                except Exception as e:
+                    logger.warning(f"Failed to rehydrate alert {alert_dict.get('alert_id')}: {e}")
+                    rehydrated["errors"] += 1
+
+            # Note: conversation_contexts have 7-day TTL and are loaded on-demand
+            # via context_manager.get_context(), so no bulk rehydration needed
+
+            logger.info(
+                f"Rehydration complete: {rehydrated['pending_actions']} actions, "
+                f"{rehydrated['active_alerts']} alerts, {rehydrated['errors']} errors"
+            )
+            return rehydrated
+
+        except Exception as e:
+            logger.error(f"Failed to rehydrate from Redis: {e}", exc_info=True)
+            return rehydrated
+
+    def _dict_to_follow_up_action(self, data: Dict[str, Any]) -> Optional[FollowUpAction]:
+        """Convert dictionary to FollowUpAction object."""
+        try:
+            from .enums import FollowUpType
+
+            action = FollowUpAction(
+                action_id=UUID(data["action_id"]),
+                patient_id=UUID(data["patient_id"]),
+                follow_up_type=FollowUpType(data["follow_up_type"]),
+                priority=data["priority"],
+                scheduled_for=datetime.fromisoformat(data["scheduled_for"]),
+                parameters=data.get("parameters", {}),
+                created_by=data.get("created_by", "system")
+            )
+            action.status = data.get("status", "pending")
+            action.created_at = datetime.fromisoformat(data["created_at"])
+            if data.get("executed_at"):
+                action.executed_at = datetime.fromisoformat(data["executed_at"])
+            action.execution_result = data.get("execution_result")
+            return action
+        except Exception as e:
+            logger.warning(f"Failed to convert dict to FollowUpAction: {e}")
+            return None
+
+    def _dict_to_escalation_alert(self, data: Dict[str, Any]) -> Optional[EscalationAlert]:
+        """Convert dictionary to EscalationAlert object."""
+        try:
+            from .enums import EscalationLevel, NotificationChannel
+            from app.services.analytics.data_extraction import MedicalConcernType
+
+            alert = EscalationAlert(
+                alert_id=UUID(data["alert_id"]),
+                patient_id=UUID(data["patient_id"]),
+                escalation_level=EscalationLevel(data["escalation_level"]),
+                concern_type=MedicalConcernType(data["concern_type"]),
+                description=data["description"],
+                original_message=data["original_message"],
+                recommended_actions=data.get("recommended_actions", []),
+                notification_channels=[NotificationChannel(ch) for ch in data.get("notification_channels", [])],
+                requires_immediate_response=data.get("requires_immediate_response", False)
+            )
+            alert.created_at = datetime.fromisoformat(data["created_at"])
+            if data.get("acknowledged_at"):
+                alert.acknowledged_at = datetime.fromisoformat(data["acknowledged_at"])
+            if data.get("resolved_at"):
+                alert.resolved_at = datetime.fromisoformat(data["resolved_at"])
+            alert.assigned_to = data.get("assigned_to")
+            return alert
+        except Exception as e:
+            logger.warning(f"Failed to convert dict to EscalationAlert: {e}")
+            return None
+
     async def _get_ai_service(self):
         """Get AI service instance (lazy initialization)."""
         if self._ai_service is None:

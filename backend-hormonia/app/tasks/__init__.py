@@ -15,6 +15,7 @@ from app.tasks.messaging import (
     send_scheduled_message,
     process_scheduled_messages,
     retry_failed_messages,
+    retry_pending_welcome_messages,
     send_bulk_messages,
     cleanup_old_messages,
     generate_message_analytics
@@ -107,6 +108,7 @@ __all__ = [
     "send_scheduled_message",
     "process_scheduled_messages",
     "retry_failed_messages",
+    "retry_pending_welcome_messages",
     "send_bulk_messages",
     "cleanup_old_messages",
     "generate_message_analytics",

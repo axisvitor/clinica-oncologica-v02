@@ -589,7 +589,7 @@ def process_whatsapp_dlq(limit: int = 50) -> dict[str, Any]:
         
         logger.info(f"DLQ processing complete: {result}")
         return result
-        
+
     except Exception as exc:
         logger.error(f"Error processing WhatsApp DLQ: {exc}", exc_info=True)
         return {
@@ -597,3 +597,118 @@ def process_whatsapp_dlq(limit: int = 50) -> dict[str, Any]:
             "error": str(exc),
             "processed": 0
         }
+
+
+@celery_app.task(bind=True, base=MessageTask, name="retry_pending_welcome_messages")
+def retry_pending_welcome_messages(
+    self,
+    limit: int = 50,
+    min_age_minutes: int = 5,
+    max_age_hours: int = 24
+) -> dict[str, Any]:
+    """
+    Retry welcome messages stuck in PENDING status.
+
+    FIX: Welcome messages could get stuck in PENDING if WhatsApp API fails
+    during patient registration. This task specifically targets welcome messages
+    (identified by message_metadata['message_type'] == 'welcome') that have been
+    pending for too long.
+
+    Args:
+        limit: Maximum number of messages to retry per run
+        min_age_minutes: Minimum age in minutes before retrying (avoids race conditions)
+        max_age_hours: Maximum age in hours to consider for retry (skip very old messages)
+
+    Returns:
+        dict with retry results
+    """
+    self.log_task_start(limit=limit, min_age_minutes=min_age_minutes)
+
+    try:
+        with get_db_session() as db:
+            from app.models.message import Message
+
+            # Calculate time window
+            now = datetime.utcnow()
+            min_created_at = now - timedelta(hours=max_age_hours)
+            max_created_at = now - timedelta(minutes=min_age_minutes)
+
+            # Find welcome messages stuck in PENDING
+            # Uses JSONB query for message_metadata->>'message_type' == 'welcome'
+            pending_welcome_messages = (
+                db.query(Message)
+                .filter(
+                    Message.status == MessageStatus.PENDING,
+                    Message.message_metadata['message_type'].astext == 'welcome',
+                    Message.created_at >= min_created_at,
+                    Message.created_at <= max_created_at,
+                )
+                .limit(limit)
+                .all()
+            )
+
+            if not pending_welcome_messages:
+                logger.info("No pending welcome messages to retry")
+                return self.create_success_result(
+                    retry_count=0,
+                    message="No pending welcome messages found"
+                )
+
+            retry_count = 0
+            failed_count = 0
+
+            for message in pending_welcome_messages:
+                try:
+                    # Update metadata to track retry attempt
+                    metadata = message.message_metadata or {}
+                    retry_attempts = metadata.get("welcome_retry_attempts", 0)
+
+                    if retry_attempts >= 3:
+                        logger.warning(
+                            f"Welcome message {message.id} exceeded max retries, marking as failed"
+                        )
+                        message.status = MessageStatus.FAILED
+                        metadata["final_failure_reason"] = "max_welcome_retries_exceeded"
+                        metadata["failed_at"] = now.isoformat()
+                        message.message_metadata = metadata
+                        failed_count += 1
+                        continue
+
+                    # Update retry tracking
+                    metadata["welcome_retry_attempts"] = retry_attempts + 1
+                    metadata["last_welcome_retry_at"] = now.isoformat()
+                    message.message_metadata = metadata
+
+                    db.commit()
+
+                    # Trigger send task
+                    send_scheduled_message.delay(str(message.id))
+                    retry_count += 1
+
+                    logger.info(
+                        f"Queued welcome message {message.id} for retry "
+                        f"(attempt {retry_attempts + 1})"
+                    )
+
+                except Exception as e:
+                    logger.error(f"Failed to retry welcome message {message.id}: {e}")
+                    failed_count += 1
+
+            db.commit()
+
+            result = self.create_success_result(
+                retry_count=retry_count,
+                failed_count=failed_count,
+                total_found=len(pending_welcome_messages),
+                retried_at=now.isoformat()
+            )
+
+            self.log_task_success(result, limit=limit)
+            return result
+
+    except Exception as exc:
+        self.log_task_error(exc, limit=limit)
+        return self.create_error_result(
+            str(exc),
+            retry_count=0
+        )
