@@ -81,10 +81,12 @@ class PatientBase(BaseModel):
     @field_validator('phone')
     @classmethod
     def validate_phone(cls, v):
-        # Basic phone validation - can be enhanced
+        # Basic phone validation with E.164 normalization
         if not v.startswith('+'):
             raise ValueError('Phone number must start with country code (+)')
-        return v
+        # Normalize to E.164 format (remove spaces, dashes, parentheses)
+        normalized = re.sub(r'[\s\-\(\)]', '', v)
+        return normalized
 
     @field_validator('emergency_contact_phone')
     @classmethod
@@ -242,6 +244,9 @@ class PatientUpdate(BaseModel):
     def validate_phone(cls, v):
         if v and not v.startswith('+'):
             raise ValueError('Phone number must start with country code (+)')
+        # Normalize to E.164 format (remove spaces, dashes, parentheses)
+        if v:
+            v = re.sub(r'[\s\-\(\)]', '', v)
         return v
 
     @field_validator('birth_date')
