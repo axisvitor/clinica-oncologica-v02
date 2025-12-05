@@ -1,6 +1,6 @@
 # Database Schema Documentation
 
-> **Auto-generated:** 2025-11-26 15:00:00
+> **Last Updated:** 2025-12-05
 > **Database:** PostgreSQL 14+ on Amazon RDS (sa-east-1)
 > **Total Tables:** 56
 
@@ -26,9 +26,7 @@
 |--------|------|----------|--------|
 | `id` | `uuid` | ✗ | gen_random_uuid() |
 | `doctor_id` | `uuid` | ✗ | - |
-| `phone` | `character varying(20)` | ✗ | - |
 | `name` | `character varying(255)` | ✗ | - |
-| `email` | `character varying(255)` | ✓ | - |
 | `birth_date` | `date` | ✓ | - |
 | `treatment_type` | `character varying(100)` | ✓ | - |
 | `treatment_start_date` | `date` | ✓ | - |
@@ -52,7 +50,7 @@
 **Foreign Keys:**
 - `doctor_id` → `users.id`
 
-**LGPD Compliance (Migrations 020, 024, 025, 028):**
+**LGPD Compliance (Migrations 020, 024, 025, 028, 030):**
 - `cpf_encrypted`: AES-256-GCM encrypted CPF (Migration 020)
 - `cpf_hash`: SHA-256 hash for searchable queries without decryption
 - `email_encrypted`: AES-256-GCM encrypted email (Migration 028)
@@ -61,6 +59,7 @@
 - `phone_hash`: HMAC-SHA256 hash for phone search
 - `idempotency_key`: Unique key for request deduplication (Migration 025)
 - Original plaintext `cpf` column removed in Migration 024
+- **Original plaintext `phone` and `email` columns removed in Migration 030**
 
 **Indexes:** 26
 

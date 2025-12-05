@@ -13,6 +13,7 @@ Key Benefits:
 - Backward compatibility with existing code
 """
 import asyncio
+import json
 import logging
 from typing import Any, Optional, Callable, Dict, List, Union
 from uuid import UUID, uuid4
@@ -30,7 +31,8 @@ from app.integrations.whatsapp.models.message import (
 )
 from app.models.message import Message, MessageType, MessageStatus, MessageDirection
 from app.models.patient import Patient
-# MessageService import removed - not used after cleanup
+# MessageService for marking messages as failed
+from app.domain.messaging.core import MessageService
 from app.services.websocket_events import websocket_events
 from app.schemas.websocket import WebSocketEventType
 from app.exceptions import ExternalServiceError, NotFoundError
@@ -110,6 +112,11 @@ class UnifiedWhatsAppService:
         if isinstance(db, AsyncSession):
             from app.services.message_status_handler import MessageStatusHandler
             self.status_handler = MessageStatusHandler(db)
+
+        # Message Service for marking messages as failed (sync sessions only)
+        self.message_service = None
+        if self._db_sync is not None:
+            self.message_service = MessageService(self._db_sync)
 
         # Tracer for distributed tracing
         self.tracer = get_tracer()
@@ -452,7 +459,16 @@ class UnifiedWhatsAppService:
             **error_info
         }
 
-        await self.message_service.mark_as_failed_async(message.id, unified_error)
+        # Mark message as failed using message_service (if available)
+        if self.message_service is not None:
+            error_message = json.dumps(unified_error)
+            await self.message_service.mark_as_failed_async(message.id, error_message)
+        else:
+            # Fallback: log warning if message_service not available (async session)
+            logger.warning(
+                f"Cannot mark message {message.id} as failed: message_service not initialized (async session)",
+                extra={"unified_error": unified_error}
+            )
 
         # Publish WebSocket event
         await self._publish_message_event(

@@ -13,6 +13,7 @@ from app.services.flow.types import FlowType
 from app.services.template_loader import MessageTemplate, EnhancedTemplateLoader
 from app.models.patient import Patient
 from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion
+from app.models.message import Message, MessageDirection
 from app.integrations.gemini_client import GeminiClient, get_gemini_client
 from app.services.conversation_memory import ConversationMemory, get_conversation_memory
 from app.services.platform_synchronization import PlatformSynchronizationService
@@ -146,125 +147,8 @@ class EnhancedFlowEngine(FlowCore):
 
     # =============================================================================
     # AI MESSAGE GENERATION (FlowEngine specific - only AI/ML operations)
+    # NOTE: Main generate_flow_message method is defined later after helper methods
     # =============================================================================
-
-    @with_db_retry(max_retries=3)
-    async def generate_flow_message(self,
-                                  patient_id: UUID,
-                                  day: Optional[int] = None,
-                                  message_template: Optional[MessageTemplate] = None) -> str:
-        """
-        Generate personalized flow message using AI and database templates.
-
-        Args:
-            patient_id: Patient UUID
-            day: Specific day to generate message for (optional)
-            message_template: Message template to personalize (optional, will load from DB if not provided)
-
-        Returns:
-            Personalized message text
-        """
-        try:
-            # Get patient and flow context
-            patient = self.patient_repo.get(patient_id)
-            if not patient:
-                raise NotFoundError(f"Patient {patient_id} not found")
-
-            flow_state = self.flow_state_repo.get_active_flow(patient_id)
-            if not flow_state:
-                raise NotFoundError(f"No active flow for patient {patient_id}")
-
-            # Determine current day if not provided
-            if day is None:
-                day = await self.calculate_patient_day(patient_id)
-
-            # Get flow type from state
-            flow_type_str = self._get_flow_type_from_state(flow_state)
-
-            # Load message template from database if not provided
-            if message_template is None:
-                try:
-                    flow_type = FlowType(flow_type_str)
-                except ValueError:
-                    # If flow_type_str doesn't match enum, use a default
-                    flow_type = FlowType.INITIAL_15_DAYS
-                message_template = await self.get_message_template_for_day(flow_type, day)
-                if not message_template:
-                    # Fallback to simple message
-                    return f"Olá {patient.name}, como você está hoje? (Dia {day})"
-
-            # Build flow context
-            conversation_history = await self._get_conversation_history(patient_id)
-            communication_preferences = await self.conversation_memory.get_communication_preferences(patient_id)
-
-            flow_context = FlowContext(
-                patient=patient,
-                flow_state=flow_state,
-                current_day=day,
-                flow_type=flow_type_str,  # Pass the resolved flow type
-                conversation_history=conversation_history,
-                communication_preferences=communication_preferences,
-                medical_context={"treatment_type": getattr(patient, 'treatment_type', 'hormone_therapy')}
-            )
-
-            # Check for repetition before generating
-            repetition_check = await self.conversation_memory.check_message_repetition(
-                patient_id, message_template.base_content
-            )
-
-            # Generate personalized message
-            if repetition_check["recommendation"] in ["regenerate", "modify"]:
-                # Use AI to create variation
-                if hasattr(message_template, 'variations') and message_template.variations:
-                    # Use one of the pre-defined variations
-                    import random
-                    base_content = random.choice(message_template.variations)
-                else:
-                    base_content = message_template.base_content
-
-                personalized_message = await self.gemini_client.generate_varied_question(
-                    base_content,
-                    conversation_history[-5:],  # Last 5 messages
-                    flow_context.to_dict()
-                )
-            else:
-                # Use AI to humanize the template
-                personalized_message = await self.gemini_client.humanize_flow_message(
-                    template=message_template.base_content,
-                    patient_name=patient.name,
-                    patient_context=flow_context.to_dict(),
-                    conversation_history=conversation_history,
-                    personalization_hints=getattr(message_template, 'personalization_hints', [])
-                )
-
-            # Enforce small variation for quiz invitations to reduce repetition
-            intent = getattr(message_template, 'intent', '') or ''
-            if intent in self.QUIZ_INVITE_INTENTS:
-                try:
-                    tone_hint = self._tone_for_time_of_day()
-                    varied = await self.gemini_client.generate_varied_question(
-                        personalized_message or message_template.base_content,
-                        conversation_history[-5:],
-                        {**flow_context.to_dict(), "tone_hint": tone_hint, "variation_target": "quiz_invite"}
-                    )
-                    if varied:
-                        personalized_message = varied
-                except Exception as e:
-                    # Keep original personalized_message on any AI variation failure
-                    logger.warning(f"AI message variation failed: {e}", exc_info=True)
-
-            # Store message pattern for future anti-repetition
-            await self.conversation_memory.store_message_pattern(patient_id, personalized_message)
-
-            logger.info(f"Generated personalized message for patient {patient_id}, day {day}")
-            return personalized_message
-
-        except Exception as e:
-            logger.error(f"Failed to generate flow message: {e}")
-            # Fallback to basic template personalization
-            if message_template and hasattr(message_template, 'base_content'):
-                return message_template.base_content.replace("[nome]", patient.name if patient else "")
-            return f"Olá {patient.name if patient else ''}, como você está hoje?"
 
     # =============================================================================
     # AI RESPONSE PROCESSING (FlowEngine specific - only AI/ML operations)
@@ -569,13 +453,56 @@ class EnhancedFlowEngine(FlowCore):
 
     @with_db_retry(max_retries=3)
     async def _get_conversation_history(self, patient_id: UUID, limit: int = 10) -> List[str]:
-        """Get recent conversation history for patient."""
+        """
+        Get recent conversation history for patient.
+
+        Retrieves the most recent messages between the clinic and patient,
+        formatted for AI context. Messages are ordered newest-first but
+        returned in chronological order (oldest-first) for natural context.
+
+        Args:
+            patient_id: UUID of the patient
+            limit: Maximum number of messages to retrieve (default 10)
+
+        Returns:
+            List of formatted message strings, e.g.:
+            - "Paciente: Bom dia, estou com uma dúvida..."
+            - "Clínica: Olá! Como posso ajudar?"
+        """
         try:
-            # This would typically query the messages table
-            # For now, return empty list as placeholder
-            return []
+            # Query recent messages for this patient
+            messages = self.db.query(Message).filter(
+                Message.patient_id == patient_id,
+                Message.content.isnot(None),  # Only messages with text content
+                Message.content != ""  # Exclude empty messages
+            ).order_by(
+                Message.created_at.desc()  # Most recent first
+            ).limit(limit).all()
+
+            if not messages:
+                logger.debug(f"No conversation history found for patient {patient_id}")
+                return []
+
+            # Format messages with direction prefix
+            # Reverse to get chronological order (oldest first)
+            formatted_history = []
+            for msg in reversed(messages):
+                if msg.direction == MessageDirection.INBOUND:
+                    prefix = "Paciente"
+                else:
+                    prefix = "Clínica"
+
+                # Truncate very long messages for AI context efficiency
+                content = msg.content[:500] if len(msg.content) > 500 else msg.content
+                formatted_history.append(f"{prefix}: {content}")
+
+            logger.debug(
+                f"Retrieved {len(formatted_history)} messages for patient {patient_id}"
+            )
+            return formatted_history
+
         except Exception as e:  # pylint: disable=broad-except
-            logger.error(f"Failed to get conversation history: {e}")
+            logger.error(f"Failed to get conversation history for {patient_id}: {e}")
             return []
 
     def _tone_for_time_of_day(self) -> str:

@@ -140,6 +140,30 @@ class FlowStateConflictError(ConflictError):
     pass
 
 
+class ConcurrentModificationError(ConflictError):
+    """
+    Raised when optimistic locking detects a concurrent modification.
+
+    This occurs when another process/request modified the resource
+    between when it was read and when the update was attempted.
+    The caller should retry the operation.
+    """
+
+    def __init__(self, resource_type: str, resource_id: str, expected_version: int, actual_version: int):
+        message = (
+            f"Concurrent modification detected for {resource_type} {resource_id}. "
+            f"Expected version {expected_version}, found {actual_version}. "
+            "Please retry the operation."
+        )
+        super().__init__(message, details={
+            "resource_type": resource_type,
+            "resource_id": resource_id,
+            "expected_version": expected_version,
+            "actual_version": actual_version,
+            "retry_recommended": True
+        })
+
+
 class PatientNotFoundError(NotFoundError):
     pass
 
@@ -222,6 +246,7 @@ __all__ = [
     "FlowOperationError",
     "FlowValidationError",
     "FlowStateConflictError",
+    "ConcurrentModificationError",
     "PatientNotFoundError",
     "PatientAccessDeniedError",
     "flow_not_found_exception",

@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 from app.services.unified_whatsapp_service import create_unified_whatsapp_service
+from app.utils.async_helpers import run_async
 
 @celery_app.task(bind=True, base=MessageTask, name="send_scheduled_message")
 def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
@@ -84,9 +85,9 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
             # Send using Unified WhatsApp Service
             whatsapp_service = create_unified_whatsapp_service(db)
 
-            import asyncio
             # UnifiedWhatsAppService.send_message() accepts Message object directly
-            success = asyncio.run(whatsapp_service.send_message(message))
+            # Using run_async for efficient event loop reuse in Celery workers
+            success = run_async(whatsapp_service.send_message(message))
 
             # Update status locally based on result
             if success:
@@ -531,9 +532,8 @@ def process_whatsapp_dlq(limit: int = 50) -> dict[str, Any]:
         
         dlq_handler = DLQHandler(db)
         
-        # Get pending DLQ messages
-        import asyncio
-        pending_messages = asyncio.run(dlq_handler.get_pending_review(limit=limit))
+        # Get pending DLQ messages (using run_async for event loop reuse)
+        pending_messages = run_async(dlq_handler.get_pending_review(limit=limit))
         
         if not pending_messages:
             logger.info("No pending DLQ messages to process")
@@ -561,8 +561,8 @@ def process_whatsapp_dlq(limit: int = 50) -> dict[str, Any]:
                 ]
                 
                 if failed_msg.failure_reason in auto_retry_reasons and failed_msg.retry_count < 3:
-                    # Auto-approve and requeue
-                    result = asyncio.run(dlq_handler.requeue_for_retry(
+                    # Auto-approve and requeue (using run_async for event loop reuse)
+                    result = run_async(dlq_handler.requeue_for_retry(
                         dlq_id=failed_msg.id,
                         immediate=False
                     ))

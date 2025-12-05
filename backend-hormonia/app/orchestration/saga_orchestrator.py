@@ -228,7 +228,7 @@ class SagaOrchestrator:
             return {"status": "completed"}
             
         except Exception as e:
-            logger.error(f"Failed to resume saga {saga_id}: {e}", exc_info=True)
+            logger.error(f"Failed to resume saga {saga.id}: {e}", exc_info=True)
             # Update saga error
             saga.error_message = str(e)
             # Don't change status to FAILED if we want to allow more retries via the external task, 
@@ -510,9 +510,10 @@ class SagaOrchestrator:
         """
         try:
             # Find messages sent by this saga
+            # Note: Using JSONB key access with .astext for reliable comparison
             messages = self.db.query(Message).filter(
                 Message.patient_id == saga.patient_id,
-                Message.message_metadata.contains({"saga_id": str(saga.id)})
+                Message.message_metadata['saga_id'].astext == str(saga.id)
             ).all()
 
             for message in messages:

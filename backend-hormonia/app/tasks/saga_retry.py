@@ -12,7 +12,6 @@ Features:
 - Metrics tracking for monitoring
 """
 
-import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -23,6 +22,7 @@ from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.utils.async_helpers import run_async
 from app.models.patient_onboarding_saga import PatientOnboardingSaga, SagaStatus
 from app.orchestration.saga_orchestrator import SagaOrchestrator
 from app.core.redis_client import get_redis_client
@@ -82,7 +82,7 @@ def retry_patient_onboarding_saga(self, saga_id: str) -> dict:
             logger.warning(
                 f"Saga {saga_id} has exceeded max retries ({saga.retry_count})"
             )
-            asyncio.run(_alert_admin_max_retries_exceeded(saga, db))
+            run_async(_alert_admin_max_retries_exceeded(saga, db))
             return {
                 "status": "max_retries_exceeded",
                 "message": f"Saga has been retried {saga.retry_count} times",
@@ -115,8 +115,8 @@ def retry_patient_onboarding_saga(self, saga_id: str) -> dict:
         # Initialize saga orchestrator
         orchestrator = SagaOrchestrator(db=db, redis_client=redis_client)
 
-        # Attempt to resume saga from last successful step
-        result = asyncio.run(orchestrator.resume_saga(saga_id=UUID(saga_id)))
+        # Attempt to resume saga from last successful step (using run_async for event loop reuse)
+        result = run_async(orchestrator.resume_saga(saga_id=UUID(saga_id)))
 
         if result["status"] == "completed":
             logger.info(f"Saga {saga_id} completed successfully on retry")

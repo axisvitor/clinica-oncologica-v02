@@ -1,7 +1,7 @@
 """seed_welcome_message_template
 
 Revision ID: 019_seed_welcome_message_template
-Revises: 018_seed_flow_templates
+Revises: 27ee28e62ff8
 Create Date: 2025-11-22 21:45:00.000000
 
 Seeds the welcome message template used in the patient onboarding saga.

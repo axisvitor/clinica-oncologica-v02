@@ -10,13 +10,13 @@ Tasks:
 """
 
 import logging
-import asyncio
 from typing import Any, Dict
 
 from celery import shared_task
 from datetime import datetime, timedelta
 
 from app.db.base import get_db
+from app.utils.async_helpers import run_async
 from app.services.webhook_dlq import get_webhook_dlq
 from app.config.settings.tasks import (
     get_task_config,
@@ -62,11 +62,8 @@ def process_webhook_dlq(self, batch_size: int = QUIZ_DLQ_BATCH_SIZE) -> Dict[str
             # Get DLQ service
             dlq_service = get_webhook_dlq(db)
 
-            # Process DLQ (Async wrapper)
-            async def _run_process():
-                return await dlq_service.process_dlq(batch_size=batch_size)
-
-            processed_count = asyncio.run(_run_process())
+            # Process DLQ using run_async for efficient event loop reuse
+            processed_count = run_async(dlq_service.process_dlq(batch_size=batch_size))
 
             execution_time = (datetime.utcnow() - start_time).total_seconds() * 1000
 
@@ -135,7 +132,7 @@ def cleanup_old_dlq_events(self, days_old: int = 7) -> Dict[str, Any]:
             # Get DLQ service
             dlq_service = get_webhook_dlq(db)
 
-            # Async cleanup logic
+            # Async cleanup using run_async for efficient event loop reuse
             async def _run_cleanup():
                 # Get Redis client
                 from app.core.redis_unified import get_async_redis
@@ -171,7 +168,7 @@ def cleanup_old_dlq_events(self, days_old: int = 7) -> Dict[str, Any]:
                             cleaned += 1
                 return cleaned, cutoff
 
-            cleaned_count, cutoff_date = asyncio.run(_run_cleanup())
+            cleaned_count, cutoff_date = run_async(_run_cleanup())
 
             execution_time = (datetime.utcnow() - start_time).total_seconds() * 1000
 

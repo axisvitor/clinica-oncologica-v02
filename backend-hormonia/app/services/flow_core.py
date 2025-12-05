@@ -32,6 +32,9 @@ class NotFoundError(Exception):
 class ValidationError(Exception):
     pass
 
+# Import ConcurrentModificationError for optimistic locking
+from app.exceptions import ConcurrentModificationError
+
 from app.services.platform_synchronization import PlatformSynchronizationService
 from app.services.template_loader import EnhancedTemplateLoader
 from app.services.unified_cache import UnifiedCacheService
@@ -73,6 +76,46 @@ class FlowCore:
             self.template_cache = UnifiedCacheService()
 
     # =============================================================================
+    # OPTIMISTIC LOCKING HELPER
+    # =============================================================================
+
+    def _commit_flow_state_with_lock(self, flow_state: PatientFlowState, expected_version: int) -> None:
+        """
+        Commit flow state changes with optimistic locking.
+
+        This ensures no concurrent modifications occurred between read and write.
+        If another process modified the flow state, raises ConcurrentModificationError.
+
+        Args:
+            flow_state: The flow state to commit
+            expected_version: The version we expect the record to still have
+
+        Raises:
+            ConcurrentModificationError: If the record was modified by another process
+        """
+        # Refresh from DB to get latest version
+        self.db.refresh(flow_state)
+
+        if flow_state.version != expected_version:
+            raise ConcurrentModificationError(
+                resource_type="PatientFlowState",
+                resource_id=str(flow_state.id),
+                expected_version=expected_version,
+                actual_version=flow_state.version
+            )
+
+        # Increment version and commit
+        flow_state.version = expected_version + 1
+        self.db.commit()
+
+        logger.debug(
+            f"Flow state {flow_state.id} updated with optimistic lock: "
+            f"version {expected_version} -> {flow_state.version}"
+        )
+
+    # =============================================================================
+    # PATIENT ENROLLMENT
+    # =============================================================================
 
     async def enroll_patient(self,
                            patient_id: UUID,
@@ -103,13 +146,22 @@ class FlowCore:
 
         # Get current template version for the flow type
         flow_kind = self.db.query(FlowKind).filter(FlowKind.flow_type == flow_type.value).first()
-        if not flow_kind or not flow_kind.current_version_id:
-            raise ValidationError(f"No template found for flow type: {flow_type.value}")
+        if not flow_kind:
+            raise ValidationError(f"No flow kind found for flow type: {flow_type.value}")
+
+        # Get the active version for this flow kind (query the relationship)
+        active_version = self.db.query(FlowTemplateVersion).filter(
+            FlowTemplateVersion.kind_id == flow_kind.id,
+            FlowTemplateVersion.is_active == True
+        ).first()
+
+        if not active_version:
+            raise ValidationError(f"No active template version found for flow type: {flow_type.value}")
 
         # Create new flow state
         flow_state = PatientFlowState(
             patient_id=patient_id,
-            template_version_id=flow_kind.current_version_id,
+            template_version_id=active_version.id,
             current_step=1,  # Start at day 1
             started_at=datetime.utcnow(),
             state_data={
@@ -210,6 +262,9 @@ class FlowCore:
             current_flow_type = FlowType(flow_state.flow_type)
             required_flow_type = await self.determine_flow_type(patient_id, current_day)
 
+            # Capture version for optimistic locking before any modifications
+            expected_version = flow_state.version
+
             # Store previous state for broadcasting
             previous_state = {
                 "flow_type": current_flow_type.value,
@@ -228,7 +283,8 @@ class FlowCore:
             flow_state.state_data = flow_state.state_data or {}
             flow_state.state_data["last_advancement"] = datetime.utcnow().isoformat()
 
-            self.db.commit()
+            # Commit with optimistic locking to prevent race conditions
+            self._commit_flow_state_with_lock(flow_state, expected_version)
 
             # Broadcast flow state change
             await self.flow_broadcaster.broadcast_flow_state_change(
@@ -292,6 +348,9 @@ class FlowCore:
             if not flow_state:
                 raise NotFoundError(f"No active flow for patient {patient_id}")
 
+            # Capture version for optimistic locking before any modifications
+            expected_version = flow_state.version
+
             # Store previous state for broadcasting
             previous_state = {
                 "flow_type": flow_state.flow_type,
@@ -307,7 +366,8 @@ class FlowCore:
                 "current_step": flow_state.current_step
             }
 
-            self.db.commit()
+            # Commit with optimistic locking to prevent race conditions
+            self._commit_flow_state_with_lock(flow_state, expected_version)
 
             # Broadcast flow pause event
             await self.flow_broadcaster.broadcast_flow_state_change(
@@ -344,6 +404,9 @@ class FlowCore:
             if not flow_state:
                 raise NotFoundError(f"No active flow for patient {patient_id}")
 
+            # Capture version for optimistic locking before any modifications
+            expected_version = flow_state.version
+
             # Store previous state for broadcasting
             previous_state = {
                 "flow_type": flow_state.flow_type,
@@ -360,7 +423,8 @@ class FlowCore:
                     "pause_reason": paused_data.get("reason")
                 }
 
-            self.db.commit()
+            # Commit with optimistic locking to prevent race conditions
+            self._commit_flow_state_with_lock(flow_state, expected_version)
 
             # Broadcast flow resume event
             await self.flow_broadcaster.broadcast_flow_state_change(
