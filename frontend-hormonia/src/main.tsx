@@ -2,27 +2,36 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App"; // App completo com autenticação
 import { ConfigProvider } from "@/lib/config-initializer";
+import { createLogger } from "@/lib/logger";
+import { captureException } from "@/monitoring/sentry";
 import './app/styles/index.css'
+
+const logger = createLogger('main');
 
 // Global error handling for unhandled promise rejections
 window.addEventListener('unhandledrejection', (event) => {
-  console.error('Unhandled promise rejection:', event.reason);
-
   // Prevent the default behavior (error overlay)
   event.preventDefault();
 
   // Check if it's a WebSocket or network error (non-critical)
-  if (event.reason?.message?.includes('WebSocket') ||
+  const isNonCritical = event.reason?.message?.includes('WebSocket') ||
     event.reason?.message?.includes('ws://') ||
     event.reason?.message?.includes('wss://') ||
     event.reason?.message?.includes('Failed to fetch') ||
-    event.reason?.message?.includes('NetworkError')) {
-    console.warn('Non-critical error handled gracefully:', event.reason.message);
+    event.reason?.message?.includes('NetworkError');
+
+  if (isNonCritical) {
+    // Non-critical errors: log only in dev (logger is no-op in prod)
+    logger.warn('Non-critical error handled gracefully:', event.reason?.message);
     return;
   }
 
-  // For other errors, log but don't show overlay
-  console.error('Promise rejection handled:', event.reason);
+  // Critical errors: log and report to Sentry
+  logger.error('Unhandled promise rejection:', event.reason);
+  captureException(event.reason instanceof Error ? event.reason : new Error(String(event.reason)), {
+    tags: { type: 'unhandled_rejection' },
+    extra: { originalReason: event.reason }
+  });
 });
 
 const rootElement = document.getElementById("root");
