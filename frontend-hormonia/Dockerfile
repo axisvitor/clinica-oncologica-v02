@@ -76,10 +76,12 @@ RUN apk add --no-cache python3
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copiar configuração do Nginx com proxy para backend
-COPY nginx.conf /etc/nginx/nginx.conf.template
+# Use path relative to build context (project root when building via Railway)
+COPY frontend-hormonia/nginx.conf /etc/nginx/nginx.conf.template
 
 # Copiar entrypoint para processar variáveis de ambiente
-COPY docker-entrypoint.sh /docker-entrypoint.sh
+# Use path relative to build context (project root when building via Railway)
+COPY frontend-hormonia/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 # Definir porta padrão
