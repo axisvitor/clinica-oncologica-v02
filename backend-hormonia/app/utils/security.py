@@ -63,12 +63,12 @@ def create_pwd_context() -> CryptContext:
             from passlib.hash import bcrypt as passlib_bcrypt
             passlib_bcrypt.set_backend("builtin")
             logger.info("Using builtin bcrypt backend")
-        except:
+        except (ValueError, RuntimeError, ImportError):
             try:
                 from passlib.hash import bcrypt as passlib_bcrypt
                 passlib_bcrypt.set_backend("bcrypt")
                 logger.info("Using bcrypt library backend")
-            except:
+            except (ValueError, RuntimeError, ImportError):
                 logger.warning("Could not set specific bcrypt backend")
 
         return pwd_context
@@ -207,29 +207,29 @@ def mask_dict_secrets(data: dict, keys_to_mask: Optional[list] = None) -> dict:
     return masked_data
 
 def create_access_token(data: dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
-    """Create JWT access token using settings.SECRET_KEY and settings.ALGORITHM."""
+    """Create JWT access token using settings.SECURITY_SECRET_KEY and settings.SECURITY_ALGORITHM."""
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=settings.AUTH_ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({
         "exp": int(expire.timestamp()),
         "type": "access"
     })
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return jwt.encode(to_encode, settings.SECURITY_SECRET_KEY, algorithm=settings.SECURITY_ALGORITHM)
 
 def create_refresh_token(data: dict[str, Any]) -> str:
     """Create JWT refresh token with REFRESH_TOKEN_EXPIRE_DAYS."""
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    expire = datetime.utcnow() + timedelta(days=settings.AUTH_REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({
         "exp": int(expire.timestamp()),
         "type": "refresh"
     })
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return jwt.encode(to_encode, settings.SECURITY_SECRET_KEY, algorithm=settings.SECURITY_ALGORITHM)
 
 def verify_token(token: str, token_type: str = "access") -> Optional[Any]:
     """Verify and decode JWT token and return TokenData if valid, else None."""
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(token, settings.SECURITY_SECRET_KEY, algorithms=[settings.SECURITY_ALGORITHM])
         if payload.get("type") != token_type:
             return None
         exp = payload.get("exp")

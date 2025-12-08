@@ -8,8 +8,8 @@ import react from "@vitejs/plugin-react";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const DEFAULT_API_BASE_URL = "https://clinica-oncologica-v02-production.up.railway.app";
-const DEFAULT_WS_BASE_URL = "wss://clinica-oncologica-v02-production.up.railway.app/ws";
+const DEFAULT_API_BASE_URL = process.env.VITE_API_BASE_URL || (process.env.VITE_API_URL || "http://localhost:8000");
+const DEFAULT_WS_BASE_URL = process.env.VITE_WS_BASE_URL || "ws://localhost:8000/ws";
 
 const trimTrailingSlash = (value?: string) => {
   if (!value) {
@@ -37,8 +37,8 @@ const buildWsUrl = (baseUrl: string) => {
 const createRuntimeFallbackConfig = (mode: string) => {
   const apiBase = trimTrailingSlash(
     process.env["VITE_API_BASE_URL"] ||
-      process.env["API_BASE_URL"] ||
-      DEFAULT_API_BASE_URL
+    process.env["API_BASE_URL"] ||
+    DEFAULT_API_BASE_URL
   );
 
   const apiUrl =
@@ -253,22 +253,22 @@ export default defineConfig(({ mode }) => ({
     proxy:
       mode === "development"
         ? {
-            "/api": {
-              target:
-                process.env["VITE_API_URL"] ||
-                "https://clinica-oncologica-v02-production.up.railway.app",
-              changeOrigin: true,
-              secure: false,
-              rewrite: (path) => path.replace(/^\/api/, "/api/v2"),
-            },
-            "/ws": {
-              target:
-                process.env["VITE_WS_BASE_URL"] ||
-                "wss://clinica-oncologica-v02-production.up.railway.app",
-              ws: true,
-              changeOrigin: true,
-            },
-          }
+          "/api": {
+            target:
+              process.env["VITE_API_URL"] ||
+              "https://clinica-oncologica-v02-production.up.railway.app",
+            changeOrigin: true,
+            secure: false,
+            rewrite: (path) => path.replace(/^\/api/, "/api/v2"),
+          },
+          "/ws": {
+            target:
+              process.env["VITE_WS_BASE_URL"] ||
+              "wss://clinica-oncologica-v02-production.up.railway.app",
+            ws: true,
+            changeOrigin: true,
+          },
+        }
         : undefined,
   },
   preview: {
@@ -285,8 +285,9 @@ export default defineConfig(({ mode }) => ({
       "X-Content-Type-Options": "nosniff",
       "Referrer-Policy": "strict-origin-when-cross-origin",
       "Permissions-Policy": "geolocation=(self), microphone=(), camera=()",
+      // CSP Level 3: Removed unsafe-inline and unsafe-eval, backend will inject nonces
       "Content-Security-Policy":
-        "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://clinica-oncologica-v02-production.up.railway.app wss://clinica-oncologica-v02-production.up.railway.app https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+        "default-src 'self'; script-src 'self' 'strict-dynamic' https://www.gstatic.com https://identitytoolkit.googleapis.com; style-src 'self' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://clinica-oncologica-v02-production.up.railway.app wss://clinica-oncologica-v02-production.up.railway.app https://identitytoolkit.googleapis.com https://securetoken.googleapis.com wss://*.railway.app https://*.railway.app; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; block-all-mixed-content; upgrade-insecure-requests",
     },
     allowedHosts: [
       "frontend-production-c59bc.up.railway.app",

@@ -30,9 +30,18 @@ from uuid import uuid4
 import backoff
 from redis.asyncio import Redis
 
+from app.utils.whatsapp_queue import (
+    Priority, DeliveryMode, QueuedMessage, DeliveryReport,
+    RateLimiter, MessageQueue
+)
+
 # Import existing models and services
-from app.integrations.whatsapp.services.message_service import WhatsAppMessageService
-from app.integrations.whatsapp.services.evolution_client import EvolutionAPIClient
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.integrations.whatsapp.services.message_service import WhatsAppMessageService
+    from app.integrations.whatsapp.services.evolution_client import EvolutionAPIClient
+
 from app.integrations.whatsapp.models.message import (
     MessageRequest, MessageResponse, MessageStatus, MessageType,
     WhatsAppMessage, WebhookPayload
@@ -41,184 +50,25 @@ from app.integrations.whatsapp.models.message import (
 logger = logging.getLogger(__name__)
 
 
-class Priority(Enum):
-    """Message priority levels for queue processing."""
-    LOW = 1
-    NORMAL = 2
-    HIGH = 3
-    URGENT = 4
 
 
-class DeliveryMode(Enum):
-    """Message delivery modes."""
-    IMMEDIATE = "immediate"
-    QUEUED = "queued"
-    SCHEDULED = "scheduled"
+
+from app.models.template import MessageTemplate
+from app.database import get_scoped_session
+from app.repositories.template import TemplateRepository
+
+# ... (imports remain the same, but remove local MessageTemplate dataclass if possible or alias it)
+# Actually, I need to remove the local MessageTemplate dataclass definition and use the one from app.models.template
+# But wait, the local dataclass has `message_type: MessageType = MessageType.TEXT`.
+# The DB model has `message_type = Column(String, default="text")`.
+# I need to ensure compatibility. The DB model's message_type is a string.
+# The local dataclass uses Enum.
+# I should probably keep using the DB model but handle the type conversion if needed.
+# Or adapt the DB model to use Enum if I can, but String is safer for DB.
+
+# Let's modify the imports and the class.
 
 
-@dataclass
-class MessageTemplate:
-    """Predefined message template for common scenarios."""
-    name: str
-    content: str
-    message_type: MessageType = MessageType.TEXT
-    variables: List[str] = field(default_factory=list)
-    media_url: Optional[str] = None
-
-    def format(self, **kwargs) -> str:
-        """Format template with provided variables."""
-        try:
-            return self.content.format(**kwargs)
-        except KeyError as e:
-            raise ValueError(f"Missing template variable: {e}")
-
-
-@dataclass
-class QueuedMessage:
-    """Queued message with metadata."""
-    id: str
-    request: MessageRequest
-    priority: Priority
-    retry_count: int = 0
-    max_retries: int = 3
-    scheduled_at: Optional[datetime] = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    callback: Optional[Callable] = None
-
-
-@dataclass
-class DeliveryReport:
-    """Message delivery status report."""
-    message_id: str
-    status: MessageStatus
-    sent_at: Optional[datetime] = None
-    delivered_at: Optional[datetime] = None
-    read_at: Optional[datetime] = None
-    failed_at: Optional[datetime] = None
-    error_message: Optional[str] = None
-    retry_count: int = 0
-
-
-class RateLimiter:
-    """Rate limiter for WhatsApp API calls."""
-
-    def __init__(self, max_requests: int = 50, time_window: int = 60):
-        """
-        Initialize rate limiter.
-
-        Args:
-            max_requests: Maximum requests allowed in time window
-            time_window: Time window in seconds
-        """
-        self.max_requests = max_requests
-        self.time_window = time_window
-        self.requests = deque()
-        self._lock = asyncio.Lock()
-
-    async def acquire(self) -> None:
-        """Acquire rate limit permission."""
-        async with self._lock:
-            now = time.time()
-            # Remove old requests outside the time window
-            while self.requests and self.requests[0] <= now - self.time_window:
-                self.requests.popleft()
-
-            # Check if we're at the limit
-            if len(self.requests) >= self.max_requests:
-                # Calculate wait time
-                oldest_request = self.requests[0]
-                wait_time = self.time_window - (now - oldest_request)
-                if wait_time > 0:
-                    logger.info(f"Rate limit reached, waiting {wait_time:.2f} seconds")
-                    await asyncio.sleep(wait_time)
-                    return await self.acquire()
-
-            # Record this request
-            self.requests.append(now)
-
-
-class MessageQueue:
-    """Advanced message queue with priority and batch processing."""
-
-    def __init__(self, redis_client: Optional[Redis] = None):
-        """Initialize message queue."""
-        self.redis_client = redis_client
-        self.local_queue: Dict[Priority, List[QueuedMessage]] = {
-            priority: [] for priority in Priority
-        }
-        self._lock = asyncio.Lock()
-        self._processing = False
-
-    async def enqueue(self, message: QueuedMessage) -> None:
-        """Add message to queue."""
-        async with self._lock:
-            if self.redis_client:
-                # Use Redis for persistent queue
-                queue_key = f"whatsapp_queue:{message.priority.name}"
-                await self.redis_client.lpush(queue_key, message.id)
-                await self.redis_client.hset(
-                    f"whatsapp_message:{message.id}",
-                    mapping={
-                        "data": json.dumps({
-                            "request": message.request.dict(),
-                            "priority": message.priority.value,
-                            "retry_count": message.retry_count,
-                            "max_retries": message.max_retries,
-                            "scheduled_at": message.scheduled_at.isoformat() if message.scheduled_at else None,
-                            "created_at": message.created_at.isoformat()
-                        })
-                    }
-                )
-            else:
-                # Use local queue
-                self.local_queue[message.priority].append(message)
-
-    async def dequeue(self, priority: Optional[Priority] = None) -> Optional[QueuedMessage]:
-        """Get next message from queue."""
-        async with self._lock:
-            if self.redis_client:
-                # Try Redis queue
-                priorities = [priority] if priority else list(Priority)[::-1]  # High to low
-                for p in priorities:
-                    queue_key = f"whatsapp_queue:{p.name}"
-                    message_id = await self.redis_client.rpop(queue_key)
-                    if message_id:
-                        data = await self.redis_client.hget(f"whatsapp_message:{message_id}", "data")
-                        if data:
-                            message_data = json.loads(data)
-                            return QueuedMessage(
-                                id=message_id,
-                                request=MessageRequest(**message_data["request"]),
-                                priority=Priority(message_data["priority"]),
-                                retry_count=message_data["retry_count"],
-                                max_retries=message_data["max_retries"],
-                                scheduled_at=datetime.fromisoformat(message_data["scheduled_at"]) if message_data["scheduled_at"] else None,
-                                created_at=datetime.fromisoformat(message_data["created_at"])
-                            )
-            else:
-                # Try local queue
-                priorities = [priority] if priority else list(Priority)[::-1]
-                for p in priorities:
-                    if self.local_queue[p]:
-                        return self.local_queue[p].pop(0)
-
-            return None
-
-    async def size(self, priority: Optional[Priority] = None) -> int:
-        """Get queue size."""
-        if self.redis_client:
-            if priority:
-                return await self.redis_client.llen(f"whatsapp_queue:{priority.name}")
-            else:
-                total = 0
-                for p in Priority:
-                    total += await self.redis_client.llen(f"whatsapp_queue:{p.name}")
-                return total
-        else:
-            if priority:
-                return len(self.local_queue[priority])
-            else:
-                return sum(len(queue) for queue in self.local_queue.values())
 
 
 class MockEvolutionClient:
@@ -271,8 +121,8 @@ class WhatsAppHelper:
 
     def __init__(
         self,
-        message_service: Optional[WhatsAppMessageService] = None,
-        evolution_client: Optional[EvolutionAPIClient] = None,
+        message_service: Optional["WhatsAppMessageService"] = None,
+        evolution_client: Optional["EvolutionAPIClient"] = None,
         redis_client: Optional[Redis] = None,
         mock_mode: bool = False,
         rate_limit_requests: int = 50,
@@ -299,51 +149,29 @@ class WhatsAppHelper:
         self.delivery_reports: Dict[str, DeliveryReport] = {}
         self.templates: Dict[str, MessageTemplate] = {}
         self.webhook_handlers: Dict[str, Callable] = {}
+        self.last_template_refresh = datetime.min
 
-        # Load default templates
-        self._load_default_templates()
+        # Load templates from DB
+        self._load_templates()
 
         # Start queue processor
         self._queue_processor_task = None
         self._start_queue_processor()
 
-    def _load_default_templates(self) -> None:
-        """Load default message templates for common scenarios."""
-        default_templates = [
-            MessageTemplate(
-                name="appointment_reminder",
-                content="Olá {patient_name}! Lembramos que você tem uma consulta marcada para {appointment_date} às {appointment_time} com Dr(a). {doctor_name}. Por favor, confirme sua presença.",
-                variables=["patient_name", "appointment_date", "appointment_time", "doctor_name"]
-            ),
-            MessageTemplate(
-                name="appointment_confirmation",
-                content="Sua consulta foi confirmada para {appointment_date} às {appointment_time}. Endereço: {clinic_address}. Em caso de dúvidas, entre em contato conosco.",
-                variables=["appointment_date", "appointment_time", "clinic_address"]
-            ),
-            MessageTemplate(
-                name="test_results",
-                content="Olá {patient_name}! Seus exames estão prontos. Por favor, entre em contato conosco para agendar uma consulta para discussão dos resultados.",
-                variables=["patient_name"]
-            ),
-            MessageTemplate(
-                name="prescription_ready",
-                content="Sua receita médica está pronta para retirada. Horário de funcionamento: Segunda a Sexta das 8h às 18h.",
-                variables=[]
-            ),
-            MessageTemplate(
-                name="welcome_message",
-                content="Bem-vindo(a) à Clínica Oncológica! Estamos aqui para cuidar de você. Em caso de emergência, ligue para {emergency_phone}.",
-                variables=["emergency_phone"]
-            ),
-            MessageTemplate(
-                name="payment_reminder",
-                content="Olá {patient_name}! Temos uma pendência financeira em seu nome no valor de R$ {amount}. Por favor, entre em contato para regularização.",
-                variables=["patient_name", "amount"]
-            )
-        ]
-
-        for template in default_templates:
-            self.templates[template.name] = template
+    def _load_templates(self) -> None:
+        """Load message templates from database."""
+        try:
+            with get_scoped_session() as db:
+                repo = TemplateRepository(db)
+                templates = repo.list_active()
+                for template in templates:
+                    self.templates[template.name] = template
+            self.last_template_refresh = datetime.utcnow()
+            logger.info(f"Loaded {len(self.templates)} templates from database")
+        except Exception as e:
+            logger.error(f"Error loading templates from database: {e}")
+            # If DB fails, we might want to fallback to hardcoded defaults or just fail
+            # For now, we'll log error and proceed (templates dict might be empty)
 
     def _start_queue_processor(self) -> None:
         """Start the queue processor task."""
@@ -514,6 +342,69 @@ class WhatsAppHelper:
 
         return await self._send_message(request, priority, delivery_mode, scheduled_at, callback)
 
+    def _serialize_template(self, template: MessageTemplate) -> str:
+        """Serialize template to JSON string."""
+        data = {
+            "name": template.name,
+            "content": template.content,
+            "variables": template.variables,
+            "message_type": template.message_type,
+            "media_url": template.media_url,
+            "is_active": template.is_active
+        }
+        return json.dumps(data)
+
+    def _deserialize_template(self, data: str) -> MessageTemplate:
+        """Deserialize template from JSON string."""
+        template_dict = json.loads(data)
+        return MessageTemplate(**template_dict)
+
+    async def _get_cached_template(self, name: str) -> Optional[MessageTemplate]:
+        """Get template from Redis cache."""
+        if not self.queue.redis_client:
+            return None
+        
+        try:
+            key = f"whatsapp:template:{name}"
+            data = await self.queue.redis_client.get(key)
+            if data:
+                return self._deserialize_template(data)
+        except Exception as e:
+            logger.warning(f"Error fetching template {name} from cache: {e}")
+        
+        return None
+
+    async def _cache_template(self, template: MessageTemplate, ttl: int = 3600) -> None:
+        """Cache template in Redis."""
+        if not self.queue.redis_client:
+            return
+
+        try:
+            key = f"whatsapp:template:{template.name}"
+            data = self._serialize_template(template)
+            await self.queue.redis_client.setex(key, ttl, data)
+        except Exception as e:
+            logger.warning(f"Error caching template {template.name}: {e}")
+
+    async def refresh_template_cache(self) -> None:
+        """Force refresh of all templates from DB to memory and Redis."""
+        try:
+            with get_scoped_session() as db:
+                repo = TemplateRepository(db)
+                templates = repo.list_active()
+                
+                # Update memory cache
+                self.templates.clear()
+                for template in templates:
+                    self.templates[template.name] = template
+                    # Update Redis cache
+                    await self._cache_template(template)
+                    
+            self.last_template_refresh = datetime.utcnow()
+            logger.info(f"Refreshed {len(self.templates)} templates from database")
+        except Exception as e:
+            logger.error(f"Error refreshing template cache: {e}")
+
     async def send_template(
         self,
         to: str,
@@ -539,10 +430,32 @@ class WhatsAppHelper:
         Returns:
             Message ID
         """
-        if template_name not in self.templates:
+        # L1 Cache: Memory
+        template = self.templates.get(template_name)
+        
+        # L2 Cache: Redis (if missing from memory)
+        if not template:
+            template = await self._get_cached_template(template_name)
+            if template:
+                # Populate L1 from L2
+                self.templates[template_name] = template
+        
+        # L3: Database (if missing from Redis)
+        if not template:
+            try:
+                with get_scoped_session() as db:
+                    repo = TemplateRepository(db)
+                    template = repo.get_by_name(template_name)
+                    if template:
+                        # Populate L1 and L2
+                        self.templates[template_name] = template
+                        await self._cache_template(template)
+            except Exception as e:
+                logger.error(f"Error fetching template {template_name} from DB: {e}")
+
+        if not template:
             raise ValueError(f"Template '{template_name}' not found")
 
-        template = self.templates[template_name]
         content = template.format(**(variables or {}))
 
         request = MessageRequest(
@@ -666,11 +579,15 @@ class WhatsAppHelper:
     def add_template(self, template: MessageTemplate) -> None:
         """Add a custom message template."""
         self.templates[template.name] = template
+        # Also cache it
+        # Note: This is a sync method, so we can't await _cache_template here easily
+        # without an event loop. For now, just updating memory is fine.
 
     def remove_template(self, template_name: str) -> None:
         """Remove a message template."""
         if template_name in self.templates:
             del self.templates[template_name]
+        # Ideally we should also remove from Redis, but again, sync method.
 
     def get_template(self, template_name: str) -> Optional[MessageTemplate]:
         """Get a message template by name."""
@@ -739,36 +656,10 @@ class WhatsAppHelper:
                 pass
 
 
-# Backward compatibility functions
-async def send_whatsapp_message(
-    to: str,
-    message: str,
-    message_service: Optional[WhatsAppMessageService] = None,
-    **kwargs
-) -> str:
-    """
-    Backward compatible function for sending WhatsApp messages.
-
-    This function maintains compatibility with existing code while
-    providing access to the new WhatsApp helper features.
-    """
-    if message_service:
-        # Use existing message service for backward compatibility
-        helper = WhatsAppHelper(message_service=message_service)
-    else:
-        # Use mock mode if no service provided
-        helper = WhatsAppHelper(mock_mode=True)
-
-    try:
-        return await helper.send_text(to, message, **kwargs)
-    finally:
-        await helper.close()
-
-
 # Factory function for easy initialization
 def create_whatsapp_helper(
-    message_service: Optional[WhatsAppMessageService] = None,
-    evolution_client: Optional[EvolutionAPIClient] = None,
+    message_service: Optional["WhatsAppMessageService"] = None,
+    evolution_client: Optional["EvolutionAPIClient"] = None,
     redis_client: Optional[Redis] = None,
     mock_mode: bool = False,
     **kwargs

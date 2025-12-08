@@ -1,7 +1,7 @@
 """
 User model for healthcare providers (doctors, admins).
 """
-from sqlalchemy import Column, String, Boolean, Enum, DateTime
+from sqlalchemy import Column, String, Boolean, Enum, DateTime, Integer
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
 import enum
@@ -10,9 +10,9 @@ from app.models.base import BaseModel
 
 
 class UserRole(enum.Enum):
-    """User role enumeration - ONLY 2 roles."""
-    ADMIN = "admin"      # Full system access
-    DOCTOR = "doctor"    # Clinical operations
+    """User role enumeration."""
+    ADMIN = "admin"
+    DOCTOR = "doctor"
 
 
 class AuthProvider(enum.Enum):
@@ -50,7 +50,18 @@ class User(BaseModel):
     firebase_photo_url = Column(String(500), nullable=True)
     firebase_custom_claims = Column(JSONB, default={}, nullable=False)
     last_firebase_sync = Column(DateTime(timezone=True), nullable=True)
-    
+
+    # Account security fields
+    failed_login_attempts = Column(Integer, default=0, nullable=False)
+    is_locked = Column(Boolean, default=False, nullable=False)
+    locked_until = Column(DateTime(timezone=True), nullable=True)
+    force_change_password = Column(Boolean, default=False, nullable=False)
+    last_password_change = Column(DateTime(timezone=True), nullable=True)
+
+    # Granular permissions (RBAC enhancement)
+    # Stores array of permission strings like ["patients:read", "patients:write", "reports:admin"]
+    permissions = Column(JSONB, default=[], nullable=False, server_default='[]')
+
     # Relationships
     patients = relationship("Patient", back_populates="doctor")
     generated_reports = relationship("MedicalReport", back_populates="generated_by_user")

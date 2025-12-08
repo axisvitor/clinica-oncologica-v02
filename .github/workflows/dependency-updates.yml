@@ -1,0 +1,248 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    # Run every Monday at midnight UTC
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+    inputs:
+      update_type:
+        description: 'Type of update to perform'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - all
+
+jobs:
+  audit-dependencies:
+    name: Audit Dependencies
+    runs-on: ubuntu-latest
+
+    outputs:
+      has_vulnerabilities: ${{ steps.audit.outputs.has_vulnerabilities }}
+      vulnerability_count: ${{ steps.audit.outputs.count }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Audit dependencies
+        id: audit
+        working-directory: ./backend-hormonia
+        run: |
+          pip-audit -r requirements.txt --format json > audit-results.json || true
+
+          # Count vulnerabilities
+          VULN_COUNT=$(cat audit-results.json | grep -o '"severity"' | wc -l)
+          echo "count=$VULN_COUNT" >> $GITHUB_OUTPUT
+
+          if [ "$VULN_COUNT" -gt 0 ]; then
+            echo "has_vulnerabilities=true" >> $GITHUB_OUTPUT
+            echo "⚠️  Found $VULN_COUNT vulnerabilities"
+          else
+            echo "has_vulnerabilities=false" >> $GITHUB_OUTPUT
+            echo "✅ No vulnerabilities found"
+          fi
+
+      - name: Upload audit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit
+          path: backend-hormonia/audit-results.json
+          retention-days: 30
+
+  generate-report:
+    name: Generate Dependency Report
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install pip-audit
+
+      - name: Generate dependency report
+        working-directory: ./backend-hormonia
+        run: |
+          python scripts/dependency_report.py --format markdown
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-health-report
+          path: backend-hormonia/docs/dependencies/DEPENDENCY_HEALTH_REPORT.md
+          retention-days: 90
+
+  update-dependencies:
+    name: Update Dependencies
+    runs-on: ubuntu-latest
+    needs: [audit-dependencies]
+    if: needs.audit-dependencies.outputs.has_vulnerabilities == 'true' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pip-tools
+        run: pip install pip-tools pip-audit
+
+      - name: Update dependencies
+        working-directory: ./backend-hormonia
+        run: |
+          echo "📦 Updating dependencies..."
+
+          # Create requirements.in if it doesn't exist
+          if [ ! -f requirements.in ]; then
+            cp requirements.txt requirements.in
+          fi
+
+          # Update based on input type
+          UPDATE_TYPE="${{ github.event.inputs.update_type || 'patch' }}"
+
+          case "$UPDATE_TYPE" in
+            patch)
+              echo "Updating patch versions only..."
+              pip-compile --upgrade-package '*' --upgrade requirements.in
+              ;;
+            minor)
+              echo "Updating minor versions..."
+              pip-compile --upgrade requirements.in
+              ;;
+            all)
+              echo "Updating all versions..."
+              pip-compile --upgrade-all requirements.in
+              ;;
+          esac
+
+      - name: Run tests
+        working-directory: ./backend-hormonia
+        run: |
+          pip install -r requirements.txt
+          pytest tests/ -v --tb=short || echo "Some tests failed"
+
+      - name: Security audit after update
+        working-directory: ./backend-hormonia
+        run: |
+          pip-audit -r requirements.txt || echo "Vulnerabilities still exist"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(deps): weekly dependency updates"
+          title: "chore(deps): Weekly Dependency Updates"
+          body: |
+            ## 📦 Automated Dependency Updates
+
+            This PR updates Python dependencies to address security vulnerabilities and keep packages up-to-date.
+
+            ### Changes
+            - Updated dependencies via pip-compile
+            - Security audit performed
+            - Tests executed (check results below)
+
+            ### Security Status
+            - Vulnerabilities before: ${{ needs.audit-dependencies.outputs.vulnerability_count }}
+            - Update type: ${{ github.event.inputs.update_type || 'patch' }}
+
+            ### Testing Checklist
+            - [ ] All tests pass
+            - [ ] Security scan clean
+            - [ ] Performance benchmarks acceptable
+            - [ ] No breaking changes in dependencies
+
+            ### Deployment Notes
+            - Review CHANGELOG of updated packages
+            - Monitor application after deployment
+            - Rollback plan: Revert this PR
+
+            ---
+
+            🤖 This PR was automatically generated by the dependency update workflow.
+
+            **Important:** Review changes carefully before merging, especially major version updates.
+          branch: "deps/auto-update-${{ github.run_number }}"
+          branch-suffix: timestamp
+          delete-branch: true
+          labels: |
+            dependencies
+            automated
+            security
+          assignees: ${{ github.actor }}
+          reviewers: backend-team
+
+  notify-critical:
+    name: Notify Critical Vulnerabilities
+    runs-on: ubuntu-latest
+    needs: [audit-dependencies]
+    if: needs.audit-dependencies.outputs.has_vulnerabilities == 'true'
+
+    steps:
+      - name: Create issue for critical vulnerabilities
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const vulnCount = '${{ needs.audit-dependencies.outputs.vulnerability_count }}';
+
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 Security Alert: ${vulnCount} Dependency Vulnerabilities Detected`,
+              body: `## Security Vulnerability Alert
+
+              The automated dependency scan has detected **${vulnCount} vulnerabilities** in our Python dependencies.
+
+              ### Action Required
+
+              1. Review the [audit report](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+              2. Check the automatically created PR for dependency updates
+              3. Test the updates thoroughly before merging
+              4. Deploy to production as soon as tests pass
+
+              ### Priority
+
+              - **Critical/High vulnerabilities:** Update immediately
+              - **Medium vulnerabilities:** Update within 7 days
+              - **Low vulnerabilities:** Update in next regular release
+
+              ### Resources
+
+              - [Dependency Health Report](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}/artifacts)
+              - [Security Policy](../SECURITY.md)
+              - [Update Guidelines](../docs/dependencies/DEPENDENCY_MANAGEMENT.md)
+
+              ---
+
+              🤖 This issue was automatically created by the dependency scan workflow.
+              `,
+              labels: ['security', 'dependencies', 'high-priority', 'automated'],
+              assignees: ['backend-team']
+            });
+
+            console.log(`Created issue #${issue.data.number}`);

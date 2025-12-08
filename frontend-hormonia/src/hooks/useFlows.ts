@@ -1,124 +1,208 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { apiClient } from '@/lib/api-client'
-import { useToast } from '@/components/ui/use-toast'
+/**
+ * useFlows Hook
+ *
+ * Hook for managing flow data and operations.
+ * Connects to V2 API endpoints for flow management.
+ */
 
-export interface FlowData {
-  id: string
-  patient_id: string
-  patient_name: string
-  flow_type: string
-  current_day: number
-  status: 'active' | 'paused' | 'completed' | 'cancelled'
-  enrollment_date: string
-  last_message_sent?: string
-  monthly_cycle?: number
-  state_data?: Record<string, any>
-  created_at: string
-  updated_at: string
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { FlowState, FlowAnalytics } from '@/lib/api-client/types';
+import { apiClient } from '@/lib/api-client';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('useFlows');
+
+/**
+ * Flow data interface with UI-specific fields
+ */
+export interface FlowData extends FlowState {
+  // Additional UI-specific fields can be added here
 }
 
-export interface FlowsParams {
-  patient_id?: string
-  status?: string
-  page?: number
-  size?: number
+/**
+ * Hook options interface
+ */
+export interface UseFlowsOptions {
+  flowType?: string;
+  isActive?: boolean;
+  search?: string;
+  limit?: number;
+  enabled?: boolean;
 }
 
-export interface FlowStats {
-  total_active_flows: number
-  total_paused_flows: number
-  total_completed_flows: number
-  completion_rate: number
-  engagement_rate: number
-  average_response_time: number
-  flows_by_type: Record<string, number>
+/**
+ * Hook return type
+ */
+export interface UseFlowsReturn {
+  data: FlowData[];
+  flows: FlowData[]; // Legacy alias
+  analytics: FlowAnalytics | null;
+  isLoading: boolean;
+  error: Error | null;
+  refetch: () => void;
+  hasMore: boolean;
+  total: number | null;
 }
 
-export function useFlows(params: FlowsParams = {}) {
-  return useQuery({
-    queryKey: ['flows', params],
-    queryFn: () => apiClient.flows.list(params),
-    refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
-  })
+/**
+ * Flow stats return type
+ */
+export interface UseFlowStatsReturn {
+  data: FlowAnalytics | null;
+  isLoading: boolean;
+  error: Error | null;
+  refetch: () => void;
 }
 
-export function useFlowStats() {
-  return useQuery({
+/**
+ * Hook for managing flows - connects to /api/v2/flows
+ */
+export function useFlows(options?: UseFlowsOptions): UseFlowsReturn {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['flows', options?.flowType, options?.isActive, options?.search, options?.limit],
+    queryFn: async () => {
+      logger.debug('Fetching flows', { options });
+      const response = await apiClient.flows.list({
+        flow_type: options?.flowType,
+        is_active: options?.isActive,
+        search: options?.search,
+        limit: options?.limit ?? 50,
+      });
+      return response;
+    },
+    enabled: options?.enabled !== false,
+    staleTime: 30000, // 30 seconds
+    refetchInterval: 60000, // 1 minute
+  });
+
+  const flows = (data?.data ?? data?.items ?? []) as FlowData[];
+
+  return {
+    data: flows,
+    flows, // Legacy alias
+    analytics: null, // Use useFlowStats for analytics
+    isLoading,
+    error: error as Error | null,
+    refetch,
+    hasMore: data?.has_more ?? false,
+    total: data?.total ?? null,
+  };
+}
+
+/**
+ * Hook for fetching flow statistics - connects to /api/v2/flows/analytics
+ */
+export function useFlowStats(): UseFlowStatsReturn {
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['flow-stats'],
-    queryFn: () => apiClient.flows.getAnalytics(),
-    refetchInterval: 60000, // Refetch every minute
-  })
+    queryFn: async () => {
+      logger.debug('Fetching flow statistics');
+      const analytics = await apiClient.flows.getAnalytics();
+      return analytics as FlowAnalytics;
+    },
+    staleTime: 60000, // 1 minute
+    refetchInterval: 300000, // 5 minutes
+  });
+
+  return {
+    data: data ?? null,
+    isLoading,
+    error: error as Error | null,
+    refetch,
+  };
 }
 
+/**
+ * Hook for pausing a flow - POST /api/v2/flows/{patientId}/pause
+ */
 export function usePauseFlow() {
-  const { toast } = useToast()
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: (patientId: string) => apiClient.flows.pause(patientId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['flows'] })
-      queryClient.invalidateQueries({ queryKey: ['flow-stats'] })
-      toast({
-        title: 'Fluxo pausado',
-        description: 'O fluxo foi pausado com sucesso.',
-      })
+  const mutation = useMutation({
+    mutationFn: async (patientId: string) => {
+      logger.debug(`Pausing flow for patient: ${patientId}`);
+      return await apiClient.flows.pause(patientId);
     },
-    onError: (error: any) => {
-      toast({
-        title: 'Erro ao pausar fluxo',
-        description: error.data?.message || 'Ocorreu um erro ao pausar o fluxo.',
-        variant: 'destructive',
-      })
+    onSuccess: (data, patientId) => {
+      logger.info(`Flow paused successfully for patient: ${patientId}`);
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: ['flows'] });
+      queryClient.invalidateQueries({ queryKey: ['flow-state', patientId] });
+      queryClient.invalidateQueries({ queryKey: ['flow-stats'] });
+      // Update cache with new state
+      queryClient.setQueryData(['flow-state', patientId], data);
     },
-  })
+    onError: (error, patientId) => {
+      logger.error(`Failed to pause flow for patient: ${patientId}`, { error });
+    },
+  });
+
+  return {
+    mutate: mutation.mutate,
+    mutateAsync: mutation.mutateAsync,
+    isPending: mutation.isPending,
+    isError: mutation.isError,
+    error: mutation.error,
+    isSuccess: mutation.isSuccess,
+    reset: mutation.reset,
+  };
 }
 
+/**
+ * Hook for resuming a flow - POST /api/v2/flows/{patientId}/resume
+ */
 export function useResumeFlow() {
-  const { toast } = useToast()
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: (patientId: string) => apiClient.flows.resume(patientId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['flows'] })
-      queryClient.invalidateQueries({ queryKey: ['flow-stats'] })
-      toast({
-        title: 'Fluxo retomado',
-        description: 'O fluxo foi retomado com sucesso.',
-      })
+  const mutation = useMutation({
+    mutationFn: async (patientId: string) => {
+      logger.debug(`Resuming flow for patient: ${patientId}`);
+      return await apiClient.flows.resume(patientId);
     },
-    onError: (error: any) => {
-      toast({
-        title: 'Erro ao retomar fluxo',
-        description: error.data?.message || 'Ocorreu um erro ao retomar o fluxo.',
-        variant: 'destructive',
-      })
+    onSuccess: (data, patientId) => {
+      logger.info(`Flow resumed successfully for patient: ${patientId}`);
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: ['flows'] });
+      queryClient.invalidateQueries({ queryKey: ['flow-state', patientId] });
+      queryClient.invalidateQueries({ queryKey: ['flow-stats'] });
+      // Update cache with new state
+      queryClient.setQueryData(['flow-state', patientId], data);
     },
-  })
+    onError: (error, patientId) => {
+      logger.error(`Failed to resume flow for patient: ${patientId}`, { error });
+    },
+  });
+
+  return {
+    mutate: mutation.mutate,
+    mutateAsync: mutation.mutateAsync,
+    isPending: mutation.isPending,
+    isError: mutation.isError,
+    error: mutation.error,
+    isSuccess: mutation.isSuccess,
+    reset: mutation.reset,
+  };
 }
 
-export function useStartFlow() {
-  const { toast } = useToast()
-  const queryClient = useQueryClient()
+/**
+ * Hook for getting a single flow state - GET /api/v2/flows/{patientId}/state
+ */
+export function useFlowState(patientId: string) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['flow-state', patientId],
+    queryFn: async () => {
+      logger.debug(`Fetching flow state for patient: ${patientId}`);
+      return await apiClient.flows.getState(patientId);
+    },
+    enabled: !!patientId,
+    staleTime: 30000, // 30 seconds
+    refetchInterval: 60000, // 1 minute
+  });
 
-  return useMutation({
-    mutationFn: ({ patientId, flowType }: { patientId: string; flowType: string }) =>
-      apiClient.flows.start(patientId, flowType),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['flows'] })
-      queryClient.invalidateQueries({ queryKey: ['flow-stats'] })
-      toast({
-        title: 'Fluxo iniciado',
-        description: 'O fluxo foi iniciado com sucesso.',
-      })
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Erro ao iniciar fluxo',
-        description: error.data?.message || 'Ocorreu um erro ao iniciar o fluxo.',
-        variant: 'destructive',
-      })
-    },
-  })
+  return {
+    data: data as FlowState | null,
+    isLoading,
+    error: error as Error | null,
+    refetch,
+  };
 }

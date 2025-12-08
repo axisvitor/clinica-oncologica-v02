@@ -5,7 +5,7 @@ Response models for analytics endpoints.
 
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class AnalyticsOverview(BaseModel):
@@ -18,8 +18,7 @@ class AnalyticsOverview(BaseModel):
     active_patients_30d: int = Field(..., description="Active patients in last 30 days")
     period: Dict[str, Optional[str]] = Field(..., description="Date range for filtering")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "total_patients": 150,
                 "total_quizzes": 450,
@@ -31,7 +30,7 @@ class AnalyticsOverview(BaseModel):
                     "end_date": "2025-01-31T23:59:59Z"
                 }
             }
-        }
+        })
 
 
 class QuizStatusDistribution(BaseModel):
@@ -41,8 +40,7 @@ class QuizStatusDistribution(BaseModel):
     total: int = Field(..., description="Total quizzes")
     filters: Dict[str, Optional[int]] = Field(..., description="Applied filters")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "distribution": {
                     "started": 45,
@@ -55,7 +53,7 @@ class QuizStatusDistribution(BaseModel):
                     "year": 2025
                 }
             }
-        }
+        })
 
 
 class CompletionTrendPoint(BaseModel):
@@ -67,8 +65,7 @@ class CompletionTrendPoint(BaseModel):
     completed: int = Field(..., description="Completed quizzes")
     completion_rate: float = Field(..., ge=0, le=100, description="Completion rate percentage")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "year": 2025,
                 "month": 1,
@@ -76,7 +73,7 @@ class CompletionTrendPoint(BaseModel):
                 "completed": 63,
                 "completion_rate": 84.0
             }
-        }
+        })
 
 
 class CompletionTrend(BaseModel):
@@ -85,8 +82,7 @@ class CompletionTrend(BaseModel):
     trend: List[CompletionTrendPoint] = Field(..., description="Monthly trend data")
     period: Dict[str, Any] = Field(..., description="Period information")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "trend": [
                     {
@@ -110,7 +106,7 @@ class CompletionTrend(BaseModel):
                     "end_date": "2025-01-31T23:59:59Z"
                 }
             }
-        }
+        })
 
 
 class EngagementLevels(BaseModel):
@@ -120,14 +116,13 @@ class EngagementLevels(BaseModel):
     low_engagement: int = Field(..., description="Patients with 1-5 quizzes")
     high_engagement: int = Field(..., description="Patients with 6+ quizzes")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "no_quizzes": 15,
                 "low_engagement": 85,
                 "high_engagement": 50
             }
-        }
+        })
 
 
 class PatientEngagement(BaseModel):
@@ -137,8 +132,7 @@ class PatientEngagement(BaseModel):
     average_quizzes_per_patient: float = Field(..., description="Average quizzes per patient")
     total_active_patients: int = Field(..., description="Total active patients")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "engagement_levels": {
                     "no_quizzes": 15,
@@ -148,7 +142,7 @@ class PatientEngagement(BaseModel):
                 "average_quizzes_per_patient": 3.2,
                 "total_active_patients": 150
             }
-        }
+        })
 
 
 class TreatmentDistributionItem(BaseModel):
@@ -159,15 +153,14 @@ class TreatmentDistributionItem(BaseModel):
     percentage: float = Field(..., ge=0, le=100, description="Percentage of total patients")
     color: Optional[str] = Field(None, description="Hex color code for visualization")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "treatment_type": "Quimioterapia",
                 "count": 45,
                 "percentage": 32.14,
                 "color": "#2563eb"
             }
-        }
+        })
 
 
 class TreatmentDistribution(BaseModel):
@@ -179,8 +172,7 @@ class TreatmentDistribution(BaseModel):
     trend_data: List[Dict[str, Any]] = Field(default_factory=list, description="Weekly trend data")
     last_updated: datetime = Field(..., description="Last generated timestamp")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "period": "30d",
                 "total_patients": 140,
@@ -195,4 +187,4 @@ class TreatmentDistribution(BaseModel):
                 ],
                 "last_updated": "2025-01-31T23:59:59Z"
             }
-        }
+        })

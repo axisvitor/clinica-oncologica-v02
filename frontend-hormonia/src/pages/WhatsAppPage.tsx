@@ -1,5 +1,5 @@
 import React from 'react'
-import { WhatsAppIntegrationHub } from '../components/whatsapp/WhatsAppIntegrationHub'
+import { WhatsAppIntegrationHub } from '@/features/whatsapp/WhatsAppIntegrationHub'
 
 export function WhatsAppPage() {
   return (

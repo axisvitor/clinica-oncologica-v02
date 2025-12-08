@@ -56,11 +56,11 @@ async def detailed_health_check(
         # Infrastructure health
         infrastructure_health = await infrastructure_monitor.get_health_summary()
 
-        # Service health
+        # Service health (V2 API - system is 100% V2)
         api_endpoints = [
-            f"{settings.API_V1_STR}/health",
-            f"{settings.API_V1_STR}/patients",
-            f"{settings.API_V1_STR}/quiz"
+            f"{settings.API_V2_STR}/monitoring/health",
+            f"{settings.API_V2_STR}/patients",
+            f"{settings.API_V2_STR}/monthly-quiz"
         ]
 
         service_results = await service_health_monitor.check_all_services(

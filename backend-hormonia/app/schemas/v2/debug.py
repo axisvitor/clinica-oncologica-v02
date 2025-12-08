@@ -8,7 +8,7 @@ Set ENABLE_DEBUG_ENDPOINTS=true in dev/staging ONLY.
 
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from enum import Enum
 
 
@@ -43,7 +43,9 @@ class EnvironmentVariable(BaseModel):
     is_set: bool = Field(..., description="Whether the variable is set")
     is_masked: bool = Field(False, description="Whether the value is masked")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "key": "DATABASE_URL",
@@ -52,6 +54,7 @@ class EnvironmentVariable(BaseModel):
                 "is_masked": True
             }
         }
+    )
 
 
 class EnvironmentInfo(BaseModel):
@@ -62,7 +65,9 @@ class EnvironmentInfo(BaseModel):
     variables: List[EnvironmentVariable] = Field(default_factory=list)
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "environment": "development",
@@ -79,6 +84,7 @@ class EnvironmentInfo(BaseModel):
                 "timestamp": "2025-11-07T10:00:00Z"
             }
         }
+    )
 
 
 class DatabasePoolInfo(BaseModel):
@@ -88,7 +94,9 @@ class DatabasePoolInfo(BaseModel):
     overflow: int = Field(..., description="Overflow connections")
     checked_in: int = Field(..., description="Available connections")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "size": 10,
@@ -97,6 +105,7 @@ class DatabasePoolInfo(BaseModel):
                 "checked_in": 7
             }
         }
+    )
 
 
 class DatabaseDiagnostics(BaseModel):
@@ -108,7 +117,9 @@ class DatabaseDiagnostics(BaseModel):
     error: Optional[str] = Field(None, description="Error message if unhealthy")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "status": "healthy",
@@ -123,6 +134,7 @@ class DatabaseDiagnostics(BaseModel):
                 "timestamp": "2025-11-07T10:00:00Z"
             }
         }
+    )
 
 
 class TestQueryRequest(BaseModel):
@@ -130,7 +142,8 @@ class TestQueryRequest(BaseModel):
     query: str = Field(..., max_length=1000, description="SQL query to test (read-only)")
     timeout_seconds: int = Field(5, ge=1, le=30, description="Query timeout in seconds")
 
-    @validator("query")
+    @field_validator("query")
+    @classmethod
     def validate_query_safety(cls, v):
         """Ensure query is read-only (SELECT only)"""
         query_upper = v.strip().upper()
@@ -150,13 +163,16 @@ class TestQueryRequest(BaseModel):
 
         return v
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "query": "SELECT COUNT(*) FROM users WHERE is_active = true",
                 "timeout_seconds": 5
             }
         }
+    )
 
 
 class TestQueryResult(BaseModel):
@@ -168,7 +184,9 @@ class TestQueryResult(BaseModel):
     error: Optional[str] = Field(None, description="Error message if failed")
     query_sanitized: str = Field(..., description="Sanitized query (safe to display)")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "success": True,
@@ -178,6 +196,7 @@ class TestQueryResult(BaseModel):
                 "query_sanitized": "SELECT COUNT(*) FROM users..."
             }
         }
+    )
 
 
 # ============================================================================
@@ -190,7 +209,9 @@ class TokenClaim(BaseModel):
     value: Any = Field(..., description="Claim value (masked if sensitive)")
     is_masked: bool = Field(False, description="Whether value is masked")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "claim": "user_id",
@@ -198,6 +219,7 @@ class TokenClaim(BaseModel):
                 "is_masked": False
             }
         }
+    )
 
 
 class TokenDebugInfo(BaseModel):
@@ -209,7 +231,9 @@ class TokenDebugInfo(BaseModel):
     expires_at: Optional[datetime] = Field(None, description="Token expiration time")
     error: Optional[str] = Field(None, description="Error if invalid")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "valid": True,
@@ -222,6 +246,7 @@ class TokenDebugInfo(BaseModel):
                 "expires_at": "2025-11-08T10:00:00Z"
             }
         }
+    )
 
 
 class LoginTestRequest(BaseModel):
@@ -230,7 +255,9 @@ class LoginTestRequest(BaseModel):
     password: str = Field(..., min_length=8, description="User password")
     skip_2fa: bool = Field(True, description="Skip 2FA for testing")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "email": "admin@test.com",
@@ -238,6 +265,7 @@ class LoginTestRequest(BaseModel):
                 "skip_2fa": True
             }
         }
+    )
 
 
 class LoginTestResult(BaseModel):
@@ -251,7 +279,9 @@ class LoginTestResult(BaseModel):
     error: Optional[str] = Field(None, description="Error if failed")
     steps_completed: List[str] = Field(default_factory=list)
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "success": True,
@@ -263,6 +293,7 @@ class LoginTestResult(BaseModel):
                 "steps_completed": ["user_lookup", "password_verify", "session_create"]
             }
         }
+    )
 
 
 class PermissionTestRequest(BaseModel):
@@ -271,7 +302,9 @@ class PermissionTestRequest(BaseModel):
     permission: str = Field(..., description="Permission to check")
     resource_id: Optional[str] = Field(None, description="Resource ID (if applicable)")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "user_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -279,6 +312,7 @@ class PermissionTestRequest(BaseModel):
                 "resource_id": "patient_123"
             }
         }
+    )
 
 
 class PermissionTestResult(BaseModel):
@@ -288,7 +322,9 @@ class PermissionTestResult(BaseModel):
     permissions_granted: List[str] = Field(default_factory=list)
     reason: Optional[str] = Field(None, description="Reason for decision")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "has_permission": True,
@@ -297,6 +333,7 @@ class PermissionTestResult(BaseModel):
                 "reason": "Admin role has all permissions"
             }
         }
+    )
 
 
 class AuthSimulationRequest(BaseModel):
@@ -305,7 +342,9 @@ class AuthSimulationRequest(BaseModel):
     simulate_session: bool = Field(True, description="Create temporary session")
     duration_minutes: int = Field(5, ge=1, le=60, description="Session duration (max 60 min)")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "user_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -313,6 +352,7 @@ class AuthSimulationRequest(BaseModel):
                 "duration_minutes": 5
             }
         }
+    )
 
 
 class AuthSimulationResult(BaseModel):
@@ -323,7 +363,9 @@ class AuthSimulationResult(BaseModel):
     expires_at: Optional[datetime] = Field(None, description="Session expiration")
     user_info: Optional[Dict[str, Any]] = Field(None, description="Simulated user info")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "success": True,
@@ -337,6 +379,7 @@ class AuthSimulationResult(BaseModel):
                 }
             }
         }
+    )
 
 
 # ============================================================================
@@ -352,7 +395,9 @@ class DebugSession(BaseModel):
     expires_at: datetime = Field(..., description="Session expiration (max 1 hour)")
     operations_count: int = Field(0, description="Number of debug operations")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "session_id": "debug_sess_abc123",
@@ -363,6 +408,7 @@ class DebugSession(BaseModel):
                 "operations_count": 5
             }
         }
+    )
 
 
 class DebugAuditLog(BaseModel):
@@ -378,7 +424,9 @@ class DebugAuditLog(BaseModel):
     user_agent: Optional[str] = Field(None, description="User agent")
     severity: DebugSeverity = Field(DebugSeverity.INFO)
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "id": "audit_123",
@@ -392,6 +440,7 @@ class DebugAuditLog(BaseModel):
                 "severity": "info"
             }
         }
+    )
 
 
 # ============================================================================
@@ -406,7 +455,9 @@ class DebugResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     warning: Optional[str] = Field(None, description="Security warning if applicable")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "success": True,
@@ -416,6 +467,7 @@ class DebugResponse(BaseModel):
                 "warning": "Debug mode enabled - disable in production"
             }
         }
+    )
 
 
 class DebugErrorResponse(BaseModel):
@@ -425,7 +477,9 @@ class DebugErrorResponse(BaseModel):
     details: Optional[Dict[str, Any]] = Field(None, description="Error details")
     audit_logged: bool = Field(True, description="Whether error was audit logged")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "error": "DebugDisabled",
@@ -433,3 +487,4 @@ class DebugErrorResponse(BaseModel):
                 "audit_logged": True
             }
         }
+    )

@@ -7,14 +7,13 @@ from typing import Dict, List, Optional, Any, Tuple
 from uuid import UUID
 import json
 
-from sqlalchemy.orm import Session
 from redis import Redis
 
 from app.models.flow import PatientFlowState
 from app.models.flow_analytics import FlowMessage
 from app.models.patient import Patient
 from app.repositories.flow import FlowStateRepository
-from app.services.data_corruption_detector import DataCorruptionDetector
+from app.services.data_corruption import DataCorruptionDetector
 from app.exceptions.flow_exceptions import FlowStateCorruptionError, FlowValidationError
 from app.services.enhanced_flow_engine import FlowType
 
@@ -24,7 +23,7 @@ logger = logging.getLogger(__name__)
 class ManualCorrectionService:
     """Service for manually correcting corrupted flow data."""
     
-    def __init__(self, db: Session, redis: Redis, flow_repository: FlowStateRepository,
+    def __init__(self, db: Any, redis: Redis, flow_repository: FlowStateRepository,
                  corruption_detector: DataCorruptionDetector):
         self.db = db
         self.redis = redis

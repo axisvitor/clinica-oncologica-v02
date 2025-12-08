@@ -8,7 +8,6 @@ from datetime import datetime
 from uuid import UUID
 from abc import ABC, abstractmethod
 
-from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.domain.messaging.core import MessageFactory
@@ -26,7 +25,7 @@ class BaseService(ABC):
     All services should inherit from this class.
     """
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         """
         Initialize base service.
         
@@ -176,7 +175,7 @@ class BaseRepository(ABC, Generic[T]):
     Base repository class with common CRUD operations.
     """
     
-    def __init__(self, db: Session, model_class: type):
+    def __init__(self, db: Any, model_class: type):
         """
         Initialize base repository.
         

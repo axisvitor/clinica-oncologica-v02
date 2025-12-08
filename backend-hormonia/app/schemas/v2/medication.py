@@ -6,7 +6,7 @@ Enhanced medication models with field selection and eager loading support.
 from typing import Optional, List
 from datetime import date, datetime
 from decimal import Decimal
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from .common import CursorPaginatedResponse
 
@@ -14,35 +14,32 @@ from .common import CursorPaginatedResponse
 class PatientV2Brief(BaseModel):
     """Brief patient information for medication response"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     name: str
     email: Optional[str] = None
-
-    class Config:
-        from_attributes = True
 
 
 class PrescribedByV2Brief(BaseModel):
     """Brief prescriber information for medication response"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     name: str
     email: Optional[str] = None
-
-    class Config:
-        from_attributes = True
 
 
 class TreatmentV2Brief(BaseModel):
     """Brief treatment information for medication response"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     treatment_type: str
     status: str
     start_date: Optional[date] = None
-
-    class Config:
-        from_attributes = True
 
 
 class MedicationV2Base(BaseModel):
@@ -73,35 +70,7 @@ class MedicationV2Base(BaseModel):
 class MedicationV2Create(MedicationV2Base):
     """Schema for creating a medication"""
 
-    patient_id: str = Field(..., description="Patient UUID")
-    name: str = Field(..., min_length=1, max_length=200, description="Medication name")
-    dosage: str = Field(..., description="e.g., '50mg', '2 comprimidos'")
-    frequency: str = Field(..., description="e.g., '1x ao dia', 'a cada 8 horas'")
-    prescription_date: date = Field(..., description="Prescription date")
-    start_date: date = Field(..., description="Start date")
-
-    @validator("route")
-    def validate_route(cls, v):
-        if v:
-            valid_routes = ["oral", "intravenous", "topical", "subcutaneous", "intramuscular", "inhalation", "other"]
-            if v and v not in valid_routes:
-                raise ValueError(f"route must be one of: {', '.join(valid_routes)}")
-        return v
-
-    @validator("end_date")
-    def validate_end_date(cls, v, values):
-        if v and "start_date" in values and v < values["start_date"]:
-            raise ValueError("end_date must be after start_date")
-        return v
-
-    @validator("refills_remaining")
-    def validate_refills_remaining(cls, v, values):
-        if "refills_allowed" in values and v > values["refills_allowed"]:
-            raise ValueError("refills_remaining cannot exceed refills_allowed")
-        return v
-
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
                 "prescribed_by_id": "123e4567-e89b-12d3-a456-426614174001",
@@ -121,7 +90,37 @@ class MedicationV2Create(MedicationV2Base):
                 "warnings": "Não usar se estiver grávida",
                 "side_effects": "Podem ocorrer ondas de calor, dor nas articulações"
             }
-        }
+        })
+
+    patient_id: str = Field(..., description="Patient UUID")
+    name: str = Field(..., min_length=1, max_length=200, description="Medication name")
+    dosage: str = Field(..., description="e.g., '50mg', '2 comprimidos'")
+    frequency: str = Field(..., description="e.g., '1x ao dia', 'a cada 8 horas'")
+    prescription_date: date = Field(..., description="Prescription date")
+    start_date: date = Field(..., description="Start date")
+
+    @field_validator("route")
+    @classmethod
+    def validate_route(cls, v):
+        if v:
+            valid_routes = ["oral", "intravenous", "topical", "subcutaneous", "intramuscular", "inhalation", "other"]
+            if v and v not in valid_routes:
+                raise ValueError(f"route must be one of: {', '.join(valid_routes)}")
+        return v
+
+    @field_validator("end_date")
+    @classmethod
+    def validate_end_date(cls, v, info):
+        if v and "start_date" in info.data and v < info.data["start_date"]:
+            raise ValueError("end_date must be after start_date")
+        return v
+
+    @field_validator("refills_remaining")
+    @classmethod
+    def validate_refills_remaining(cls, v, info):
+        if "refills_allowed" in info.data and v > info.data["refills_allowed"]:
+            raise ValueError("refills_remaining cannot exceed refills_allowed")
+        return v
 
 
 class MedicationV2Update(BaseModel):
@@ -147,7 +146,8 @@ class MedicationV2Update(BaseModel):
     discontinued_date: Optional[date] = None
     discontinuation_reason: Optional[str] = None
 
-    @validator("route")
+    @field_validator("route")
+    @classmethod
     def validate_route(cls, v):
         if v:
             valid_routes = ["oral", "intravenous", "topical", "subcutaneous", "intramuscular", "inhalation", "other"]
@@ -158,6 +158,8 @@ class MedicationV2Update(BaseModel):
 
 class MedicationV2Response(BaseModel):
     """Schema for medication response"""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: str
     patient_id: str
@@ -187,9 +189,6 @@ class MedicationV2Response(BaseModel):
     patient: Optional[PatientV2Brief] = None
     prescribed_by: Optional[PrescribedByV2Brief] = None
     treatment: Optional[TreatmentV2Brief] = None
-
-    class Config:
-        from_attributes = True
 
 
 class MedicationV2List(CursorPaginatedResponse):

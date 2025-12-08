@@ -14,7 +14,6 @@ from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.openapi.utils import get_openapi
 from datetime import datetime
 import time
 
@@ -26,6 +25,9 @@ from .middleware_setup import setup_middleware
 from .router_registry import register_routers
 from .lifespan import lifespan
 from .monitoring_setup import setup_monitoring
+from app.core.exception_handlers import register_exception_handlers
+from app.core.setup.sentry import setup_sentry
+from app.core.setup.openapi import setup_enhanced_openapi, get_api_description, get_openapi_tags
 
 # Import rate limiter components
 from slowapi import _rate_limit_exceeded_handler
@@ -33,112 +35,6 @@ from slowapi.errors import RateLimitExceeded
 from app.utils.rate_limiter import limiter, rate_limit_handler
 
 logger = get_logger(__name__)
-
-
-def _setup_sentry() -> None:
-    """
-    Initialize Sentry SDK for error tracking and performance monitoring.
-
-    Sentry provides:
-    - Automatic error capture and reporting
-    - Performance monitoring and tracing
-    - Release tracking
-    - Environment-based configuration
-    - Integration with FastAPI
-
-    Configuration via environment variables:
-    - SENTRY_DSN: Sentry project DSN (required)
-    - ENVIRONMENT: Environment name (production, staging, development)
-    - SENTRY_TRACES_SAMPLE_RATE: Performance monitoring sample rate (0.0-1.0)
-    """
-    sentry_dsn = settings.SENTRY_DSN if hasattr(settings, 'SENTRY_DSN') else None
-
-    if not sentry_dsn:
-        logger.info("⚠️  Sentry not configured (SENTRY_DSN not set)")
-        return
-
-    try:
-        import sentry_sdk
-        from sentry_sdk.integrations.fastapi import FastApiIntegration
-        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
-        from sentry_sdk.integrations.redis import RedisIntegration
-
-        # Determine environment
-        environment = getattr(settings, 'ENVIRONMENT', 'development')
-
-        # Configure sample rates based on environment
-        traces_sample_rate = 0.1  # 10% in production
-        if environment == 'development':
-            traces_sample_rate = 1.0  # 100% in development
-        elif environment == 'staging':
-            traces_sample_rate = 0.5  # 50% in staging
-
-        # Initialize Sentry
-        sentry_sdk.init(
-            dsn=sentry_dsn,
-            environment=environment,
-            traces_sample_rate=traces_sample_rate,
-            profiles_sample_rate=0.1,  # Profile 10% of transactions
-            integrations=[
-                FastApiIntegration(transaction_style="endpoint"),
-                SqlalchemyIntegration(),
-                RedisIntegration(),
-            ],
-            # Send default PII (Personally Identifiable Information)
-            send_default_pii=False,  # Don't send PII for HIPAA compliance
-            # Release tracking
-            release=f"hormonia-backend@2.0.0",
-            # Before send callback to filter sensitive data
-            before_send=_sentry_before_send,
-        )
-
-        logger.info(f"✅ Sentry initialized (env: {environment}, traces: {traces_sample_rate*100}%)")
-
-    except ImportError:
-        logger.warning("⚠️  Sentry SDK not installed. Install with: pip install sentry-sdk[fastapi]")
-    except Exception as e:
-        logger.error(f"❌ Failed to initialize Sentry: {e}")
-
-
-def _sentry_before_send(event, hint):
-    """
-    Filter and sanitize events before sending to Sentry.
-
-    This callback:
-    - Removes sensitive data (passwords, tokens, PHI)
-    - Filters out known non-critical errors
-    - Adds custom context
-
-    Args:
-        event: Sentry event dictionary
-        hint: Additional context about the event
-
-    Returns:
-        Modified event or None to drop the event
-    """
-    # Filter out health check errors
-    if 'request' in event:
-        url = event['request'].get('url', '')
-        if '/health' in url or '/metrics' in url:
-            return None  # Don't send health check errors
-
-    # Remove sensitive headers
-    if 'request' in event and 'headers' in event['request']:
-        sensitive_headers = ['Authorization', 'Cookie', 'X-API-Key', 'X-CSRF-Token']
-        for header in sensitive_headers:
-            if header in event['request']['headers']:
-                event['request']['headers'][header] = '[Filtered]'
-
-    # Remove sensitive query parameters
-    if 'request' in event and 'query_string' in event['request']:
-        sensitive_params = ['token', 'api_key', 'password', 'secret']
-        query_string = event['request'].get('query_string', '')
-        for param in sensitive_params:
-            if param in query_string.lower():
-                event['request']['query_string'] = '[Filtered]'
-                break
-
-    return event
 
 
 def create_application(
@@ -165,7 +61,7 @@ def create_application(
 
     Args:
         enable_monitoring: Enable monitoring and observability (default: True)
-        enable_debug_endpoints: Enable debug endpoints (default: None - auto-detect from settings.DEBUG)
+        enable_debug_endpoints: Enable debug endpoints (default: None - auto-detect from settings.APP_ENABLE_DEBUG)
         deployment_mode: Deployment mode for configuration (default: "production")
         enable_error_tracking: Enable error tracking with correlation IDs (default: True)
         enable_enhanced_openapi: Enable enhanced OpenAPI with security schemes (default: True)
@@ -175,20 +71,20 @@ def create_application(
     """
     # Auto-detect debug endpoints if not explicitly set
     if enable_debug_endpoints is None:
-        enable_debug_endpoints = settings.DEBUG or deployment_mode == "debug"
+        enable_debug_endpoints = settings.APP_ENABLE_DEBUG or deployment_mode == "debug"
 
     logger.info(f"Creating FastAPI application (mode: {deployment_mode}, debug: {enable_debug_endpoints})")
 
     # Initialize Sentry for error tracking (before app creation)
-    _setup_sentry()
+    setup_sentry()
 
     # Determine documentation visibility based on deployment mode
-    docs_available = deployment_mode != "production" or settings.DEBUG
+    docs_available = deployment_mode != "production" or settings.APP_ENABLE_DEBUG
 
     # Create base FastAPI application with metadata
     app = FastAPI(
         title="Hormonia Backend API" + (f" ({deployment_mode.title()})" if deployment_mode != "production" else ""),
-        description=_get_api_description(deployment_mode),
+        description=get_api_description(deployment_mode),
         version="2.0.0",  # Updated version to reflect consolidation
         contact={
             "name": "Hormonia Support",
@@ -199,7 +95,7 @@ def create_application(
         redoc_url="/redoc" if docs_available else None,
         openapi_url="/openapi.json" if docs_available else None,
         lifespan=lifespan,
-        openapi_tags=_get_openapi_tags()
+        openapi_tags=get_openapi_tags()
     )
 
     # Store configuration in app state for reference
@@ -208,7 +104,7 @@ def create_application(
     app.state.error_tracking_enabled = enable_error_tracking
 
     # Configure rate limiter
-    if settings.RATE_LIMIT_ENABLED:
+    if settings.RATE_LIMIT_ENABLE_SERVICE:
         app.state.limiter = limiter
         app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
         logger.info("✓ Rate limiter configured")
@@ -353,6 +249,10 @@ def create_application(
     if enable_error_tracking:
         _setup_global_exception_handler(app)
         logger.info("✓ Global exception handler configured")
+        
+    # Register domain-specific exception handlers
+    register_exception_handlers(app)
+    logger.info("✓ Domain exception handlers registered")
 
     # 2. Setup monitoring first for comprehensive instrumentation (if enabled)
     if enable_monitoring:
@@ -376,7 +276,7 @@ def create_application(
 
     # 6. Setup enhanced OpenAPI (if enabled)
     if enable_enhanced_openapi:
-        _setup_enhanced_openapi(app)
+        setup_enhanced_openapi(app)
         logger.info("✓ Enhanced OpenAPI configured")
 
     # 7. Setup static file serving for uploads
@@ -396,7 +296,7 @@ def _setup_static_files(app: FastAPI) -> None:
     """
     try:
         # Create upload directory if it doesn't exist
-        upload_dir = Path(settings.UPLOAD_DIR)
+        upload_dir = Path(settings.UPLOAD_DIRECTORY)
         upload_dir.mkdir(parents=True, exist_ok=True)
 
         # Mount static files directory
@@ -406,89 +306,6 @@ def _setup_static_files(app: FastAPI) -> None:
         logger.warning(f"Failed to setup static file serving: {e}")
         # Don't fail application startup if static files can't be mounted
         # Files can still be uploaded, just won't be served
-
-
-def _get_api_description(deployment_mode: str = "production") -> str:
-    """Get comprehensive API description with deployment-specific information."""
-    base_description = """
-## Healthcare Communication Platform for Hormone Therapy Patients
-
-The Hormonia Backend System is a comprehensive healthcare communication platform that enables
-automated patient engagement through WhatsApp integration, AI-powered conversation flows,
-medical questionnaires, and report generation.
-
-### Key Features
-- **Patient Management**: Complete patient lifecycle management
-- **WhatsApp Integration**: Automated messaging with interactive elements
-- **Conversation Flows**: State-machine-driven communication flows
-- **AI Personalization**: Google Gemini integration for message humanization
-- **Medical Assessments**: Structured quiz system for health data collection
-- **Reporting & Analytics**: PDF report generation with insights
-- **Real-time Alerts**: Automated detection of concerning patterns
-- **WebSocket Communication**: Real-time updates for healthcare providers
-
-### Architecture
-This API follows a clean architecture pattern with:
-- **Modular Design**: Separated concerns across focused modules
-- **Event-Driven**: WebSocket and Redis-based real-time communication
-- **Monitoring**: Comprehensive observability with metrics and logging
-- **Security**: Enhanced security middleware and rate limiting
-- **Scalability**: Redis-backed caching and session management
-- **Thread-Safe**: Request-scoped services for multi-worker deployments
-"""
-
-    # Add deployment-specific information
-    if deployment_mode == "debug":
-        base_description += """
-### Debug Mode Features
-- **Debug Endpoints**: `/debug/env`, `/debug/imports`, `/debug/health` for troubleshooting
-- **Enhanced Logging**: Detailed request/response logging
-- **Development Tools**: Full OpenAPI documentation available
-"""
-    elif deployment_mode == "development":
-        base_description += """
-### Development Environment
-- **Enhanced Debugging**: Detailed error messages and stack traces
-- **Full Documentation**: Complete OpenAPI specification available
-- **Development Tools**: All debugging features enabled
-"""
-
-    return base_description
-
-
-def _get_openapi_tags() -> list:
-    """Get OpenAPI tags for API documentation."""
-    return [
-        {"name": "Authentication", "description": "User authentication and authorization"},
-        {"name": "Admin Users", "description": "Administrative user management operations"},
-        {"name": "Patients", "description": "Patient management operations"},
-        {"name": "Messages", "description": "WhatsApp message handling"},
-        {"name": "Flows", "description": "Conversation flow management"},
-        {"name": "Quiz", "description": "Medical questionnaire system"},
-        {"name": "Monthly Quiz", "description": "Monthly wellness questionnaires"},
-        {"name": "AI Services", "description": "AI-powered features and analytics"},
-        {"name": "Healthcare Metrics", "description": "Clinical metrics and KPIs"},
-        {"name": "Reports", "description": "Medical report generation"},
-        {"name": "Analytics", "description": "System and patient analytics"},
-        {"name": "Enhanced Analytics", "description": "Advanced analytics features"},
-        {"name": "Enhanced Messages", "description": "Advanced messaging features"},
-        {"name": "Enhanced Quiz", "description": "Advanced quiz features"},
-        {"name": "Enhanced Reports", "description": "Advanced reporting features"},
-        {"name": "Enhanced Monitoring", "description": "Advanced monitoring features"},
-        {"name": "Monitoring", "description": "System monitoring and health checks"},
-        {"name": "Health", "description": "System health monitoring"},
-        {"name": "Performance", "description": "Performance monitoring and optimization"},
-        {"name": "Alerts", "description": "Alert management system"},
-        {"name": "Webhooks", "description": "Webhook endpoints for integrations"},
-        {"name": "Tasks", "description": "Background task management"},
-        {"name": "Localization", "description": "Multi-language support"},
-        {"name": "Documentation", "description": "API documentation endpoints"},
-        {"name": "Template Management", "description": "Message template management"},
-        {"name": "Platform Sync", "description": "External platform synchronization"},
-        {"name": "WhatsApp", "description": "WhatsApp integration endpoints"},
-        {"name": "Hive-Mind", "description": "AI coordination system"},
-        {"name": "Debug", "description": "Debug and diagnostics endpoints (debug mode only)"}
-    ]
 
 
 def _setup_global_exception_handler(app: FastAPI) -> None:
@@ -521,7 +338,7 @@ def _setup_global_exception_handler(app: FastAPI) -> None:
 
         # Determine error detail level based on deployment mode
         deployment_mode = getattr(app.state, 'deployment_mode', 'production')
-        include_details = deployment_mode in ['development', 'debug'] or settings.DEBUG
+        include_details = deployment_mode in ['development', 'debug'] or settings.APP_ENABLE_DEBUG
 
         error_response = {
             "error": "internal_server_error",
@@ -598,7 +415,7 @@ def _add_debug_endpoints(app: FastAPI) -> None:
             "REDIS_URL": "***masked***" if os.getenv("REDIS_URL") else "not_set",
             "PYTHONPATH": os.getenv("PYTHONPATH", "not_set"),
             "PWD": os.getenv("PWD", "not_set"),
-            "DEBUG": str(settings.DEBUG),
+            "DEBUG": str(settings.APP_ENABLE_DEBUG),
             "DEPLOYMENT_MODE": getattr(app.state, 'deployment_mode', 'unknown')
         }
         return {
@@ -660,79 +477,3 @@ def _add_debug_endpoints(app: FastAPI) -> None:
         }
 
         return health_info
-
-
-def _setup_enhanced_openapi(app: FastAPI) -> None:
-    """Setup enhanced OpenAPI with security schemes (from main_v2.py)."""
-
-    def custom_openapi():
-        if app.openapi_schema:
-            return app.openapi_schema
-
-        # Get base OpenAPI schema from FastAPI
-        openapi_schema = get_openapi(
-            title=app.title,
-            version=app.version,
-            description=app.description,
-            routes=app.routes,
-        )
-
-        # Ensure components structure exists (robust setdefault pattern)
-        openapi_schema.setdefault("components", {})
-        openapi_schema["components"].setdefault("securitySchemes", {})
-        openapi_schema["components"].setdefault("examples", {})
-
-        # Add security schemes
-        openapi_schema["components"]["securitySchemes"].update({
-            "BearerAuth": {
-                "type": "http",
-                "scheme": "bearer",
-                "bearerFormat": "JWT",
-                "description": "JWT token obtained from /api/v2/auth/login endpoint"
-            },
-            "ApiKeyAuth": {
-                "type": "apiKey",
-                "in": "header",
-                "name": "X-API-Key",
-                "description": "API key for service-to-service authentication"
-            }
-        })
-
-        # Add common error response examples (already initialized above)
-        openapi_schema["components"]["examples"].update({
-            "ValidationError": {
-                "summary": "Validation Error",
-                "value": {
-                    "error": "validation_error",
-                    "message": "Invalid input data provided",
-                    "details": {"field": "email", "issue": "Invalid email format"},
-                    "timestamp": "2024-01-01T00:00:00Z",
-                    "request_id": "req_123456789"
-                }
-            },
-            "UnauthorizedError": {
-                "summary": "Unauthorized",
-                "value": {
-                    "error": "unauthorized",
-                    "message": "Authentication credentials required",
-                    "details": {},
-                    "timestamp": "2024-01-01T00:00:00Z",
-                    "request_id": "req_123456789"
-                }
-            },
-            "InternalServerError": {
-                "summary": "Internal Server Error",
-                "value": {
-                    "error": "internal_server_error",
-                    "message": "An unexpected error occurred",
-                    "details": {},
-                    "timestamp": "2024-01-01T00:00:00Z",
-                    "request_id": "req_123456789"
-                }
-            }
-        })
-
-        app.openapi_schema = openapi_schema
-        return app.openapi_schema
-
-    app.openapi = custom_openapi

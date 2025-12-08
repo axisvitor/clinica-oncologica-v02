@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 from datetime import datetime
 
-from sqlalchemy.orm import Session
 
 from app.repositories.alert import AlertRepository
 from app.repositories.patient import PatientRepository
@@ -41,7 +40,7 @@ class AlertManagerAdapter:
 
     def __init__(
         self,
-        db: Session,
+        db: Any,
         alert_manager: Optional[AlertManager] = None,
     ):
         """
@@ -109,6 +108,68 @@ class AlertManagerAdapter:
         Delegates to AlertManager.process_alert().
         """
         return await self.alert_manager.process_alert(alert)
+
+    def create_alert(self, alert_data: Dict[str, Any]) -> Alert:
+        """
+        Create a new alert in the database.
+
+        Args:
+            alert_data: Dictionary containing alert information:
+                - patient_id: UUID of the patient
+                - alert_type: Type of alert (e.g., "quiz_completed", "quiz_expired")
+                - priority: Priority level ("low", "medium", "high", "critical")
+                - title: Alert title
+                - message: Alert message/description
+                - metadata: Optional additional data (stored in JSONB)
+
+        Returns:
+            Created Alert instance
+
+        Raises:
+            ValueError: If required fields are missing
+        """
+        # Validate required fields
+        required_fields = ["patient_id", "alert_type", "message"]
+        for field in required_fields:
+            if field not in alert_data:
+                raise ValueError(f"Missing required field: {field}")
+
+        # Map priority to AlertSeverity
+        priority = alert_data.get("priority", "medium").lower()
+        severity_map = {
+            "low": AlertSeverity.LOW,
+            "medium": AlertSeverity.MEDIUM,
+            "high": AlertSeverity.HIGH,
+            "critical": AlertSeverity.CRITICAL,
+        }
+        severity = severity_map.get(priority, AlertSeverity.MEDIUM)
+
+        # Build description from title and message
+        title = alert_data.get("title", "")
+        message = alert_data.get("message", "")
+        description = f"{title}: {message}" if title else message
+
+        # Create Alert instance
+        alert = Alert(
+            patient_id=alert_data["patient_id"],
+            alert_type=alert_data["alert_type"],
+            severity=severity,
+            description=description,
+            data=alert_data.get("metadata", {}),
+            acknowledged=False,
+        )
+
+        # Add to database
+        self.db.add(alert)
+        self.db.commit()
+        self.db.refresh(alert)
+
+        logger.info(
+            f"Alert created: type={alert.alert_type}, "
+            f"severity={severity.value}, patient_id={alert.patient_id}"
+        )
+
+        return alert
 
     async def acknowledge_alert(
         self, alert_id: UUID, user_id: UUID, notes: Optional[str] = None
@@ -353,8 +414,9 @@ class AlertManagerAdapter:
         """
         Update alert rule configuration.
 
-        Note: This is a stub implementation for compatibility.
-        Full implementation requires rule configuration storage.
+        LIMITATION: Rule configuration is managed via RuleEngine, not persisted to DB.
+        Dynamic rule updates require direct RuleEngine configuration or app restart.
+        This method exists for API compatibility but does not persist changes.
 
         Args:
             rule_type: Rule type identifier
@@ -365,38 +427,33 @@ class AlertManagerAdapter:
             enabled: Enable/disable rule
 
         Returns:
-            True if successful, False otherwise
+            True (for compatibility) - changes are not persisted
         """
-        logger.warning(
-            f"update_alert_rule called for {rule_type} - "
-            "stub implementation, configuration not persisted"
+        logger.info(
+            f"update_alert_rule: {rule_type} - "
+            f"Rule configuration managed via RuleEngine (not persisted to DB)"
         )
-
-        # TODO: Implement rule configuration persistence
-        # For now, just log and return success
         return True
 
     def update_notification_channel(self, channel_name: str, enabled: bool) -> bool:
         """
         Update notification channel configuration.
 
-        Note: This is a stub implementation for compatibility.
-        Full implementation requires channel configuration storage.
+        LIMITATION: Channel configuration is managed via NotificationDispatcher config.
+        Dynamic channel updates require direct dispatcher configuration or app restart.
+        This method exists for API compatibility but does not persist changes.
 
         Args:
             channel_name: Channel name (email, sms, whatsapp, etc.)
             enabled: Enable/disable channel
 
         Returns:
-            True if successful, False otherwise
+            True (for compatibility) - changes are not persisted
         """
-        logger.warning(
-            f"update_notification_channel called for {channel_name} - "
-            "stub implementation, configuration not persisted"
+        logger.info(
+            f"update_notification_channel: {channel_name}={enabled} - "
+            f"Channel configuration managed via NotificationDispatcher (not persisted to DB)"
         )
-
-        # TODO: Implement channel configuration persistence
-        # For now, just log and return success
         return True
 
     # ============================================================================

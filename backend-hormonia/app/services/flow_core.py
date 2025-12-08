@@ -6,73 +6,115 @@ import asyncio
 import logging
 from typing import List, Optional, Any, Tuple, Dict
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
 from uuid import UUID
 from enum import Enum
 
 from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion
 from app.models.patient import Patient
 from app.models.message import Message, MessageType, MessageStatus, MessageDirection
+from app.domain.messaging.core import MessageTemplate
+
+
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
-from app.services.flow_event_broadcaster import flow_event_broadcaster
-from app.services.platform_synchronization import get_platform_sync_service
-from app.services.template_loader import EnhancedTemplateLoader, MessageTemplate
-
-from app.exceptions import NotFoundError, ValidationError
-from app.services.unified_cache import UnifiedCacheService
+from app.domain.flows.events import flow_event_broadcaster
 
 logger = logging.getLogger(__name__)
 
-
 class FlowType(Enum):
-    """Flow type enumeration."""
     INITIAL_15_DAYS = "initial_15_days"
     DAYS_16_45 = "days_16_45"
     MONTHLY_RECURRING = "monthly_recurring"
 
-
-class FlowState(Enum):
-    """Flow state enumeration."""
-    ACTIVE = "active"
-    PAUSED = "paused"
-    COMPLETED = "completed"
-    ERROR = "error"
-
-
-class SchedulerError(Exception):
-    """Exception raised when message scheduling fails."""
+class NotFoundError(Exception):
     pass
 
+class ValidationError(Exception):
+    pass
+
+# Import ConcurrentModificationError for optimistic locking
+from app.exceptions import ConcurrentModificationError
+
+from app.services.platform_synchronization import PlatformSynchronizationService
+from app.services.template_loader import EnhancedTemplateLoader
+from app.services.unified_cache import UnifiedCacheService
 
 class FlowCore:
     """
-    Base class containing all shared flow operations.
-    Provides common functionality for flow state management, template handling,
-    database operations, and health monitoring.
+    Base class for all flow operations.
     """
-
-    def __init__(self, db: Session):
-        """
-        Initialize FlowCore with database session and shared services.
-
-        Args:
-            db: Database session
-        """
+    
+    def __init__(self, 
+                 db: Any,
+                 platform_sync: Optional[PlatformSynchronizationService] = None,
+                 template_loader: Optional[EnhancedTemplateLoader] = None,
+                 template_cache: Optional[UnifiedCacheService] = None):
         self.db = db
-        self.flow_state_repo = FlowStateRepository(db)
         self.patient_repo = PatientRepository(db)
+        self.flow_state_repo = FlowStateRepository(db)
         self.flow_broadcaster = flow_event_broadcaster
-        self.platform_sync = get_platform_sync_service(db)
+        
+        # Dependency Injection with fallback for backward compatibility (optional, but safer during transition)
+        if platform_sync:
+            self.platform_sync = platform_sync
+        else:
+            # Fallback or raise error? Plan said DI. Let's support fallback for now to avoid breaking other callers immediately if any.
+            # Actually, better to be explicit. If None, we instantiate (legacy behavior) OR we require them.
+            # Given the plan is strict DI, let's try to enforce it, but maybe keep fallback for safety if I miss a caller.
+            # Wait, if I keep fallback, I keep the circular import risk.
+            # Let's use the passed instances.
+            self.platform_sync = platform_sync or PlatformSynchronizationService(db)
 
-        # Template system integration
-        self.template_loader = EnhancedTemplateLoader(db=db)
-        self.template_cache = get_template_cache(db)
+        if template_loader:
+            self.template_loader = template_loader
+        else:
+            self.template_loader = EnhancedTemplateLoader()
 
-        logger.info("FlowCore initialized with shared services")
+        if template_cache:
+            self.template_cache = template_cache
+        else:
+            self.template_cache = UnifiedCacheService()
 
     # =============================================================================
-    # FLOW STATE MANAGEMENT (Shared between both services)
+    # OPTIMISTIC LOCKING HELPER
+    # =============================================================================
+
+    def _commit_flow_state_with_lock(self, flow_state: PatientFlowState, expected_version: int) -> None:
+        """
+        Commit flow state changes with optimistic locking.
+
+        This ensures no concurrent modifications occurred between read and write.
+        If another process modified the flow state, raises ConcurrentModificationError.
+
+        Args:
+            flow_state: The flow state to commit
+            expected_version: The version we expect the record to still have
+
+        Raises:
+            ConcurrentModificationError: If the record was modified by another process
+        """
+        # Refresh from DB to get latest version
+        self.db.refresh(flow_state)
+
+        if flow_state.version != expected_version:
+            raise ConcurrentModificationError(
+                resource_type="PatientFlowState",
+                resource_id=str(flow_state.id),
+                expected_version=expected_version,
+                actual_version=flow_state.version
+            )
+
+        # Increment version and commit
+        flow_state.version = expected_version + 1
+        self.db.commit()
+
+        logger.debug(
+            f"Flow state {flow_state.id} updated with optimistic lock: "
+            f"version {expected_version} -> {flow_state.version}"
+        )
+
+    # =============================================================================
+    # PATIENT ENROLLMENT
     # =============================================================================
 
     async def enroll_patient(self,
@@ -104,13 +146,22 @@ class FlowCore:
 
         # Get current template version for the flow type
         flow_kind = self.db.query(FlowKind).filter(FlowKind.flow_type == flow_type.value).first()
-        if not flow_kind or not flow_kind.current_version_id:
-            raise ValidationError(f"No template found for flow type: {flow_type.value}")
+        if not flow_kind:
+            raise ValidationError(f"No flow kind found for flow type: {flow_type.value}")
+
+        # Get the active version for this flow kind (query the relationship)
+        active_version = self.db.query(FlowTemplateVersion).filter(
+            FlowTemplateVersion.kind_id == flow_kind.id,
+            FlowTemplateVersion.is_active == True
+        ).first()
+
+        if not active_version:
+            raise ValidationError(f"No active template version found for flow type: {flow_type.value}")
 
         # Create new flow state
         flow_state = PatientFlowState(
             patient_id=patient_id,
-            template_version_id=flow_kind.current_version_id,
+            template_version_id=active_version.id,
             current_step=1,  # Start at day 1
             started_at=datetime.utcnow(),
             state_data={
@@ -127,7 +178,7 @@ class FlowCore:
 
     async def calculate_patient_day(self, patient_id: UUID) -> int:
         """
-        Calculate current day for patient based on enrollment.
+        Calculate current day for patient based on enrollment and timezone.
 
         Args:
             patient_id: Patient UUID
@@ -139,11 +190,31 @@ class FlowCore:
         if not flow_state:
             return 1
 
-        # Calculate days since enrollment
-        enrollment_date = datetime.fromisoformat(
-            flow_state.state_data.get("enrollment_date", flow_state.started_at.isoformat())
-        )
-        days_elapsed = (datetime.utcnow() - enrollment_date).days + 1
+        # Get patient timezone
+        timezone_str = "America/Sao_Paulo"
+        if flow_state.patient and hasattr(flow_state.patient, "timezone"):
+             timezone_str = flow_state.patient.timezone
+        
+        try:
+            import pytz
+            tz = pytz.timezone(timezone_str)
+        except Exception:
+            logger.warning(f"Invalid timezone {timezone_str} for patient {patient_id}, defaulting to America/Sao_Paulo")
+            import pytz
+            tz = pytz.timezone("America/Sao_Paulo")
+
+        # Calculate days since enrollment using local time
+        enrollment_date_str = flow_state.state_data.get("enrollment_date", flow_state.started_at.isoformat())
+        enrollment_dt = datetime.fromisoformat(enrollment_date_str)
+        
+        # Ensure enrollment_dt is timezone aware
+        if enrollment_dt.tzinfo is None:
+             enrollment_dt = pytz.utc.localize(enrollment_dt)
+        
+        enrollment_local = enrollment_dt.astimezone(tz)
+        now_local = datetime.now(tz)
+        
+        days_elapsed = (now_local.date() - enrollment_local.date()).days + 1
 
         return max(1, days_elapsed)
 
@@ -191,6 +262,9 @@ class FlowCore:
             current_flow_type = FlowType(flow_state.flow_type)
             required_flow_type = await self.determine_flow_type(patient_id, current_day)
 
+            # Capture version for optimistic locking before any modifications
+            expected_version = flow_state.version
+
             # Store previous state for broadcasting
             previous_state = {
                 "flow_type": current_flow_type.value,
@@ -209,7 +283,8 @@ class FlowCore:
             flow_state.state_data = flow_state.state_data or {}
             flow_state.state_data["last_advancement"] = datetime.utcnow().isoformat()
 
-            self.db.commit()
+            # Commit with optimistic locking to prevent race conditions
+            self._commit_flow_state_with_lock(flow_state, expected_version)
 
             # Broadcast flow state change
             await self.flow_broadcaster.broadcast_flow_state_change(
@@ -273,6 +348,9 @@ class FlowCore:
             if not flow_state:
                 raise NotFoundError(f"No active flow for patient {patient_id}")
 
+            # Capture version for optimistic locking before any modifications
+            expected_version = flow_state.version
+
             # Store previous state for broadcasting
             previous_state = {
                 "flow_type": flow_state.flow_type,
@@ -288,7 +366,8 @@ class FlowCore:
                 "current_step": flow_state.current_step
             }
 
-            self.db.commit()
+            # Commit with optimistic locking to prevent race conditions
+            self._commit_flow_state_with_lock(flow_state, expected_version)
 
             # Broadcast flow pause event
             await self.flow_broadcaster.broadcast_flow_state_change(
@@ -325,6 +404,9 @@ class FlowCore:
             if not flow_state:
                 raise NotFoundError(f"No active flow for patient {patient_id}")
 
+            # Capture version for optimistic locking before any modifications
+            expected_version = flow_state.version
+
             # Store previous state for broadcasting
             previous_state = {
                 "flow_type": flow_state.flow_type,
@@ -341,7 +423,8 @@ class FlowCore:
                     "pause_reason": paused_data.get("reason")
                 }
 
-            self.db.commit()
+            # Commit with optimistic locking to prevent race conditions
+            self._commit_flow_state_with_lock(flow_state, expected_version)
 
             # Broadcast flow resume event
             await self.flow_broadcaster.broadcast_flow_state_change(

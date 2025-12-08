@@ -21,14 +21,14 @@ import logging
 from app.services.auth import AuthService
 from app.services.patient import PatientService, PatientIntegrityService
 from app.services.quiz import QuizService
-from app.services.report import ReportService
+from app.services.reporting import ReportService
 from app.services.analytics import AnalyticsService
-from app.services.message import MessageService
-from app.services.flow import FlowEngineIntegrationService
+from app.domain.messaging.core import MessageService
+from app.domain.flows.core import FlowService
 from app.services.flow_engine import FlowEngine
 from app.services.notification import NotificationService
 from app.services.file import FileService
-from app.services.monthly_quiz_service import MonthlyQuizService
+from app.domain.quizzes import MonthlyQuizService
 from app.services.metrics_collector import MetricsCollectorService
 from app.services.metrics_redis_storage import MetricsRedisStorage
 
@@ -215,21 +215,21 @@ class ThreadSafeServiceProvider:
                 )
 
     @property
-    def flow_engine(self) -> FlowEngine:
+    def flow_engine(self) -> EnhancedFlowEngine:
         return self._get_or_create_service(
             'flow_engine',
             lambda: self._create_flow_engine()
         )
 
-    def _create_flow_engine(self) -> FlowEngine:
+    def _create_flow_engine(self) -> EnhancedFlowEngine:
         """Create FlowEngine with proper session management."""
         try:
             # Try new constructor pattern
-            return FlowEngine(db_session_factory=self.db_session_factory)
+            return EnhancedFlowEngine(db=self.db_session_factory())
         except TypeError:
             # Fallback to original constructor
             with self.get_db_session() as session:
-                return FlowEngine(db=session)
+                return EnhancedFlowEngine(db=session)
 
     @property
     def patient_integrity_service(self) -> PatientIntegrityService:
@@ -252,33 +252,6 @@ class ThreadSafeServiceProvider:
                 return PatientIntegrityService(
                     db=session,
                     patient_repository=self.patient_repository
-                )
-
-    @property
-    def patient_service(self) -> PatientService:
-        return self._get_or_create_service(
-            'patient_service',
-            lambda: self._create_patient_service()
-        )
-
-    def _create_patient_service(self) -> PatientService:
-        """Create PatientService with proper session management."""
-        try:
-            # Try new constructor pattern
-            return PatientService(
-                db_session_factory=self.db_session_factory,
-                patient_repository=self.patient_repository,
-                integrity_service=self.patient_integrity_service,
-                flow_engine=self.flow_engine
-            )
-        except TypeError:
-            # Fallback to original constructor
-            with self.get_db_session() as session:
-                return PatientService(
-                    db=session,
-                    patient_repository=self.patient_repository,
-                    integrity_service=self.patient_integrity_service,
-                    flow_engine=self.flow_engine
                 )
 
     @property
@@ -328,10 +301,10 @@ class ThreadSafeServiceProvider:
         )
 
     @property
-    def flow_service(self) -> FlowEngineIntegrationService:
+    def flow_service(self) -> FlowService:
         return self._get_or_create_service(
             'flow_service',
-            lambda: self._create_basic_service(FlowEngineIntegrationService)
+            lambda: self._create_basic_service(FlowService)
         )
 
     @property

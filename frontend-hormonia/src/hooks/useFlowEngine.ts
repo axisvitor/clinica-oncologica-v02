@@ -11,7 +11,7 @@ import {
   type InboundMessage,
   type ResponseResult,
   type FlowEvent
-} from '../lib/types/flow'
+} from '@/lib/api-client/types'
 
 const logger = createLogger('useFlowEngine')
 

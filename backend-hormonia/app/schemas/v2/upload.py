@@ -7,7 +7,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 from uuid import UUID
-from pydantic import BaseModel, Field, validator, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, ConfigDict
 
 # ============================================================================
 # Enums
@@ -115,8 +115,7 @@ class UploadOptionsRequest(BaseModel):
         description="Additional metadata to store with file"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "max_size": 10485760,
                 "generate_thumbnail": True,
@@ -131,7 +130,7 @@ class UploadOptionsRequest(BaseModel):
                     "upload_type": "avatar"
                 }
             }
-        }
+        })
 
 
 class DirectUploadRequest(BaseModel):
@@ -173,8 +172,7 @@ class DirectUploadRequest(BaseModel):
         description="Metadata to associate with upload"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "filename": "patient-scan.jpg",
                 "content_type": "image/jpeg",
@@ -186,7 +184,7 @@ class DirectUploadRequest(BaseModel):
                     "scan_type": "ct"
                 }
             }
-        }
+        })
 
 
 # ============================================================================
@@ -205,8 +203,7 @@ class FileMetadata(BaseModel):
     size: int = Field(description="File size in bytes")
     checksum: Optional[str] = Field(None, description="File checksum (MD5)")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "filename": "patient-photo.jpg",
@@ -216,7 +213,7 @@ class FileMetadata(BaseModel):
                 "size": 2048576,
                 "checksum": "5d41402abc4b2a76b9719d911017c592"
             }
-        }
+        })
 
 
 class ImageMetadata(BaseModel):
@@ -228,8 +225,7 @@ class ImageMetadata(BaseModel):
     has_alpha: bool = Field(description="Has alpha channel")
     color_mode: str = Field(description="Color mode (RGB, RGBA, etc)")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "width": 1920,
                 "height": 1080,
@@ -237,7 +233,7 @@ class ImageMetadata(BaseModel):
                 "has_alpha": False,
                 "color_mode": "RGB"
             }
-        }
+        })
 
 
 class ProcessingInfo(BaseModel):
@@ -250,8 +246,7 @@ class ProcessingInfo(BaseModel):
     virus_scan_clean: Optional[bool] = Field(None, description="Virus scan result")
     processing_time_ms: Optional[int] = Field(None, description="Processing time")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "status": "completed",
                 "thumbnail_url": "/uploads/thumbnails/20250107_143022_a1b2c3d4_thumb.jpg",
@@ -260,7 +255,7 @@ class ProcessingInfo(BaseModel):
                 "virus_scan_clean": True,
                 "processing_time_ms": 250
             }
-        }
+        })
 
 
 class UploadResponse(BaseModel):
@@ -301,8 +296,7 @@ class UploadResponse(BaseModel):
         description="Custom metadata"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "url": "/uploads/images/20250107_143022_a1b2c3d4.jpg",
@@ -341,7 +335,7 @@ class UploadResponse(BaseModel):
                     "patient_id": "789e0123-e89b-12d3-a456-426614174000"
                 }
             }
-        }
+        })
 
 
 class DirectUploadResponse(BaseModel):
@@ -356,8 +350,7 @@ class DirectUploadResponse(BaseModel):
     expires_at: datetime = Field(description="URL expiration time")
     max_file_size: int = Field(description="Maximum allowed file size")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "upload_id": "123e4567-e89b-12d3-a456-426614174000",
                 "upload_url": "https://s3.amazonaws.com/bucket/path?signature=xyz",
@@ -369,7 +362,7 @@ class DirectUploadResponse(BaseModel):
                 "expires_at": "2025-01-07T15:30:22Z",
                 "max_file_size": 10485760
             }
-        }
+        })
 
 
 class UploadStatsResponse(BaseModel):
@@ -382,8 +375,7 @@ class UploadStatsResponse(BaseModel):
     uploads_by_category: Dict[str, int] = Field(description="Uploads per category")
     uploads_by_month: Dict[str, int] = Field(description="Uploads per month")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "total_uploads": 42,
                 "total_size": 52428800,
@@ -397,7 +389,7 @@ class UploadStatsResponse(BaseModel):
                     "2025-01": 42
                 }
             }
-        }
+        })
 
 
 # ============================================================================
@@ -412,8 +404,7 @@ class UploadError(BaseModel):
     message: str = Field(description="Error message")
     details: Optional[Dict[str, Any]] = Field(None, description="Error details")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "error": "FileTooLarge",
                 "message": "File size exceeds maximum allowed size",
@@ -422,7 +413,7 @@ class UploadError(BaseModel):
                     "max_size": 10485760
                 }
             }
-        }
+        })
 
 
 class ValidationError(BaseModel):
@@ -432,14 +423,13 @@ class ValidationError(BaseModel):
     message: str = Field(description="Error message")
     value: Optional[Any] = Field(None, description="Invalid value")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "field": "content_type",
                 "message": "Unsupported file type",
                 "value": "application/x-executable"
             }
-        }
+        })
 
 
 class UploadValidationError(BaseModel):
@@ -449,8 +439,7 @@ class UploadValidationError(BaseModel):
     message: str = Field(description="Error message")
     errors: List[ValidationError] = Field(description="Validation errors")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "error": "ValidationError",
                 "message": "File validation failed",
@@ -462,4 +451,4 @@ class UploadValidationError(BaseModel):
                     }
                 ]
             }
-        }
+        })

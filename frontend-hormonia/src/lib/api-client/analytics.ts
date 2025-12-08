@@ -1,6 +1,9 @@
 import type { AnalyticsPeriod } from '@/types/api-wave2'
 import type { ActivityItem, Alert } from '@/types/api'
 import { ApiClientCore } from './core'
+import { createLogger } from '@/utils/logger'
+
+const logger = createLogger('AnalyticsApi')
 
 export interface DashboardMetrics {
   total_patients: number
@@ -321,3 +324,68 @@ export function createAnalyticsApi(client: ApiClientCore) {
 }
 
 export type AnalyticsApi = ReturnType<typeof createAnalyticsApi>
+
+/**
+ * Enhanced Analytics Integration
+ * Link to AI-powered analytics features
+ */
+export interface EnhancedInsight {
+  category: string
+  insights: Array<{
+    id: string
+    type: 'opportunity' | 'risk' | 'trend' | 'recommendation'
+    title: string
+    description: string
+    severity: 'low' | 'medium' | 'high' | 'critical'
+    confidence: number
+    data: Record<string, unknown>
+  }>
+  priority: number
+}
+
+export function createEnhancedAnalyticsIntegration(client: ApiClientCore) {
+  return {
+    /**
+     * Get AI-powered insights for standard analytics
+     */
+    async getEnhancedInsights(): Promise<EnhancedInsight[]> {
+      try {
+        const response = await client.get<{ success: boolean; data: EnhancedInsight[] }>(
+          '/api/v2/enhanced-analytics/insights'
+        )
+        return response.data
+      } catch (error) {
+        logger.warn('Enhanced insights not available')
+        return []
+      }
+    },
+
+    /**
+     * Check if enhanced analytics features are available
+     */
+    async isEnhancedAnalyticsAvailable(): Promise<boolean> {
+      try {
+        await client.get('/api/v2/enhanced-analytics/health')
+        return true
+      } catch {
+        return false
+      }
+    },
+
+    /**
+     * Get enhanced metrics for dashboard
+     */
+    async getEnhancedMetrics(params?: Record<string, unknown>): Promise<Record<string, unknown>> {
+      try {
+        const response = await client.get<{ success: boolean; data: Record<string, unknown> }>(
+          '/api/v2/enhanced-analytics/metrics',
+          params as any
+        )
+        return response.data
+      } catch (error) {
+        logger.warn('Enhanced metrics not available', error)
+        return { error: true, message: 'Enhanced metrics not available', metrics: {} }
+      }
+    },
+  }
+}

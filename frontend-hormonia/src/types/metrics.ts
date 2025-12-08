@@ -108,7 +108,10 @@ export interface RealTimeMetrics {
   last_updated: string;
 }
 
-export interface Alert {
+// Note: This Alert interface is specifically for metrics/monitoring alerts
+// It has different fields than the API Alert (@/lib/api-client/types)
+// Keep this as MetricsAlert to avoid confusion
+export interface MetricsAlert {
   id: string;
   title: string;
   description: string;
@@ -123,7 +126,7 @@ export interface Alert {
   current_value?: number;
   threshold_value?: number;
   source: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   escalation_level?: number;
   notification_channels?: string[];
 }
@@ -141,7 +144,7 @@ export type AlertCategory =
 export type AlertStatus = 'active' | 'acknowledged' | 'resolved' | 'suppressed';
 
 export interface AlertsResponse {
-  alerts: Alert[];
+  alerts: MetricsAlert[];
   count: number;
   filters: {
     severity?: string;
@@ -163,10 +166,10 @@ export interface MetricsExportResponse {
       format: string;
       generated_at: string;
     };
-    engagement: any;
-    quiz_performance: any;
-    ai_personalization: any;
-    system_performance: any;
+    engagement: unknown;
+    quiz_performance: unknown;
+    ai_personalization: unknown;
+    system_performance: unknown;
   };
   metadata: {
     start_date: string;
@@ -179,7 +182,7 @@ export interface MetricsExportResponse {
 
 export interface WebSocketMessage {
   type: 'metrics_update' | 'alert' | 'ping' | 'pong';
-  data?: any;
+  data?: unknown;
   timestamp: string;
 }
 
@@ -197,13 +200,13 @@ export interface ChartDataPoint {
   name: string;
   value: number;
   color?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface TrendDataPoint {
   date: string;
   value: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface BarChartData {
@@ -211,14 +214,14 @@ export interface BarChartData {
   value: number;
   color?: string;
   target?: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface PieChartData {
   name: string;
   value: number;
   fill: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface RadialChartData {
@@ -226,7 +229,7 @@ export interface RadialChartData {
   value: number;
   fill: string;
   max?: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // Component props interfaces
@@ -236,7 +239,7 @@ export interface MetricsDashboardProps {
 }
 
 export interface AlertsPanelProps {
-  alerts: Alert[];
+  alerts: MetricsAlert[];
   onAcknowledge: (alertId: string) => Promise<void>;
   userRole: 'doctor' | 'admin';
 }

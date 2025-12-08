@@ -1,24 +1,23 @@
-# Python
+# ==============================================================================
+# Python - Bytecode and Cache
+# ==============================================================================
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
+*.pyo
 *.so
 .Python
+
+# ==============================================================================
+# Python - Build and Distribution
+# ==============================================================================
 build/
 develop-eggs/
 dist/
 downloads/
 eggs/
 .eggs/
-# Python lib directories (NOT frontend/src/lib)
-**/venv/lib/
-**/env/lib/
-**/ENV/lib/
-**/.venv/lib/
-lib64/
-
-# Note: lib/ folders in frontend/quiz contain source code, not dependencies
-# They are explicitly allowed in their respective .gitignore files
 parts/
 sdist/
 var/
@@ -32,11 +31,27 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
-# Virtual Environment
+# ==============================================================================
+# Python - Virtual Environments
+# ==============================================================================
+# Python lib directories (NOT frontend/src/lib)
+**/venv/lib/
+**/env/lib/
+**/ENV/lib/
+**/.venv/lib/
+lib64/
+
+# Note: lib/ folders in frontend/quiz contain source code, not dependencies
+# They are explicitly allowed in their respective .gitignore files
+
+# Virtual environment directories
 venv/
 ENV/
 env/
-.venv
+.venv/
+venv_linux/
+**/venv_linux/
+**/.venv/
 
 # IDEs
 .vscode/
@@ -61,13 +76,25 @@ env/
 *.pem
 *.key
 
-# Testing
+# ==============================================================================
+# Testing - Python
+# ==============================================================================
 .pytest_cache/
+**/.pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
 .tox/
+**/.tox/
 *.cover
 .hypothesis/
+.mypy_cache/
+**/.mypy_cache/
+.ruff_cache/
+**/.ruff_cache/
+.pytype/
+coverage.xml
+*.coveragerc
 
 # Logs
 *.log
@@ -125,6 +152,81 @@ appendonly.aof
 hive-mind-prompt-*.txt
 
 
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+
+# Migration and script backups
+docs/backups/
+
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+
 # Claude Flow generated files
 .claude/settings.local.json
 .mcp.json
@@ -151,6 +253,3 @@ coordination/orchestration/*
 claude-flow
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
-
-# Migration and script backups
-docs/backups/

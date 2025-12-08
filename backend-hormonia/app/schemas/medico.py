@@ -1,7 +1,7 @@
 """
 Pydantic schemas for medico (doctor) dashboard and statistics.
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 from datetime import datetime
 
@@ -33,9 +33,8 @@ class MedicoDashboardStats(BaseModel):
     alerts: AlertMetrics = Field(..., description="Alert counts by severity")
     timestamp: str = Field(..., description="Timestamp of statistics generation (ISO 8601)")
 
-    class Config:
-        """Pydantic model configuration."""
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "pacientes_ativos": 45,
                 "consultas_hoje": 8,
@@ -57,3 +56,4 @@ class MedicoDashboardStats(BaseModel):
                 "timestamp": "2025-10-06T14:30:00Z"
             }
         }
+    )

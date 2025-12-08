@@ -15,23 +15,23 @@ import {
   Settings,
 } from "lucide-react";
 import { apiClient } from "../lib/api-client";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "@/app/providers/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { LoadingSpinner } from "../components/ui/loading-spinner";
-import { MetricCard } from "../components/dashboard/MetricCard";
-import { RecentActivity } from "../components/dashboard/RecentActivity";
-import { AlertsPanel } from "../components/dashboard/AlertsPanel";
-import { EngagementChart } from "../components/dashboard/EngagementChart";
-import QuickStats from "../components/dashboard/QuickStats";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { MetricCard } from "@/features/dashboard/MetricCard";
+import { RecentActivity } from "@/features/dashboard/RecentActivity";
+import { AlertsPanel } from "@/features/dashboard/AlertsPanel";
+import { EngagementChart } from "@/features/dashboard/EngagementChart";
+import QuickStats from "@/features/dashboard/QuickStats";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useRoleGuard, PermissionGate } from "@/components/auth/ProtectedRoute";
+import { useRoleGuard, PermissionGate } from "@/features/auth/ProtectedRoute";
 import { getRoleLabel } from "@/types/shared";
 import { Link } from "react-router-dom";
 
 export function DashboardPage() {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isInitializing: authLoading } = useAuth();
   const { permissions, userRole, isAdmin, isDoctor } = useRoleGuard();
 
   // Wait for authentication to be ready before making API calls
@@ -186,8 +186,8 @@ export function DashboardPage() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4 md:space-y-6">
-          {/* Metrics Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+          {/* Metrics Grid - responsive from mobile to ultra-wide */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 gap-4 md:gap-6 xl:gap-8">
             <MetricCard
               title="Total de Pacientes"
               value={metrics?.total_patients || 0}
@@ -219,15 +219,15 @@ export function DashboardPage() {
             />
           </div>
 
-          {/* Charts and Activity */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+          {/* Charts and Activity - side by side on large screens */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2 gap-4 md:gap-6 xl:gap-8">
             <EngagementChart data={metrics?.engagement_chart || []} />
             <RecentActivity activities={metrics?.recent_activity || []} />
           </div>
         </TabsContent>
 
-        <TabsContent value="patients" className="space-y-4 md:space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+        <TabsContent value="patients" className="space-y-4 md:space-y-6 xl:space-y-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-6 xl:gap-8">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Pacientes Ativos</CardTitle>
@@ -279,7 +279,7 @@ export function DashboardPage() {
               <CardDescription>Visão geral do status atual dos pacientes</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-4 xl:gap-6">
                 <div className="text-center p-4 border rounded-lg">
                   <div className="text-2xl font-bold font-mono tabular-nums text-green-600">
                     {metrics?.active_patients || 0}
@@ -305,10 +305,10 @@ export function DashboardPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="engagement" className="space-y-6">
+        <TabsContent value="engagement" className="space-y-6 xl:space-y-8">
           <EngagementChart data={metrics?.engagement_chart || []} />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-6 xl:gap-8">
             <Card>
               <CardHeader>
                 <CardTitle>Métricas de Engajamento</CardTitle>
@@ -359,10 +359,10 @@ export function DashboardPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="alerts" className="space-y-6">
+        <TabsContent value="alerts" className="space-y-6 xl:space-y-8">
           <AlertsPanel alerts={metrics?.recent_alerts || []} />
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-3 gap-6 xl:gap-8">
             <Card>
               <CardHeader>
                 <CardTitle>Alertas por Severidade</CardTitle>

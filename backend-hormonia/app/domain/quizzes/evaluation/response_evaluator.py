@@ -17,7 +17,7 @@ from app.config.quiz_alert_rules import QUIZ_ALERT_RULES, AlertSeverity, QuizAle
 from app.repositories.alert import AlertRepository
 from app.models.alert import Alert, AlertStatus, AlertSeverity as ModelAlertSeverity
 from app.exceptions import ValidationError, DatabaseError
-from app.services.audit_service import AuditService
+from app.services.audit import AuditService
 
 logger = logging.getLogger(__name__)
 
@@ -163,8 +163,8 @@ class QuizResponseEvaluator:
             if isinstance(value, str) and value.replace(".", "", 1).isdigit():
                 try:
                     value = float(value)
-                except ValueError:
-                    pass
+                except ValueError as e:
+                    logger.debug(f"Failed to convert string to float: {value}, error: {e}")
 
             # Normalize boolean strings
             if isinstance(value, str):
@@ -314,31 +314,257 @@ class QuizResponseEvaluator:
             if alert.severity in (ModelAlertSeverity.CRITICAL, ModelAlertSeverity.HIGH):
                 await self._send_email_notification(alert, rule)
 
-            # SMS for CRITICAL only (optional)
+            # WhatsApp for CRITICAL only (immediate attention required)
             if alert.severity == ModelAlertSeverity.CRITICAL:
-                await self._send_sms_notification(alert, rule)
+                await self._send_whatsapp_notification(alert, rule)
 
         except Exception as e:
             logger.error(f"Error sending notifications for alert {alert.id}: {e}", exc_info=True)
             # Don't raise - notification failures shouldn't block alert creation
 
     async def _send_dashboard_notification(self, alert: Alert, rule: QuizAlertRule):
-        """Send real-time notification to dashboard via WebSocket."""
-        # TODO: Implement WebSocket notification
-        logger.info(f"Dashboard notification: {alert.id}")
-        pass
+        """
+        Send real-time notification to dashboard via WebSocket.
+
+        Broadcasts alert to connected admin/doctor dashboards.
+
+        Args:
+            alert: Alert to notify about
+            rule: Triggered rule with details
+        """
+        try:
+            from app.core.websocket import broadcast_to_room, get_connection_manager
+
+            # Build notification payload
+            notification_payload = {
+                "type": "alert_notification",
+                "alert_id": str(alert.id),
+                "patient_id": str(alert.patient_id),
+                "severity": alert.severity.value,
+                "title": f"Alerta: {rule.name}",
+                "message": alert.description,
+                "rule_id": rule.rule_id,
+                "recommendation": rule.recommendation,
+                "timestamp": datetime.utcnow().isoformat(),
+                "requires_action": alert.severity in (ModelAlertSeverity.CRITICAL, ModelAlertSeverity.HIGH),
+            }
+
+            # Broadcast to alerts room (subscribed by medical team dashboards)
+            connection_manager = get_connection_manager()
+            if connection_manager:
+                await connection_manager.broadcast_to_room(
+                    room="alerts",
+                    message=notification_payload
+                )
+
+                # Also send to patient-specific room for assigned doctor
+                await connection_manager.broadcast_to_room(
+                    room=f"patient_{alert.patient_id}",
+                    message=notification_payload
+                )
+
+            logger.info(f"Dashboard notification sent for alert {alert.id}")
+
+        except ImportError:
+            logger.warning("WebSocket module not available, skipping dashboard notification")
+        except Exception as e:
+            logger.error(f"Failed to send dashboard notification for alert {alert.id}: {e}")
+            # Don't raise - notification failure shouldn't block processing
 
     async def _send_email_notification(self, alert: Alert, rule: QuizAlertRule):
-        """Send email notification to assigned physician."""
-        # TODO: Implement email notification
-        logger.info(f"Email notification: {alert.id}")
-        pass
+        """
+        Send email notification to assigned physician.
 
-    async def _send_sms_notification(self, alert: Alert, rule: QuizAlertRule):
-        """Send SMS notification for critical alerts."""
-        # TODO: Implement SMS notification
-        logger.info(f"SMS notification: {alert.id}")
-        pass
+        Uses NotificationService to send email via configured SMTP.
+
+        Args:
+            alert: Alert to notify about
+            rule: Triggered rule with details
+        """
+        try:
+            from app.services.notification_service import (
+                get_notification_service,
+                NotificationChannel,
+                NotificationPriority
+            )
+
+            notification_service = get_notification_service()
+
+            # Get patient and assigned doctor information
+            patient_name = "Paciente"
+            doctor_email = None
+
+            try:
+                from app.repositories.patient_repository import PatientRepository
+                patient_repo = PatientRepository(self.db)
+                patient = patient_repo.get_by_id(alert.patient_id)
+                if patient:
+                    patient_name = getattr(patient, 'full_name', patient_name)
+
+                    # Get assigned doctor's email
+                    if hasattr(patient, 'assigned_doctor') and patient.assigned_doctor:
+                        doctor_email = getattr(patient.assigned_doctor, 'email', None)
+            except Exception as e:
+                logger.warning(f"Could not fetch patient/doctor info: {e}")
+
+            # Build email content
+            severity_labels = {
+                ModelAlertSeverity.CRITICAL: "CRÍTICO",
+                ModelAlertSeverity.HIGH: "ALTO",
+                ModelAlertSeverity.MEDIUM: "MÉDIO",
+                ModelAlertSeverity.LOW: "BAIXO"
+            }
+
+            severity_label = severity_labels.get(alert.severity, "MÉDIO")
+
+            subject = f"[{severity_label}] Alerta de Saúde - {patient_name}"
+
+            message = f"""
+Alerta de Avaliação de Quiz
+
+Paciente: {patient_name}
+Severidade: {severity_label}
+Regra Acionada: {rule.name}
+
+Descrição:
+{alert.description}
+
+Recomendação:
+{rule.recommendation}
+
+---
+Este alerta foi gerado automaticamente pelo sistema de avaliação de respostas.
+Por favor, revise o caso e tome as medidas apropriadas.
+
+Data/Hora: {datetime.utcnow().strftime('%d/%m/%Y %H:%M UTC')}
+ID do Alerta: {alert.id}
+            """
+
+            # Determine priority based on severity
+            priority_map = {
+                ModelAlertSeverity.CRITICAL: NotificationPriority.CRITICAL,
+                ModelAlertSeverity.HIGH: NotificationPriority.HIGH,
+                ModelAlertSeverity.MEDIUM: NotificationPriority.NORMAL,
+                ModelAlertSeverity.LOW: NotificationPriority.LOW
+            }
+            priority = priority_map.get(alert.severity, NotificationPriority.NORMAL)
+
+            # Get recipients
+            recipients = []
+            if doctor_email:
+                recipients.append(doctor_email)
+
+            # Add admin recipients from config if critical
+            if alert.severity == ModelAlertSeverity.CRITICAL:
+                from app.config import settings
+                admin_email = getattr(settings, 'ADMIN_ALERT_EMAIL', None)
+                if admin_email and admin_email not in recipients:
+                    recipients.append(admin_email)
+
+            if recipients:
+                await notification_service.send_notification(
+                    channels=[NotificationChannel.EMAIL],
+                    subject=subject,
+                    message=message,
+                    recipients=recipients,
+                    priority=priority,
+                    template_data={
+                        "patient_name": patient_name,
+                        "severity": severity_label,
+                        "rule_name": rule.name,
+                        "recommendation": rule.recommendation,
+                        "alert_id": str(alert.id)
+                    }
+                )
+                logger.info(f"Email notification sent for alert {alert.id} to {len(recipients)} recipients")
+            else:
+                logger.warning(f"No email recipients found for alert {alert.id}")
+
+        except ImportError as e:
+            logger.warning(f"NotificationService not available: {e}")
+        except Exception as e:
+            logger.error(f"Failed to send email notification for alert {alert.id}: {e}")
+            # Don't raise - notification failure shouldn't block processing
+
+    async def _send_whatsapp_notification(self, alert: Alert, rule: QuizAlertRule):
+        """
+        Send WhatsApp notification for critical alerts.
+
+        Uses NotificationService with WhatsApp channel for urgent alerts.
+
+        Args:
+            alert: Alert to notify about
+            rule: Triggered rule with details
+        """
+        try:
+            from app.services.notification_service import (
+                get_notification_service,
+                NotificationChannel,
+                NotificationPriority
+            )
+
+            notification_service = get_notification_service()
+
+            # Get patient and doctor phone
+            patient_name = "Paciente"
+            doctor_phone = None
+
+            try:
+                from app.repositories.patient_repository import PatientRepository
+                patient_repo = PatientRepository(self.db)
+                patient = patient_repo.get_by_id(alert.patient_id)
+                if patient:
+                    patient_name = getattr(patient, 'full_name', patient_name)
+
+                    # Get assigned doctor's phone
+                    if hasattr(patient, 'assigned_doctor') and patient.assigned_doctor:
+                        doctor_phone = getattr(patient.assigned_doctor, 'phone', None)
+            except Exception as e:
+                logger.warning(f"Could not fetch patient/doctor info: {e}")
+
+            # Build WhatsApp message (concise for mobile)
+            severity_emoji = "🔴" if alert.severity == ModelAlertSeverity.CRITICAL else "🟠"
+
+            message = f"""
+{severity_emoji} *ALERTA CRÍTICO* {severity_emoji}
+
+*Paciente:* {patient_name}
+*Tipo:* {rule.name}
+
+{alert.description[:200]}...
+
+*Ação:* {rule.recommendation[:150]}
+
+⚠️ Acesse o sistema para mais detalhes.
+            """.strip()
+
+            # Get recipients
+            recipients = []
+            if doctor_phone:
+                recipients.append(doctor_phone)
+
+            # Add on-call phone for critical alerts
+            from app.config import settings
+            oncall_phone = getattr(settings, 'ONCALL_WHATSAPP', None)
+            if oncall_phone and oncall_phone not in recipients:
+                recipients.append(oncall_phone)
+
+            if recipients:
+                await notification_service.send_notification(
+                    channels=[NotificationChannel.WHATSAPP],
+                    subject=f"Alerta Crítico - {patient_name}",
+                    message=message,
+                    recipients=recipients,
+                    priority=NotificationPriority.CRITICAL
+                )
+                logger.info(f"WhatsApp notification sent for alert {alert.id} to {len(recipients)} recipients")
+            else:
+                logger.warning(f"No WhatsApp recipients found for alert {alert.id}")
+
+        except ImportError as e:
+            logger.warning(f"NotificationService not available: {e}")
+        except Exception as e:
+            logger.error(f"Failed to send WhatsApp notification for alert {alert.id}: {e}")
 
     def get_evaluation_summary(self, patient_id: UUID, days: int = 30) -> Dict[str, Any]:
         """

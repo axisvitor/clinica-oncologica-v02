@@ -6,17 +6,18 @@ import '@testing-library/jest-dom'
 import 'vitest'
 
 declare module 'vitest' {
-  interface Assertion<T = any> {
-    toBeInTheDocument(): T
-    toHaveClass(className: string): T
-    toHaveAttribute(attr: string, value?: string): T
-    toBeVisible(): T
-    toBeDisabled(): T
-    toBeEnabled(): T
-    toHaveValue(value: string | number): T
-    toHaveTextContent(text: string): T
-    toBeChecked(): T
+  // @ts-ignore
+  interface Assertion {
+    toBeInTheDocument(): any
+    toHaveClass(className: string): any
+    toHaveAttribute(attr: string, value?: string): any
+    toBeVisible(): any
+    toBeDisabled(): any
+    toBeEnabled(): any
+    toHaveValue(value: string | number): any
+    toHaveTextContent(text: string): any
+    toBeChecked(): any
   }
 }
 
-export {}
+export { }

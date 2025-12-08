@@ -1,20 +1,20 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Plus, Download, Eye, Calendar, Filter, FileText } from 'lucide-react'
-import { apiClient } from '../lib/api-client'
+import { apiClient } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { LoadingSpinner } from '../components/ui/loading-spinner'
-import { ReportCard } from '../components/reports/ReportCard'
-import { ReportGenerator } from '../components/reports/ReportGenerator'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { ReportCard } from '@/features/reports/ReportCard'
+import { ReportGenerator } from '@/features/reports/ReportGenerator'
 import { useToast } from '@/components/ui/use-toast'
-import { useAuth } from '../hooks/useAuth'
-import { createLogger } from '../lib/logger'
-import type { Report } from '@/types/api'
+import { useAuth } from '@/hooks/useAuth'
+import { createLogger } from '@/lib/logger'
+import type { Report } from '@/lib/api-client/types'
 
 const logger = createLogger('ReportsPage')
- 
+
 
 export function ReportsPage() {
   const currentPage = 1
@@ -135,9 +135,9 @@ export function ReportsPage() {
     const reports = reportsData?.items || []
     return {
       total: reports.length,
-      completed: reports.filter((r: Report) => r.status === 'completed').length,
-      generating: reports.filter((r: Report) => r.status === 'generating').length,
-      failed: reports.filter((r: Report) => r.status === 'failed').length
+      completed: reports.filter((r) => r.status === 'completed').length,
+      generating: reports.filter((r) => r.status === 'generating').length,
+      failed: reports.filter((r) => r.status === 'failed').length
     }
   }
 
@@ -263,7 +263,7 @@ export function ReportsPage() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {reportsData?.items?.map((report: Report) => (
+            {reportsData?.items?.map((report) => (
               <ReportCard
                 key={report.id}
                 report={report}

@@ -1,6 +1,49 @@
 /** @type {import('next').NextConfig} */
 import path from 'node:path'
 
+// SECURITY: Validate critical environment variables at build time
+function validateSecurityEnvironment() {
+  const requiredVars = {
+    QUIZ_SESSION_SECRET: {
+      required: true,
+      minLength: 32,
+      description: 'HMAC secret for quiz session signing'
+    }
+  }
+
+  const errors = []
+
+  for (const [varName, config] of Object.entries(requiredVars)) {
+    const value = process.env[varName]
+
+    if (config.required && !value) {
+      errors.push(
+        `❌ MISSING: ${varName} (${config.description})\n` +
+        `   Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+      )
+    } else if (value && config.minLength && value.length < config.minLength) {
+      errors.push(
+        `❌ TOO SHORT: ${varName} must be at least ${config.minLength} characters\n` +
+        `   Current length: ${value.length}, Required: ${config.minLength}`
+      )
+    }
+  }
+
+  if (errors.length > 0) {
+    console.error('\n🚨 CRITICAL SECURITY CONFIGURATION ERRORS:\n')
+    console.error(errors.join('\n\n'))
+    console.error('\n💡 Add missing variables to .env file before building!\n')
+    throw new Error('Build failed: Missing required security environment variables')
+  }
+
+  console.log('✅ Security environment variables validated successfully')
+}
+
+// Run validation (skip in development if explicitly disabled)
+if (process.env.NODE_ENV === 'production' || process.env.VALIDATE_ENV !== 'false') {
+  validateSecurityEnvironment()
+}
+
 // Resolve backend URL for CSP from environment variables
 const getBackendUrl = () => {
   // Priority 1: Explicit full API URL
@@ -17,7 +60,7 @@ const getBackendUrl = () => {
   }
 
   // Priority 3: Fallback to localhost for development
-  return 'http://localhost:8000'
+  return process.env.NEXT_PUBLIC_API_URL || (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000")
 }
 
 const backendUrl = getBackendUrl()

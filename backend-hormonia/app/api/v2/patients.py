@@ -21,7 +21,7 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
-from app.api.v2.patients_crud import router as patients_router
+from app.api.v2.routers.patients import router as patients_router
 from app.database import get_db
 from app.dependencies.auth_dependencies import get_redis_cache
 from app.models.user import User, UserRole

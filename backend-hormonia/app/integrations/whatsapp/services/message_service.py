@@ -21,6 +21,7 @@ from ..models.message import (
 from app.services.circuit_breaker import CircuitBreaker, CircuitOpenError
 from app.core.retry import retry_with_backoff, RetryStrategies
 from app.core.tracing import get_tracer, trace
+from app.core.distributed_lock import acquire_lock, LockAcquisitionError, LockKeys
 
 logger = logging.getLogger(__name__)
 
@@ -99,13 +100,24 @@ class MessageQueue:
         retry_count = message_payload.get("retry_count", 0) + 1
         max_retries = message_payload.get("max_retries", 3)
 
-        if retry_count > max_retries:
+        # FIX: Off-by-one bug - should be >= not >
+        # Previous code used > which allowed one extra retry beyond max_retries
+        if retry_count >= max_retries:
             # Move to dead letter queue
+            message_id = message_payload.get('id', 'unknown')
             await self.redis_client.lpush(
                 self.dlq_name,
                 json.dumps({**message_payload, "failed_at": datetime.utcnow().isoformat()})
             )
-            logger.error(f"Message {message_payload.get('id')} moved to DLQ after {retry_count} retries")
+            logger.error(
+                f"Message moved to DLQ after max retries",
+                extra={
+                    "message_id": message_id,
+                    "retry_count": retry_count,
+                    "max_retries": max_retries,
+                    "action": "dlq_moved"
+                }
+            )
             return False
 
         # Calculate exponential backoff delay
@@ -123,7 +135,16 @@ class MessageQueue:
             {json.dumps(retry_payload): execute_at.timestamp()}
         )
 
-        logger.info(f"Message {message_payload.get('id')} scheduled for retry {retry_count} in {backoff_delay}s")
+        logger.info(
+            f"Message scheduled for retry with exponential backoff",
+            extra={
+                "message_id": message_payload.get('id', 'unknown'),
+                "retry_count": retry_count,
+                "max_retries": max_retries,
+                "backoff_delay_seconds": backoff_delay,
+                "execute_at": execute_at.isoformat()
+            }
+        )
         return True
 
     async def _process_scheduled_messages(self):
@@ -173,11 +194,13 @@ class WhatsAppMessageService:
         self,
         evolution_client: EvolutionAPIClient,
         db_session: AsyncSession,
-        message_queue: MessageQueue
+        message_queue: MessageQueue,
+        message_status_handler: Optional[Any] = None  # Avoid circular import
     ):
         self.evolution_client = evolution_client
         self.db_session = db_session
         self.message_queue = message_queue
+        self.message_status_handler = message_status_handler
         self._processing = False
 
         # Circuit breaker for Evolution API
@@ -261,10 +284,32 @@ class WhatsAppMessageService:
             self._processing = False
 
     async def _process_message(self, message_payload: Dict[str, Any]):
-        """Process individual message."""
+        """
+        Process individual message with distributed lock to prevent concurrent processing.
+
+        Uses distributed lock to ensure only one worker processes a given message,
+        preventing race conditions when multiple workers dequeue the same message.
+        """
         message_id = message_payload["data"]["message_id"]
         action = message_payload["data"]["action"]
 
+        # Acquire distributed lock per message to prevent concurrent processing
+        lock_key = LockKeys.message_processing(message_id)
+        try:
+            async with acquire_lock(lock_key, timeout=5.0, ttl=120):
+                await self._process_message_internal(message_payload, message_id, action)
+        except LockAcquisitionError:
+            # Another worker is processing this message, skip
+            logger.info(f"Message {message_id} already being processed by another worker")
+            return
+
+    async def _process_message_internal(
+        self,
+        message_payload: Dict[str, Any],
+        message_id: str,
+        action: str
+    ):
+        """Internal message processing (called within lock context)."""
         # Get message from database
         stmt = select(WhatsAppMessage).where(WhatsAppMessage.id == message_id)
         result = await self.db_session.execute(stmt)
@@ -272,6 +317,11 @@ class WhatsAppMessageService:
 
         if not message:
             logger.error(f"Message {message_id} not found in database")
+            return
+
+        # Check if already processed (idempotency)
+        if message.status in [MessageStatus.SENT, MessageStatus.DELIVERED]:
+            logger.info(f"Message {message_id} already processed, skipping")
             return
 
         try:
@@ -288,6 +338,17 @@ class WhatsAppMessageService:
             message.error_message = str(e)
             message.failed_at = datetime.utcnow()
             await self.db_session.commit()
+
+            # Sync failure status to domain if handler is present
+            if self.message_status_handler and message.message_data:
+                domain_id = message.message_data.get('domain_message_id')
+                if domain_id:
+                    from app.models.message import MessageStatus as DomainMessageStatus
+                    await self.message_status_handler.handle_status_update(
+                        domain_message_id=domain_id,
+                        new_status=DomainMessageStatus.FAILED,
+                        error_message=str(e)
+                    )
             raise
 
     @trace(name="send_message_impl", attributes={"service": "evolution_api"})
@@ -326,6 +387,16 @@ class WhatsAppMessageService:
             message.sent_at = datetime.utcnow()
 
             logger.info(f"Message {message.id} sent successfully")
+            
+            # Sync sent status to domain if handler is present
+            if self.message_status_handler and message.message_data:
+                domain_id = message.message_data.get('domain_message_id')
+                if domain_id:
+                    from app.models.message import MessageStatus as DomainMessageStatus
+                    await self.message_status_handler.handle_status_update(
+                        domain_message_id=domain_id,
+                        new_status=DomainMessageStatus.SENT
+                    )
 
         except CircuitOpenError:
             logger.error(f"Circuit breaker open for Evolution API, message {message.id} cannot be sent")
@@ -366,6 +437,28 @@ class WhatsAppMessageService:
         await self.db_session.commit()
 
         logger.info(f"Updated message {message.id} status to {status}")
+        
+        # Sync status to domain if handler is present
+        if self.message_status_handler and message.message_data:
+            domain_id = message.message_data.get('domain_message_id')
+            if domain_id:
+                from app.models.message import MessageStatus as DomainMessageStatus
+                
+                # Map WhatsApp status to Domain status
+                domain_status = None
+                if status == MessageStatus.DELIVERED:
+                    domain_status = DomainMessageStatus.DELIVERED
+                elif status == MessageStatus.READ:
+                    domain_status = DomainMessageStatus.READ
+                elif status == MessageStatus.FAILED:
+                    domain_status = DomainMessageStatus.FAILED
+                
+                if domain_status:
+                    await self.message_status_handler.handle_status_update(
+                        domain_message_id=domain_id,
+                        new_status=domain_status,
+                        error_message=error_message
+                    )
 
     async def get_message_history(
         self,

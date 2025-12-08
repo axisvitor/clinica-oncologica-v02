@@ -4,9 +4,10 @@ import {
   type FlowTemplate,
   type MessageTemplate,
   type Condition
-} from '../types/flow'
+} from '@/lib/api-client/types'
 import { apiClient } from '../api-client'
 import { createLogger } from '../logger'
+import { CreateFlowTemplateRequest } from '../api-client/types'
 
 const logger = createLogger('TemplateManager')
 
@@ -39,6 +40,10 @@ export class TemplateManager {
         created_by: 'system',
         last_updated: new Date().toISOString()
       },
+      is_active: true,
+      steps: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
       messages: {
         1: {
           id: 'day_1_welcome',
@@ -117,9 +122,9 @@ export class TemplateManager {
   // Load templates from API
   async loadTemplates(): Promise<void> {
     try {
-      const templates: FlowTemplate[] = await apiClient.flows.getTemplates()
-      templates.forEach((template: FlowTemplate) => {
-        this.templates.set(template.flow_type, template)
+      const templates = await apiClient.flows.getTemplates()
+      templates.forEach((template) => {
+        this.templates.set(template.flow_type as FlowType, template as unknown as FlowTemplate)
       })
       logger.info('Templates loaded from API', { count: templates.length })
     } catch (error) {
@@ -136,7 +141,7 @@ export class TemplateManager {
   // Get message template for specific day
   getMessageForDay(flowType: FlowType, day: number): MessageTemplate | null {
     const template = this.templates.get(flowType)
-    return template?.messages[day] || null
+    return template?.messages?.[day] || null
   }
 
   // Get message variations for A/B testing
@@ -192,10 +197,10 @@ export class TemplateManager {
 
     try {
       logger.info('Creating template', { templateId: template.id, flowType: template.flow_type })
-      const createdTemplate = await apiClient.flows.createTemplate(template)
-      this.templates.set(template.flow_type, createdTemplate)
+      const createdTemplate = await apiClient.flows.createTemplate(template as unknown as CreateFlowTemplateRequest)
+      this.templates.set(template.flow_type, createdTemplate as unknown as FlowTemplate)
       logger.info('Template created successfully', { templateId: createdTemplate.id })
-      return createdTemplate
+      return createdTemplate as unknown as FlowTemplate
     } catch (error) {
       logger.error('Failed to create template', { templateId: template.id, error })
       throw error
@@ -212,9 +217,9 @@ export class TemplateManager {
     try {
       logger.info('Updating template', { templateId: template.id, flowType: template.flow_type })
       const updatedTemplate = await apiClient.flows.updateTemplate(template.id, template)
-      this.templates.set(template.flow_type, updatedTemplate)
+      this.templates.set(template.flow_type, updatedTemplate as unknown as FlowTemplate)
       logger.info('Template updated successfully', { templateId: updatedTemplate.id })
-      return updatedTemplate
+      return updatedTemplate as unknown as FlowTemplate
     } catch (error) {
       logger.error('Failed to update template', { templateId: template.id, error })
       throw error
@@ -245,7 +250,7 @@ export class TemplateManager {
 
     return conditions.every((condition: Condition) => {
       const value = patientData[condition.field]
-      
+
       switch (condition.operator) {
         case 'equals':
           return value === condition.value

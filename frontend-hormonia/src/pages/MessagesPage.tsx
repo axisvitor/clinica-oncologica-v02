@@ -2,16 +2,17 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { Search, Send, Phone, Clock, MessageSquare, CheckCheck, User as User2 } from 'lucide-react'
-import { apiClient } from '../lib/api-client'
+import { apiClient } from '@/lib/api-client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { LoadingSpinner } from '../components/ui/loading-spinner'
-import { MessagesList } from '../components/messages/MessagesList'
-import { MessageComposer } from '../components/messages/MessageComposer'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { MessagesList } from '@/features/messages/MessagesList'
+import { MessageComposer } from '@/features/messages/MessageComposer'
+import type { Patient } from '@/types/api'
 
 // Debounce hook to prevent excessive API calls
 function useDebounce<T>(value: T, delay: number): T {
@@ -27,7 +28,7 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export function MessagesPage() {
   const [searchParams] = useSearchParams()
-  const [selectedPatient, setSelectedPatient] = useState<any>(null)
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
 
   // Debounce search term to reduce API calls
@@ -106,7 +107,7 @@ export function MessagesPage() {
 
   const filteredPatients = useMemo(() => {
     if (!patientsData?.items) return []
-    return patientsData.items.filter((patient: any) =>
+    return patientsData.items.filter((patient) =>
       (patient.name || '').toLowerCase().includes(debouncedSearch.toLowerCase()) ||
       patient.phone?.includes(debouncedSearch)
     )
@@ -158,14 +159,13 @@ export function MessagesPage() {
                 </div>
               ) : (
                 <div className="space-y-1 p-2">
-                  {filteredPatients.map((patient: any) => (
+                  {filteredPatients.map((patient) => (
                     <div
                       key={patient.id}
-                      className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-colors ${
-                        selectedPatient?.id === patient.id
-                          ? 'bg-blue-50 border border-blue-200'
-                          : 'hover:bg-gray-50'
-                      }`}
+                      className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-colors ${selectedPatient?.id === patient.id
+                        ? 'bg-blue-50 border border-blue-200'
+                        : 'hover:bg-gray-50'
+                        }`}
                       onClick={() => setSelectedPatient(patient)}
                     >
                       <Avatar className="h-12 w-12 flex-shrink-0">
@@ -193,7 +193,7 @@ export function MessagesPage() {
                           <Badge variant="outline" className="text-xs">
                             {patient.status}
                           </Badge>
-                          {patient.unread_count > 0 && (
+                          {(patient.unread_count || 0) > 0 && (
                             <Badge className="bg-blue-600 text-white text-xs">
                               {patient.unread_count}
                             </Badge>

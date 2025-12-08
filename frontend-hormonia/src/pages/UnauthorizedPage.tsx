@@ -4,7 +4,7 @@ import { AlertTriangle, Home, ArrowLeft, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/app/providers/AuthContext";
 import { getRoleLabel, getRolePermissions } from "@/types/shared";
 
 /**
@@ -152,11 +152,10 @@ function PermissionItem({ label, allowed }: { label: string; allowed: boolean })
     <div className="flex items-center justify-between py-1 px-2 rounded bg-white dark:bg-gray-700/50">
       <span className="text-gray-700 dark:text-gray-300">{label}</span>
       <span
-        className={`text-xs font-medium px-2 py-1 rounded ${
-          allowed
+        className={`text-xs font-medium px-2 py-1 rounded ${allowed
             ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
             : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-        }`}
+          }`}
       >
         {allowed ? "✓ Permitido" : "✗ Negado"}
       </span>

@@ -7,7 +7,7 @@
  * Coverage target: >85% of CSRF protection functionality
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from '@jest/globals'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import '@testing-library/jest-dom'
@@ -15,18 +15,18 @@ import { QuizAPI } from '@/lib/api'
 import type { QuizSession, QuizSubmitRequest } from '@/types/quiz'
 
 // Mock fetch for testing API calls
-const mockFetch = vi.fn()
+const mockFetch = jest.fn()
 global.fetch = mockFetch
 
 // Mock Next.js environment
-vi.mock('next/navigation', () => ({
+jest.mock('next/navigation', () => ({
   useRouter: () => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    back: vi.fn(),
+    push: jest.fn(),
+    replace: jest.fn(),
+    back: jest.fn(),
   }),
   useSearchParams: () => ({
-    get: vi.fn((key) => key === 'token' ? 'valid-token-123' : null)
+    get: jest.fn((key) => key === 'token' ? 'valid-token-123' : null)
   })
 }))
 
@@ -71,7 +71,7 @@ const mockQuizSession: QuizSession = {
 
 describe('CSRF Protection Implementation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    jest.clearAllMocks()
     mockFetch.mockClear()
 
     // Reset window properties
@@ -625,7 +625,7 @@ describe('CSRF Protection Implementation', () => {
     it('should handle CSRF in single-page application context', async () => {
       // Simulate SPA navigation (no page reload)
       const originalPushState = history.pushState
-      history.pushState = vi.fn()
+      history.pushState = jest.fn()
 
       mockFetch.mockResolvedValueOnce({
         ok: true,

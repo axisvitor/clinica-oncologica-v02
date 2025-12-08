@@ -5,7 +5,7 @@ Enhanced treatment models with field selection and eager loading support.
 
 from typing import Optional, List
 from datetime import date, datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from .common import CursorPaginatedResponse
 
@@ -13,36 +13,33 @@ from .common import CursorPaginatedResponse
 class PatientV2Brief(BaseModel):
     """Brief patient information for treatment response"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     name: str
     email: Optional[str] = None
-
-    class Config:
-        from_attributes = True
 
 
 class DoctorV2Brief(BaseModel):
     """Brief doctor information for treatment response"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     name: str
     email: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
 
 class MedicationV2Brief(BaseModel):
     """Brief medication information for treatment response"""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: str
     name: str
     dosage: str
     frequency: str
     is_active: bool
-
-    class Config:
-        from_attributes = True
 
 
 class TreatmentV2Base(BaseModel):
@@ -69,28 +66,30 @@ class TreatmentV2Create(TreatmentV2Base):
     treatment_type: str = Field(..., description="quimioterapia|radioterapia|hormonioterapia|imunoterapia|cirurgia|outros")
     start_date: date = Field(..., description="Treatment start date")
 
-    @validator("treatment_type")
+    @field_validator("treatment_type")
+    @classmethod
     def validate_treatment_type(cls, v):
         valid_types = ["quimioterapia", "radioterapia", "hormonioterapia", "imunoterapia", "cirurgia", "outros"]
         if v not in valid_types:
             raise ValueError(f"treatment_type must be one of: {', '.join(valid_types)}")
         return v
 
-    @validator("status")
+    @field_validator("status")
+    @classmethod
     def validate_status(cls, v):
         valid_statuses = ["planned", "active", "completed", "suspended", "cancelled"]
         if v and v not in valid_statuses:
             raise ValueError(f"status must be one of: {', '.join(valid_statuses)}")
         return v or "planned"
 
-    @validator("end_date")
-    def validate_end_date(cls, v, values):
-        if v and "start_date" in values and v < values["start_date"]:
+    @field_validator("end_date")
+    @classmethod
+    def validate_end_date(cls, v, info):
+        if v and "start_date" in info.data and v < info.data["start_date"]:
             raise ValueError("end_date must be after start_date")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
                 "doctor_id": "123e4567-e89b-12d3-a456-426614174001",
@@ -103,7 +102,7 @@ class TreatmentV2Create(TreatmentV2Base):
                 "protocol": "ADT (Androgen Deprivation Therapy)",
                 "notes": "Paciente em bom estado geral"
             }
-        }
+        })
 
 
 class TreatmentV2Update(BaseModel):
@@ -121,7 +120,8 @@ class TreatmentV2Update(BaseModel):
     notes: Optional[str] = None
     is_active: Optional[bool] = None
 
-    @validator("treatment_type")
+    @field_validator("treatment_type")
+    @classmethod
     def validate_treatment_type(cls, v):
         if v:
             valid_types = ["quimioterapia", "radioterapia", "hormonioterapia", "imunoterapia", "cirurgia", "outros"]
@@ -129,7 +129,8 @@ class TreatmentV2Update(BaseModel):
                 raise ValueError(f"treatment_type must be one of: {', '.join(valid_types)}")
         return v
 
-    @validator("status")
+    @field_validator("status")
+    @classmethod
     def validate_status(cls, v):
         if v:
             valid_statuses = ["planned", "active", "completed", "suspended", "cancelled"]
@@ -162,8 +163,7 @@ class TreatmentV2Response(BaseModel):
     doctor: Optional[DoctorV2Brief] = None
     medications: Optional[List[MedicationV2Brief]] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TreatmentV2List(CursorPaginatedResponse):

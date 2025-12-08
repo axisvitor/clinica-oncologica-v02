@@ -27,7 +27,6 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
 import redis.asyncio as redis
 
 from app.config import settings
@@ -46,7 +45,7 @@ class SessionService:
 
     def __init__(
         self,
-        db: Session,
+        db: Any,
         redis_client: Optional[redis.Redis] = None,
         firebase_service = None
     ):
@@ -86,7 +85,7 @@ class SessionService:
             device_info: Optional device metadata
 
         Returns:
-            dict: Session details including session_id, user data, and expiration
+            dict: Any details including session_id, user data, and expiration
 
         Raises:
             HTTPException: If Firebase service unavailable or token invalid
@@ -179,10 +178,10 @@ class SessionService:
         Ultra-fast validation using Redis cache (~2-5ms).
 
         Args:
-            session_id: Session ID to validate
+            session_id: Any ID to validate
 
         Returns:
-            dict: Session data with user info if valid, None if invalid
+            dict: Any data with user info if valid, None if invalid
         """
         if not session_id:
             return None
@@ -227,7 +226,7 @@ class SessionService:
         Invalidate single session.
 
         Args:
-            session_id: Session ID to invalidate
+            session_id: Any ID to invalidate
 
         Returns:
             bool: True if session was deleted, False if not found
@@ -322,7 +321,7 @@ class SessionService:
         The token is stored in Redis with the session data.
 
         Args:
-            session_id: Session ID to generate CSRF token for
+            session_id: Any ID to generate CSRF token for
 
         Returns:
             str: CSRF token
@@ -348,7 +347,7 @@ class SessionService:
         Validate CSRF token against session.
 
         Args:
-            session_id: Session ID
+            session_id: Any ID
             csrf_token: CSRF token to validate
 
         Returns:
@@ -438,10 +437,10 @@ class SessionService:
 # =============================================================================
 
 def create_session_service(
-    db: Session,
+    db: Any,
     redis_client: Optional[redis.Redis] = None,
     firebase_service = None
-) -> SessionService:
+) -> AnyService:
     """
     Factory function to create SessionService instance.
 
@@ -466,19 +465,19 @@ def create_session_service(
 
 async def get_session_from_request(
     session_id: Optional[str],
-    db: Session,
+    db: Any,
     redis_client: Optional[redis.Redis] = None
 ) -> Optional[Dict[str, Any]]:
     """
     Convenience function to validate session from request.
 
     Args:
-        session_id: Session ID from cookie or header
+        session_id: Any ID from cookie or header
         db: Database session
         redis_client: Redis client
 
     Returns:
-        dict: Session data if valid, None otherwise
+        dict: Any data if valid, None otherwise
     """
     service = SessionService(db, redis_client)
     return await service.validate_session(session_id)

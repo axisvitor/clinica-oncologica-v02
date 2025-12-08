@@ -4,7 +4,7 @@ Provides centralized validation for patient metadata, flow data, and quiz data.
 """
 import re
 from typing import Dict, Any, List, Optional, Union
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from datetime import datetime, date
 from enum import Enum
 
@@ -59,7 +59,8 @@ class PatientMetadataValidator(BaseModel):
     last_engagement: Optional[datetime] = Field(None, description="Last patient engagement timestamp")
     preferences: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Patient preferences")
 
-    @validator('cpf')
+    @field_validator('cpf')
+    @classmethod
     def validate_cpf(cls, v):
         """Validate Brazilian CPF format."""
         if v is None:
@@ -95,21 +96,24 @@ class PatientMetadataValidator(BaseModel):
         # Return formatted CPF
         return f"{cpf_digits[:3]}.{cpf_digits[3:6]}.{cpf_digits[6:9]}-{cpf_digits[9:]}"
 
-    @validator('diagnosis')
+    @field_validator('diagnosis')
+    @classmethod
     def validate_diagnosis(cls, v):
         """Validate diagnosis field."""
         if v is not None and len(v.strip()) == 0:
             raise ValueError("Diagnosis cannot be empty string")
         return v.strip() if v else None
 
-    @validator('doctor_name')
+    @field_validator('doctor_name')
+    @classmethod
     def validate_doctor_name(cls, v):
         """Validate doctor name field."""
         if v is not None and len(v.strip()) == 0:
             raise ValueError("Doctor name cannot be empty string")
         return v.strip() if v else None
 
-    @validator('emergency_contact')
+    @field_validator('emergency_contact')
+    @classmethod
     def validate_emergency_contact(cls, v):
         """Validate emergency contact format."""
         if v is None:
@@ -142,14 +146,16 @@ class FlowTemplateDataValidator(BaseModel):
     ai_optimization: Optional[Dict[str, Any]] = Field(default_factory=dict, description="AI optimization settings")
     personalization_rules: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Personalization rules")
 
-    @validator('name')
+    @field_validator('name')
+    @classmethod
     def validate_name(cls, v):
         """Validate template name."""
         if not v or len(v.strip()) == 0:
             raise ValueError("Template name cannot be empty")
         return v.strip()
 
-    @validator('version')
+    @field_validator('version')
+    @classmethod
     def validate_version(cls, v):
         """Validate version format (semantic versioning)."""
         version_pattern = r'^\d+\.\d+\.\d+$'
@@ -157,7 +163,8 @@ class FlowTemplateDataValidator(BaseModel):
             raise ValueError("Version must follow semantic versioning (x.y.z)")
         return v
 
-    @validator('messages')
+    @field_validator('messages')
+    @classmethod
     def validate_messages(cls, v):
         """Validate message templates structure."""
         if not isinstance(v, list):
@@ -201,7 +208,8 @@ class FlowStateDataValidator(BaseModel):
     personalization_data: Dict[str, Any] = Field(default_factory=dict, description="Personalization metadata")
     ai_insights: Dict[str, Any] = Field(default_factory=dict, description="AI-generated insights")
 
-    @validator('completed_steps')
+    @field_validator('completed_steps')
+    @classmethod
     def validate_completed_steps(cls, v):
         """Validate completed steps list."""
         if not isinstance(v, list):
@@ -215,10 +223,11 @@ class FlowStateDataValidator(BaseModel):
         # Remove duplicates and sort
         return sorted(list(set(v)))
 
-    @validator('pause_reason')
-    def validate_pause_reason(cls, v, values):
+    @field_validator('pause_reason')
+    @classmethod
+    def validate_pause_reason(cls, v, info):
         """Validate pause reason when paused."""
-        if values.get('paused') and not v:
+        if info.data.get('paused') and not v:
             raise ValueError("Pause reason is required when flow is paused")
         return v
 
@@ -242,24 +251,27 @@ class QuizQuestionValidator(BaseModel):
     category: Optional[str] = Field(None, description="Question category")
     weight: Optional[float] = Field(None, ge=0, description="Question weight for scoring")
 
-    @validator('id')
+    @field_validator('id')
+    @classmethod
     def validate_id(cls, v):
         """Validate question ID format."""
         if not re.match(r'^[a-zA-Z0-9_-]+$', v):
             raise ValueError("Question ID must contain only alphanumeric characters, hyphens, and underscores")
         return v
 
-    @validator('text')
+    @field_validator('text')
+    @classmethod
     def validate_text(cls, v):
         """Validate question text."""
         if not v or len(v.strip()) == 0:
             raise ValueError("Question text cannot be empty")
         return v.strip()
 
-    @validator('options')
-    def validate_options(cls, v, values):
+    @field_validator('options')
+    @classmethod
+    def validate_options(cls, v, info):
         """Validate options for choice-based questions."""
-        question_type = values.get('type')
+        question_type = info.data.get('type')
 
         if question_type in [ResponseType.MULTIPLE_CHOICE, ResponseType.SINGLE_CHOICE]:
             if not v or len(v) < 2:
@@ -297,7 +309,8 @@ class QuizResponseMetadataValidator(BaseModel):
     requires_followup: bool = Field(default=False, description="Response requires follow-up")
     followup_priority: Optional[str] = Field(None, description="Follow-up priority level")
 
-    @validator('entities')
+    @field_validator('entities')
+    @classmethod
     def validate_entities(cls, v):
         """Validate entities structure."""
         if not isinstance(v, list):
@@ -314,8 +327,9 @@ class QuizResponseMetadataValidator(BaseModel):
 
         return v
 
-    @validator('followup_priority')
-    def validate_followup_priority(cls, v, values):
+    @field_validator('followup_priority')
+    @classmethod
+    def validate_followup_priority(cls, v, info):
         """Validate follow-up priority."""
         if v is not None:
             valid_priorities = ['low', 'medium', 'high', 'urgent']

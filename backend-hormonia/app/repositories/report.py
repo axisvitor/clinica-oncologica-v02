@@ -5,7 +5,7 @@ from datetime import date
 from sqlalchemy import and_
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.report import MedicalReport
+from app.models.report import MedicalReport, Report
 from app.models.patient import Patient
 from app.repositories.base import BaseRepository
 from app.utils.query_cache import cached_query
@@ -160,3 +160,20 @@ class MedicalReportRepository(BaseRepository[MedicalReport]):
             query = query.join(Patient).filter(Patient.doctor_id == doctor_id)
         
         return query.count()
+
+
+class ReportRepository(BaseRepository[Report]):
+    """Repository for generic Report model."""
+    
+    def __init__(self, db: Session):
+        super().__init__(db, Report)
+    
+    def get_by_patient(self, patient_id: UUID, skip: int = 0, limit: int = 100) -> List[Report]:
+        return (
+            self.db.query(Report)
+            .filter(Report.patient_id == patient_id)
+            .order_by(Report.generated_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )

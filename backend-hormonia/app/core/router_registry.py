@@ -1,10 +1,11 @@
 """
 Router registration for the FastAPI application.
 
-V2-ONLY SYSTEM: All V1 endpoints foram removidos.
-Somente a API v2 e os endpoints essenciais de health/monitoring seguem ativos.
+V2 VERSIONING SYSTEM:
+- API v2 (current version)
+- Essential health/monitoring endpoints
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import FastAPI
 import os
 from app.config import settings
@@ -12,26 +13,36 @@ from app.utils.logging import get_logger
 import redis.asyncio as redis
 from app.utils.security import mask_sensitive_url
 
+# Import API versioning infrastructure
+from app.api.versioning import get_versioned_router
+
 
 def register_routers(app: FastAPI) -> None:
     """
     Register all API routers with the FastAPI application.
-    
+
+    Includes:
+    - Health/monitoring endpoints
+    - API v2 (current)
+    - Version middleware
+
     Args:
         app: FastAPI application instance
     """
     logger = get_logger(__name__)
-    logger.info("Loading router registration. V2 API only - V1 has been removed.")
+    logger.info("Loading router registration with API versioning support (v2)")
 
-    # === V2 & ESSENTIAL IMPORTS ===
+    # === V2 IMPORTS ===
     from app.routers.health import router as health_monitoring
     from app.routers.auth_session import router as auth_session
     from app.monitoring import prometheus_exporters
+
+    # Import v2 API (current)
     try:
         from app.api.v2 import api_v2_router
-        logger.info("✓ API v2 router imported successfully.")
+        logger.info("✓ API v2 router imported successfully (current)")
     except ImportError as e:
-        logger.critical(f"FATAL: API v2 could not be imported. Application cannot start. Error: {e}")
+        logger.critical(f"FATAL: API v2 could not be imported. Error: {e}")
         raise RuntimeError("Application startup failed: API v2 router could not be imported") from e
 
     # === ESSENTIAL ROUTERS (ACTIVE) ===
@@ -70,12 +81,24 @@ def register_routers(app: FastAPI) -> None:
         return health_data
     logger.info("✓ Redis health check endpoint registered (/api/v2/redis/health)")
 
-    # === API V2 ROUTER (PRIMARY API) ===
-    # Include API v2 router - Modern REST API with cursor pagination
-    app.include_router(api_v2_router, tags=["API v2"])
-    logger.info("✓ API v2 endpoints registered (/api/v2)")
+    # === VERSIONING SETUP ===
+    # Get versioned router instance
+    versioned_router = get_versioned_router()
 
-    # WhatsApp integration (if enabled) - Migrated to use v2 patterns
+    # Register v2 API (current version)
+    versioned_router.add_version(
+        version="v2",
+        router=api_v2_router,
+        is_default=True
+    )
+    app.include_router(api_v2_router, tags=["API v2"])
+    logger.info("✓ API v2 endpoints registered (/api/v2) - CURRENT VERSION")
+
+    # Add version middleware (must be added after routes)
+    app.middleware("http")(versioned_router.get_version_middleware())
+    logger.info("✓ API versioning middleware enabled")
+
+    # WhatsApp integration (if enabled)
     try:
         if getattr(settings, 'ENABLE_EVOLUTION', False):
             from app.integrations.whatsapp import whatsapp_router, webhook_router
@@ -85,4 +108,4 @@ def register_routers(app: FastAPI) -> None:
     except ImportError as e:
         logger.warning(f"WhatsApp integration not available: {e}")
 
-    logger.info("✅ All routers registered successfully. V2 API is now the primary and only API version.")
+    logger.info("✅ All routers registered successfully. API v2 is active.")

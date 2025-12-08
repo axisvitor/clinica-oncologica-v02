@@ -493,8 +493,8 @@ class QuizLinkResilienceService:
                     expires_at = datetime.fromisoformat(expires_at_str)
                     if datetime.utcnow() > expires_at and session.status != 'completed':
                         expired_count += 1
-                except (ValueError, TypeError):
-                    pass
+                except (ValueError, TypeError) as e:
+                    logger.debug(f"Failed to parse expires_at from session metadata: {e}")
 
             # Count regenerations
             if metadata.get("regeneration_count", 0) > 0:

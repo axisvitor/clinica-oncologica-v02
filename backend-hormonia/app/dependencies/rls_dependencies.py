@@ -67,7 +67,7 @@ def get_rls_db(
                 {"claims": json.dumps(claims)}
             )
 
-            if settings.DEBUG:
+            if settings.APP_ENABLE_DEBUG:
                 logger.debug(f"RLS context set for user {current_user.id} with role {current_user.role}")
         else:
             # For public endpoints, set anonymous context
@@ -80,7 +80,7 @@ def get_rls_db(
                 {"claims": json.dumps(claims)}
             )
 
-            if settings.DEBUG:
+            if settings.APP_ENABLE_DEBUG:
                 logger.debug("RLS context set for anonymous user")
 
         yield db
@@ -95,8 +95,8 @@ def get_rls_db(
         # Clear RLS context before closing
         try:
             db.execute("SELECT set_config('request.jwt.claims', NULL, true)")
-        except:
-            pass
+        except Exception:
+            pass  # Safe to ignore: session is being closed anyway
         db.close()
 
 
@@ -182,8 +182,8 @@ def test_rls_connection(db: Session) -> dict:
                 auth_result = db.execute("SELECT auth.uid() as uid").first()
                 if auth_result:
                     auth_uid = str(auth_result.uid)
-            except:
-                # auth.uid() might not be available if not using Supabase
+            except Exception:
+                # auth.uid() might not be available if not using Supabase RLS
                 pass
 
         return {

@@ -3,19 +3,21 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../lib/api-client'
 import { createLogger } from '../lib/logger'
 import {
-  ChatMessage,
+  AIChatMessage as ChatMessage,
   ChatSession,
   ChatResponse,
-  AIInsight,
   AIRecommendation,
   SentimentAnalysis,
   UseAIChatOptions,
   UseAIAnalyticsOptions,
   UseAIInsightsOptions,
   PatientEngagementMetrics,
-  AIGeneratedMessage
-} from '../lib/types/ai'
-import { ChatRole, SentimentLabel } from '@/types/api'
+  AIGeneratedMessage,
+  ChatRole,
+  SentimentLabel,
+  InsightType
+} from '@/types/api'
+import type { AIInsight } from '@/lib/api-client/types'
 import { FEATURES } from '../config'
 
 const logger = createLogger('useAI')
@@ -160,10 +162,10 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       updated_at: new Date().toISOString(),
       status: 'active'
     }
-    
+
     setSession(newSession)
     setMessages([])
-    
+
     // Add welcome message
     const welcomeMessage: ChatMessage = {
       id: `msg-${Date.now()}`,
@@ -175,7 +177,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }
-    
+
     setMessages([welcomeMessage])
     return newSession
   }, [patient_id])
@@ -205,7 +207,13 @@ export function useAIChat(options: UseAIChatOptions = {}) {
 
       let response: ChatResponse
       try {
-        response = await apiClient.ai.chat(content, context)
+        const apiResponse = await apiClient.ai.chat(content, context)
+        response = {
+          message: apiResponse.message || apiResponse.response,
+          confidence: apiResponse.confidence || 0,
+          suggestions: apiResponse.suggestions,
+          entities: apiResponse.metadata
+        }
       } catch (error) {
         // Fallback to mock response
         response = {
@@ -259,7 +267,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }
-      
+
       setMessages(prev => [...prev, errorMessage])
       throw error
     } finally {
@@ -279,7 +287,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       // const sessionData = await apiClient.ai.getSession(sessionId)
       // setSession(sessionData)
       // setMessages(sessionData.messages)
-      
+
       // Mock for demo
       const mockSession: ChatSession = {
         id: sessionId,
@@ -494,7 +502,7 @@ export function useAIAnalyze() {
     }: {
       patientId: string
       analysisType: 'sentiment' | 'pattern' | 'anomaly' | 'trend' | 'classification'
-      data: any
+      data: Record<string, unknown>
     }) => {
       if (!FEATURES.AI_CHAT) {
         // Return mock analysis
@@ -575,7 +583,7 @@ export function useAIAnalytics(options: UseAIAnalyticsOptions = {}) {
           recommendations: include_recommendations ? [] : undefined
         }
       }
-      
+
       // In a real implementation, call API
       return apiClient.ai.insights('all')
     },
@@ -619,12 +627,13 @@ export function useAIInsightsAdvanced(options: UseAIInsightsOptions = {}) {
         ] as AIInsight[]
       }
 
-      const insights = await apiClient.ai.insights(patient_id || 'all', timeframe)
+      const response = await apiClient.ai.insights(patient_id || 'all', timeframe)
+      const insightsList = response.insights || []
 
       // Filter by confidence and type
-      return insights
+      return insightsList
         .filter((insight: AIInsight) => insight.confidence >= min_confidence)
-        .filter((insight: AIInsight) => !types || types.includes(insight.type))
+        .filter((insight: AIInsight) => !types || types?.includes(insight.type as unknown as InsightType))
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     enabled: !!patient_id || !patient_id
@@ -664,7 +673,19 @@ export function useAIMessageGeneration() {
         }
       }
 
-      return apiClient.ai.generateResponse(patientId, messageHistory, intent)
+      const response = await apiClient.ai.generateResponse(patientId, messageHistory, intent)
+      return {
+        content: response.generated_response,
+        confidence: response.confidence,
+        personalization_applied: [],
+        alternatives: response.alternative_responses,
+        metadata: {
+          intent: intent || 'general',
+          tone: 'neutral',
+          length: response.generated_response.length,
+          complexity_level: 'medium'
+        }
+      }
     },
     retry: 1
   })

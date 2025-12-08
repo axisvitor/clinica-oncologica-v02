@@ -1,4 +1,4 @@
-﻿"""
+"""
 Message Factory Service
 Centralizes message creation patterns to eliminate code duplication.
 """
@@ -76,6 +76,129 @@ class MessageFactory:
             )
         }
 
+    def create_outbound_message(
+        self,
+        patient_id: UUID,
+        content: str,
+        message_type: MessageType = MessageType.TEXT,
+        metadata: Optional[Dict[str, Any]] = None,
+        template_type: Optional[MessageTemplate] = None,
+        **kwargs
+    ) -> Message:
+        """
+        Create a standardized outbound message.
+
+        Args:
+            patient_id: Patient UUID
+            content: Message content
+            message_type: Type of message
+            metadata: Optional metadata
+            template_type: Optional template type for categorization
+            **kwargs: Additional fields
+
+        Returns:
+            Created Message object (saved to DB)
+        """
+        msg_metadata = metadata or {}
+        if template_type:
+            msg_metadata["template_type"] = template_type.value
+
+        message = Message(
+            patient_id=patient_id,
+            content=content,
+            message_type=message_type,
+            direction=MessageDirection.OUTBOUND,
+            status=MessageStatus.PENDING,
+            metadata=msg_metadata,
+            created_at=datetime.utcnow(),
+            **kwargs
+        )
+        
+        return self._save_message(message)
+
+    def create_monthly_quiz_link_message(
+        self,
+        patient_id: UUID,
+        patient_name: str,
+        link_url: str,
+        quiz_session_id: str,
+        expiry_hours: int = 72,
+        delivery_method: str = "whatsapp"
+    ) -> Message:
+        """
+        Create monthly quiz link invitation message.
+
+        Args:
+            patient_id: Patient UUID
+            patient_name: Patient name
+            link_url: Quiz link URL
+            quiz_session_id: Quiz session ID
+            expiry_hours: Token expiry hours
+            delivery_method: Delivery channel
+
+        Returns:
+            Created Message object
+        """
+        content = self.monthly_quiz_templates['invitation'].format(
+            patient_name=patient_name,
+            link=link_url,
+            expiry_hours=expiry_hours
+        )
+
+        metadata = {
+            "quiz_session_id": quiz_session_id,
+            "link_url": link_url,
+            "expiry_hours": expiry_hours,
+            "message_type": "monthly_quiz_invitation",
+            "template_type": MessageTemplate.MONTHLY_QUIZ_LINK_INVITATION.value,
+            "delivery_method": delivery_method
+        }
+
+        return self.create_outbound_message(
+            patient_id=patient_id,
+            content=content,
+            message_type=MessageType.MONTHLY_QUIZ_INVITATION,
+            metadata=metadata,
+            template_type=MessageTemplate.MONTHLY_QUIZ_LINK_INVITATION
+        )
+
+    def create_monthly_quiz_reminder_message(
+        self,
+        patient_id: UUID,
+        patient_name: str,
+        link_url: str,
+        quiz_session_id: str,
+        hours_remaining: int,
+        delivery_method: str = "whatsapp"
+    ) -> Message:
+        """
+        Create monthly quiz reminder message.
+
+        Args:
+            patient_id: Patient UUID
+            patient_name: Patient name
+            link_url: Quiz link URL
+            quiz_session_id: Quiz session ID
+            hours_remaining: Hours until expiry
+            delivery_method: Delivery channel
+
+        Returns:
+            Created Message object
+        """
+        content = self.monthly_quiz_templates['reminder'].format(
+            patient_name=patient_name,
+            link=link_url,
+            hours_remaining=hours_remaining
+        )
+
+        metadata = {
+            "quiz_session_id": quiz_session_id,
+            "link_url": link_url,
+            "hours_remaining": hours_remaining,
+            "message_type": "monthly_quiz_reminder",
+            "template_type": MessageTemplate.MONTHLY_QUIZ_LINK_REMINDER.value,
+            "delivery_method": delivery_method
+        }
 
         return self.create_outbound_message(
             patient_id=patient_id,
@@ -234,4 +357,3 @@ def get_message_factory(db: Session) -> MessageFactory:
         MessageFactory instance
     """
     return MessageFactory(db)
-

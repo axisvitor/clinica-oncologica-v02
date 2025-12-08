@@ -48,9 +48,11 @@ logger = logging.getLogger(__name__)
 class RateLimitTier(str, Enum):
     """Rate limit tiers - aligned with actual system roles."""
 
-    PUBLIC = "public"    # Unauthenticated requests (quiz público, health checks)
-    DOCTOR = "doctor"    # Médicos autenticados
-    ADMIN = "admin"      # Administradores do sistema
+    PUBLIC = "public"         # Unauthenticated requests (quiz público, health checks)
+    AUTHENTICATED = "authenticated"  # Generic authenticated users
+    DOCTOR = "doctor"         # Médicos autenticados
+    PREMIUM = "premium"       # Premium tier users
+    ADMIN = "admin"           # Administradores do sistema
 
 
 @dataclass

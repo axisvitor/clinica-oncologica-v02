@@ -1,0 +1,128 @@
+# Dependabot configuration for automated dependency updates
+#
+# This file configures Dependabot to automatically create pull requests
+# for dependency updates across multiple package ecosystems.
+#
+# Learn more: https://docs.github.com/en/code-security/dependabot
+
+version: 2
+updates:
+  # Python dependencies in backend
+  - package-ecosystem: "pip"
+    directory: "/backend-hormonia"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Sao_Paulo"
+
+    # Limit the number of open pull requests
+    open-pull-requests-limit: 10
+
+    # Assignees and reviewers
+    reviewers:
+      - "backend-team"
+
+    # Labels for easier categorization
+    labels:
+      - "dependencies"
+      - "python"
+      - "automated"
+
+    # Commit message prefix
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
+
+    # Group minor and patch updates
+    groups:
+      # Group all non-security updates together
+      all-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+      # Separate group for development dependencies
+      development-dependencies:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+
+    # Allow versions up to (but not including) the next major version
+    versioning-strategy: "increase"
+
+    # Only update lockfiles for indirect dependencies
+    # Direct dependencies get individual PRs
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+
+    # Ignore specific dependencies if needed
+    ignore:
+      # Example: ignore major version updates for critical packages
+      # - dependency-name: "fastapi"
+      #   update-types: ["version-update:semver-major"]
+
+  # GitHub Actions workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "10:00"
+      timezone: "America/Sao_Paulo"
+
+    open-pull-requests-limit: 5
+
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "automated"
+
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+  # Docker base images
+  - package-ecosystem: "docker"
+    directory: "/backend-hormonia"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+      timezone: "America/Sao_Paulo"
+
+    open-pull-requests-limit: 5
+
+    labels:
+      - "dependencies"
+      - "docker"
+      - "automated"
+
+    commit-message:
+      prefix: "chore(docker)"
+      include: "scope"
+
+    # Ignore specific Docker images if needed
+    ignore:
+      # Example: pin specific base image versions
+      # - dependency-name: "python"
+      #   update-types: ["version-update:semver-major"]
+
+  # Frontend dependencies (if applicable)
+  # - package-ecosystem: "npm"
+  #   directory: "/frontend"
+  #   schedule:
+  #     interval: "weekly"
+  #     day: "wednesday"
+  #     time: "09:00"
+  #   open-pull-requests-limit: 10
+  #   labels:
+  #     - "dependencies"
+  #     - "javascript"
+  #   commit-message:
+  #     prefix: "chore(deps)"

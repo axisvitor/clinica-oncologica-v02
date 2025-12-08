@@ -7,7 +7,7 @@ component management, and metrics with enhanced Redis caching support.
 
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 # ============================================================================
@@ -24,15 +24,15 @@ class ComponentHealth(BaseModel):
     last_check: datetime = Field(..., description="Last health check timestamp")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional component metadata")
 
-    @validator("status")
+    @field_validator("status")
+    @classmethod
     def validate_status(cls, v):
         allowed = ["healthy", "degraded", "unhealthy", "unknown"]
         if v not in allowed:
             raise ValueError(f"Status must be one of: {', '.join(allowed)}")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "name": "database",
                 "status": "healthy",
@@ -41,7 +41,7 @@ class ComponentHealth(BaseModel):
                 "last_check": "2025-11-07T10:30:00Z",
                 "metadata": {"pool_size": 10, "active_connections": 3}
             }
-        }
+        })
 
 
 class SystemHealthResponse(BaseModel):
@@ -54,15 +54,15 @@ class SystemHealthResponse(BaseModel):
     degraded_components: List[str] = Field(default_factory=list, description="List of degraded components")
     unhealthy_components: List[str] = Field(default_factory=list, description="List of unhealthy components")
 
-    @validator("status")
+    @field_validator("status")
+    @classmethod
     def validate_status(cls, v):
         allowed = ["healthy", "degraded", "unhealthy"]
         if v not in allowed:
             raise ValueError(f"Status must be one of: {', '.join(allowed)}")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "status": "healthy",
                 "timestamp": "2025-11-07T10:30:00Z",
@@ -84,7 +84,7 @@ class SystemHealthResponse(BaseModel):
                 "degraded_components": [],
                 "unhealthy_components": []
             }
-        }
+        })
 
 
 # ============================================================================
@@ -99,15 +99,14 @@ class InitializationError(BaseModel):
     timestamp: datetime = Field(..., description="Error timestamp")
     recoverable: bool = Field(True, description="Whether error is recoverable")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "component": "firebase",
                 "error_message": "Failed to initialize Firebase Admin SDK",
                 "timestamp": "2025-11-07T10:30:00Z",
                 "recoverable": True
             }
-        }
+        })
 
 
 class InitializationRequest(BaseModel):
@@ -117,14 +116,13 @@ class InitializationRequest(BaseModel):
     components: Optional[List[str]] = Field(None, description="Specific components to initialize (all if None)")
     skip_health_check: bool = Field(False, description="Skip health check after initialization")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "force": False,
                 "components": ["database", "redis", "firebase"],
                 "skip_health_check": False
             }
-        }
+        })
 
 
 class InitializationStatusResponse(BaseModel):
@@ -138,15 +136,15 @@ class InitializationStatusResponse(BaseModel):
     warnings: List[str] = Field(default_factory=list, description="Initialization warnings")
     duration_ms: Optional[float] = Field(None, description="Initialization duration in milliseconds")
 
-    @validator("status")
+    @field_validator("status")
+    @classmethod
     def validate_status(cls, v):
         allowed = ["pending", "in_progress", "completed", "failed", "partial"]
         if v not in allowed:
             raise ValueError(f"Status must be one of: {', '.join(allowed)}")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "started_at": "2025-11-07T10:00:00Z",
                 "completed_at": "2025-11-07T10:00:05Z",
@@ -160,7 +158,7 @@ class InitializationStatusResponse(BaseModel):
                 "errors": [],
                 "warnings": []
             }
-        }
+        })
 
 
 # ============================================================================
@@ -179,8 +177,7 @@ class SystemInfoResponse(BaseModel):
     python_version: Optional[str] = Field(None, description="Python version")
     dependencies: Optional[Dict[str, str]] = Field(None, description="Key dependency versions")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "environment": "production",
                 "debug_mode": False,
@@ -199,7 +196,7 @@ class SystemInfoResponse(BaseModel):
                     "build_date": "2025-11-01T10:00:00Z"
                 }
             }
-        }
+        })
 
 
 # ============================================================================
@@ -217,8 +214,7 @@ class ComponentInfo(BaseModel):
     dependencies: List[str] = Field(default_factory=list, description="Component dependencies")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional component metadata")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "name": "redis",
                 "type": "cache",
@@ -228,7 +224,7 @@ class ComponentInfo(BaseModel):
                 "dependencies": [],
                 "metadata": {"memory_usage_mb": 256}
             }
-        }
+        })
 
 
 class ComponentListResponse(BaseModel):
@@ -238,8 +234,7 @@ class ComponentListResponse(BaseModel):
     total: int = Field(..., description="Total component count")
     healthy_count: int = Field(..., description="Count of healthy components")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "components": [
                     {
@@ -258,7 +253,7 @@ class ComponentListResponse(BaseModel):
                 "total": 2,
                 "healthy_count": 2
             }
-        }
+        })
 
 
 class ComponentRestartRequest(BaseModel):
@@ -268,21 +263,21 @@ class ComponentRestartRequest(BaseModel):
     graceful: bool = Field(True, description="Graceful restart (drain connections first)")
     timeout_seconds: int = Field(30, ge=5, le=300, description="Restart timeout in seconds")
 
-    @validator("component")
+    @field_validator("component")
+    @classmethod
     def validate_component(cls, v):
         allowed = ["redis", "cache", "workers", "monitoring"]
         if v not in allowed:
             raise ValueError(f"Component must be one of: {', '.join(allowed)}")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "component": "redis",
                 "graceful": True,
                 "timeout_seconds": 30
             }
-        }
+        })
 
 
 class ComponentRestartResponse(BaseModel):
@@ -296,8 +291,7 @@ class ComponentRestartResponse(BaseModel):
     current_status: str = Field(..., description="Status after restart")
     message: str = Field(..., description="Restart message")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "component": "redis",
                 "status": "success",
@@ -307,7 +301,7 @@ class ComponentRestartResponse(BaseModel):
                 "current_status": "running",
                 "message": "Redis cache restarted successfully"
             }
-        }
+        })
 
 
 # ============================================================================
@@ -320,13 +314,12 @@ class ConfigValidationRequest(BaseModel):
     strict: bool = Field(False, description="Strict validation (treat warnings as errors)")
     categories: Optional[List[str]] = Field(None, description="Config categories to validate")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "strict": False,
                 "categories": ["security", "database", "external_services"]
             }
-        }
+        })
 
 
 class ConfigValidationResponse(BaseModel):
@@ -339,8 +332,7 @@ class ConfigValidationResponse(BaseModel):
     categories_checked: List[str] = Field(default_factory=list, description="Categories validated")
     recommendations: List[str] = Field(default_factory=list, description="Configuration recommendations")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "valid": True,
                 "warnings": [
@@ -355,7 +347,7 @@ class ConfigValidationResponse(BaseModel):
                     "Configure HTTPS redirect for production"
                 ]
             }
-        }
+        })
 
 
 # ============================================================================
@@ -392,8 +384,7 @@ class PublicConfigResponse(BaseModel):
     # Optional quiz URL
     VITE_MONTHLY_QUIZ_URL: Optional[str] = Field(None, description="Monthly quiz URL")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "VITE_API_BASE_URL": "https://api.example.com/api/v2",
                 "VITE_WS_BASE_URL": "wss://api.example.com/ws",
@@ -412,7 +403,7 @@ class PublicConfigResponse(BaseModel):
                     "credentials": True
                 }
             }
-        }
+        })
 
 
 # ============================================================================
@@ -453,8 +444,7 @@ class SystemMetrics(BaseModel):
     cache_hit_rate: Optional[float] = Field(None, ge=0, le=100, description="Cache hit rate percentage")
     cache_memory_mb: Optional[float] = Field(None, description="Cache memory usage in MB")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "timestamp": "2025-11-07T10:30:00Z",
                 "cpu_percent": 45.2,
@@ -473,4 +463,4 @@ class SystemMetrics(BaseModel):
                 "cache_hit_rate": 85.5,
                 "cache_memory_mb": 256.0
             }
-        }
+        })

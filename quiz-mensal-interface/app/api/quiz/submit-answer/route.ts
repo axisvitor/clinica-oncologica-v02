@@ -7,14 +7,27 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateCSRF } from '@/lib/csrf'
 import { getSessionData, rotateSessionCookie, SESSION_COOKIE_NAME } from '@/lib/quiz-session'
 import { quizAPI } from '@/lib/api'
+import { rateLimiters } from '@/lib/rate-limiter'
+import { withCors } from '@/lib/cors-validator'
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic'
 
 /**
- * Submit quiz answer with CSRF protection
+ * Handle CORS preflight
+ */
+export async function OPTIONS(request: NextRequest) {
+  return withCors(async () => {
+    return new NextResponse(null, { status: 204 })
+  })(request)
+}
+
+/**
+ * Submit quiz answer with CSRF protection, rate limiting, and CORS validation
  */
 export async function POST(request: NextRequest) {
+  return rateLimiters.submitAnswer(request, async () => {
+    return withCors(async (req) => {
   try {
     const body = await request.json()
     const { question_id, response_value, other_text, response_metadata } = body
@@ -87,4 +100,6 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
+    })(request)
+  })
 }

@@ -22,7 +22,7 @@ from datetime import datetime
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, Field, validator, constr, conint, confloat
+from pydantic import BaseModel, Field, field_validator, ConfigDict, constr, conint, confloat
 
 from .common import CursorPaginatedResponse
 
@@ -95,7 +95,9 @@ class LanguageV2Response(BaseModel):
         description="Whether this is the default system language"
     )
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "code": "pt-BR",
@@ -107,6 +109,7 @@ class LanguageV2Response(BaseModel):
                 "is_default": False
             }
         }
+    )
 
 
 class LanguageV2List(BaseModel):
@@ -122,7 +125,9 @@ class LanguageV2List(BaseModel):
         description="Default system language"
     )
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "data": [
@@ -149,6 +154,7 @@ class LanguageV2List(BaseModel):
                 "default_language": "en-US"
             }
         }
+    )
 
 
 # ============================================================================
@@ -168,7 +174,8 @@ class TranslationV2Response(BaseModel):
         description="Translation namespace"
     )
 
-    @validator("key")
+    @field_validator("key")
+    @classmethod
     def validate_key_format(cls, v):
         """Ensure key follows dot notation."""
         if not v or not v.strip():
@@ -179,7 +186,9 @@ class TranslationV2Response(BaseModel):
             raise ValueError("Key can only contain letters, numbers, dots, underscores, and hyphens")
         return v
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "key": "auth.login.title",
@@ -187,6 +196,7 @@ class TranslationV2Response(BaseModel):
                 "namespace": "auth"
             }
         }
+    )
 
 
 class TranslationV2List(BaseModel):
@@ -206,7 +216,9 @@ class TranslationV2List(BaseModel):
         description="Namespaces included in this response"
     )
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "data": [
@@ -226,6 +238,7 @@ class TranslationV2List(BaseModel):
                 "namespaces": ["auth"]
             }
         }
+    )
 
 
 class TranslationKeyV2Response(BaseModel):
@@ -262,7 +275,9 @@ class TranslationKeyV2Response(BaseModel):
         description="Whether variables were substituted"
     )
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "key": "messages.sent",
@@ -276,6 +291,7 @@ class TranslationKeyV2Response(BaseModel):
                 "has_variables": True
             }
         }
+    )
 
 
 class TranslationV2Update(BaseModel):
@@ -285,19 +301,23 @@ class TranslationV2Update(BaseModel):
         description="New translation value"
     )
 
-    @validator("value")
+    @field_validator("value")
+    @classmethod
     def validate_value(cls, v):
         """Ensure value is not just whitespace."""
         if not v or not v.strip():
             raise ValueError("Translation value cannot be empty or whitespace only")
         return v.strip()
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "value": "Login to Your Account"
             }
         }
+    )
 
 
 # ============================================================================
@@ -320,7 +340,9 @@ class UserLanguagePreferenceV2(BaseModel):
         description="When preference was last updated"
     )
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "user_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -329,6 +351,7 @@ class UserLanguagePreferenceV2(BaseModel):
                 "updated_at": "2025-01-17T15:00:00Z"
             }
         }
+    )
 
 
 class UserLanguagePreferenceV2Update(BaseModel):
@@ -338,12 +361,15 @@ class UserLanguagePreferenceV2Update(BaseModel):
         description="Language code to set as preference"
     )
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "language": "pt-BR"
             }
         }
+    )
 
 
 # ============================================================================
@@ -369,7 +395,9 @@ class TranslationExportV2(BaseModel):
         description="Include metadata in export"
     )
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "language": "pt-BR",
@@ -378,6 +406,7 @@ class TranslationExportV2(BaseModel):
                 "include_metadata": True
             }
         }
+    )
 
 
 class TranslationImportV2(BaseModel):
@@ -397,14 +426,17 @@ class TranslationImportV2(BaseModel):
         description="Whether to overwrite existing translations"
     )
 
-    @validator("translations")
+    @field_validator("translations")
+    @classmethod
     def validate_translations(cls, v):
         """Ensure translations dict is not empty."""
         if not v:
             raise ValueError("Translations dictionary cannot be empty")
         return v
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "language": "pt-BR",
@@ -418,6 +450,7 @@ class TranslationImportV2(BaseModel):
                 "overwrite_existing": False
             }
         }
+    )
 
 
 # ============================================================================
@@ -449,7 +482,9 @@ class TranslationStatsV2(BaseModel):
         description="When stats were last calculated"
     )
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "total_languages": 4,
@@ -476,6 +511,7 @@ class TranslationStatsV2(BaseModel):
                 "last_updated": "2025-01-17T15:00:00Z"
             }
         }
+    )
 
 
 class MissingTranslationsV2(BaseModel):
@@ -500,7 +536,9 @@ class MissingTranslationsV2(BaseModel):
         description="Missing translations count by namespace"
     )
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "language": "es-ES",
@@ -517,6 +555,7 @@ class MissingTranslationsV2(BaseModel):
                 }
             }
         }
+    )
 
 
 class TranslationSearchV2(BaseModel):
@@ -542,7 +581,8 @@ class TranslationSearchV2(BaseModel):
         description="Whether to match exactly (vs contains)"
     )
 
-    @validator("query")
+    @field_validator("query")
+    @classmethod
     def validate_query(cls, v):
         """Ensure query is meaningful."""
         if not v or not v.strip():
@@ -551,7 +591,9 @@ class TranslationSearchV2(BaseModel):
             raise ValueError("Search query must be at least 2 characters")
         return v.strip()
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "query": "login",
@@ -561,6 +603,7 @@ class TranslationSearchV2(BaseModel):
                 "exact_match": False
             }
         }
+    )
 
 
 # ============================================================================
@@ -577,13 +620,16 @@ class FallbackChainV2(BaseModel):
         description="Fallback chain in order of priority"
     )
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "language": "pt-BR",
                 "chain": ["pt-BR", "pt-PT", "en-US"]
             }
         }
+    )
 
 
 # ============================================================================
@@ -608,7 +654,9 @@ class ContextualTranslationV2(BaseModel):
         description="Informal variant"
     )
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "key": "greeting.hello",
@@ -617,3 +665,4 @@ class ContextualTranslationV2(BaseModel):
                 "informal": "Hey"
             }
         }
+    )

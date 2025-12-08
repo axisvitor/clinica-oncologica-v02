@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.celery_app import celery_app
 from app.database import SessionLocal
-from app.services.audit_service import AuditService
+from app.services.audit import AuditService
 
 logger = logging.getLogger(__name__)
 

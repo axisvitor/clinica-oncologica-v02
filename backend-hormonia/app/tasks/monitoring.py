@@ -14,7 +14,7 @@ from app.services.critical_error_escalation import CriticalErrorEscalationServic
 from app.services.performance_monitoring import PerformanceMonitoringService
 from app.services.automated_recovery import AutomatedRecoveryService
 from app.repositories.flow import FlowStateRepository
-from app.services.data_corruption_detector import DataCorruptionDetector
+from app.services.data_corruption import DataCorruptionDetector
 from app.services.error_recovery import ErrorRecoveryService
 from app.services.manual_correction import ManualCorrectionService
 from app.services.websocket_events import WebSocketEventService

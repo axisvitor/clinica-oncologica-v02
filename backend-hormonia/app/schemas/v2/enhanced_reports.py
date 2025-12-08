@@ -15,7 +15,7 @@ from datetime import datetime, date, time
 from typing import Optional, List, Dict, Any, Literal
 from uuid import UUID
 from enum import Enum
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, model_validator, field_validator, ConfigDict
 
 
 # ============================================================================
@@ -84,8 +84,7 @@ class ReportFieldConfig(BaseModel):
     sortable: bool = True
     format_string: Optional[str] = None
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "field_name": "patient_count",
                 "display_name": "Total Patients",
@@ -95,7 +94,7 @@ class ReportFieldConfig(BaseModel):
                 "filter_enabled": True,
                 "sortable": True
             }
-        }
+        })
 
 
 class ReportBuilderCreate(BaseModel):
@@ -123,7 +122,8 @@ class ReportBuilderCreate(BaseModel):
     save_as_template: bool = False
     template_name: Optional[str] = None
 
-    @validator("date_range")
+    @field_validator("date_range")
+    @classmethod
     def validate_date_range(cls, v):
         """Ensure valid date range."""
         if v and "start" in v and "end" in v:
@@ -145,8 +145,7 @@ class ReportBuilderResponse(BaseModel):
     generation_time_seconds: float
     download_url: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -196,8 +195,7 @@ class VisualizationResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class VisualizationListResponse(BaseModel):
@@ -229,7 +227,8 @@ class DeliverySchedule(BaseModel):
     # For custom: cron expression
     cron_expression: Optional[str] = None
 
-    @validator("end_date")
+    @field_validator("end_date")
+    @classmethod
     def validate_end_date(cls, v, values):
         """Ensure end_date is after start_date."""
         if v and "start_date" in values and values["start_date"]:
@@ -282,15 +281,14 @@ class DeliveryConfigCreate(BaseModel):
     is_active: bool = True
     send_on_error: bool = False
 
-    @root_validator(skip_on_failure=True)
-    def validate_config(cls, values):
+    @model_validator(mode='after')
+    def validate_config(self):
         """Ensure method-specific config is provided."""
-        method = values.get("method")
-        if method == DeliveryMethod.EMAIL and not values.get("email_config"):
+        if self.method == DeliveryMethod.EMAIL and not self.email_config:
             raise ValueError("email_config is required for email delivery")
-        if method == DeliveryMethod.WEBHOOK and not values.get("webhook_config"):
+        if self.method == DeliveryMethod.WEBHOOK and not self.webhook_config:
             raise ValueError("webhook_config is required for webhook delivery")
-        return values
+        return self
 
 
 class DeliveryConfigResponse(BaseModel):
@@ -312,8 +310,7 @@ class DeliveryConfigResponse(BaseModel):
     created_at: datetime
     created_by: UUID
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeliveryHistoryEntry(BaseModel):
@@ -339,7 +336,8 @@ class ReportShareCreate(BaseModel):
     expires_at: Optional[datetime] = None
     message: Optional[str] = Field(None, max_length=500)
 
-    @validator("expires_at")
+    @field_validator("expires_at")
+    @classmethod
     def validate_expiration(cls, v):
         """Ensure expiration is in the future."""
         if v and v <= datetime.utcnow():
@@ -355,12 +353,12 @@ class PublicLinkCreate(BaseModel):
     password: Optional[str] = Field(None, min_length=8, max_length=50)
     max_views: Optional[int] = Field(None, ge=1, le=10000)
 
-    @root_validator(skip_on_failure=True)
-    def validate_password(cls, values):
+    @model_validator(mode='after')
+    def validate_password(self):
         """Ensure password is provided if password_protected."""
-        if values.get("password_protected") and not values.get("password"):
+        if self.password_protected and not self.password:
             raise ValueError("password required when password_protected is True")
-        return values
+        return self
 
 
 class ReportShareResponse(BaseModel):
@@ -374,8 +372,7 @@ class ReportShareResponse(BaseModel):
     expires_at: Optional[datetime]
     is_active: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PublicLinkResponse(BaseModel):
@@ -392,8 +389,7 @@ class PublicLinkResponse(BaseModel):
     created_by: UUID
     is_active: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -446,8 +442,7 @@ class ExportResponse(BaseModel):
     file_sizes: Dict[str, int]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -471,8 +466,7 @@ class ReportHistoryResponse(BaseModel):
     versions: List[ReportVersion]
     total_versions: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ReportRestoreRequest(BaseModel):
@@ -556,8 +550,7 @@ class DashboardResponse(BaseModel):
     updated_at: datetime
     view_count: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DashboardListResponse(BaseModel):
@@ -586,5 +579,4 @@ class DashboardSnapshotResponse(BaseModel):
     created_at: datetime
     created_by: UUID
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

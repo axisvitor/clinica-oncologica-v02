@@ -1,0 +1,329 @@
+name: WebSocket Connection Tests
+
+on:
+  pull_request:
+    paths:
+      - 'backend-hormonia/app/websockets.py'
+      - 'backend-hormonia/app/static/websocket_*.js'
+      - 'frontend-hormonia/**/*websocket*'
+      - 'backend-hormonia/scripts/test-websocket.*'
+      - '.github/workflows/websocket-test.yml'
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/websocket-*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to test'
+        required: true
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+        default: 'development'
+      ws_url:
+        description: 'WebSocket URL to test (optional)'
+        required: false
+        type: string
+
+jobs:
+  test-websocket-backend:
+    name: Backend WebSocket Tests
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: testdb
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        working-directory: backend-hormonia
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Node.js dependencies
+        run: |
+          npm install -g wscat ws
+
+      - name: Start backend server
+        working-directory: backend-hormonia
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
+          REDIS_URL: redis://localhost:6379/0
+          ENVIRONMENT: test
+        run: |
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          echo $! > backend.pid
+
+          # Wait for server to start
+          timeout 30 bash -c 'until curl -f http://localhost:8000/health; do sleep 1; done'
+
+      - name: Run WebSocket tests
+        working-directory: backend-hormonia
+        run: |
+          chmod +x scripts/test-websocket.sh
+          ./scripts/test-websocket.sh ws://localhost:8000/ws development
+
+      - name: Stop backend server
+        if: always()
+        run: |
+          if [ -f backend-hormonia/backend.pid ]; then
+            kill $(cat backend-hormonia/backend.pid) || true
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: websocket-test-results
+          path: backend-hormonia/reports/websocket/
+          retention-days: 7
+
+  test-websocket-frontend:
+    name: Frontend WebSocket E2E Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend-hormonia/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend-hormonia
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: frontend-hormonia
+        run: npx playwright install --with-deps chromium
+
+      - name: Start mock WebSocket server
+        run: |
+          node -e "
+          const WebSocket = require('ws');
+          const wss = new WebSocket.Server({ port: 8000 });
+          wss.on('connection', (ws) => {
+            ws.on('message', (message) => {
+              ws.send(JSON.stringify({ type: 'pong', data: message }));
+            });
+          });
+          console.log('Mock WebSocket server started on port 8000');
+          " &
+          echo $! > mock-ws.pid
+
+      - name: Run E2E tests
+        working-directory: frontend-hormonia
+        env:
+          WS_URL: ws://localhost:8000/ws
+        run: npx playwright test tests/e2e/websocket.spec.ts
+
+      - name: Stop mock server
+        if: always()
+        run: |
+          if [ -f mock-ws.pid ]; then
+            kill $(cat mock-ws.pid) || true
+          fi
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend-hormonia/playwright-report/
+          retention-days: 7
+
+  test-websocket-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [test-websocket-backend, test-websocket-frontend]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Start services with Docker Compose
+        run: |
+          docker-compose -f docker-compose.test.yml up -d
+
+          # Wait for services
+          timeout 60 bash -c 'until curl -f http://localhost:8000/health; do sleep 2; done'
+
+      - name: Run integration tests
+        run: |
+          npm install -g wscat
+          chmod +x backend-hormonia/scripts/test-websocket.sh
+          ./backend-hormonia/scripts/test-websocket.sh ws://localhost:8000/ws development
+
+      - name: Check logs
+        if: failure()
+        run: docker-compose -f docker-compose.test.yml logs
+
+      - name: Stop services
+        if: always()
+        run: docker-compose -f docker-compose.test.yml down -v
+
+  test-websocket-staging:
+    name: Staging Environment Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install -g wscat ws
+
+      - name: Test staging WebSocket
+        env:
+          WS_URL: ${{ github.event.inputs.ws_url || secrets.STAGING_WS_URL }}
+        run: |
+          chmod +x backend-hormonia/scripts/test-websocket.sh
+          ./backend-hormonia/scripts/test-websocket.sh "$WS_URL" staging
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-test-results
+          path: backend-hormonia/reports/websocket/
+          retention-days: 30
+
+  generate-report:
+    name: Generate Test Report
+    runs-on: ubuntu-latest
+    needs: [test-websocket-backend, test-websocket-frontend, test-websocket-integration]
+    if: always()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: test-results/
+
+      - name: Generate HTML report
+        run: |
+          mkdir -p test-results/report
+
+          cat > test-results/report/index.html <<EOF
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>WebSocket Test Report</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 20px; }
+              .pass { color: green; }
+              .fail { color: red; }
+              .header { background: #f0f0f0; padding: 10px; border-radius: 5px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>WebSocket Connection Test Report</h1>
+              <p>Generated: $(date)</p>
+              <p>Workflow: ${{ github.workflow }}</p>
+              <p>Trigger: ${{ github.event_name }}</p>
+            </div>
+            <h2>Test Results</h2>
+            <ul>
+              <li>Backend Tests: ${{ needs.test-websocket-backend.result }}</li>
+              <li>Frontend Tests: ${{ needs.test-websocket-frontend.result }}</li>
+              <li>Integration Tests: ${{ needs.test-websocket-integration.result }}</li>
+            </ul>
+          </body>
+          </html>
+          EOF
+
+      - name: Upload consolidated report
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: test-results/report/
+          retention-days: 30
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const results = {
+              backend: '${{ needs.test-websocket-backend.result }}',
+              frontend: '${{ needs.test-websocket-frontend.result }}',
+              integration: '${{ needs.test-websocket-integration.result }}'
+            };
+
+            const passed = Object.values(results).every(r => r === 'success');
+            const icon = passed ? '✅' : '❌';
+
+            const comment = `
+            ## ${icon} WebSocket Test Results
+
+            - **Backend Tests**: ${results.backend === 'success' ? '✅' : '❌'} ${results.backend}
+            - **Frontend Tests**: ${results.frontend === 'success' ? '✅' : '❌'} ${results.frontend}
+            - **Integration Tests**: ${results.integration === 'success' ? '✅' : '❌'} ${results.integration}
+
+            [View detailed report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

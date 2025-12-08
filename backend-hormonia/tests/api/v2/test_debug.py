@@ -217,7 +217,7 @@ class TestEnvironmentInfo:
 
     def test_environment_vars_masked(self):
         """Test that sensitive environment variables are masked."""
-        from app.api.v2.debug import mask_sensitive_value
+        from app.api.v2.routers.debug import mask_sensitive_value
 
         # Test password masking
         masked, is_masked = mask_sensitive_value("DATABASE_PASSWORD", "secret123")
@@ -239,7 +239,7 @@ class TestEnvironmentInfo:
 
     def test_only_whitelisted_vars_exposed(self):
         """Test that only whitelisted environment variables are exposed."""
-        from app.api.v2.debug import SAFE_ENV_VARS
+        from app.api.v2.routers.debug import SAFE_ENV_VARS
 
         # Verify critical vars are in whitelist
         assert "ENVIRONMENT" in SAFE_ENV_VARS
@@ -314,7 +314,7 @@ class TestQueryExecution:
 
     def test_query_sanitization(self):
         """Test SQL query sanitization for logging."""
-        from app.api.v2.debug import sanitize_sql_query
+        from app.api.v2.routers.debug import sanitize_sql_query
 
         long_query = "SELECT * FROM users WHERE " + "a" * 200
         sanitized = sanitize_sql_query(long_query, max_length=100)
@@ -445,7 +445,7 @@ class TestSecuritySafeguards:
 
     def test_no_credentials_in_environment(self):
         """Test that credentials are never exposed in environment info."""
-        from app.api.v2.debug import mask_sensitive_value
+        from app.api.v2.routers.debug import mask_sensitive_value
 
         sensitive_keys = [
             "DATABASE_PASSWORD",
@@ -480,7 +480,7 @@ class TestSecuritySafeguards:
 
     def test_audit_logs_sanitized(self):
         """Test that audit logs contain sanitized data only."""
-        from app.api.v2.debug import sanitize_sql_query
+        from app.api.v2.routers.debug import sanitize_sql_query
 
         sensitive_query = "SELECT * FROM users WHERE password = 'secret123'"
         sanitized = sanitize_sql_query(sensitive_query, max_length=50)

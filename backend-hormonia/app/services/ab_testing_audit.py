@@ -12,12 +12,11 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Union
 from uuid import UUID
 
-from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func, desc
 
 from app.models.ab_experiment import ABExperimentAudit, ABExperiment
 from app.models.user import User
-from app.services.encryption_service import EncryptionService
+from app.services.encryption import UnifiedEncryptionService as EncryptionService
 from app.services.privacy_service import PrivacyService
 
 logger = logging.getLogger(__name__)
@@ -89,7 +88,7 @@ class ABTestingAuditService:
 
     def __init__(
         self,
-        db: Session,
+        db: Any,
         encryption_service: Optional[EncryptionService] = None,
         privacy_service: Optional[PrivacyService] = None
     ):
@@ -743,6 +742,6 @@ class ABTestingAuditService:
         }
 
 
-def get_ab_testing_audit_service(db: Session) -> ABTestingAuditService:
+def get_ab_testing_audit_service(db: Any) -> ABTestingAuditService:
     """Get A/B testing audit service instance."""
     return ABTestingAuditService(db)

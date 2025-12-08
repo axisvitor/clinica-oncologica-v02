@@ -4,11 +4,14 @@ Shared pytest fixtures for all tests.
 This module provides common fixtures used across unit and integration tests,
 including database sessions, test users, authentication tokens, and mock clients.
 """
-import pytest
-from datetime import datetime, timedelta
-from uuid import uuid4
-from typing import Generator
+import os
 import json
+from datetime import datetime, timedelta
+from typing import Generator
+from uuid import uuid4
+
+import pytest
+from dotenv import load_dotenv
 
 from sqlalchemy import create_engine, event, TypeDecorator, Text, String
 from sqlalchemy.orm import Session, sessionmaker
@@ -16,13 +19,22 @@ from sqlalchemy.pool import StaticPool
 from sqlalchemy.dialects.postgresql import JSONB, INET
 from fastapi.testclient import TestClient
 
-from app.models.base import Base
+# Load environment variables before importing application modules so
+# pydantic Settings finds SECRET_KEY, DATABASE_URL, etc.
+_env_path = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", ".env")
+)
+if os.path.exists(_env_path):
+    load_dotenv(_env_path)
+
+from app.db.base import Base  # Use the same Base as root conftest.py
 from app.models.user import User, UserRole
 from app.models.appointment import Appointment, AppointmentStatus, AppointmentType
 from app.utils.security import get_password_hash
 from app.main import app
 from app.database import get_db
 from app.dependencies.auth_dependencies import get_current_user, TEST_TOKEN_REGISTRY
+from tests.utils.sync_executor import SyncExecutor
 
 
 # ============================================================================
@@ -104,16 +116,13 @@ def _replace_postgres_types_with_sqlite(engine):
                 column.type = INETCompat()
 
 
-@pytest.fixture(scope="function")
-def db_session() -> Generator[Session, None, None]:
+@pytest.fixture(scope="session")
+def test_engine():
     """
-    Create a fresh database session for each test.
+    Create a session-scoped test database engine.
 
-    Uses an in-memory SQLite database for fast, isolated tests.
-    All tables are created before the test and dropped after.
-
-    Note: Automatically converts PostgreSQL JSONB columns to SQLite-compatible
-    TEXT columns with JSON serialization.
+    This engine is created once per test session and reused across all tests.
+    Using transactions for test isolation instead of recreating the engine.
     """
     # Create in-memory SQLite database
     engine = create_engine(
@@ -125,17 +134,43 @@ def db_session() -> Generator[Session, None, None]:
     # Replace PostgreSQL types with SQLite-compatible types
     _replace_postgres_types_with_sqlite(engine)
 
-    # Create all tables
+    # Drop and recreate all tables to ensure clean state
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
 
-    # Create session
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    yield engine
+
+    # Drop all tables at session end
+    Base.metadata.drop_all(bind=engine)
+    engine.dispose()
+
+
+@pytest.fixture(scope="function")
+def db_session(test_engine) -> Generator[Session, None, None]:
+    """
+    Create a fresh database session for each test using transactions.
+
+    Uses transaction rollback for test isolation instead of recreating tables.
+    This is much faster and avoids index collision errors.
+    """
+    # Start a new connection and transaction
+    connection = test_engine.connect()
+    transaction = connection.begin()
+
+    # Create session bound to this transaction
+    TestingSessionLocal = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=connection,
+    )
     session = TestingSessionLocal()
 
-    try:
-        yield session
-    finally:
-        session.close()
+    yield session
+
+    # Rollback transaction to clean up test data
+    session.close()
+    transaction.rollback()
+    connection.close()
 
 
 @pytest.fixture
@@ -456,36 +491,54 @@ def create_test_patient(
     doctor: User,
     name: str = "Test Patient",
     email: str = None,
-    phone: str = "11999999999",
+    phone: str = "+5511999999999",
     **kwargs
 ):
     """
     Create a test patient in the database.
-    
+
+    LGPD Compliance: Uses set_email(), set_phone(), set_cpf() methods
+    to properly encrypt and hash sensitive data.
+
     Args:
         db_session: Database session
         doctor: Doctor user who owns this patient
         name: Patient name
         email: Patient email (optional)
-        phone: Patient phone
-        **kwargs: Additional patient attributes
-        
+        phone: Patient phone (E.164 format recommended)
+        **kwargs: Additional patient attributes (cpf, birth_date, etc.)
+
     Returns:
-        Created Patient instance
+        Created Patient instance with encrypted PII fields
     """
     from app.models.patient import Patient
-    
+
+    # Generate default email if not provided
+    actual_email = email or f"patient_{uuid4().hex[:8]}@test.com"
+
+    # Normalize phone to E.164 format
+    actual_phone = phone
+    if phone and not phone.startswith('+'):
+        actual_phone = f"+55{phone}"
+
+    # Create patient without PII columns (removed in migration 030)
     patient = Patient(
         id=kwargs.get('id', uuid4()),
         name=name,
-        email=email or f"patient_{uuid4().hex[:8]}@test.com",
-        phone=phone,
         doctor_id=doctor.id,
-        cpf=kwargs.get('cpf'),
         birth_date=kwargs.get('birth_date'),
         created_at=kwargs.get('created_at', datetime.utcnow()),
         updated_at=kwargs.get('updated_at', datetime.utcnow())
     )
+
+    # LGPD: Set encrypted fields using proper methods
+    if actual_phone:
+        patient.set_phone(actual_phone)
+    if actual_email:
+        patient.set_email(actual_email)
+    if kwargs.get('cpf'):
+        patient.set_cpf(kwargs['cpf'])
+
     db_session.add(patient)
     db_session.commit()
     db_session.refresh(patient)
@@ -610,6 +663,51 @@ def user_token(auth_headers: dict) -> str:
     return auth_headers["Authorization"].split(" ", 1)[1]
 
 
+@pytest.fixture
+def authenticated_client(client: TestClient, test_user: User) -> TestClient:
+    """
+    Create an authenticated test client with user token.
+
+    This fixture combines the test client with authentication headers
+    for making authenticated requests.
+
+    Args:
+        client: Base test client
+        test_user: Test user for authentication
+
+    Returns:
+        TestClient with default authenticated headers
+    """
+    # Override dependency to return test_user
+    app.dependency_overrides[get_current_user] = lambda: test_user
+    TEST_TOKEN_REGISTRY[f"test_token_{test_user.id}"] = test_user
+
+    # Set default headers on the client
+    client.headers["Authorization"] = f"Bearer test_token_{test_user.id}"
+    return client
+
+
+@pytest.fixture
+def admin_authenticated_client(client: TestClient, admin_user: User) -> TestClient:
+    """
+    Create an authenticated test client with admin token.
+
+    Args:
+        client: Base test client
+        admin_user: Admin user for authentication
+
+    Returns:
+        TestClient with default admin authenticated headers
+    """
+    # Override dependency to return admin_user
+    app.dependency_overrides[get_current_user] = lambda: admin_user
+    TEST_TOKEN_REGISTRY[f"admin_token_{admin_user.id}"] = admin_user
+
+    # Set default headers on the client
+    client.headers["Authorization"] = f"Bearer admin_token_{admin_user.id}"
+    return client
+
+
 # ============================================================================
 # Mock Client Fixtures
 # ============================================================================
@@ -652,6 +750,353 @@ def mock_evolution_client(mocker):
         "connected": True
     })
     return client
+
+
+# ============================================================================
+# Pytest Configuration
+# ============================================================================
+
+# ============================================================================
+# V2 Evolution Fixtures - Clinical Fields & Advanced Filters
+# ============================================================================
+
+@pytest.fixture
+async def test_patient_with_clinical_data(client, auth_headers):
+    """Create a test patient with complete clinical data"""
+    patient_data = {
+        "doctor_id": str(uuid4()),
+        "name": "Paciente Completo Dados Clínicos",
+        "phone": "+5511999888777",
+        "email": "paciente.completo@example.com",
+        "allergies": ["Penicilina", "Dipirona"],
+        "current_medications": ["Metformina 500mg", "Losartana 50mg"],
+        "comorbidities": ["Diabetes Tipo 2", "Hipertensão"],
+        "blood_type": "O+",
+        "emergency_contact_name": "Contato Emergência",
+        "emergency_contact_phone": "+5511888777666"
+    }
+
+    response = client.post(
+        "/api/v2/patients",
+        json=patient_data,
+        headers=auth_headers
+    )
+
+    assert response.status_code == 201
+    return response.json()
+
+
+@pytest.fixture
+async def test_patients_various_phases(client, auth_headers):
+    """Create test patients with different treatment phases"""
+    phases = ["initial", "maintenance", "followup"]
+    created_patients = []
+
+    for i, phase in enumerate(phases):
+        patient_data = {
+            "doctor_id": str(uuid4()),
+            "name": f"Patient {phase.title()}",
+            "phone": f"+551199988877{i}",
+            "email": f"patient.{phase}@example.com",
+            "treatment_phase": phase
+        }
+
+        response = client.post(
+            "/api/v2/patients",
+            json=patient_data,
+            headers=auth_headers
+        )
+
+        if response.status_code == 201:
+            created_patients.append(response.json())
+
+    return created_patients
+
+
+@pytest.fixture
+async def test_patients_with_flows(client, auth_headers):
+    """Create test patients with active and inactive flows"""
+    flow_states = [
+        ("Active Patient 1", "ACTIVE"),
+        ("Active Patient 2", "RUNNING"),
+        ("Inactive Patient 1", "COMPLETED"),
+        ("Inactive Patient 2", "PAUSED")
+    ]
+
+    created_patients = []
+
+    for i, (name, flow_state) in enumerate(flow_states):
+        patient_data = {
+            "doctor_id": str(uuid4()),
+            "name": name,
+            "phone": f"+551199977766{i}",
+            "email": f"patient.flow{i}@example.com",
+            "flow_state": flow_state
+        }
+
+        response = client.post(
+            "/api/v2/patients",
+            json=patient_data,
+            headers=auth_headers
+        )
+
+        if response.status_code == 201:
+            created_patients.append(response.json())
+
+    return created_patients
+
+
+@pytest.fixture
+async def test_patients_various_dates(client, auth_headers):
+    """Create test patients with different creation dates"""
+    date_offsets = [-30, -15, -7, -3, -1, 0]  # Days ago
+    created_patients = []
+
+    for i, days_ago in enumerate(date_offsets):
+        patient_data = {
+            "doctor_id": str(uuid4()),
+            "name": f"Patient Created {abs(days_ago)} Days Ago",
+            "phone": f"+551199966655{i}",
+            "email": f"patient.date{i}@example.com"
+        }
+
+        response = client.post(
+            "/api/v2/patients",
+            json=patient_data,
+            headers=auth_headers
+        )
+
+        if response.status_code == 201:
+            created_patients.append(response.json())
+
+    return created_patients
+
+
+@pytest.fixture
+async def test_patients_various_names(client, auth_headers):
+    """Create test patients with names for sorting tests"""
+    names = [
+        "Alice Silva",
+        "Bruno Costa",
+        "Carlos Mendes",
+        "Diana Oliveira",
+        "Eduardo Santos"
+    ]
+
+    created_patients = []
+
+    for i, name in enumerate(names):
+        patient_data = {
+            "doctor_id": str(uuid4()),
+            "name": name,
+            "phone": f"+551199955544{i}",
+            "email": f"{name.lower().replace(' ', '.')}@example.com"
+        }
+
+        response = client.post(
+            "/api/v2/patients",
+            json=patient_data,
+            headers=auth_headers
+        )
+
+        if response.status_code == 201:
+            created_patients.append(response.json())
+
+    return created_patients
+
+
+@pytest.fixture
+async def test_patients_various_emails(client, auth_headers):
+    """Create test patients with emails for sorting tests"""
+    emails = [
+        "alice@example.com",
+        "bruno@example.com",
+        "carlos@example.com",
+        "diana@example.com"
+    ]
+
+    created_patients = []
+
+    for i, email in enumerate(emails):
+        patient_data = {
+            "doctor_id": str(uuid4()),
+            "name": f"Patient {i}",
+            "phone": f"+551199944433{i}",
+            "email": email
+        }
+
+        response = client.post(
+            "/api/v2/patients",
+            json=patient_data,
+            headers=auth_headers
+        )
+
+        if response.status_code == 201:
+            created_patients.append(response.json())
+
+    return created_patients
+
+
+@pytest.fixture
+async def test_patients_complex(client, auth_headers):
+    """Create complex test dataset for combined filter testing"""
+    patients_data = [
+        {
+            "name": "Alpha Initial Active",
+            "treatment_phase": "initial",
+            "flow_state": "ACTIVE"
+        },
+        {
+            "name": "Beta Initial Inactive",
+            "treatment_phase": "initial",
+            "flow_state": "COMPLETED"
+        },
+        {
+            "name": "Charlie Maintenance Active",
+            "treatment_phase": "maintenance",
+            "flow_state": "RUNNING"
+        },
+        {
+            "name": "Delta Followup Active",
+            "treatment_phase": "followup",
+            "flow_state": "ACTIVE"
+        }
+    ]
+
+    created_patients = []
+
+    for i, data in enumerate(patients_data):
+        patient_data = {
+            "doctor_id": str(uuid4()),
+            "name": data["name"],
+            "phone": f"+551199933322{i}",
+            "email": f"patient.complex{i}@example.com",
+            "treatment_phase": data.get("treatment_phase"),
+            "flow_state": data.get("flow_state")
+        }
+
+        response = client.post(
+            "/api/v2/patients",
+            json=patient_data,
+            headers=auth_headers
+        )
+
+        if response.status_code == 201:
+            created_patients.append(response.json())
+
+    return created_patients
+
+
+@pytest.fixture
+def other_doctor_token(db_session, client):
+    """Create token for a different doctor user"""
+    other_doctor = create_test_user(
+        db_session,
+        email=f"other_doctor_{uuid4().hex[:6]}@test.com",
+        full_name="Other Doctor",
+        role=UserRole.DOCTOR
+    )
+
+    app.dependency_overrides[get_current_user] = lambda: other_doctor
+    TEST_TOKEN_REGISTRY[f"other_doctor_token_{other_doctor.id}"] = other_doctor
+
+    return f"other_doctor_token_{other_doctor.id}"
+
+
+@pytest.fixture
+async def test_patients_multiple_doctors(client, auth_headers, other_doctor_token):
+    """Create test patients belonging to different doctors"""
+    created_patients = []
+
+    # Create patients for first doctor
+    for i in range(3):
+        patient_data = {
+            "doctor_id": str(uuid4()),
+            "name": f"Doctor 1 Patient {i}",
+            "phone": f"+551199922211{i}",
+            "email": f"doc1.patient{i}@example.com",
+            "treatment_phase": "initial"
+        }
+
+        response = client.post(
+            "/api/v2/patients",
+            json=patient_data,
+            headers=auth_headers
+        )
+
+        if response.status_code == 201:
+            created_patients.append(response.json())
+
+    # Create patients for second doctor
+    for i in range(3):
+        patient_data = {
+            "doctor_id": str(uuid4()),
+            "name": f"Doctor 2 Patient {i}",
+            "phone": f"+551199911100{i}",
+            "email": f"doc2.patient{i}@example.com",
+            "treatment_phase": "initial"
+        }
+
+        response = client.post(
+            "/api/v2/patients",
+            json=patient_data,
+            headers={"Authorization": f"Bearer {other_doctor_token}"}
+        )
+
+        if response.status_code == 201:
+            created_patients.append(response.json())
+
+    return created_patients
+
+
+@pytest.fixture
+async def test_patient_owned_by_doctor(client, auth_headers):
+    """Create a test patient owned by the authenticated doctor"""
+    patient_data = {
+        "doctor_id": str(uuid4()),
+        "name": "Own Patient",
+        "phone": "+5511999000111",
+        "email": "own.patient@example.com"
+    }
+
+    response = client.post(
+        "/api/v2/patients",
+        json=patient_data,
+        headers=auth_headers
+    )
+
+    assert response.status_code == 201
+    return response.json()
+
+
+@pytest.fixture
+async def test_patient_owned_by_other_doctor(client, other_doctor_token):
+    """Create a test patient owned by a different doctor"""
+    patient_data = {
+        "doctor_id": str(uuid4()),
+        "name": "Other Doctor Patient",
+        "phone": "+5511999000222",
+        "email": "other.patient@example.com"
+    }
+
+    response = client.post(
+        "/api/v2/patients",
+        json=patient_data,
+        headers={"Authorization": f"Bearer {other_doctor_token}"}
+    )
+
+    assert response.status_code == 201
+    return response.json()
+
+
+@pytest.fixture
+def doctor_token(auth_headers: dict) -> str:
+    """
+    Return a bearer token for a doctor user.
+
+    Alias for user_token for clarity in v2 tests.
+    """
+    return auth_headers["Authorization"].split(" ", 1)[1]
 
 
 # ============================================================================

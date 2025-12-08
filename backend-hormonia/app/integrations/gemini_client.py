@@ -9,12 +9,14 @@ import json
 import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
+import hashlib
 
 # LangChain Google Gemini integration (replaces google.generativeai)
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage
 
 from app.config import settings
+from app.core.redis_unified import get_sync_redis
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,8 @@ class GeminiClient:
 
     REFACTORED: Now uses ChatGoogleGenerativeAI from langchain-google-genai
     instead of google.generativeai SDK to avoid dependency conflicts.
+    
+    ADDED: Semantic Caching with Redis.
     """
 
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
@@ -41,8 +45,9 @@ class GeminiClient:
             api_key: Google AI API key (defaults to settings)
             model: Gemini model name (defaults to settings)
         """
-        self.api_key = api_key or settings.GEMINI_API_KEY
-        self.model_name = model or settings.GEMINI_MODEL
+        self.api_key = api_key or settings.AI_GEMINI_API_KEY
+        self.model_name = model or settings.AI_GEMINI_MODEL
+        self.redis_client = get_sync_redis()
 
         if not self.api_key:
             logger.warning("Gemini API key not provided. Client will not be functional.")
@@ -54,10 +59,10 @@ class GeminiClient:
             self.model = ChatGoogleGenerativeAI(
                 model=self.model_name,
                 google_api_key=self.api_key,
-                temperature=settings.GEMINI_TEMPERATURE,
-                max_output_tokens=settings.GEMINI_MAX_OUTPUT_TOKENS,
-                top_p=settings.GEMINI_TOP_P,
-                top_k=settings.GEMINI_TOP_K,
+                temperature=settings.AI_GEMINI_TEMPERATURE,
+                max_output_tokens=settings.AI_GEMINI_MAX_OUTPUT_TOKENS,
+                top_p=settings.AI_GEMINI_TOP_P,
+                top_k=settings.AI_GEMINI_TOP_K,
             )
             logger.info(f"Gemini client initialized with LangChain model: {self.model_name}")
         except Exception as e:
@@ -65,9 +70,33 @@ class GeminiClient:
             self.model = None
             raise GeminiAPIError(f"Failed to initialize Gemini client: {str(e)}")
 
+    def _generate_cache_key(self, prompt: str) -> str:
+        """Generate a deterministic cache key for the prompt."""
+        prompt_hash = hashlib.sha256(prompt.encode('utf-8')).hexdigest()
+        return f"gemini_cache:{prompt_hash}"
+
+    async def _get_cached_response(self, cache_key: str) -> Optional[str]:
+        """Retrieve cached response if available."""
+        try:
+            cached_value = self.redis_client.get(cache_key)
+            if cached_value:
+                logger.debug(f"Gemini cache hit for key: {cache_key}")
+                return cached_value.decode('utf-8')
+        except Exception as e:
+            logger.warning(f"Failed to retrieve from cache: {e}")
+        return None
+
+    async def _cache_response(self, cache_key: str, response: str, ttl: int = 3600) -> None:
+        """Cache the response in Redis."""
+        try:
+            self.redis_client.setex(cache_key, ttl, response)
+            logger.debug(f"Cached Gemini response for key: {cache_key}")
+        except Exception as e:
+            logger.warning(f"Failed to cache response: {e}")
+
     async def generate_content(self, prompt: str, **kwargs) -> str:
         """
-        Generate content using Gemini with error handling and retries.
+        Generate content using Gemini with error handling, retries, and caching.
 
         Args:
             prompt: The input prompt for generation
@@ -82,7 +111,13 @@ class GeminiClient:
         if not self.api_key or not self.model:
             raise GeminiAPIError("Gemini client not properly initialized - missing API key")
 
-        max_retries = kwargs.get('max_retries', settings.GEMINI_MAX_RETRIES)
+        # Check Cache
+        cache_key = self._generate_cache_key(prompt)
+        cached_response = await self._get_cached_response(cache_key)
+        if cached_response:
+            return cached_response
+
+        max_retries = kwargs.get('max_retries', settings.AI_GEMINI_MAX_RETRIES)
         retry_delay = kwargs.get('retry_delay', 1)
 
         for attempt in range(max_retries):
@@ -93,7 +128,7 @@ class GeminiClient:
                 # Run with timeout
                 response = await asyncio.wait_for(
                     self.model.ainvoke(messages),
-                    timeout=settings.GEMINI_TIMEOUT
+                    timeout=settings.AI_GEMINI_TIMEOUT_SECONDS
                 )
 
                 # Extract text from LangChain response
@@ -103,6 +138,10 @@ class GeminiClient:
                     raise GeminiAPIError(f"Empty response from Gemini API via LangChain")
 
                 logger.debug(f"Gemini generation successful on attempt {attempt + 1}")
+                
+                # Cache successful response
+                await self._cache_response(cache_key, response_text)
+                
                 return response_text
 
             except Exception as e:
@@ -116,12 +155,14 @@ class GeminiClient:
 
         raise GeminiAPIError("Unexpected error in content generation")
 
-    async def humanize_flow_message(self,
+    async def humanize_flow_message(
+                                   self,
                                    template: str,
                                    patient_name: str,
                                    patient_context: Dict[str, Any],
                                    conversation_history: List[str],
-                                   personalization_hints: List[str]) -> str:
+                                   personalization_hints: List[str],
+                                   few_shot_examples: Optional[List[Dict[str, str]]] = None) -> str:
         """
         Transform template message into natural, human-like conversation.
 
@@ -131,13 +172,14 @@ class GeminiClient:
             patient_context: Patient context and preferences
             conversation_history: Recent conversation messages
             personalization_hints: Hints for personalization approach
+            few_shot_examples: Optional list of example inputs and outputs for few-shot prompting.
 
         Returns:
             Humanized message text
         """
         prompt = self._build_humanization_prompt(
             template, patient_name, patient_context,
-            conversation_history, personalization_hints
+            conversation_history, personalization_hints, few_shot_examples
         )
 
         try:
@@ -149,10 +191,12 @@ class GeminiClient:
             # Fallback to template with basic personalization
             return template.replace("[nome]", patient_name).replace("[NOME]", patient_name)
 
-    async def generate_varied_question(self,
+    async def generate_varied_question(
+                                     self,
                                      base_question: str,
                                      previous_questions: List[str],
-                                     patient_context: Dict[str, Any]) -> str:
+                                     patient_context: Dict[str, Any],
+                                     few_shot_examples: Optional[List[Dict[str, str]]] = None) -> str:
         """
         Generate question variation to avoid repetition.
 
@@ -160,12 +204,13 @@ class GeminiClient:
             base_question: Original question template
             previous_questions: Recently asked questions
             patient_context: Patient context for personalization
+            few_shot_examples: Optional list of example inputs and outputs for few-shot prompting.
 
         Returns:
             Varied question text
         """
         prompt = self._build_question_variation_prompt(
-            base_question, previous_questions, patient_context
+            base_question, previous_questions, patient_context, few_shot_examples
         )
 
         try:
@@ -176,7 +221,8 @@ class GeminiClient:
             logger.error(f"Failed to generate question variation: {e}")
             return base_question
 
-    async def analyze_response_sentiment(self,
+    async def analyze_response_sentiment(
+                                       self,
                                        response: str,
                                        patient_context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -207,10 +253,12 @@ class GeminiClient:
                 "requires_attention": False
             }
 
-    async def create_empathetic_follow_up(self,
+    async def create_empathetic_follow_up(
+                                        self,
                                         patient_response: str,
                                         conversation_history: List[str],
-                                        patient_context: Dict[str, Any]) -> str:
+                                        patient_context: Dict[str, Any],
+                                        few_shot_examples: Optional[List[Dict[str, str]]] = None) -> str:
         """
         Create empathetic follow-up message based on patient response.
 
@@ -218,12 +266,13 @@ class GeminiClient:
             patient_response: Patient's latest response
             conversation_history: Recent conversation messages
             patient_context: Patient context and preferences
+            few_shot_examples: Optional list of example inputs and outputs for few-shot prompting.
 
         Returns:
             Empathetic follow-up message
         """
         prompt = self._build_empathetic_response_prompt(
-            patient_response, conversation_history, patient_context
+            patient_response, conversation_history, patient_context, few_shot_examples
         )
 
         try:
@@ -234,13 +283,26 @@ class GeminiClient:
             logger.error(f"Failed to generate empathetic follow-up: {e}")
             return "Obrigada por compartilhar isso comigo. Como posso te ajudar melhor?"
 
-    def _build_humanization_prompt(self,
+    def _format_few_shot_examples(self, examples: Optional[List[Dict[str, str]]]) -> str:
+        """Format few-shot examples for inclusion in prompt."""
+        if not examples:
+            return ""
+        
+        formatted = "\nEXEMPLOS DE REFERÊNCIA:\n"
+        for ex in examples:
+            formatted += f"Entrada: {ex.get('input', '')}\nSaída: {ex.get('output', '')}\n---\n"
+        return formatted
+
+    def _build_humanization_prompt(
+                                  self,
                                   template: str,
                                   patient_name: str,
                                   patient_context: Dict[str, Any],
                                   conversation_history: List[str],
-                                  personalization_hints: List[str]) -> str:
+                                  personalization_hints: List[str],
+                                  few_shot_examples: Optional[List[Dict[str, str]]] = None) -> str:
         """Build prompt for message humanization."""
+        examples_section = self._format_few_shot_examples(few_shot_examples)
         return f"""
 Você é uma assistente de saúde especializada em comunicação empática e humanizada.
 Sua missão é transformar mensagens médicas em conversas naturais e acolhedoras.
@@ -255,6 +317,8 @@ CONVERSAS RECENTES:
 
 MENSAGEM ORIGINAL: {template}
 
+{examples_section}
+
 DIRETRIZES:
 1. Use linguagem natural e acolhedora, como uma conversa entre amigos
 2. Evite repetir frases ou estruturas já usadas nas conversas recentes
@@ -267,17 +331,22 @@ DIRETRIZES:
 MENSAGEM HUMANIZADA:
 """
 
-    def _build_question_variation_prompt(self,
+    def _build_question_variation_prompt(
+                                       self,
                                        base_question: str,
                                        previous_questions: List[str],
-                                       patient_context: Dict[str, Any]) -> str:
+                                       patient_context: Dict[str, Any],
+                                       few_shot_examples: Optional[List[Dict[str, str]]] = None) -> str:
         """Build prompt for question variation."""
+        examples_section = self._format_few_shot_examples(few_shot_examples)
         return f"""
 Você precisa fazer uma pergunta sobre saúde, mas de forma que não pareça repetitiva.
 
 PERGUNTA BASE: {base_question}
 PERGUNTAS JÁ FEITAS: {chr(10).join(previous_questions[-5:]) if previous_questions else "Nenhuma pergunta anterior"}
 CONTEXTO DO PACIENTE: {json.dumps(patient_context, ensure_ascii=False)}
+
+{examples_section}
 
 Crie uma versão completamente diferente da pergunta que:
 1. Tenha o mesmo objetivo médico
@@ -290,7 +359,8 @@ Crie uma versão completamente diferente da pergunta que:
 NOVA PERGUNTA:
 """
 
-    def _build_sentiment_analysis_prompt(self,
+    def _build_sentiment_analysis_prompt(
+                                       self,
                                        response: str,
                                        patient_context: Dict[str, Any]) -> str:
         """Build prompt for sentiment analysis."""
@@ -314,17 +384,22 @@ Forneça uma análise no seguinte formato JSON:
 ANÁLISE:
 """
 
-    def _build_empathetic_response_prompt(self,
+    def _build_empathetic_response_prompt(
+                                        self,
                                         patient_response: str,
                                         conversation_history: List[str],
-                                        patient_context: Dict[str, Any]) -> str:
+                                        patient_context: Dict[str, Any],
+                                        few_shot_examples: Optional[List[Dict[str, str]]] = None) -> str:
         """Build prompt for empathetic response."""
+        examples_section = self._format_few_shot_examples(few_shot_examples)
         return f"""
 Um paciente de terapia hormonal acabou de responder algo. Você precisa criar uma resposta empática e de apoio.
 
 RESPOSTA DO PACIENTE: {patient_response}
 HISTÓRICO DA CONVERSA: {chr(10).join(conversation_history[-3:]) if conversation_history else "Primeira interação"}
 CONTEXTO: {json.dumps(patient_context, ensure_ascii=False)}
+
+{examples_section}
 
 Crie uma resposta que:
 1. Reconheça e valide os sentimentos do paciente

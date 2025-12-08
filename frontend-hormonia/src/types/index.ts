@@ -1,10 +1,67 @@
-// Main types index file
-export type { Patient as ApiPatient } from '../lib/types/api'
+// Main types index file - Centralized type exports
+// All types are now in /types/* (migrated from /lib/types/*)
+
+// Re-export from centralized api.ts
+export type { Patient as ApiPatient } from './api'
 export type { User as ApiUser } from '@/hooks/auth/types'
-export * from '../lib/types/ai'
-export type { FlowNode, FlowConnection, FlowValidationResult, ResponseType, FlowState, MessageTemplate, InteractiveElements, InteractiveOption, Condition, FollowUpAction, InboundMessage, ResponseResult, StructuredResponse, FlowAnalytics, DailyMetric, FlowEvent, FlowTransition, FlowStateMachine, FlowValidationError, FlowValidationWarning } from '../lib/types/flow'
-export * from '../lib/types/flow-designer'
-export type { WebSocketMessage as WSMessage } from '../lib/types/websocket'
+
+// AI types from api.ts
+export type {
+  ChatRole,
+  AIChatMessage,
+  ChatSession,
+  ChatResponse,
+  AIChatResponse,
+  AIRecommendation,
+  RecommendedAction,
+  PatientEngagementMetrics,
+  SentimentTrend,
+  AIAnalyticsDashboard,
+  PerformanceTrend,
+  AIFlowContext,
+  PatientPreferences,
+  AIGeneratedMessage,
+  AIEvent,
+  AIConfig,
+  AIError,
+  UseAIChatOptions,
+  UseAIAnalyticsOptions,
+  UseAIInsightsOptions,
+  AnalysisRequest,
+  AnalysisResult,
+  InsightType,
+  SentimentAnalysis,
+  SentimentLabel,
+  EmotionScores,
+  SeverityLevel,
+  HealthConcern,
+  QuizFindings,
+  TreatmentCompliance,
+  SummaryContent,
+  PatientSummaryResponse,
+  PatientSummaryListResponse,
+  GenerateSummaryRequest
+} from './api'
+
+// Flow types from api.ts
+export type {
+  FlowState,
+  MessageTemplate,
+  Condition,
+  InteractiveElements,
+  FollowUpAction,
+  ResponseResult,
+  FlowAnalytics,
+  DailyMetric
+} from './api'
+export { FlowType, FlowStatus, ResponseType } from './api'
+
+// Flow designer types from flow-designer.ts
+export * from './flow-designer'
+
+// WebSocket types from websocket.ts
+export type { WebSocketMessage as WSMessage } from './websocket'
+export * from './websocket'
 
 // Note: Core enums are available via imports from main types/api
 
@@ -33,6 +90,12 @@ export interface Patient {
   current_day?: number  // Add missing property for compatibility
   createdAt: string
   updatedAt: string
+  // FIX: doctor_id is REQUIRED in backend (patient.py line 57: nullable=False)
+  // Changed from optional to required to match backend schema
+  doctor_id: string
+  // FIX: Added missing flow_state field from backend (patient.py line 70)
+  // Backend: Enum(FlowState), nullable=False, default=ONBOARDING
+  flow_state: 'onboarding' | 'active' | 'paused' | 'completed' | 'cancelled'
 }
 
 export interface AlertMessage {

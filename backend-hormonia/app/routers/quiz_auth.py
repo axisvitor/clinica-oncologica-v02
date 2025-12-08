@@ -92,7 +92,7 @@ async def quiz_login(
         key="quiz_session",
         value=session_id,
         httponly=True,  # ✅ Prevents JavaScript access
-        secure=settings.SESSION_COOKIE_SECURE,  # ✅ HTTPS only in production
+        secure=settings.SESSION_ENABLE_COOKIE_SECURE,  # ✅ HTTPS only in production
         samesite="lax", # ✅ CSRF protection
         max_age=cookie_max_age,
         path="/",

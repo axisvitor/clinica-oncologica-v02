@@ -93,6 +93,10 @@ export interface RolePermissions {
   canManageFlows: boolean;
   canAccessAdmin: boolean;
   canManageSettings: boolean;
+  canImportPatients: boolean;
+  canAccessHiveMind: boolean;
+  canViewPhysicianDashboard: boolean;
+  canViewPhysicianPatients: boolean;
 }
 
 /**
@@ -107,6 +111,10 @@ export function getRolePermissions(role: string): RolePermissions {
       canManageFlows: false,
       canAccessAdmin: false,
       canManageSettings: false,
+      canImportPatients: false,
+      canAccessHiveMind: false,
+      canViewPhysicianDashboard: false,
+      canViewPhysicianPatients: false,
     };
   }
 
@@ -120,6 +128,10 @@ export function getRolePermissions(role: string): RolePermissions {
       canManageFlows: true,
       canAccessAdmin: true,
       canManageSettings: true,
+      canImportPatients: true,
+      canAccessHiveMind: true,
+      canViewPhysicianDashboard: true,
+      canViewPhysicianPatients: true,
     };
   }
 
@@ -131,6 +143,10 @@ export function getRolePermissions(role: string): RolePermissions {
       canManageFlows: false,
       canAccessAdmin: false,
       canManageSettings: false,
+      canImportPatients: true,
+      canAccessHiveMind: false,
+      canViewPhysicianDashboard: true,
+      canViewPhysicianPatients: true,
     };
   }
 
@@ -142,6 +158,10 @@ export function getRolePermissions(role: string): RolePermissions {
     canManageFlows: false,
     canAccessAdmin: false,
     canManageSettings: false,
+    canImportPatients: false,
+    canAccessHiveMind: false,
+    canViewPhysicianDashboard: false,
+    canViewPhysicianPatients: false,
   };
 }
 
@@ -191,7 +211,7 @@ export interface SoftDeletableEntity extends BaseEntity {
 /**
  * API response wrapper
  */
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   message?: string;
@@ -220,7 +240,7 @@ export interface ApiErrorResponse {
   error: string;
   message: string;
   status_code?: number;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
   timestamp?: string;
 }
 

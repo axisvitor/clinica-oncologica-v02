@@ -4,9 +4,9 @@ Monthly Quiz Configuration for Hormonia Backend System.
 This module provides configuration for the monthly quiz feature,
 which allows patients to access quizzes via a secure tokenized link.
 """
-from pydantic import Field
+from pydantic import Field, field_validator, HttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional
+from typing import Optional, Annotated
 
 
 class MonthlyQuizConfig(BaseSettings):
@@ -39,11 +39,51 @@ class MonthlyQuizConfig(BaseSettings):
         description="Fallback to WhatsApp conversational if link creation fails"
     )
 
-    # Base URL for quiz links
+    # Base URL for quiz links - validated as HttpUrl for security
     MONTHLY_QUIZ_BASE_URL: str = Field(
         default="https://quiz-interface-production.up.railway.app",
-        description="Base URL for monthly quiz access links"
+        description="Base URL for monthly quiz access links (must be valid HTTP/HTTPS URL)"
     )
+
+    @field_validator("MONTHLY_QUIZ_BASE_URL", mode="before")
+    @classmethod
+    def validate_base_url(cls, v: str) -> str:
+        """
+        Validate and normalize the base URL.
+
+        Ensures:
+        - URL has valid format (scheme, host)
+        - URL uses HTTP or HTTPS scheme
+        - Trailing slash is removed to prevent double slashes in generated links
+
+        Raises:
+            ValueError: If URL is invalid or uses unsupported scheme
+        """
+        if not v or not isinstance(v, str):
+            raise ValueError("MONTHLY_QUIZ_BASE_URL must be a non-empty string")
+
+        v = v.strip()
+
+        # Validate URL format using HttpUrl
+        try:
+            validated_url = HttpUrl(v)
+            url_str = str(validated_url)
+        except Exception as e:
+            raise ValueError(
+                f"MONTHLY_QUIZ_BASE_URL must be a valid URL. Got: '{v}'. Error: {e}"
+            )
+
+        # Ensure scheme is HTTP or HTTPS
+        if not url_str.startswith(("http://", "https://")):
+            raise ValueError(
+                f"MONTHLY_QUIZ_BASE_URL must use HTTP or HTTPS scheme. Got: '{v}'"
+            )
+
+        # Remove trailing slash to prevent double slashes in generated links
+        if url_str.endswith("/"):
+            url_str = url_str[:-1]
+
+        return url_str
 
     # Token configuration - REQUIRED, no default
     MONTHLY_QUIZ_TOKEN_SECRET: str = Field(

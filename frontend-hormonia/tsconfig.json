@@ -23,7 +23,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "~backend/*": ["../Backend/*"],
+      "~backend/*": ["../backend-hormonia/*"],
       "~backend/client": ["./client.ts"]
     },
     "types": ["react", "react-dom"],

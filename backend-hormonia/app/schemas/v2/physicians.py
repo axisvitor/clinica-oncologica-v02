@@ -5,7 +5,7 @@ Enhanced physician models with statistics, workload tracking, and patient assign
 
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
-from pydantic import BaseModel, Field, EmailStr, validator
+from pydantic import BaseModel, Field, EmailStr, field_validator, ConfigDict
 from enum import Enum
 
 from .common import CursorPaginatedResponse
@@ -51,8 +51,7 @@ class MessageStats(BaseModel):
     response_rate: float = Field(0.0, ge=0.0, le=1.0, description="Response rate (0-1)")
     avg_response_time_minutes: Optional[float] = Field(None, description="Average response time in minutes")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "total_sent": 245,
                 "total_received": 312,
@@ -60,7 +59,7 @@ class MessageStats(BaseModel):
                 "response_rate": 0.87,
                 "avg_response_time_minutes": 45.2
             }
-        }
+        })
 
 
 class AppointmentStats(BaseModel):
@@ -72,8 +71,7 @@ class AppointmentStats(BaseModel):
     upcoming: int = Field(0, description="Upcoming appointments")
     today: int = Field(0, description="Appointments today")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "total_scheduled": 156,
                 "completed": 142,
@@ -81,7 +79,7 @@ class AppointmentStats(BaseModel):
                 "upcoming": 6,
                 "today": 3
             }
-        }
+        })
 
 
 class AlertStats(BaseModel):
@@ -93,8 +91,7 @@ class AlertStats(BaseModel):
     medium: int = Field(0, description="Medium severity alerts")
     low: int = Field(0, description="Low severity alerts")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "total": 15,
                 "critical": 2,
@@ -102,7 +99,7 @@ class AlertStats(BaseModel):
                 "medium": 6,
                 "low": 2
             }
-        }
+        })
 
 
 class PhysicianStatistics(BaseModel):
@@ -133,8 +130,7 @@ class PhysicianStatistics(BaseModel):
     # Timestamps
     calculated_at: datetime = Field(default_factory=datetime.utcnow, description="When stats were calculated")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "total_patients": 45,
                 "active_patients": 38,
@@ -166,7 +162,7 @@ class PhysicianStatistics(BaseModel):
                 "avg_treatment_duration_days": 87.3,
                 "calculated_at": "2025-11-07T12:00:00Z"
             }
-        }
+        })
 
 
 # ============================================================================
@@ -184,7 +180,8 @@ class PhysicianBase(BaseModel):
     phone: Optional[str] = Field(None, max_length=20, description="Contact phone")
     bio: Optional[str] = Field(None, max_length=1000, description="Professional biography")
 
-    @validator("license_number")
+    @field_validator("license_number")
+    @classmethod
     def validate_license_number(cls, v):
         """Validate CRM format (Brazilian medical license)"""
         if v and not v.replace("-", "").replace("/", "").isalnum():
@@ -227,9 +224,9 @@ class PhysicianResponse(BaseModel):
     updated_at: datetime = Field(..., description="Last update timestamp")
     last_login: Optional[datetime] = Field(None, description="Last login timestamp")
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "email": "dr.maria@clinic.com",
@@ -249,6 +246,7 @@ class PhysicianResponse(BaseModel):
                 "last_login": "2025-11-07T08:30:00Z"
             }
         }
+    )
 
 
 class PhysicianUpdate(BaseModel):
@@ -262,22 +260,20 @@ class PhysicianUpdate(BaseModel):
     bio: Optional[str] = Field(None, max_length=1000)
     is_active: Optional[bool] = None
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "full_name": "Dr. Maria Santos Silva",
                 "specialties": ["oncology", "endocrinology"],
                 "phone": "+55 11 98765-4321",
                 "bio": "Especialista em oncologia com 15 anos de experiência"
             }
-        }
+        })
 
 
 class PhysicianList(CursorPaginatedResponse[PhysicianResponse]):
     """Paginated list of physicians"""
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "data": [
                     {
@@ -299,7 +295,7 @@ class PhysicianList(CursorPaginatedResponse[PhysicianResponse]):
                 "has_more": True,
                 "total": 12
             }
-        }
+        })
 
 
 # ============================================================================
@@ -317,8 +313,7 @@ class PhysicianFilter(BaseModel):
     is_active: Optional[bool] = Field(None, description="Filter by active status")
     search: Optional[str] = Field(None, min_length=1, description="Search by name or email")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "specialty": "oncology",
                 "status": "active",
@@ -328,7 +323,7 @@ class PhysicianFilter(BaseModel):
                 "is_active": True,
                 "search": "maria"
             }
-        }
+        })
 
 
 # ============================================================================
@@ -344,9 +339,9 @@ class PhysicianBrief(BaseModel):
     specialties: List[Specialty] = Field(default_factory=list)
     license_number: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "full_name": "Dr. Maria Santos",
@@ -355,3 +350,4 @@ class PhysicianBrief(BaseModel):
                 "license_number": "CRM/SP-123456"
             }
         }
+    )

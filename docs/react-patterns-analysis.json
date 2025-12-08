@@ -1,0 +1,100 @@
+{
+  "analysis_date": "2025-11-25",
+  "analyzer": "coder-agent",
+  "react_patterns": {
+    "hooks_usage": {
+      "built_in_hooks": {
+        "useState": "high_usage",
+        "useEffect": "moderate_usage",
+        "useCallback": 82,
+        "useMemo": "appropriate_usage",
+        "useContext": "good_usage",
+        "useRef": "moderate_usage"
+      },
+      "custom_hooks": {
+        "total": 45,
+        "notable_hooks": [
+          "useAI.ts - 741 lines, comprehensive AI integration",
+          "useOptimizedQuery.ts - Performance-focused queries",
+          "useFlowEngine.ts - 13 exported functions",
+          "useWebSocket.ts - Real-time communication",
+          "usePatientImport.ts - Domain-specific logic",
+          "useEnhancedAnalytics.ts - Business intelligence"
+        ],
+        "quality_score": 9.0,
+        "patterns_followed": [
+          "Single responsibility",
+          "Reusable logic extraction",
+          "TypeScript types included",
+          "Error handling included"
+        ]
+      }
+    },
+    "component_composition": {
+      "memo_usage": {
+        "components_memoized": 30,
+        "optimization_level": "good",
+        "examples": [
+          "QuestionarioCard",
+          "PatientCard",
+          "QuestionForm",
+          "QuestionariosStats"
+        ]
+      },
+      "composition_patterns": {
+        "feature_based": true,
+        "container_presentational": true,
+        "compound_components": true,
+        "higher_order_components": false
+      }
+    },
+    "state_management": {
+      "strategies": [
+        "React Query - Server state",
+        "Context API - Global auth state",
+        "Local State - Component-specific",
+        "Custom Hooks - Shared stateful logic"
+      ],
+      "context_usage": [
+        "AuthContext - 548 lines",
+        "MedicoAuthContext",
+        "OptimizedQueryProvider"
+      ],
+      "quality_score": 8.5
+    },
+    "performance_optimizations": {
+      "react_19_utilities": true,
+      "utilities_found": [
+        "useOptimizedTransition()",
+        "usePerformanceMonitoring()",
+        "useOptimizedState()",
+        "createSuspenseResource()",
+        "RailwayOptimizations"
+      ],
+      "react_query_optimization": {
+        "staleTime": "5 minutes",
+        "gcTime": "10 minutes",
+        "smart_retry_logic": true,
+        "refetchOnWindowFocus": false
+      },
+      "code_splitting": {
+        "lazy_routes": true,
+        "dynamic_imports": true
+      },
+      "quality_score": 9.5
+    }
+  },
+  "recommendations": {
+    "high_priority": [
+      "Continue using React.memo for expensive renders",
+      "Maintain custom hook patterns",
+      "Keep React Query optimization settings",
+      "Document complex custom hooks better"
+    ],
+    "medium_priority": [
+      "Add more unit tests for custom hooks",
+      "Consider React.useDeferredValue for heavy computations",
+      "Implement more code splitting boundaries"
+    ]
+  }
+}

@@ -73,3 +73,12 @@ QUIZ_MESSAGE_TYPES = {
     'QUIZ_ENCOURAGEMENT': 'quiz_encouragement',
     'QUIZ_COMPLETION': 'quiz_completion'
 }
+
+# Medical concern thresholds
+MEDICAL_CONCERN_THRESHOLDS = {
+    'pain_score': 7,  # Pain score >= 7 is high concern
+    'side_effects_severity': 'high',
+    'negative_mood_streak': 3, # 3 consecutive negative responses
+    'missed_medication_streak': 2,
+    'symptom_worsening': True
+}

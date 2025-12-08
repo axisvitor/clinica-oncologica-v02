@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 from app.config import settings
 from app.models.patient import Patient
-from app.coordination.saga_orchestrator import SagaOrchestrator, FlowKind
+from app.orchestration.saga_orchestrator import SagaOrchestrator, FlowKind
 from app.core.redis_client import get_redis_client
 from app.integrations.evolution import EvolutionClient
 from app.schemas.patient import PatientCreate

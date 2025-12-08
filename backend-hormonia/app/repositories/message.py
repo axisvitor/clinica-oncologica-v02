@@ -6,7 +6,7 @@ import logging
 
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, or_, desc, asc
 
 from app.models.message import Message, MessageDirection, MessageStatus, MessageType
 from app.repositories.base import BaseRepository
@@ -16,12 +16,82 @@ logger = logging.getLogger(__name__)
 
 
 class MessageRepository(BaseRepository[Message]):
-    """Repository for Message model with integrity validation"""
-
     def __init__(self, db: Session):
         super().__init__(db, Message)
+        # Initialize integrity service
+        # MessageIntegrityService is defined in this file
         self.integrity_service = MessageIntegrityService(db)
-    
+
+    def list_v2(
+        self,
+        filters: Dict,
+        cursor_data: Optional[Dict] = None,
+        limit: int = 20,
+        sort_order: str = "desc",
+        eager_load: bool = False
+    ) -> List[Message]:
+        """
+        List messages with cursor pagination and advanced filters.
+        """
+        query = self.db.query(Message)
+        
+        if eager_load:
+            query = query.options(joinedload(Message.patient))
+            
+        criteria = []
+        
+        if filters.get("patient_id"):
+            criteria.append(Message.patient_id == filters["patient_id"])
+            
+        if filters.get("status"):
+            criteria.append(Message.status == filters["status"])
+            
+        if filters.get("type"):
+            criteria.append(Message.type == filters["type"])
+            
+        if filters.get("direction"):
+            criteria.append(Message.direction == filters["direction"])
+            
+        if filters.get("start_date"):
+            criteria.append(Message.created_at >= filters["start_date"])
+            
+        if filters.get("end_date"):
+            criteria.append(Message.created_at <= filters["end_date"])
+            
+        # Cursor Pagination
+        if cursor_data and "id" in cursor_data:
+            from uuid import UUID
+            cid = UUID(cursor_data["id"])
+            cdate = cursor_data["created_at"]
+            # Assuming cdate is datetime object or handled before calling
+            if isinstance(cdate, str):
+                cdate = datetime.fromisoformat(cdate.replace("Z", "+00:00"))
+                
+            if sort_order == "desc":
+                criteria.append(
+                    or_(
+                        Message.created_at < cdate,
+                        and_(Message.created_at == cdate, Message.id < cid)
+                    )
+                )
+            else:
+                criteria.append(
+                    or_(
+                        Message.created_at > cdate,
+                        and_(Message.created_at == cdate, Message.id > cid)
+                    )
+                )
+                
+        if criteria:
+            query = query.filter(and_(*criteria))
+            
+        if sort_order == "desc":
+            query = query.order_by(Message.created_at.desc(), Message.id.desc())
+        else:
+            query = query.order_by(Message.created_at.asc(), Message.id.asc())
+            
+        return query.limit(limit + 1).all()
+
     def get_by_patient(self, patient_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[Message]:
         """
         Get messages by patient with eager loading.

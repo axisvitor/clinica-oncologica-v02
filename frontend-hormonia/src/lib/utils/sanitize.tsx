@@ -19,7 +19,8 @@
  */
 
 import React from 'react';
-import DOMPurify from 'dompurify';
+import DOMPurify from 'dompurify'
+import { logger } from '@/lib/logger';
 import type { Config } from 'dompurify';
 
 /**
@@ -101,7 +102,7 @@ export function sanitizeHtml(
 
     return clean;
   } catch (error) {
-    console.error('Error sanitizing HTML:', error);
+    logger.error('Error sanitizing HTML', error);
     return '';
   }
 }
@@ -127,7 +128,7 @@ export function sanitizeText(dirty: string | null | undefined): string {
   try {
     return DOMPurify.sanitize(dirty, STRICT_CONFIG as any) as unknown as string;
   } catch (error) {
-    console.error('Error sanitizing text:', error);
+    logger.error('Error sanitizing text', error);
     return '';
   }
 }
@@ -174,7 +175,7 @@ export function sanitizeUrl(url: string | null | undefined): string {
   // Block dangerous protocols
   const dangerousProtocols = ['javascript:', 'data:', 'vbscript:', 'file:'];
   if (dangerousProtocols.some((protocol) => trimmedUrl.startsWith(protocol))) {
-    console.warn('Blocked dangerous URL protocol:', url);
+    logger.warn('Blocked dangerous URL protocol', url);
     return '';
   }
 
@@ -183,7 +184,7 @@ export function sanitizeUrl(url: string | null | undefined): string {
   const isSafe = safeProtocols.some((protocol) => trimmedUrl.startsWith(protocol));
 
   if (!isSafe) {
-    console.warn('Blocked unsafe URL:', url);
+    logger.warn('Blocked unsafe URL', url);
     return '';
   }
 

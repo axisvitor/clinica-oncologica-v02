@@ -1,83 +1,16 @@
-// Quiz System Types - Aligned with Backend API
-//
-// IMPORTANT: Response types must match backend QuestionType enum
-// Valid values: multiple_choice, single_choice, open_text, scale, yes_no, date, number
-// Backend also accepts: boolean, rating (validated in quiz.py line 574-580)
+import type { QuizQuestion, QuestionType, QuizTemplate } from '@hormonia/shared-types'
 
-export enum QuestionType {
-  MULTIPLE_CHOICE = 'multiple_choice',
-  SINGLE_CHOICE = 'single_choice',
-  OPEN_TEXT = 'open_text',
-  SCALE = 'scale',
-  YES_NO = 'yes_no',
-  DATE = 'date',
-  NUMBER = 'number',
-  // Aliases for backend compatibility (validated by backend)
-  BOOLEAN = 'boolean',
-  RATING = 'rating'
-}
+// Import QuizSession from canonical source or shared types
+// For now, we'll use the shared type if available, or keep the local re-export pattern if it depends on api-client
+import type { QuizSession } from '@/lib/api-client/types'
 
-export interface ValidationRule {
-  type: string
-  value: string | number | boolean | any[]
-  message: string
-}
-
-export interface QuestionOption {
-  id: string
-  text: string
-  value: string | number
-  is_correct?: boolean
-}
-
-export interface QuizQuestion {
-  id: string
-  type: QuestionType
-  text: string
-  description?: string
-  required: boolean
-  options?: QuestionOption[]
-  validation_rules?: ValidationRule[]
-  metadata?: Record<string, any>
-}
-
-export interface QuizTemplate {
-  id: string
-  name: string
-  version: string
-  questions: QuizQuestion[]
-  is_active: boolean
-  created_at: string
-  updated_at: string
-}
-
-export interface QuizTemplateCreate {
-  name: string
-  version: string
-  questions: QuizQuestion[]
-  is_active?: boolean
-}
+export type { QuizSession }
 
 export interface QuizTemplateUpdate {
   name?: string
   version?: string
   questions?: QuizQuestion[]
   is_active?: boolean
-}
-
-export interface QuizSession {
-  id: string
-  patient_id: string
-  quiz_template_id: string
-  current_question_index: number
-  is_completed: boolean
-  started_at: string
-  completed_at?: string
-  // Enriched fields from service
-  patient_name?: string
-  template_name?: string
-  template_version?: string
-  score?: number
 }
 
 export interface QuizSessionCreate {
@@ -92,8 +25,12 @@ export interface QuizResponse {
   question_id: string
   question_text: string
   response_type: string
-  response_value: string
-  response_metadata: Record<string, any>
+  // FIX: Backend uses Text column that accepts any value, not just string
+  // Backend model (quiz.py line 191): Column(Text, nullable=False)
+  // Backend check constraint allows: multiple_choice, open_text, scale, boolean, rating, yes_no, number, date, single_choice
+  // Response value can be: string, number, boolean, array (for multiple_choice), object (for complex responses)
+  response_value: string | number | boolean | string[] | Record<string, unknown>
+  response_metadata: Record<string, unknown>
   responded_at: string
   created_at: string
 }
@@ -104,8 +41,11 @@ export interface QuizResponseCreate {
   question_id: string
   question_text: string
   response_type: QuestionType
-  response_value: string
-  response_metadata?: Record<string, any>
+  // FIX: Match QuizResponse type - backend accepts multiple value types
+  // Backend model (quiz.py line 191): Column(Text, nullable=False)
+  // Response value type depends on response_type: string for text, number for scale/rating, boolean for yes_no, array for multiple_choice
+  response_value: string | number | boolean | string[] | Record<string, unknown>
+  response_metadata?: Record<string, unknown>
   responded_at: string
 }
 
@@ -146,8 +86,9 @@ export interface QuizResponseWithContext {
   question_id: string
   question_text: string
   response_type: string
-  response_value: string
-  response_metadata: Record<string, any>
+  // FIX: Match QuizResponse type - backend accepts multiple value types
+  response_value: string | number | boolean | string[] | Record<string, unknown>
+  response_metadata: Record<string, unknown>
   other_text?: string
   responded_at: string
   created_at: string
@@ -179,7 +120,7 @@ export interface QuizSessionWithResponses {
   started_at: string
   completed_at?: string
   time_spent_seconds?: number
-  session_metadata: Record<string, any>
+  session_metadata: Record<string, unknown>
   // Template info
   template_name?: string
   template_version?: string
@@ -209,8 +150,8 @@ export interface QuizAnalytics {
   total_responses: number
   completion_rate: number
   average_completion_time?: number
-  question_analytics: Record<string, any>[]
-  trends: Record<string, any>
+  question_analytics: Record<string, unknown>[]
+  trends: Record<string, unknown>
 }
 
 export interface PatientQuizAnalytics {
@@ -218,8 +159,8 @@ export interface PatientQuizAnalytics {
   total_quizzes_completed: number
   completion_rate: number
   average_score?: number
-  recent_activity: Record<string, any>[]
-  trends: Record<string, any>
+  recent_activity: Record<string, unknown>[]
+  trends: Record<string, unknown>
 }
 
 export interface QuizValidationResult {

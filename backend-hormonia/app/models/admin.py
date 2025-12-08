@@ -2,7 +2,7 @@
 Pydantic models for admin endpoints.
 Provides response models for system statistics and administrative operations.
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Dict
 from datetime import datetime
 
@@ -43,8 +43,7 @@ class SystemStatsResponse(BaseModel):
     database: DatabaseMetrics = Field(..., description="Database statistics")
     timestamp: str = Field(..., description="ISO 8601 timestamp of data collection")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "system": {
                     "cpu_percent": 15.2,
@@ -68,4 +67,4 @@ class SystemStatsResponse(BaseModel):
                 },
                 "timestamp": "2025-10-06T14:30:00.000Z"
             }
-        }
+        })

@@ -200,7 +200,7 @@ class TestDetailedHealthEndpoint:
         self, client: TestClient, mock_auth_headers: dict
     ):
         """Test health scoring algorithm."""
-        from app.api.v2.health import calculate_health_score
+        from app.api.v2.routers.health import calculate_health_score
 
         # All healthy - should be 100
         all_healthy = {

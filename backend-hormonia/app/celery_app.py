@@ -6,6 +6,7 @@ import asyncio
 import logging
 from typing import Optional
 from celery import Celery
+from celery.schedules import crontab
 from celery.signals import worker_process_init, worker_process_shutdown
 from app.config import settings
 
@@ -19,9 +20,11 @@ celery_app = Celery(
     include=[
         "app.tasks.messaging",
         "app.tasks.flows",
+        "app.tasks.flow_automation",
         "app.tasks.reports",
         "app.tasks.alerts",
         "app.tasks.quiz_link_tasks",
+        "app.tasks.quiz_flow",
         "app.tasks.saga_retry",
         "app.tasks.saga_monitoring"
     ]
@@ -90,9 +93,15 @@ celery_app.conf.beat_schedule = {
         "kwargs": {"limit": 100}
     },
     "retry-failed-messages": {
-        "task": "retry_failed_messages", 
+        "task": "retry_failed_messages",
         "schedule": 300.0,  # Every 5 minutes
         "kwargs": {"limit": 50, "max_retries": 3}
+    },
+    # FIX: Welcome messages can get stuck in PENDING if WhatsApp fails during registration
+    "retry-pending-welcome-messages": {
+        "task": "retry_pending_welcome_messages",
+        "schedule": 600.0,  # Every 10 minutes
+        "kwargs": {"limit": 50, "min_age_minutes": 5, "max_age_hours": 24}
     },
     "cleanup-old-messages": {
         "task": "cleanup_old_messages",
@@ -166,6 +175,33 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.messaging.process_whatsapp_dlq",
         "schedule": 600.0,  # Every 10 minutes
         "kwargs": {"limit": 50}
+    },
+    # Quiz session expiration cleanup (HIGH-004)
+    "cleanup-expired-quiz-sessions": {
+        "task": "app.tasks.quiz_flow.cleanup_expired_quiz_sessions_task",
+        "schedule": 7200.0,  # Every 2 hours
+        "kwargs": {"max_age_hours": 48}
+    },
+    # Flow automation tasks (automatic patient engagement)
+    "check-pending-flows": {
+        "task": "flow_automation.check_and_start_pending_flows",
+        "schedule": 900.0,  # Every 15 minutes
+        "options": {"queue": "flows"}
+    },
+    "send-daily-reminders": {
+        "task": "flow_automation.send_daily_reminders",
+        "schedule": crontab(hour=9, minute=0),  # Daily at 9:00 AM UTC
+        "options": {"queue": "flows"}
+    },
+    "resume-paused-flows": {
+        "task": "flow_automation.resume_paused_flows",
+        "schedule": 21600.0,  # Every 6 hours
+        "options": {"queue": "flows"}
+    },
+    "cleanup-expired-quiz-links": {
+        "task": "flow_automation.cleanup_expired_quiz_links",
+        "schedule": 86400.0,  # Daily
+        "options": {"queue": "maintenance"}
     },
 }
 

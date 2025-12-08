@@ -64,9 +64,7 @@ def _check_patient_access(db: Session, current_user: User, patient_id: UUID) -> 
     if current_user.role == UserRole.DOCTOR and patient.doctor_id == current_user.id:
         return patient
 
-    # Patients can access their own data
-    if current_user.role == UserRole.PATIENT and patient.user_id == current_user.id:
-        return patient
+    # FIXED: Removed UserRole.PATIENT check - only ADMIN and DOCTOR roles exist
 
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,

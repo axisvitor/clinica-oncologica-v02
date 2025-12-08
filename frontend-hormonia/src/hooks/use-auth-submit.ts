@@ -1,7 +1,8 @@
 
 import { useState, useCallback } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/app/providers/AuthContext';
 import { createLogger } from '@/lib/logger';
+import { getErrorMessage } from '@/lib/utils/type-guards';
 
 const logger = createLogger('useAuthSubmit');
 
@@ -28,13 +29,12 @@ export function useAuthSubmit<T>({
         if (onSuccess) {
           onSuccess();
         }
-      } catch (err: any) {
-        logger.error('Authentication error', { error: err });
-        const errorMessage =
-          err.message || 'An unexpected error occurred. Please try again.';
+      } catch (err: unknown) {
+        logger.error('Authentication error', { error: getErrorMessage(err) });
+        const errorMessage = getErrorMessage(err) || 'An unexpected error occurred. Please try again.';
         setError(errorMessage);
         if (onError) {
-          onError(err);
+          onError(err instanceof Error ? err : new Error(getErrorMessage(err)));
         }
       } finally {
         setIsSubmitting(false);

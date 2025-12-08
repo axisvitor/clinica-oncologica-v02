@@ -7,7 +7,7 @@
  * Coverage target: >85% of session security functionality
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from '@jest/globals'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import '@testing-library/jest-dom'
@@ -16,17 +16,17 @@ import { quizAPI } from '@/lib/api'
 import type { QuizSession } from '@/types/quiz'
 
 // Mock the API module
-vi.mock('@/lib/api')
+jest.mock('@/lib/api')
 
 // Mock Next.js router
-vi.mock('next/navigation', () => ({
+jest.mock('next/navigation', () => ({
   useRouter: () => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    back: vi.fn(),
+    push: jest.fn(),
+    replace: jest.fn(),
+    back: jest.fn(),
   }),
   useSearchParams: () => ({
-    get: vi.fn((key) => key === 'token' ? 'valid-token-123' : null)
+    get: jest.fn((key) => key === 'token' ? 'valid-token-123' : null)
   })
 }))
 
@@ -37,8 +37,8 @@ Object.defineProperty(window, 'location', {
     origin: 'http://localhost:3000',
     pathname: '/quiz',
     search: '?token=valid-token-123',
-    replace: vi.fn(),
-    assign: vi.fn()
+    replace: jest.fn(),
+    assign: jest.fn()
   },
   writable: true
 })
@@ -78,11 +78,11 @@ const mockQuizSession: QuizSession = {
 }
 
 describe('Session Security Management', () => {
-  const mockOnComplete = vi.fn()
-  const mockOnTokenUpdate = vi.fn()
+  const mockOnComplete = jest.fn()
+  const mockOnTokenUpdate = jest.fn()
 
   beforeEach(() => {
-    vi.clearAllMocks()
+    jest.clearAllMocks()
     // Reset localStorage
     localStorage.clear()
     // Reset sessionStorage
@@ -93,7 +93,7 @@ describe('Session Security Management', () => {
 
   describe('Session Initialization Security', () => {
     it('should validate session before allowing quiz access', async () => {
-      const mockAccessQuiz = vi.mocked(quizAPI.accessQuiz)
+      const mockAccessQuiz = jest.mocked(quizAPI.accessQuiz)
       mockAccessQuiz.mockResolvedValueOnce(mockQuizSession)
 
       render(
@@ -116,7 +116,7 @@ describe('Session Security Management', () => {
         expires_at: 'invalid-date'
       }
 
-      const mockAccessQuiz = vi.mocked(quizAPI.accessQuiz)
+      const mockAccessQuiz = jest.mocked(quizAPI.accessQuiz)
       mockAccessQuiz.mockResolvedValueOnce(invalidSession)
 
       render(
@@ -132,7 +132,7 @@ describe('Session Security Management', () => {
     })
 
     it('should prevent session hijacking with different tokens', async () => {
-      const mockAccessQuiz = vi.mocked(quizAPI.accessQuiz)
+      const mockAccessQuiz = jest.mocked(quizAPI.accessQuiz)
       mockAccessQuiz.mockRejectedValueOnce(new Error('Session mismatch'))
 
       render(
@@ -168,7 +168,7 @@ describe('Session Security Management', () => {
     })
 
     it('should prevent concurrent session access', async () => {
-      const mockAccessQuiz = vi.mocked(quizAPI.accessQuiz)
+      const mockAccessQuiz = jest.mocked(quizAPI.accessQuiz)
       mockAccessQuiz.mockResolvedValue(mockQuizSession)
 
       // Render multiple instances with same token
@@ -234,7 +234,7 @@ describe('Session Security Management', () => {
       // Simulate missing session cookie
       document.cookie = ''
 
-      const mockSubmitAnswer = vi.mocked(quizAPI.submitAnswer)
+      const mockSubmitAnswer = jest.mocked(quizAPI.submitAnswer)
       mockSubmitAnswer.mockRejectedValueOnce(new Error('No valid session found'))
 
       const user = userEvent.setup()
@@ -277,7 +277,7 @@ describe('Session Security Management', () => {
 
   describe('Cross-Site Request Forgery (CSRF) Protection', () => {
     it('should include CSRF protection for form submissions', async () => {
-      const mockSubmitAnswer = vi.mocked(quizAPI.submitAnswer)
+      const mockSubmitAnswer = jest.mocked(quizAPI.submitAnswer)
       mockSubmitAnswer.mockResolvedValueOnce({
         success: true,
         message: 'Answer submitted successfully'
@@ -310,7 +310,7 @@ describe('Session Security Management', () => {
     })
 
     it('should handle CSRF token expiration', async () => {
-      const mockSubmitAnswer = vi.mocked(quizAPI.submitAnswer)
+      const mockSubmitAnswer = jest.mocked(quizAPI.submitAnswer)
       mockSubmitAnswer.mockRejectedValueOnce(new Error('CSRF token expired'))
 
       const user = userEvent.setup()
@@ -363,7 +363,7 @@ describe('Session Security Management', () => {
         writable: true
       })
 
-      const mockSubmitAnswer = vi.mocked(quizAPI.submitAnswer)
+      const mockSubmitAnswer = jest.mocked(quizAPI.submitAnswer)
       mockSubmitAnswer.mockRejectedValueOnce(new Error('Invalid referrer'))
 
       const user = userEvent.setup()
@@ -467,7 +467,7 @@ describe('Session Security Management', () => {
     })
 
     it('should invalidate session after completion', async () => {
-      const mockCompleteQuiz = vi.mocked(quizAPI.completeQuiz)
+      const mockCompleteQuiz = jest.mocked(quizAPI.completeQuiz)
       mockCompleteQuiz.mockResolvedValueOnce({
         success: true,
         message: 'Quiz completed successfully'
@@ -518,7 +518,7 @@ describe('Session Security Management', () => {
     })
 
     it('should clear form data from memory after submission', async () => {
-      const mockSubmitAnswer = vi.mocked(quizAPI.submitAnswer)
+      const mockSubmitAnswer = jest.mocked(quizAPI.submitAnswer)
       mockSubmitAnswer.mockResolvedValueOnce({
         success: true,
         message: 'Answer submitted'
@@ -593,7 +593,7 @@ describe('Session Security Management', () => {
 
   describe('Audit Trail and Security Logging', () => {
     it('should log security events for audit purposes', async () => {
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {})
 
       render(
         <QuizInterface
@@ -612,7 +612,7 @@ describe('Session Security Management', () => {
     })
 
     it('should not log sensitive information', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {})
 
       render(
         <QuizInterface
@@ -634,7 +634,7 @@ describe('Session Security Management', () => {
     })
 
     it('should track session lifecycle events', () => {
-      const trackingSpy = vi.fn()
+      const trackingSpy = jest.fn()
 
       // Mock analytics tracking
       ;(window as any).analytics = { track: trackingSpy }

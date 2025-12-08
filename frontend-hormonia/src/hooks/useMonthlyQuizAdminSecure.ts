@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '@/components/ui/use-toast'
 import { apiClient } from '@/lib/api-client'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/app/providers/AuthContext'
 import { quizPermissions, getPermissionErrorMessage } from '@/utils/quizPermissions'
+import type { DateRangeFilter } from './types'
 
 interface CreateQuizLinkData {
   patient_id: string
@@ -74,10 +75,11 @@ export function useMonthlyQuizAdminSecure() {
       queryClient.invalidateQueries({ queryKey: ['monthly-quiz-stats'] })
 
       return result
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro ao reenviar o link';
       toast({
         title: 'Erro ao reenviar link',
-        description: error.message || 'Ocorreu um erro ao reenviar o link',
+        description: errorMessage,
         variant: 'destructive'
       })
       throw error
@@ -108,10 +110,11 @@ export function useMonthlyQuizAdminSecure() {
       queryClient.invalidateQueries({ queryKey: ['monthly-quiz-stats'] })
 
       return result
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro ao cancelar o link';
       toast({
         title: 'Erro ao cancelar link',
-        description: error.message || 'Ocorreu um erro ao cancelar o link',
+        description: errorMessage,
         variant: 'destructive'
       })
       throw error
@@ -141,15 +144,18 @@ export function useMonthlyQuizAdminSecure() {
     if (!canViewStats) {
       throw new Error(getPermissionErrorMessage('view_quiz_stats', user?.role))
     }
-    
+
     const scope = quizPermissions.getQuizStatsScope(user)
-    const params: any = { start_date: dateFrom, end_date: dateTo }
-    
+    const params: DateRangeFilter & { doctor_id?: string } = {
+      start_date: dateFrom,
+      end_date: dateTo
+    }
+
     // Add scope filtering for doctors
     if (scope === 'own_patients' && user?.id) {
-      params.doctor_id = user['id']
+      params.doctor_id = user.id
     }
-    
+
     return await apiClient.monthlyQuiz.getStats(params)
   }
 
@@ -175,10 +181,11 @@ export function useMonthlyQuizAdminSecure() {
         queryClient.invalidateQueries({ queryKey: ['monthly-quiz-stats'] })
         queryClient.invalidateQueries({ queryKey: ['patients'] })
       },
-      onError: (error: any) => {
+      onError: (error: unknown) => {
+        const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro ao enviar o link';
         toast({
           title: 'Erro ao enviar link',
-          description: error.message || 'Ocorreu um erro ao enviar o link',
+          description: errorMessage,
           variant: 'destructive'
         })
       }
@@ -197,10 +204,11 @@ export function useMonthlyQuizAdminSecure() {
         queryClient.invalidateQueries({ queryKey: ['monthly-quiz-stats'] })
         queryClient.invalidateQueries({ queryKey: ['patients'] })
       },
-      onError: (error: any) => {
+      onError: (error: unknown) => {
+        const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro ao enviar os links';
         toast({
           title: 'Erro ao enviar links',
-          description: error.message || 'Ocorreu um erro ao enviar os links',
+          description: errorMessage,
           variant: 'destructive'
         })
       }
@@ -214,7 +222,7 @@ export function useMonthlyQuizAdminSecure() {
     canResendLinks,
     canCancelLinks,
     canPerformBulk,
-    
+
     // Functions
     sendQuizLink,
     sendBulkQuizLinks,
@@ -226,7 +234,7 @@ export function useMonthlyQuizAdminSecure() {
     useQuizStats,
     useSendQuizLinkMutation,
     useBulkSendQuizLinksMutation,
-    
+
     // User info for permission checks
     user,
     userScope: quizPermissions.getQuizStatsScope(user)

@@ -11,11 +11,10 @@ from uuid import UUID
 from dataclasses import dataclass
 from enum import Enum
 
-from sqlalchemy.orm import Session
 from sqlalchemy.exc import DatabaseError
 
 from app.services.patient import PatientIntegrityService
-from app.services.flow import FlowIntegrityService
+from app.domain.flows.core import FlowIntegrityService
 from app.repositories.message import MessageIntegrityService
 from app.models.patient import Patient
 from app.models.flow import PatientFlowState
@@ -67,7 +66,7 @@ class DataIntegrityMonitoringService:
     all integrity validation services and provides centralized monitoring.
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         self.db = db
         self.patient_integrity = PatientIntegrityService(db)
         self.flow_integrity = FlowIntegrityService(db)
@@ -597,7 +596,7 @@ class DataIntegrityMonitoringService:
 _integrity_monitoring_service: Optional[DataIntegrityMonitoringService] = None
 
 
-def get_integrity_monitoring_service(db: Session) -> DataIntegrityMonitoringService:
+def get_integrity_monitoring_service(db: Any) -> DataIntegrityMonitoringService:
     """
     Get data integrity monitoring service instance.
 

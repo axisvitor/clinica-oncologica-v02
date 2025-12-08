@@ -8,27 +8,25 @@ RUN apk add --no-cache curl
 
 # Install pnpm globally (more reliable than corepack)
 ENV NODE_ENV=production \
-    NEXT_TELEMETRY_DISABLED=1 \
-    PNPM_HOME="/pnpm" \
-    PATH="$PNPM_HOME:$PATH"
+  NEXT_TELEMETRY_DISABLED=1 \
+  PNPM_HOME="/pnpm" \
+  PATH="$PNPM_HOME:$PATH"
 RUN npm install -g pnpm@9.15.2
 
 # Set workdir
 WORKDIR /app
 
-# Install dependencies
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --prod=false
-
-# Copy source
-COPY . .
-
-# Build
-RUN pnpm build
+# Copy built application from the builder stage
+COPY --from=builder /app/quiz-mensal-interface/.next ./.next
+COPY --from=builder /app/quiz-mensal-interface/public ./public
+COPY --from=builder /app/quiz-mensal-interface/node_modules ./node_modules
+COPY --from=builder /app/quiz-mensal-interface/package.json ./package.json
+COPY --from=builder /app/quiz-mensal-interface/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=builder /app/quiz-mensal-interface/next.config.mjs ./next.config.mjs
 
 # Runtime env
 ENV PORT=3000 \
-    HOST=0.0.0.0
+  HOST=0.0.0.0
 
 # Expose port (Railway overrides PORT)
 EXPOSE 3000

@@ -237,8 +237,8 @@ def log_startup_info():
     logger.info("=" * 70)
     logger.info(f"Python: {sys.version.split()[0]}")
     logger.info(f"Platform: {platform.system()} {platform.release()}")
-    logger.info(f"Environment: {settings.ENVIRONMENT}")
-    logger.info(f"Debug Mode: {settings.DEBUG}")
+    logger.info(f"Environment: {settings.APP_ENVIRONMENT}")
+    logger.info(f"Debug Mode: {settings.APP_ENABLE_DEBUG}")
     logger.info(f"API Version: 2.0.0")
     logger.info("=" * 70)
 

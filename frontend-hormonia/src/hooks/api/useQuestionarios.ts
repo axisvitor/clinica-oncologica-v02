@@ -1,19 +1,21 @@
 import { useQuery, UseQueryResult } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 
+interface QuizTemplateAnalytics {
+  total_responses: number
+  completion_rate: number
+  average_completion_time?: number | null
+}
+
 interface QuizTemplate {
   id: string
   name: string
   version: string
-  questions: any[]
+  questions: unknown[]
   is_active: boolean
   created_at: string
   updated_at: string
-  analytics?: {
-    total_responses: number
-    completion_rate: number
-    average_completion_time?: number
-  }
+  analytics?: QuizTemplateAnalytics
 }
 
 interface UseQuestionariosOptions {
@@ -27,13 +29,13 @@ interface UseQuestionariosOptions {
 }
 
 interface QuestionariosResponse {
-  data: QuizTemplate[]
+  items: QuizTemplate[]
   total: number
   page: number
   size: number
 }
 
-export function useQuestionarios(options?: UseQuestionariosOptions): UseQueryResult<QuestionariosResponse> {
+export function useQuestionarios(options?: UseQuestionariosOptions) {
   const {
     search = '',
     type = 'all',
@@ -59,39 +61,41 @@ export function useQuestionarios(options?: UseQuestionariosOptions): UseQueryRes
 
       // Fetch templates
       const result = await apiClient.quizzes.listTemplates()
-      const resultData = (result as any)?.items || (Array.isArray(result) ? result : [])
+      type ResultType = { items?: QuizTemplate[] } | QuizTemplate[]
+      const resultData: QuizTemplate[] = ((result as ResultType) as { items?: QuizTemplate[] })?.items ||
+        (Array.isArray(result) ? result as QuizTemplate[] : [])
 
       // NOTE: Backend doesn't support server-side filtering yet,
       // so we do client-side for now but structure is ready for migration
-      let filtered = resultData
+      let filtered: QuizTemplate[] = resultData
 
       // Search filter
       if (search) {
-        filtered = filtered.filter((t: any) =>
+        filtered = filtered.filter((t: QuizTemplate) =>
           t.name.toLowerCase().includes(search.toLowerCase())
         )
       }
 
       // Type filter
       if (type !== 'all') {
-        filtered = filtered.filter((t: any) => {
+        filtered = filtered.filter((t: QuizTemplate) => {
           const templateType = t.name.toLowerCase().includes('medical') ||
-                             t.name.toLowerCase().includes('oncolog') ? 'medical' : 'wellness'
+            t.name.toLowerCase().includes('oncolog') ? 'medical' : 'wellness'
           return templateType === type
         })
       }
 
       // Status filter
       if (status !== 'all') {
-        filtered = filtered.filter((t: any) => {
+        filtered = filtered.filter((t: QuizTemplate) => {
           const isActive = t.is_active
           return (status === 'active' && isActive) || (status === 'inactive' && !isActive)
         })
       }
 
       // Sort
-      filtered.sort((a: any, b: any) => {
-        let aValue, bValue
+      filtered.sort((a: QuizTemplate, b: QuizTemplate) => {
+        let aValue: string | number | Date, bValue: string | number | Date
         switch (sortBy) {
           case 'name':
             aValue = a.name.toLowerCase()
@@ -116,25 +120,30 @@ export function useQuestionarios(options?: UseQuestionariosOptions): UseQueryRes
 
       // Fetch analytics for paginated templates
       const templatesWithAnalytics = await Promise.all(
-        paginatedData.map(async (template: any) => {
+        paginatedData.map(async (template: QuizTemplate) => {
           try {
-            const analytics = await (apiClient as any).quizzes.getTemplateAnalytics(template.id)
+            // Type-safe access to analytics endpoint
+            type QuizClient = typeof apiClient.quizzes & { getTemplateAnalytics?: (id: string) => Promise<QuizTemplate['analytics']> }
+            const quizClient = apiClient.quizzes as QuizClient
+            const analytics = quizClient.getTemplateAnalytics
+              ? await quizClient.getTemplateAnalytics(template.id)
+              : undefined
             return { ...template, analytics }
-          } catch (error) {
+          } catch {
             return {
               ...template,
               analytics: {
                 total_responses: 0,
                 completion_rate: 0,
                 average_completion_time: null
-              }
+              } as QuizTemplateAnalytics
             }
           }
         })
       )
 
       return {
-        data: templatesWithAnalytics,
+        items: templatesWithAnalytics,
         total,
         page,
         size

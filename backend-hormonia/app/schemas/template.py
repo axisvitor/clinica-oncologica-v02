@@ -4,7 +4,7 @@ Pydantic schemas for template management (flows and quizzes).
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 # ==================== Flow Template Schemas ====================
@@ -39,14 +39,14 @@ class FlowTemplateCreate(BaseModel):
     is_active: bool = Field(default=True, description="Whether template is active")
     is_draft: bool = Field(default=False, description="Whether template is draft")
 
-    @validator('steps')
+    @field_validator('steps')
+    @classmethod
     def validate_steps(cls, v):
         if not v:
             raise ValueError("steps cannot be empty")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "kind_key": "custom_flow",
                 "display_name": "Custom Patient Flow",
@@ -65,7 +65,7 @@ class FlowTemplateCreate(BaseModel):
                     "version": "1.0.0"
                 }
             }
-        }
+        })
 
 
 class FlowTemplateUpdate(BaseModel):
@@ -95,8 +95,7 @@ class FlowTemplateResponse(BaseModel):
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FlowTemplateListResponse(BaseModel):
@@ -128,7 +127,8 @@ class QuizQuestion(BaseModel):
     validation_rules: Optional[List[Dict[str, Any]]] = Field(None, description="Validation rules")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
-    @validator('type')
+    @field_validator('type')
+    @classmethod
     def validate_question_type(cls, v):
         valid_types = ['scale', 'multiple_choice', 'open_text', 'yes_no']
         if v not in valid_types:
@@ -149,14 +149,14 @@ class QuizTemplateCreate(BaseModel):
     randomize_questions: bool = Field(default=False, description="Whether to randomize question order")
     is_active: bool = Field(default=True, description="Whether quiz is active")
 
-    @validator('questions')
+    @field_validator('questions')
+    @classmethod
     def validate_questions(cls, v):
         if not v:
             raise ValueError("questions cannot be empty")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "name": "monthly_wellness_check",
                 "version": "1.0.0",
@@ -175,7 +175,7 @@ class QuizTemplateCreate(BaseModel):
                     }
                 ]
             }
-        }
+        })
 
 
 class QuizTemplateUpdate(BaseModel):
@@ -208,8 +208,7 @@ class QuizTemplateResponse(BaseModel):
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class QuizTemplateListResponse(BaseModel):
@@ -241,8 +240,7 @@ class FlowKindResponse(BaseModel):
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FlowKindListResponse(BaseModel):

@@ -1,0 +1,339 @@
+name: Pull Request Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# Prevent concurrent PR checks
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # PR Title Validation
+  validate-pr-title:
+    name: Validate PR Title
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check PR title format
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          requireScope: false
+          subjectPattern: ^(?![A-Z]).+$
+          subjectPatternError: |
+            The subject "{subject}" found in the pull request title "{title}"
+            didn't match the configured pattern. Please ensure that the subject
+            doesn't start with an uppercase character.
+
+  # Size Label
+  size-label:
+    name: Label PR by Size
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Add size label
+        uses: codelytv/pr-size-labeler@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          xs_label: 'size/xs'
+          xs_max_size: '10'
+          s_label: 'size/s'
+          s_max_size: '100'
+          m_label: 'size/m'
+          m_max_size: '500'
+          l_label: 'size/l'
+          l_max_size: '1000'
+          xl_label: 'size/xl'
+          fail_if_xl: 'false'
+
+  # Detect Breaking Changes
+  breaking-changes:
+    name: Detect Breaking Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for breaking changes
+        id: check
+        run: |
+          # Check PR title and body for BREAKING CHANGE
+          if echo "${{ github.event.pull_request.title }}" | grep -i "breaking"; then
+            echo "breaking=true" >> $GITHUB_OUTPUT
+          elif echo "${{ github.event.pull_request.body }}" | grep -i "BREAKING CHANGE"; then
+            echo "breaking=true" >> $GITHUB_OUTPUT
+          else
+            echo "breaking=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Add breaking change label
+        if: steps.check.outputs.breaking == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['breaking-change']
+            })
+
+  # Check for Migration Files
+  check-migrations:
+    name: Check Database Migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for new migrations
+        id: check
+        run: |
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q "backend-hormonia/alembic/versions/"; then
+            echo "has_migration=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_migration=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Add migration label
+        if: steps.check.outputs.has_migration == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['database-migration']
+            });
+
+            // Add comment with migration checklist
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## 🗄️ Database Migration Detected
+
+              Please ensure the following before merging:
+
+              - [ ] Migration has been tested locally
+              - [ ] Migration is reversible (has downgrade)
+              - [ ] Migration has been reviewed by DBA team
+              - [ ] Backup strategy is in place
+              - [ ] Migration tested on staging environment
+              - [ ] Performance impact assessed
+              - [ ] Data migration plan documented (if applicable)
+
+              **Migration file(s):**
+              \`\`\`
+              $(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep "alembic/versions/")
+              \`\`\`
+              `
+            });
+
+  # Check Test Coverage
+  test-coverage-check:
+    name: Test Coverage Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        working-directory: backend-hormonia
+        run: |
+          pip install pytest pytest-cov
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run tests with coverage
+        working-directory: backend-hormonia
+        run: |
+          pytest tests/ --cov=app --cov-report=xml --cov-report=term
+        continue-on-error: true
+
+      - name: Comment coverage report
+        uses: py-cov-action/python-coverage-comment-action@v3
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MINIMUM_GREEN: 80
+          MINIMUM_ORANGE: 70
+
+  # Check for Secrets
+  secrets-check:
+    name: Scan for Secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Lint PR Files
+  lint-changed-files:
+    name: Lint Changed Files
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed Python files
+        id: changed-py-files
+        uses: tj-actions/changed-files@v42
+        with:
+          files: |
+            backend-hormonia/**/*.py
+
+      - name: Lint Python files
+        if: steps.changed-py-files.outputs.any_changed == 'true'
+        run: |
+          pip install ruff
+          echo "${{ steps.changed-py-files.outputs.all_changed_files }}" | xargs ruff check
+
+      - name: Get changed TypeScript files
+        id: changed-ts-files
+        uses: tj-actions/changed-files@v42
+        with:
+          files: |
+            frontend-hormonia/**/*.{ts,tsx}
+
+      - name: Setup Node.js
+        if: steps.changed-ts-files.outputs.any_changed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Lint TypeScript files
+        if: steps.changed-ts-files.outputs.any_changed == 'true'
+        working-directory: frontend-hormonia
+        run: |
+          npm ci --prefer-offline
+          echo "${{ steps.changed-ts-files.outputs.all_changed_files }}" | xargs npm run lint
+
+  # PR Description Check
+  pr-description-check:
+    name: Check PR Description
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Validate PR description
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const body = pr.body || '';
+
+            // Check minimum description length
+            if (body.length < 50) {
+              core.setFailed('PR description is too short. Please provide a detailed description.');
+              return;
+            }
+
+            // Check for required sections (optional but recommended)
+            const hasWhatChanged = body.toLowerCase().includes('## what') || body.toLowerCase().includes('## changes');
+            const hasWhyChanged = body.toLowerCase().includes('## why') || body.toLowerCase().includes('## motivation');
+            const hasTestPlan = body.toLowerCase().includes('## test') || body.toLowerCase().includes('## testing');
+
+            if (!hasWhatChanged && !hasWhyChanged) {
+              core.warning('Consider adding "What changed" and "Why" sections to your PR description');
+            }
+
+  # Auto-assign Reviewers
+  auto-assign-reviewers:
+    name: Auto-assign Reviewers
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Assign reviewers based on files changed
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+
+            const reviewers = new Set();
+
+            files.forEach(file => {
+              // Backend files
+              if (file.filename.startsWith('backend-hormonia/')) {
+                reviewers.add('backend-team');
+              }
+              // Frontend files
+              if (file.filename.startsWith('frontend-hormonia/')) {
+                reviewers.add('frontend-team');
+              }
+              // Workflows
+              if (file.filename.startsWith('.github/workflows/')) {
+                reviewers.add('devops-team');
+              }
+              // Migrations
+              if (file.filename.includes('alembic/versions/')) {
+                reviewers.add('dba-team');
+              }
+            });
+
+            if (reviewers.size > 0) {
+              await github.rest.pulls.requestReviewers({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number,
+                team_reviewers: Array.from(reviewers)
+              });
+            }

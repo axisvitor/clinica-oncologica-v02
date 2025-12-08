@@ -1,0 +1,258 @@
+erDiagram
+    %% Auto-generated: 2025-11-25 11:47:10
+    %% Database Schema ER Diagram
+    %% Total Tables: 55
+
+    %% ==================== CORE DOMAIN ====================
+    
+    patients {
+        uuid id PK
+        uuid doctor_id FK
+        varchar phone 
+        varchar name 
+        varchar email 
+        date birth_date 
+        varchar treatment_type 
+        date treatment_start_date 
+        %% ... and 10 more columns
+    }
+
+    users {
+        uuid id PK
+        varchar email 
+        varchar hashed_password 
+        varchar full_name 
+        user_role role 
+        boolean is_active 
+        varchar firebase_uid 
+        auth_provider auth_provider 
+        %% ... and 9 more columns
+    }
+
+    user_profiles {
+        uuid id PK
+        uuid user_id FK
+        text bio 
+        varchar avatar_url 
+        varchar phone 
+        varchar specialty 
+        varchar license_number 
+        integer years_of_experience 
+        %% ... and 4 more columns
+    }
+
+    admin_users {
+        uuid id PK
+        varchar email 
+        varchar password_hash 
+        varchar first_name 
+        varchar last_name 
+        admin_role_type role 
+        varchar department 
+        varchar phone_number 
+        %% ... and 16 more columns
+    }
+
+    admin_roles {
+        uuid id PK
+        varchar name 
+        text description 
+        boolean is_system_role 
+        timestamptz created_at 
+        timestamptz updated_at 
+    }
+
+    admin_permissions {
+        uuid id PK
+        varchar name 
+        text description 
+        varchar category 
+        timestamptz created_at 
+    }
+
+    messages {
+        uuid id PK
+        uuid patient_id FK
+        message_direction direction 
+        message_type type 
+        text content 
+        jsonb message_metadata 
+        varchar whatsapp_id 
+        message_status status 
+        %% ... and 13 more columns
+    }
+
+    message_templates {
+        varchar name 
+        text content 
+        jsonb variables 
+        varchar message_type 
+        varchar media_url 
+        boolean is_active 
+        uuid id PK
+        timestamptz created_at 
+        %% ... and 1 more columns
+    }
+
+    flow_states {
+        uuid id PK
+        uuid patient_id FK
+        varchar flow_type 
+        integer current_step 
+        timestamptz started_at 
+        timestamptz completed_at 
+        jsonb state_data 
+        timestamptz created_at 
+        %% ... and 1 more columns
+    }
+
+    flow_messages {
+        uuid id PK
+        uuid flow_template_version_id FK
+        integer step_number 
+        varchar message_key 
+        text message_text 
+        varchar message_type 
+        jsonb buttons 
+        jsonb list_items 
+        %% ... and 3 more columns
+    }
+
+    quiz_templates {
+        uuid id PK
+        varchar name 
+        varchar version 
+        text description 
+        jsonb questions 
+        boolean is_active 
+        varchar category 
+        ARRAY tags 
+        %% ... and 5 more columns
+    }
+
+    quiz_sessions {
+        uuid id PK
+        uuid patient_id FK
+        uuid quiz_template_id FK
+        varchar status 
+        integer current_question 
+        integer total_questions 
+        integer answered_questions 
+        numeric score 
+        %% ... and 8 more columns
+    }
+
+    quiz_responses {
+        uuid id PK
+        uuid patient_id FK
+        uuid quiz_template_id FK
+        uuid quiz_session_id FK
+        varchar question_id 
+        text question_text 
+        varchar response_type 
+        text response_value_text_backup 
+        %% ... and 9 more columns
+    }
+
+    whatsapp_instances {
+        text id PK
+        text name 
+        text status 
+        text qr_code 
+        text webhook_url 
+        text phone_number 
+        text profile_name 
+        text profile_picture_url 
+        %% ... and 5 more columns
+    }
+
+    whatsapp_messages {
+        text id PK
+        text instance_name 
+        text chat_id 
+        text sender_id 
+        text recipient_id 
+        text message_type 
+        text content 
+        text media_url 
+        %% ... and 12 more columns
+    }
+
+    appointments {
+        uuid id PK
+        uuid patient_id FK
+        uuid doctor_id FK
+        varchar appointment_type 
+        varchar status 
+        timestamptz scheduled_at 
+        integer duration_minutes 
+        timestamptz completed_at 
+        %% ... and 6 more columns
+    }
+
+    alerts {
+        uuid id PK
+        uuid patient_id FK
+        varchar type 
+        alert_severity severity 
+        text message 
+        jsonb data 
+        boolean acknowledged 
+        uuid acknowledged_by FK
+        %% ... and 3 more columns
+    }
+
+    medical_reports {
+        uuid id PK
+        uuid patient_id FK
+        uuid generated_by FK
+        date period_start 
+        date period_end 
+        text summary 
+        jsonb insights 
+        jsonb charts_data 
+        %% ... and 5 more columns
+    }
+
+    audit_logs {
+        uuid id PK
+        varchar event_type 
+        varchar event_status 
+        uuid user_id FK
+        varchar user_email 
+        varchar firebase_uid 
+        inet ip_address 
+        varchar user_agent 
+        %% ... and 48 more columns
+    }
+
+
+    %% ==================== RELATIONSHIPS ====================
+    
+    %% Core relationships
+    patients ||--o{ messages : "receives"
+    patients ||--o{ flow_states : "has"
+    patients ||--o{ quiz_sessions : "completes"
+    patients ||--o{ appointments : "schedules"
+    patients ||--o{ alerts : "triggers"
+    
+    users ||--o{ patients : "manages"
+    users ||--|| user_profiles : "has"
+    
+    %% Admin relationships
+    admin_users ||--o{ admin_roles : "has"
+    admin_roles ||--o{ admin_permissions : "grants"
+    
+    %% Messaging
+    messages ||--o{ message_templates : "uses"
+    whatsapp_instances ||--o{ whatsapp_messages : "sends"
+    
+    %% Flows
+    flow_states ||--o{ flow_messages : "contains"
+    
+    %% Quiz
+    quiz_templates ||--o{ quiz_sessions : "spawns"
+    quiz_sessions ||--o{ quiz_responses : "collects"
+    
+    %% Medical
+    patients ||--o{ medical_reports : "has"

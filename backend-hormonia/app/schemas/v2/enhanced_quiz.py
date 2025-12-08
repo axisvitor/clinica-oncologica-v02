@@ -6,7 +6,7 @@ Advanced quiz models with branching logic, risk scoring, and adaptive flows.
 from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, model_validator, field_validator, ConfigDict
 from uuid import UUID
 
 from .common import CursorPaginatedResponse
@@ -60,21 +60,21 @@ class BranchingCondition(BaseModel):
     operator: str = Field(..., description="Comparison operator (eq, neq, gt, lt, gte, lte, in, contains)")
     value: Union[str, int, float, bool, List[Any]] = Field(..., description="Value to compare against")
 
-    @validator("operator")
+    @field_validator("operator")
+    @classmethod
     def validate_operator(cls, v):
         allowed = ["eq", "neq", "gt", "lt", "gte", "lte", "in", "contains"]
         if v not in allowed:
             raise ValueError(f"Operator must be one of: {allowed}")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "field": "pain_level",
                 "operator": "gte",
                 "value": 7
             }
-        }
+        })
 
 
 class BranchingRule(BaseModel):
@@ -86,14 +86,14 @@ class BranchingRule(BaseModel):
     skip_to_section: Optional[str] = Field(None, description="Skip to section if condition matches")
     show_alert: Optional[str] = Field(None, description="Alert message to display")
 
-    @validator("logic")
+    @field_validator("logic")
+    @classmethod
     def validate_logic(cls, v):
         if v not in ["AND", "OR"]:
             raise ValueError("Logic must be AND or OR")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "conditions": [
                     {"field": "pain_level", "operator": "gte", "value": 7}
@@ -102,7 +102,7 @@ class BranchingRule(BaseModel):
                 "next_question_id": "q_pain_followup",
                 "show_alert": "High pain level detected - immediate follow-up recommended"
             }
-        }
+        })
 
 
 class QuizQuestion(BaseModel):
@@ -120,7 +120,8 @@ class QuizQuestion(BaseModel):
     branching_rules: Optional[List[BranchingRule]] = Field(None, description="Branching logic rules")
     risk_factors: Optional[Dict[str, float]] = Field(None, description="Risk factor mappings")
 
-    @validator("options")
+    @field_validator("options")
+    @classmethod
     def validate_options(cls, v, values):
         question_type = values.get("question_type")
         if question_type in [QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE]:
@@ -128,8 +129,7 @@ class QuizQuestion(BaseModel):
                 raise ValueError("Choice questions require at least 2 options")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "id": "q1_pain_assessment",
                 "question_text": "How would you rate your pain level today?",
@@ -148,7 +148,7 @@ class QuizQuestion(BaseModel):
                     "high_pain": 0.8
                 }
             }
-        }
+        })
 
 
 class AdvancedQuizTemplate(BaseModel):
@@ -170,7 +170,8 @@ class AdvancedQuizTemplate(BaseModel):
     risk_thresholds: Optional[Dict[str, float]] = Field(None, description="Risk level thresholds")
     adaptive_flow_enabled: bool = Field(default=False, description="Enable adaptive question flow")
 
-    @validator("questions")
+    @field_validator("questions")
+    @classmethod
     def validate_questions(cls, v):
         if not v:
             raise ValueError("Template must have at least one question")
@@ -180,8 +181,7 @@ class AdvancedQuizTemplate(BaseModel):
             raise ValueError("Question IDs must be unique")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "title": "Comprehensive Pain Assessment",
                 "description": "Advanced pain assessment with adaptive flow",
@@ -200,7 +200,7 @@ class AdvancedQuizTemplate(BaseModel):
                 "risk_scoring_enabled": True,
                 "adaptive_flow_enabled": True
             }
-        }
+        })
 
 
 class QuizAnalyticsTrend(BaseModel):
@@ -212,8 +212,7 @@ class QuizAnalyticsTrend(BaseModel):
     completion_rate: float = Field(ge=0, le=100, description="Completion rate percentage")
     average_score: Optional[float] = Field(None, ge=0, description="Average score")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "date": "2025-01-01",
                 "total_sessions": 150,
@@ -221,7 +220,7 @@ class QuizAnalyticsTrend(BaseModel):
                 "completion_rate": 90.0,
                 "average_score": 78.5
             }
-        }
+        })
 
 
 class QuizAnalyticsResponse(BaseModel):
@@ -237,8 +236,7 @@ class QuizAnalyticsResponse(BaseModel):
     risk_distribution: Dict[str, int] = Field(default_factory=dict, description="Risk level distribution")
     top_templates: List[Dict[str, Any]] = Field(default_factory=list, description="Most used templates")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "total_sessions": 500,
                 "completed_sessions": 450,
@@ -256,7 +254,7 @@ class QuizAnalyticsResponse(BaseModel):
                     "high": 50
                 }
             }
-        }
+        })
 
 
 class AdaptiveQuizFlowRequest(BaseModel):
@@ -267,8 +265,7 @@ class AdaptiveQuizFlowRequest(BaseModel):
     response_value: Union[str, int, float, bool, List[Any]] = Field(..., description="Response value")
     response_metadata: Optional[Dict[str, Any]] = Field(None, description="Additional response metadata")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "session_id": "123e4567-e89b-12d3-a456-426614174000",
                 "current_question_id": "q1_pain_level",
@@ -277,7 +274,7 @@ class AdaptiveQuizFlowRequest(BaseModel):
                     "answered_at": "2025-01-17T15:00:00Z"
                 }
             }
-        }
+        })
 
 
 class AdaptiveQuizFlowResponse(BaseModel):
@@ -289,8 +286,7 @@ class AdaptiveQuizFlowResponse(BaseModel):
     progress_percentage: float = Field(ge=0, le=100, description="Completion progress")
     estimated_remaining_minutes: Optional[int] = Field(None, description="Estimated time remaining")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "next_question": {
                     "id": "q2_pain_location",
@@ -303,7 +299,7 @@ class AdaptiveQuizFlowResponse(BaseModel):
                 "progress_percentage": 25.0,
                 "estimated_remaining_minutes": 8
             }
-        }
+        })
 
 
 class RiskScore(BaseModel):
@@ -316,8 +312,7 @@ class RiskScore(BaseModel):
     urgent_actions: List[str] = Field(default_factory=list, description="Urgent actions needed")
     confidence_score: float = Field(ge=0, le=1, description="Confidence in risk assessment")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "overall_risk_level": "high",
                 "risk_score": 78.5,
@@ -330,7 +325,7 @@ class RiskScore(BaseModel):
                 "urgent_actions": ["Contact physician within 24 hours"],
                 "confidence_score": 0.85
             }
-        }
+        })
 
 
 class RiskScoringRequest(BaseModel):
@@ -341,14 +336,13 @@ class RiskScoringRequest(BaseModel):
     lookback_days: int = Field(default=30, ge=1, le=365, description="Days to look back for data")
     include_historical: bool = Field(default=True, description="Include historical data")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
                 "lookback_days": 30,
                 "include_historical": True
             }
-        }
+        })
 
 
 class RiskScoringResponse(BaseModel):
@@ -360,8 +354,7 @@ class RiskScoringResponse(BaseModel):
     trend: str = Field(..., description="Risk trend (improving, stable, worsening)")
     historical_scores: List[Dict[str, Any]] = Field(default_factory=list, description="Historical risk scores")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
                 "assessment_date": "2025-01-17T15:00:00Z",
@@ -376,7 +369,7 @@ class RiskScoringResponse(BaseModel):
                 "trend": "worsening",
                 "historical_scores": []
             }
-        }
+        })
 
 
 class QuizRecommendation(BaseModel):
@@ -389,8 +382,7 @@ class QuizRecommendation(BaseModel):
     reason: str = Field(..., description="Reason for recommendation")
     due_date: Optional[datetime] = Field(None, description="Recommended due date")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "template_id": "223e4567-e89b-12d3-a456-426614174001",
                 "template_title": "Pain Management Follow-up",
@@ -399,7 +391,7 @@ class QuizRecommendation(BaseModel):
                 "reason": "Previous quiz indicated high pain levels",
                 "due_date": "2025-01-24T15:00:00Z"
             }
-        }
+        })
 
 
 class QuizRecommendationsResponse(BaseModel):
@@ -409,14 +401,13 @@ class QuizRecommendationsResponse(BaseModel):
     recommendations: List[QuizRecommendation] = Field(..., description="List of recommendations")
     total_recommendations: int = Field(ge=0, description="Total number of recommendations")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
                 "recommendations": [],
                 "total_recommendations": 3
             }
-        }
+        })
 
 
 class PerformanceMetric(BaseModel):
@@ -428,8 +419,7 @@ class PerformanceMetric(BaseModel):
     change_percentage: Optional[float] = Field(None, description="Percentage change")
     trend: str = Field(..., description="Trend direction (up, down, stable)")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "metric_name": "completion_rate",
                 "current_value": 92.5,
@@ -437,7 +427,7 @@ class PerformanceMetric(BaseModel):
                 "change_percentage": 5.1,
                 "trend": "up"
             }
-        }
+        })
 
 
 class PerformanceMetricsResponse(BaseModel):
@@ -448,8 +438,7 @@ class PerformanceMetricsResponse(BaseModel):
     metrics: List[PerformanceMetric] = Field(..., description="List of metrics")
     insights: List[str] = Field(default_factory=list, description="Key insights")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "period_start": "2025-01-01T00:00:00Z",
                 "period_end": "2025-01-31T23:59:59Z",
@@ -459,7 +448,7 @@ class PerformanceMetricsResponse(BaseModel):
                     "Average response time decreased"
                 ]
             }
-        }
+        })
 
 
 class BulkQuizOperation(BaseModel):
@@ -471,24 +460,23 @@ class BulkQuizOperation(BaseModel):
     update_data: Optional[Dict[str, Any]] = Field(None, description="Update data for update operation")
     scheduled_for: Optional[datetime] = Field(None, description="Schedule time for operations")
 
-    @validator("operation")
+    @field_validator("operation")
+    @classmethod
     def validate_operation(cls, v):
         allowed = ["assign", "delete", "update"]
         if v not in allowed:
             raise ValueError(f"Operation must be one of: {allowed}")
         return v
 
-    @root_validator(skip_on_failure=True)
-    def validate_operation_data(cls, values):
-        operation = values.get("operation")
-        if operation == "assign" and not values.get("template_id"):
+    @model_validator(mode='after')
+    def validate_operation_data(self):
+        if self.operation == "assign" and not self.template_id:
             raise ValueError("template_id required for assign operation")
-        if operation == "update" and not values.get("update_data"):
+        if self.operation == "update" and not self.update_data:
             raise ValueError("update_data required for update operation")
-        return values
+        return self
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "operation": "assign",
                 "patient_ids": [
@@ -498,7 +486,7 @@ class BulkQuizOperation(BaseModel):
                 "template_id": "323e4567-e89b-12d3-a456-426614174002",
                 "scheduled_for": "2025-01-20T09:00:00Z"
             }
-        }
+        })
 
 
 class BulkOperationResponse(BaseModel):
@@ -512,8 +500,7 @@ class BulkOperationResponse(BaseModel):
     failed: int = Field(default=0, ge=0, description="Failed operations")
     errors: List[str] = Field(default_factory=list, description="Error messages")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "job_id": "bulk-quiz-123e4567",
                 "operation": "assign",
@@ -523,7 +510,7 @@ class BulkOperationResponse(BaseModel):
                 "failed": 2,
                 "errors": ["Patient not found: 123e4567-e89b-12d3-a456-426614174099"]
             }
-        }
+        })
 
 
 class QuizExportRequest(BaseModel):
@@ -537,15 +524,15 @@ class QuizExportRequest(BaseModel):
     include_responses: bool = Field(default=True, description="Include response details")
     include_analytics: bool = Field(default=False, description="Include analytics")
 
-    @validator("format")
+    @field_validator("format")
+    @classmethod
     def validate_format(cls, v):
         allowed = ["pdf", "csv", "json", "xlsx"]
         if v not in allowed:
             raise ValueError(f"Format must be one of: {allowed}")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "format": "pdf",
                 "start_date": "2025-01-01T00:00:00Z",
@@ -553,7 +540,7 @@ class QuizExportRequest(BaseModel):
                 "include_responses": True,
                 "include_analytics": True
             }
-        }
+        })
 
 
 class QuizExportResponse(BaseModel):
@@ -566,8 +553,7 @@ class QuizExportResponse(BaseModel):
     expires_at: Optional[datetime] = Field(None, description="URL expiration time")
     file_size_bytes: Optional[int] = Field(None, description="File size in bytes")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "export_id": "export-123e4567",
                 "format": "pdf",
@@ -576,7 +562,7 @@ class QuizExportResponse(BaseModel):
                 "expires_at": "2025-01-24T15:00:00Z",
                 "file_size_bytes": 2048576
             }
-        }
+        })
 
 
 # Paginated responses

@@ -2,20 +2,132 @@
 Cursor Pagination Tests for Quiz API v2
 Tests to prevent SQL type errors and pagination bugs.
 
-TODO: Implement these tests before production deployment.
 Priority: P1 - High
 """
 import pytest
 from fastapi.testclient import TestClient
 from datetime import datetime, timedelta
+from uuid import uuid4
 import base64
 import json
+
+from app.models.quiz import QuizSession, QuizTemplate
+from app.models.patient import Patient
+from app.models.user import User, UserRole
+
+
+# ============================================================================
+# Fixtures for Pagination Testing
+# ============================================================================
+
+@pytest.fixture
+def auth_token(auth_headers: dict) -> str:
+    """
+    Alias for auth_headers to return just the token string.
+    """
+    return auth_headers["Authorization"].split(" ", 1)[1]
+
+
+@pytest.fixture
+def quiz_template(db_session, test_user: User) -> QuizTemplate:
+    """Create a quiz template for session testing."""
+    template = QuizTemplate(
+        id=uuid4(),
+        name="Test Quiz Template",
+        version="1.0",
+        questions=[
+            {
+                "id": "q1",
+                "text": "How are you feeling today?",
+                "type": "scale",
+                "options": [1, 2, 3, 4, 5]
+            },
+            {
+                "id": "q2",
+                "text": "Any symptoms?",
+                "type": "multiple_choice",
+                "options": ["None", "Mild", "Moderate", "Severe"]
+            }
+        ],
+        is_active=True,
+        category="wellness",
+        created_at=datetime.utcnow()
+    )
+    db_session.add(template)
+    db_session.commit()
+    db_session.refresh(template)
+    return template
+
+
+@pytest.fixture
+def create_quiz_sessions(db_session, test_user: User, quiz_template: QuizTemplate):
+    """
+    Create 25+ quiz sessions for pagination testing.
+
+    Each session has a different created_at timestamp to test ordering.
+    """
+    from tests.conftest import create_test_patient
+
+    # Create a patient for the sessions
+    patient = create_test_patient(
+        db_session,
+        doctor=test_user,
+        name="Pagination Test Patient"
+    )
+
+    sessions = []
+    base_time = datetime.utcnow()
+
+    for i in range(30):  # Create 30 sessions
+        session = QuizSession(
+            id=uuid4(),
+            patient_id=patient.id,
+            quiz_template_id=quiz_template.id,
+            status="completed" if i % 3 != 0 else "started",
+            current_question=2,
+            total_questions=2,
+            answered_questions=2 if i % 3 != 0 else 1,
+            started_at=base_time - timedelta(hours=i),
+            completed_at=base_time - timedelta(hours=i, minutes=-30) if i % 3 != 0 else None,
+            created_at=base_time - timedelta(hours=i),  # Different timestamps
+        )
+        db_session.add(session)
+        sessions.append(session)
+
+    db_session.commit()
+    return sessions
+
+
+@pytest.fixture
+def create_patients(db_session, test_user: User):
+    """
+    Create 25+ patients for pagination testing.
+
+    Each patient has a different created_at timestamp to test ordering.
+    """
+    patients = []
+    base_time = datetime.utcnow()
+
+    for i in range(30):  # Create 30 patients
+        patient = Patient(
+            id=uuid4(),
+            name=f"Pagination Patient {i}",
+            email=f"pagination_patient_{i}_{uuid4().hex[:6]}@test.com",
+            phone=f"1199999{str(i).zfill(4)}",
+            doctor_id=test_user.id,
+            created_at=base_time - timedelta(hours=i),  # Different timestamps
+            updated_at=base_time - timedelta(hours=i),
+        )
+        db_session.add(patient)
+        patients.append(patient)
+
+    db_session.commit()
+    return patients
 
 
 class TestQuizCursorPagination:
     """Test cursor-based pagination for quiz endpoints."""
     
-    @pytest.mark.skip(reason="TODO: Implement before deployment")
     def test_quiz_pagination_with_cursor(
         self,
         client: TestClient,
@@ -75,7 +187,6 @@ class TestQuizCursorPagination:
         page2_ids = {q["id"] for q in page2["data"]}
         assert page1_ids.isdisjoint(page2_ids)
     
-    @pytest.mark.skip(reason="TODO: Implement before deployment")
     def test_quiz_pagination_empty_cursor(
         self,
         client: TestClient,
@@ -94,7 +205,6 @@ class TestQuizCursorPagination:
         assert "data" in response.json()
         assert "next_cursor" in response.json()
     
-    @pytest.mark.skip(reason="TODO: Implement before deployment")
     def test_quiz_pagination_invalid_cursor(
         self,
         client: TestClient,
@@ -132,59 +242,66 @@ class TestQuizCursorPagination:
         )
         assert response.status_code == 400
     
-    @pytest.mark.skip(reason="TODO: Implement before deployment")
     def test_quiz_pagination_tie_breaking(
         self,
         client: TestClient,
         auth_token: str,
-        db
+        db_session,
+        test_user,
+        quiz_template
     ):
         """
         Test tie-breaking when multiple records have same created_at.
-        
+
         Setup:
         - Create 3 quiz sessions with EXACTLY the same created_at timestamp
         - Use different IDs (UUID) for each
-        
+
         Test:
         - Verify all 3 appear in results
         - Verify correct ordering (created_at DESC, id ASC)
         - Verify no records are skipped
         """
-        from app.models.quiz import QuizSession
-        from uuid import uuid4
-        
+        from tests.conftest import create_test_patient
+
         now = datetime.utcnow()
-        
+
+        # Create a patient for the sessions
+        patient = create_test_patient(
+            db_session,
+            doctor=test_user,
+            name="Tie Breaking Test Patient"
+        )
+
         # Create 3 sessions with same timestamp
         session_ids = []
         for i in range(3):
             session = QuizSession(
                 id=uuid4(),
-                patient_id=uuid4(),
-                quiz_template_id=uuid4(),
+                patient_id=patient.id,
+                quiz_template_id=quiz_template.id,
                 status="started",
+                started_at=now,
                 created_at=now  # SAME timestamp
             )
-            db.add(session)
+            db_session.add(session)
             session_ids.append(str(session.id))
-        db.commit()
-        
+        db_session.commit()
+
         # Fetch all
         response = client.get(
             "/api/v2/quiz?limit=100",
             headers={"Authorization": f"Bearer {auth_token}"}
         )
-        
+
         assert response.status_code == 200
         data = response.json()["data"]
         result_ids = [q["id"] for q in data]
-        
+
         # All 3 should be present
         for session_id in session_ids:
             assert session_id in result_ids
     
-    @pytest.mark.skip(reason="TODO: Implement before deployment")
     def test_quiz_pagination_descending_order(
         self,
         client: TestClient,
@@ -211,7 +328,6 @@ class TestQuizCursorPagination:
         for i in range(len(created_at_list) - 1):
             assert created_at_list[i] >= created_at_list[i + 1]
     
-    @pytest.mark.skip(reason="TODO: Implement before deployment")
     def test_patients_pagination_with_cursor(
         self,
         client: TestClient,
@@ -250,14 +366,3 @@ class TestQuizCursorPagination:
             assert page1_ids.isdisjoint(page2_ids)
 
 
-# Fixtures to implement
-@pytest.fixture
-def create_quiz_sessions(db, patient):
-    """TODO: Create 25+ quiz sessions for pagination testing"""
-    raise NotImplementedError("Create quiz sessions fixture")
-
-
-@pytest.fixture
-def create_patients(db, doctor_user):
-    """TODO: Create 25+ patients for pagination testing"""
-    raise NotImplementedError("Create patients fixture")

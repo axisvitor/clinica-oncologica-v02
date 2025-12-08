@@ -89,6 +89,7 @@ class Message(BaseModel):
         UUID(as_uuid=True),
         ForeignKey("patients.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
 
     # Message details

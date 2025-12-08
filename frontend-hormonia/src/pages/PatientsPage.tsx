@@ -3,16 +3,16 @@ import { Plus, ListFilter as Filter, Grid2x2 as Grid, List } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { LoadingSpinner } from '../components/ui/loading-spinner'
-import { PatientsTable } from '../components/patients/PatientsTable'
-import { PatientsFilters } from '../components/patients/PatientsFilters'
-import { CreatePatientDialog } from '../components/patients/CreatePatientDialog'
-import { EditPatientDialog } from '../components/patients/EditPatientDialog'
-import { PatientStats } from '../components/patients/PatientStats'
-import { PatientCard } from '../components/patients/PatientCard'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { PatientsTable } from '@/features/patients/PatientsTable'
+import { PatientsFilters } from '@/features/patients/PatientsFilters'
+import { CreatePatientDialog, EditPatientDialog } from '@/features/patients/dialogs'
+import { PatientStats } from '@/features/patients/PatientStats'
+import { PatientCard } from '@/features/patients/PatientCard'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { usePatients, useTreatmentTypes } from '../hooks/usePatients'
-import type { PatientFilters } from '../hooks/usePatients'
+import { usePatients, useTreatmentTypes } from '@/hooks/usePatients'
+import type { PatientFilters } from '@/hooks/usePatients'
+import type { Patient } from '@/types/api'
 
 export function PatientsPage() {
   const navigate = useNavigate()
@@ -20,7 +20,7 @@ export function PatientsPage() {
   const [activeTab, setActiveTab] = useState('all')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
-  const [editingPatient, setEditingPatient] = useState<any>(null)
+  const [editingPatient, setEditingPatient] = useState<Patient | null>(null)
   const [showFilters, setShowFilters] = useState(false)
 
   // Use the patients hook for data fetching and filter management
@@ -100,12 +100,12 @@ export function PatientsPage() {
     updateFilter('page', pageNum)
   }
 
-  const handleEditPatient = (patient: any) => {
+  const handleEditPatient = (patient: Patient) => {
     setEditingPatient(patient)
     setShowEditDialog(true)
   }
 
-  const handleMessagePatient = (patient: any) => {
+  const handleMessagePatient = (patient: Patient) => {
     // Navigate to messages page with patient selected
     navigate(`/messages?patient=${patient.id}`)
   }
@@ -249,7 +249,7 @@ export function PatientsPage() {
                 />
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {patients.map((patient: any) => (
+                  {patients.map((patient) => (
                     <PatientCard
                       key={patient.id}
                       patient={patient}
@@ -304,7 +304,7 @@ export function PatientsPage() {
                 />
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {patients.map((patient: any) => (
+                  {patients.map((patient) => (
                     <PatientCard
                       key={patient.id}
                       patient={patient}
@@ -359,7 +359,7 @@ export function PatientsPage() {
                 />
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {patients.map((patient: any) => (
+                  {patients.map((patient) => (
                     <PatientCard
                       key={patient.id}
                       patient={patient}
@@ -414,7 +414,7 @@ export function PatientsPage() {
                 />
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {patients.map((patient: any) => (
+                  {patients.map((patient) => (
                     <PatientCard
                       key={patient.id}
                       patient={patient}
@@ -469,7 +469,7 @@ export function PatientsPage() {
                 />
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {patients.map((patient: any) => (
+                  {patients.map((patient) => (
                     <PatientCard
                       key={patient.id}
                       patient={patient}

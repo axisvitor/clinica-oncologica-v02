@@ -31,7 +31,7 @@ from typing import Dict, List, Optional, Set, Tuple, Union, Any
 from uuid import uuid4
 
 import jwt
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.core.redis_unified import get_redis_client
 from app.core.security_config import get_security_config

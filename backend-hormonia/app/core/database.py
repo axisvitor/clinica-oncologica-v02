@@ -45,41 +45,46 @@ class RLSConnectionManager:
         global _engines, _session_factories
 
         # Service Role Engine (bypassRLS)
+        # OPTIMIZED: Use new pool settings with dynamic sizing and SSL connection management
         service_role_engine = create_optimized_engine(
             settings.DATABASE_URL,
             poolclass=QueuePool,
-            pool_size=settings.RLS_POOL_SIZE if hasattr(settings, 'RLS_POOL_SIZE') else 30,  # SECURITY FIX: Increased from 25
-            max_overflow=settings.RLS_POOL_MAX_OVERFLOW if hasattr(settings, 'RLS_POOL_MAX_OVERFLOW') else 50,  # SECURITY FIX: Increased from 35
-            pool_pre_ping=True,
-            pool_recycle=3600,
-            pool_timeout=30,
-            pool_reset_on_return='commit',
+            pool_size=settings.DATABASE_POOL_SIZE,  # Now 50 (from 30) - fixes 92% utilization
+            max_overflow=settings.DATABASE_POOL_MAX_OVERFLOW,  # Now 20 (from 40) - more predictable
+            pool_pre_ping=settings.DATABASE_POOL_PRE_PING,  # True - prevents SSL errors
+            pool_recycle=settings.DATABASE_POOL_RECYCLE_SECONDS,  # Now 1800 (30min) - prevents stale SSL
+            pool_timeout=settings.DATABASE_POOL_TIMEOUT_SECONDS,  # 30 seconds
+            pool_reset_on_return=settings.DATABASE_POOL_RESET_ON_RETURN,  # 'commit'
             pool_logging_name='hormonia_service_role',
             connect_args={
                 'connect_timeout': 30,
                 'application_name': 'hormonia_service_role',
+                'options': f'-c statement_timeout={settings.DATABASE_STATEMENT_TIMEOUT_MS}',
             },
-            echo=settings.DEBUG,
-            echo_pool=settings.DEBUG if hasattr(settings, 'DEBUG') else False
+            echo=settings.APP_ENABLE_DEBUG,
+            echo_pool=settings.APP_ENABLE_DEBUG if hasattr(settings, 'DEBUG') else False
         )
 
         # RLS Context Engine (with JWT)
+        # OPTIMIZED: Smaller pool for RLS context with same recycle settings
+        rls_pool_size = max(10, settings.DATABASE_POOL_SIZE // 3)  # Dynamic: 1/3 of service pool
         rls_engine = create_optimized_engine(
             settings.DATABASE_URL,
             poolclass=QueuePool,
-            pool_size=15,  # Smaller pool for RLS context
-            max_overflow=25,
-            pool_pre_ping=True,
-            pool_recycle=1800,  # Shorter recycle for security
-            pool_timeout=30,
-            pool_reset_on_return='commit',
+            pool_size=rls_pool_size,  # Dynamic sizing based on service pool
+            max_overflow=max(10, settings.DATABASE_POOL_MAX_OVERFLOW // 2),  # 1/2 of service overflow
+            pool_pre_ping=settings.DATABASE_POOL_PRE_PING,  # True - prevents SSL errors
+            pool_recycle=settings.DATABASE_POOL_RECYCLE_SECONDS,  # Same as service (1800s)
+            pool_timeout=settings.DATABASE_POOL_TIMEOUT_SECONDS,  # 30 seconds
+            pool_reset_on_return=settings.DATABASE_POOL_RESET_ON_RETURN,  # 'commit'
             pool_logging_name='hormonia_rls',
             connect_args={
                 'connect_timeout': 30,
                 'application_name': 'hormonia_rls',
+                'options': f'-c statement_timeout={settings.DATABASE_STATEMENT_TIMEOUT_MS}',
             },
-            echo=settings.DEBUG,
-            echo_pool=settings.DEBUG if hasattr(settings, 'DEBUG') else False
+            echo=settings.APP_ENABLE_DEBUG,
+            echo_pool=settings.APP_ENABLE_DEBUG if hasattr(settings, 'DEBUG') else False
         )
 
         # Adicionar retry logic para reconexão automática em caso de falha SSL

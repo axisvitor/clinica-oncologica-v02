@@ -27,7 +27,7 @@ class StructuredFormatter(jsonlogger.JsonFormatter):
         
         # Add service information
         log_record['service'] = 'hormonia-backend'
-        log_record['environment'] = settings.ENVIRONMENT
+        log_record['environment'] = settings.APP_ENVIRONMENT
         
         # Add log level
         log_record['level'] = record.levelname

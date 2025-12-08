@@ -20,7 +20,7 @@ export interface WhatsAppMessage {
   deliveredAt?: string;
   readAt?: string;
   retryCount: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface WhatsAppContact {
@@ -57,7 +57,7 @@ export interface MessageRequest {
   filename?: string;
   templateName?: string;
   templateParams?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface MessageResponse {
@@ -66,7 +66,7 @@ export interface MessageResponse {
   status: 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
   message: string;
   timestamp: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface QueueStats {
@@ -84,8 +84,10 @@ class WhatsAppService {
     // Use VITE_API_BASE_URL (without /api/v2) to avoid path duplication
     // If only VITE_API_URL is available, sanitize it by removing /api/v2 suffix
     this.baseUrl = import.meta.env['VITE_API_BASE_URL'] ||
+                   import.meta.env.VITE_API_BASE_URL ||
                    import.meta.env['VITE_API_URL']?.replace(/\/api\/v2$/, '') ||
-                   'http://localhost:8000';
+                   import.meta.env.VITE_API_URL?.replace(/\/api\/v2$/, '') ||
+                   (import.meta.env.VITE_API_URL || "http://localhost:8000");
     this.apiKey = import.meta.env['VITE_API_KEY'];
   }
 
@@ -191,7 +193,7 @@ class WhatsAppService {
     instanceName: string,
     to: string,
     text: string,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): Promise<MessageResponse> {
     return this.sendMessage({
       instanceName,
@@ -207,7 +209,7 @@ class WhatsAppService {
     to: string,
     imageUrl: string,
     caption?: string,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): Promise<MessageResponse> {
     return this.sendMessage({
       instanceName,
@@ -225,7 +227,7 @@ class WhatsAppService {
     documentUrl: string,
     filename: string,
     caption?: string,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): Promise<MessageResponse> {
     return this.sendMessage({
       instanceName,

@@ -264,8 +264,8 @@ class OptimizedRedisClient:
             try:
                 self._thread_local.client.close()
                 del self._thread_local.client
-            except:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to close Redis connection during cleanup: {e}", exc_info=True)
 
 # Global instance for singleton pattern
 _optimized_redis_client: Optional[OptimizedRedisClient] = None

@@ -9,7 +9,7 @@ from datetime import datetime
 from uuid import UUID
 import enum
 
-from pydantic import BaseModel, EmailStr, Field, validator, root_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator, ConfigDict
 from app.schemas.common import PaginatedResponse
 
 
@@ -18,10 +18,6 @@ class UserRole(str, enum.Enum):
 
     ADMIN = "admin"
     DOCTOR = "doctor"
-    NURSE = "nurse"
-    PATIENT = "patient"
-    RESEARCHER = "researcher"
-    COORDINATOR = "coordinator"
 
 
 # Core User Schemas
@@ -31,10 +27,11 @@ class UserCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=255, description="Full name of the user")
     email: EmailStr = Field(..., description="Email address (must be unique)")
     password: str = Field(..., min_length=8, max_length=128, description="Password (minimum 8 characters)")
-    role: UserRole = Field(default=UserRole.PATIENT, description="User role")
+    role: UserRole = Field(default=UserRole.DOCTOR, description="User role")
     phone_number: Optional[str] = Field(None, max_length=20, description="Phone number (optional)")
 
-    @validator('password')
+    @field_validator('password')
+    @classmethod
     def validate_password(cls, v):
         """Validate password strength."""
         if len(v) < 8:
@@ -45,7 +42,8 @@ class UserCreate(BaseModel):
             raise ValueError('Password must contain at least one letter')
         return v
 
-    @validator('phone_number')
+    @field_validator('phone_number')
+    @classmethod
     def validate_phone_number(cls, v):
         """Validate phone number format."""
         if v is not None:
@@ -55,8 +53,8 @@ class UserCreate(BaseModel):
                 raise ValueError('Phone number must contain at least 10 digits')
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "Dr. João Silva",
                 "email": "joao.silva@clinica.com",
@@ -65,6 +63,7 @@ class UserCreate(BaseModel):
                 "phone_number": "+55 11 99999-9999"
             }
         }
+    )
 
 
 class UserUpdate(BaseModel):
@@ -75,7 +74,8 @@ class UserUpdate(BaseModel):
     phone_number: Optional[str] = Field(None, max_length=20, description="Phone number")
     is_active: Optional[bool] = Field(None, description="Whether the user is active")
 
-    @validator('phone_number')
+    @field_validator('phone_number')
+    @classmethod
     def validate_phone_number(cls, v):
         """Validate phone number format."""
         if v is not None:
@@ -85,15 +85,15 @@ class UserUpdate(BaseModel):
                 raise ValueError('Phone number must contain at least 10 digits')
         return v
 
-    @root_validator(skip_on_failure=True)
-    def validate_at_least_one_field(cls, values):
+    @model_validator(mode='after')
+    def validate_at_least_one_field(self):
         """Ensure at least one field is provided for update."""
-        if not any(v is not None for v in values.values()):
+        if not any(getattr(self, field) is not None for field in self.model_fields):
             raise ValueError('At least one field must be provided for update')
-        return values
+        return self
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "Dr. João Silva Santos",
                 "email": "joao.santos@clinica.com",
@@ -102,6 +102,7 @@ class UserUpdate(BaseModel):
                 "is_active": True
             }
         }
+    )
 
 
 class UserResponse(BaseModel):
@@ -119,9 +120,9 @@ class UserResponse(BaseModel):
     total_patients: Optional[int] = Field(None, description="Total patients for doctors")
     last_login: Optional[datetime] = Field(None, description="Last login timestamp")
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "name": "Dr. João Silva",
@@ -135,14 +136,15 @@ class UserResponse(BaseModel):
                 "last_login": "2024-01-20T14:30:00Z"
             }
         }
+    )
 
 
 class UserListResponse(PaginatedResponse):
     """Schema for paginated user list response."""
     data: List[UserResponse] = Field(..., description="List of users")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "data": [
                     {
@@ -165,6 +167,7 @@ class UserListResponse(PaginatedResponse):
                 "has_previous": False
             }
         }
+    )
 
 
 # Specialized Update Schemas
@@ -173,19 +176,21 @@ class RoleUpdate(BaseModel):
     """Schema for updating user role."""
     role: UserRole = Field(..., description="New role to assign to the user")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "role": "admin"
             }
         }
+    )
 
 
 class PermissionsUpdate(BaseModel):
     """Schema for updating user permissions."""
     permissions: List[str] = Field(..., description="List of permissions to assign")
 
-    @validator('permissions')
+    @field_validator('permissions')
+    @classmethod
     def validate_permissions(cls, v):
         """Validate permissions list."""
         if not v:
@@ -206,8 +211,8 @@ class PermissionsUpdate(BaseModel):
 
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "permissions": [
                     "read_patients",
@@ -217,13 +222,15 @@ class PermissionsUpdate(BaseModel):
                 ]
             }
         }
+    )
 
 
 class PasswordReset(BaseModel):
     """Schema for resetting user password."""
     new_password: str = Field(..., min_length=8, max_length=128, description="New password (minimum 8 characters)")
 
-    @validator('new_password')
+    @field_validator('new_password')
+    @classmethod
     def validate_new_password(cls, v):
         """Validate new password strength."""
         if len(v) < 8:
@@ -234,12 +241,13 @@ class PasswordReset(BaseModel):
             raise ValueError('Password must contain at least one letter')
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "new_password": "NewSecurePass123"
             }
         }
+    )
 
 
 # Filtering and Search Schemas
@@ -255,8 +263,8 @@ class UserFilter(BaseModel):
     created_before: Optional[datetime] = Field(None, description="Filter users created before this date")
     has_patients: Optional[bool] = Field(None, description="Filter doctors by whether they have patients")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "João",
                 "role": "doctor",
@@ -265,6 +273,7 @@ class UserFilter(BaseModel):
                 "has_patients": True
             }
         }
+    )
 
 
 # Additional Response Schemas
@@ -278,8 +287,8 @@ class UserStatsResponse(BaseModel):
     recent_registrations: int = Field(..., description="Recent registrations count")
     recent_logins: int = Field(..., description="Recent logins count")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "total_users": 150,
                 "active_users": 142,
@@ -297,6 +306,7 @@ class UserStatsResponse(BaseModel):
                 "recent_logins": 89
             }
         }
+    )
 
 
 class UserActivityResponse(BaseModel):
@@ -307,9 +317,9 @@ class UserActivityResponse(BaseModel):
     last_activity: Optional[datetime] = Field(None, description="Last activity timestamp")
     active_sessions: int = Field(0, description="Number of active sessions")
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "user_id": "123e4567-e89b-12d3-a456-426614174000",
                 "last_login": "2024-01-20T14:30:00Z",
@@ -318,14 +328,16 @@ class UserActivityResponse(BaseModel):
                 "active_sessions": 1
             }
         }
+    )
 
 
 class BulkUserOperation(BaseModel):
     """Schema for bulk user operations."""
-    user_ids: List[UUID] = Field(..., min_items=1, max_items=100, description="List of user IDs (max 100)")
+    user_ids: List[UUID] = Field(..., min_length=1, max_length=100, description="List of user IDs (max 100)")
     operation: str = Field(..., description="Operation to perform (activate, deactivate, delete)")
 
-    @validator('operation')
+    @field_validator('operation')
+    @classmethod
     def validate_operation(cls, v):
         """Validate operation type."""
         valid_operations = ['activate', 'deactivate', 'delete']
@@ -333,8 +345,8 @@ class BulkUserOperation(BaseModel):
             raise ValueError(f'Invalid operation. Must be one of: {valid_operations}')
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "user_ids": [
                     "123e4567-e89b-12d3-a456-426614174000",
@@ -343,6 +355,7 @@ class BulkUserOperation(BaseModel):
                 "operation": "activate"
             }
         }
+    )
 
 
 class BulkOperationResult(BaseModel):
@@ -351,8 +364,8 @@ class BulkOperationResult(BaseModel):
     failed: List[Dict[str, Any]] = Field(..., description="Failed operations with error details")
     total_processed: int = Field(..., description="Total number of users processed")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "successful": [
                     "123e4567-e89b-12d3-a456-426614174000"
@@ -366,6 +379,7 @@ class BulkOperationResult(BaseModel):
                 "total_processed": 2
             }
         }
+    )
 
 
 # Export all schemas

@@ -292,7 +292,7 @@ class BaseAgent(ABC):
         )
         
         # Route message through swarm manager
-        from app.coordination.swarm_manager import get_swarm_manager
+        from app.orchestration.swarm_manager import get_swarm_manager
         swarm_manager = await get_swarm_manager()
         await swarm_manager.route_message(message)
         
@@ -474,7 +474,7 @@ class BaseAgent(ABC):
         while self.status != AgentStatus.SHUTDOWN:
             try:
                 # Send heartbeat
-                from app.coordination.swarm_manager import get_swarm_manager
+                from app.orchestration.swarm_manager import get_swarm_manager
                 swarm_manager = await get_swarm_manager()
                 await swarm_manager.agent_heartbeat(self.agent_id)
                 

@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { ErrorFallback } from './ErrorFallback';
+import { logger } from '@/lib/logger';
 
 export interface ErrorBoundaryProps {
   children: ReactNode;
@@ -70,7 +71,7 @@ export class ErrorBoundary extends Component<Props, State> {
     const { level = 'component', enableReporting = true } = this.props;
 
     // Log error details for debugging
-    console.error('Error Boundary caught an error:', {
+    logger.error('Error Boundary caught an error', {
       error,
       errorInfo,
       componentStack: errorInfo.componentStack,
@@ -133,10 +134,10 @@ export class ErrorBoundary extends Component<Props, State> {
           timestamp: new Date().toISOString()
         })
       }).catch(reportError => {
-        console.error('Failed to report error to backend:', reportError);
+        logger.error('Failed to report error to backend', reportError);
       });
     } catch (reportError) {
-      console.error('Error reporting failed:', reportError);
+      logger.error('Error reporting failed', reportError);
     }
   };
 
@@ -145,7 +146,7 @@ export class ErrorBoundary extends Component<Props, State> {
     const { retryCount } = this.state;
 
     if (retryCount >= maxRetries) {
-      console.warn('Max retries reached, not retrying');
+      logger.warn('Max retries reached, not retrying');
       return;
     }
 
@@ -233,7 +234,7 @@ export function withErrorBoundary<P extends object>(
 
 // Hook for reporting errors manually
 export function useErrorReporting() {
-  const reportError = (error: Error, context?: Record<string, any>) => {
+  const reportError = (error: Error, context?: Record<string, unknown>) => {
     if (process.env['NODE_ENV'] === 'production' && typeof window !== 'undefined' && (window as any).Sentry) {
       (window as any).Sentry.withScope((scope: any) => {
         if (context) {
@@ -242,7 +243,7 @@ export function useErrorReporting() {
         (window as any).Sentry.captureException(error);
       });
     } else {
-      console.error('Manual error report:', error, context);
+      logger.error('Manual error report', { error, context });
     }
   };
 

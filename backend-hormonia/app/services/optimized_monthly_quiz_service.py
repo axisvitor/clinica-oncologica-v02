@@ -1,4 +1,5 @@
 """Optimized Monthly Quiz service with fast 404 checks."""
+from typing import Any
 import logging
 import time
 

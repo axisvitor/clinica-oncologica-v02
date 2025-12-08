@@ -83,22 +83,22 @@ class LangChainOrchestrator:
         Initialize LangChain orchestrator.
 
         Args:
-            api_key: Google Gemini API key (defaults to settings.GEMINI_API_KEY)
-            model_name: Google Gemini model to use (defaults to settings.GEMINI_MODEL)
+            api_key: Google Gemini API key (defaults to settings.AI_GEMINI_API_KEY)
+            model_name: Google Gemini model to use (defaults to settings.AI_GEMINI_MODEL)
             temperature: Creativity level (0-1)
             max_tokens: Maximum response tokens
 
         Raises:
             OpenAIClientError: If API key is missing or invalid
         """
-        self.api_key = api_key or settings.GEMINI_API_KEY
+        self.api_key = api_key or settings.AI_GEMINI_API_KEY
 
         # Validate API key
         if not self.api_key:
             raise OpenAIClientError("Gemini API key is required but not provided")
 
-        # Use settings.GEMINI_MODEL as default instead of gpt-3.5-turbo (fixes provider mismatch)
-        self.model_name = model_name or settings.GEMINI_MODEL
+        # Use settings.AI_GEMINI_MODEL as default instead of gpt-3.5-turbo (fixes provider mismatch)
+        self.model_name = model_name or settings.AI_GEMINI_MODEL
         self.temperature = temperature
         self.max_tokens = max_tokens
         
@@ -269,8 +269,8 @@ class LangChainOrchestrator:
                 elif line.startswith('Confidence:'):
                     try:
                         confidence = float(line.split(':', 1)[1].strip())
-                    except ValueError:
-                        pass
+                    except ValueError as e:
+                        logger.debug(f"Failed to parse confidence value: {e}")
                 elif line.startswith('Key Phrases:'):
                     phrases_str = line.split(':', 1)[1].strip()
                     if phrases_str and phrases_str != '[]':

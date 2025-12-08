@@ -20,7 +20,7 @@ from datetime import datetime, date
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, Field, validator, constr, conint, confloat
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict, constr, conint, confloat
 
 from app.models.alert import AlertSeverity, AlertStatus
 from .common import CursorPaginatedResponse
@@ -119,8 +119,7 @@ class QuizResponseV2Detail(QuizResponseV2Base):
     template_version: Optional[str] = Field(None, description="Template version")
     session_status: Optional[str] = Field(None, description="Session status")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class QuizResponseV2List(CursorPaginatedResponse[QuizResponseV2Detail]):
@@ -153,8 +152,7 @@ class ResponseAnalyticsV2(BaseModel):
         description="Number of responses flagged for review"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "total_responses": 150,
                 "completion_rate": 87.5,
@@ -166,7 +164,7 @@ class ResponseAnalyticsV2(BaseModel):
                 "common_patterns": ["improving", "consistent"],
                 "flagged_count": 5
             }
-        }
+        })
 
 
 # ============================================================================
@@ -210,8 +208,7 @@ class QuizAlertV2Detail(QuizAlertV2Base):
     # Patient context
     patient_name: Optional[str] = Field(None, description="Patient name")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class QuizAlertV2List(CursorPaginatedResponse[QuizAlertV2Detail]):
@@ -228,12 +225,11 @@ class AlertAcknowledgementV2(BaseModel):
         description="Optional acknowledgement notes"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "notes": "Reviewed patient responses, scheduling follow-up"
             }
-        }
+        })
 
 
 class AlertStatisticsV2(BaseModel):
@@ -261,8 +257,7 @@ class AlertStatisticsV2(BaseModel):
         description="Most frequently triggered rules"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "total_alerts": 45,
                 "by_severity": {"CRITICAL": 5, "HIGH": 15, "MEDIUM": 20, "LOW": 5},
@@ -273,7 +268,7 @@ class AlertStatisticsV2(BaseModel):
                     {"rule_name": "low_score_threshold", "count": 12}
                 ]
             }
-        }
+        })
 
 
 class AlertRuleV2Create(BaseModel):
@@ -301,10 +296,11 @@ class AlertRuleV2Create(BaseModel):
     )
     enabled: bool = Field(True, description="Whether rule is active")
 
-    @validator("trigger_condition")
-    def validate_trigger_condition(cls, v, values):
+    @field_validator("trigger_condition")
+    @classmethod
+    def validate_trigger_condition(cls, v, info):
         """Validate trigger condition based on trigger type."""
-        trigger_type = values.get("trigger_type")
+        trigger_type = info.data.get("trigger_type")
 
         if trigger_type == AlertRuleTriggerEnum.SCORE_THRESHOLD:
             if "threshold" not in v or "operator" not in v:
@@ -320,8 +316,7 @@ class AlertRuleV2Create(BaseModel):
 
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "rule_name": "critical_score_alert",
                 "trigger_type": "score_threshold",
@@ -333,7 +328,7 @@ class AlertRuleV2Create(BaseModel):
                 "notification_type": ["email", "sms"],
                 "enabled": True
             }
-        }
+        })
 
 
 class AlertRuleV2Detail(AlertRuleV2Create):
@@ -346,8 +341,7 @@ class AlertRuleV2Detail(AlertRuleV2Create):
     triggered_count: int = Field(0, description="Number of times triggered")
     last_triggered_at: Optional[datetime] = Field(None, description="Last trigger time")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -392,7 +386,7 @@ class MonthlyQuizV2Create(MonthlyQuizV2Base):
         description="Automatically send when published"
     )
     delivery_method: DeliveryMethodEnum = Field(
-        DeliveryMethodEnum.WHATSAPP,
+        default=DeliveryMethodEnum.WHATSAPP,
         description="Default delivery method"
     )
 
@@ -437,8 +431,7 @@ class MonthlyQuizV2Detail(MonthlyQuizV2Base):
         description="Completion rate percentage"
     )
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MonthlyQuizV2List(CursorPaginatedResponse[MonthlyQuizV2Detail]):
@@ -483,8 +476,7 @@ class MonthlyQuizStatisticsV2(BaseModel):
         description="Response counts by day"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "quiz_id": "123e4567-e89b-12d3-a456-426614174000",
                 "total_sent": 100,
@@ -498,7 +490,7 @@ class MonthlyQuizStatisticsV2(BaseModel):
                     {"date": "2025-11-02", "count": 30}
                 ]
             }
-        }
+        })
 
 
 class QuizReminderRequestV2(BaseModel):
@@ -510,7 +502,7 @@ class QuizReminderRequestV2(BaseModel):
         description="Custom reminder message"
     )
     delivery_method: DeliveryMethodEnum = Field(
-        DeliveryMethodEnum.WHATSAPP,
+        default=DeliveryMethodEnum.WHATSAPP,
         description="Delivery method for reminder"
     )
 
@@ -524,8 +516,7 @@ class QuizScheduleV2(BaseModel):
     status: MonthlyQuizStatusEnum = Field(..., description="Quiz status")
     auto_send: bool = Field(..., description="Will auto-send when published")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class QuizGenerateRequestV2(BaseModel):
@@ -540,18 +531,17 @@ class QuizGenerateRequestV2(BaseModel):
         description="Target month (YYYY-MM format)"
     )
     auto_publish: bool = Field(
-        False,
+        default=False,
         description="Automatically publish after generation"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "template_id": "123e4567-e89b-12d3-a456-426614174000",
                 "target_month": "2025-12",
                 "auto_publish": False
             }
-        }
+        })
 
 
 class QuizTemplateV2(BaseModel):
@@ -568,8 +558,7 @@ class QuizTemplateV2(BaseModel):
     )
     is_active: bool = Field(..., description="Whether template is active")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -592,8 +581,7 @@ class PublicQuizResponseV2(BaseModel):
     )
     session_id: UUID = Field(..., description="Session ID for submission")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "quiz_id": "123e4567-e89b-12d3-a456-426614174000",
                 "quiz_name": "Monthly Health Check - November 2025",
@@ -609,7 +597,7 @@ class PublicQuizResponseV2(BaseModel):
                 "expires_at": "2025-11-30T23:59:59Z",
                 "session_id": "456e7890-e89b-12d3-a456-426614174001"
             }
-        }
+        })
 
 
 class PublicSubmissionRequestV2(BaseModel):
@@ -632,15 +620,14 @@ class PublicSubmissionRequestV2(BaseModel):
         description="Optional response metadata"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                 "question_id": "q1",
                 "response_value": "8",
                 "response_metadata": {"time_taken_seconds": 15}
             }
-        }
+        })
 
 
 class PublicQuizResultsV2(BaseModel):
@@ -662,8 +649,7 @@ class PublicQuizResultsV2(BaseModel):
         description="Aggregate response distribution (no personal data)"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "quiz_id": "123e4567-e89b-12d3-a456-426614174000",
                 "quiz_name": "Monthly Health Check - November 2025",
@@ -674,7 +660,7 @@ class PublicQuizResultsV2(BaseModel):
                     "q1": {"1-3": 5, "4-7": 30, "8-10": 50}
                 }
             }
-        }
+        })
 
 
 class SubmissionTokenV2(BaseModel):
@@ -684,14 +670,13 @@ class SubmissionTokenV2(BaseModel):
     expires_at: datetime = Field(..., description="Token expiration time")
     quiz_session_id: UUID = Field(..., description="Associated quiz session")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                 "expires_at": "2025-11-08T23:59:59Z",
                 "quiz_session_id": "456e7890-e89b-12d3-a456-426614174001"
             }
-        }
+        })
 
 
 # ============================================================================
@@ -705,11 +690,10 @@ class ErrorResponse(BaseModel):
     detail: str = Field(..., description="Error details")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "error": "VALIDATION_ERROR",
                 "detail": "Invalid quiz response format",
                 "timestamp": "2025-11-07T12:00:00Z"
             }
-        }
+        })

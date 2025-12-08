@@ -24,22 +24,22 @@ router = APIRouter(prefix="/api/v2/whatsapp", tags=["WhatsApp"])
 
 async def get_evolution_client() -> EvolutionAPIClient:
     """Get Evolution API client instance."""
-    if not hasattr(settings, 'EVOLUTION_API_URL') or not settings.EVOLUTION_API_URL:
+    if not hasattr(settings, 'EVOLUTION_API_URL') or not settings.WHATSAPP_EVOLUTION_API_URL:
         raise HTTPException(status_code=501, detail="Evolution API not configured")
 
     # Use mock client for development if no real API configured
-    if settings.EVOLUTION_API_URL.startswith("http://localhost:8080"):
+    if settings.WHATSAPP_EVOLUTION_API_URL.startswith("http://localhost:8080"):
         from ..services.mock_evolution import MockEvolutionAPIClient
         client = MockEvolutionAPIClient(
-            base_url=settings.EVOLUTION_API_URL,
-            api_key=settings.EVOLUTION_API_KEY,
-            global_webhook_url=settings.EVOLUTION_WEBHOOK_URL
+            base_url=settings.WHATSAPP_EVOLUTION_API_URL,
+            api_key=settings.WHATSAPP_EVOLUTION_API_KEY,
+            global_webhook_url=settings.WHATSAPP_EVOLUTION_WEBHOOK_URL
         )
     else:
         client = EvolutionAPIClient(
-            base_url=settings.EVOLUTION_API_URL,
-            api_key=settings.EVOLUTION_API_KEY,
-            global_webhook_url=settings.EVOLUTION_WEBHOOK_URL
+            base_url=settings.WHATSAPP_EVOLUTION_API_URL,
+            api_key=settings.WHATSAPP_EVOLUTION_API_KEY,
+            global_webhook_url=settings.WHATSAPP_EVOLUTION_WEBHOOK_URL
         )
 
     await client.connect()

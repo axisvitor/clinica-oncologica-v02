@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from datetime import datetime, timedelta
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from app.schemas.jsonb_validators import validate_flow_template_data
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,7 @@ class FlowTypeConfig:
     template_mapping: Dict[str, Any]
     timing: Dict[str, Any]
     personalization: Dict[str, Any]
+    enum_value: Optional[str] = None
 
 
 @dataclass
@@ -134,7 +135,8 @@ class FlowTemplateConfigLoader:
                     "personalization": {
                         "ai_optimization": True,
                         "sentiment_analysis": True
-                    }
+                    },
+                    "enum_value": "initial_15_days"
                 }
             },
             "defaults": {
@@ -182,7 +184,8 @@ class FlowTemplateConfigLoader:
                 tags=config_data.get("tags", []),
                 template_mapping=config_data.get("template_mapping", {}),
                 timing=config_data.get("timing", {}),
-                personalization=config_data.get("personalization", {})
+                personalization=config_data.get("personalization", {}),
+                enum_value=config_data.get("enum_value")
             )
         except Exception as e:
             logger.error(f"Error creating FlowTypeConfig for {flow_type}: {e}")
@@ -393,6 +396,52 @@ class FlowTemplateConfigLoader:
         defaults = self.get_default_config()
         return defaults.caching.get(cache_type, 3600)
 
+    def get_template_for_treatment_type(self, treatment_type: Optional[str]) -> Optional[str]:
+        """
+        Get flow template based on patient treatment type.
+
+        Maps treatment type keywords to appropriate flow templates using
+        the treatment_type_mapping configuration.
+
+        Args:
+            treatment_type: Patient's treatment type (e.g., "hormone therapy", "chemotherapy")
+
+        Returns:
+            Flow template identifier (e.g., "hormone_therapy_1") or default template
+        """
+        if not treatment_type:
+            return self.config.get("default_treatment_template", "day_1_15")
+
+        # Normalize input
+        type_lower = treatment_type.lower().strip()
+
+        # Get treatment type mapping
+        treatment_mapping = self.config.get("treatment_type_mapping", {})
+
+        # Search for matching keywords (sorted by priority)
+        matched_categories = []
+        for category, config in treatment_mapping.items():
+            keywords = config.get("keywords", [])
+            priority = config.get("priority", 0)
+
+            # Check if any keyword matches the treatment type
+            for keyword in keywords:
+                if keyword.lower() in type_lower:
+                    matched_categories.append((priority, config.get("template")))
+                    break
+
+        # Return highest priority match
+        if matched_categories:
+            matched_categories.sort(reverse=True, key=lambda x: x[0])
+            template = matched_categories[0][1]
+            logger.info(f"Selected template '{template}' for treatment type '{treatment_type}'")
+            return template
+
+        # Return default template
+        default = self.config.get("default_treatment_template", "day_1_15")
+        logger.info(f"Using default template '{default}' for treatment type '{treatment_type}'")
+        return default
+
 
 # Global singleton instance
 _template_loader: Optional[FlowTemplateConfigLoader] = None
@@ -473,6 +522,19 @@ def reload_templates() -> bool:
         True if successful, False otherwise
     """
     return get_template_loader().reload_config()
+
+
+def get_template_for_treatment(treatment_type: Optional[str]) -> Optional[str]:
+    """
+    Get flow template for a patient's treatment type.
+
+    Args:
+        treatment_type: Patient's treatment type
+
+    Returns:
+        Flow template identifier or None
+    """
+    return get_template_loader().get_template_for_treatment_type(treatment_type)
 
 
 # Flow type constants for easy access

@@ -8,7 +8,6 @@ Runs periodically to prevent unbounded table growth.
 import logging
 from datetime import datetime
 from typing import Dict, Any
-from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.models.webhook_event import WebhookEvent
@@ -29,7 +28,7 @@ class IdempotencyCleanupService:
         """
         self.batch_size = batch_size
 
-    async def run_cleanup(self, db: Session) -> Dict[str, Any]:
+    async def run_cleanup(self, db: Any) -> Dict[str, Any]:
         """
         Run cleanup job to remove expired records.
 
@@ -91,7 +90,7 @@ class IdempotencyCleanupService:
             )
             raise
 
-    async def get_cleanup_stats(self, db: Session) -> Dict[str, Any]:
+    async def get_cleanup_stats(self, db: Any) -> Dict[str, Any]:
         """
         Get current idempotency statistics.
 

@@ -20,7 +20,7 @@ from datetime import datetime
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, Field, validator, constr, conint, confloat
+from pydantic import BaseModel, Field, field_validator, constr, conint, confloat, ConfigDict
 
 from .common import CursorPaginatedResponse
 
@@ -97,7 +97,8 @@ class TaskV2Base(BaseModel):
         description="Additional task metadata"
     )
 
-    @validator("task_name")
+    @field_validator("task_name")
+    @classmethod
     def validate_task_name(cls, v):
         """Ensure task name is meaningful."""
         if not v or not v.strip():
@@ -129,8 +130,7 @@ class RetryConfigV2(BaseModel):
         description="Whether to retry on timeout"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "max_retries": 3,
                 "retry_strategy": "exponential",
@@ -138,7 +138,7 @@ class RetryConfigV2(BaseModel):
                 "max_delay": 3600,
                 "retry_on_timeout": True
             }
-        }
+        })
 
 
 class TaskProgressV2(BaseModel):
@@ -165,8 +165,7 @@ class TaskProgressV2(BaseModel):
         description="When progress was last updated"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "current": 45,
                 "total": 100,
@@ -174,7 +173,7 @@ class TaskProgressV2(BaseModel):
                 "eta_seconds": 120.5,
                 "updated_at": "2025-01-17T15:30:00Z"
             }
-        }
+        })
 
 
 # ============================================================================
@@ -213,8 +212,7 @@ class TaskV2Create(TaskV2Base):
         description="User who created the task"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "task_name": "Generate Monthly Analytics",
                 "task_type": "analytics_generation",
@@ -229,7 +227,7 @@ class TaskV2Create(TaskV2Base):
                 },
                 "timeout_seconds": 3600
             }
-        }
+        })
 
 
 class TaskV2Cancel(BaseModel):
@@ -244,13 +242,12 @@ class TaskV2Cancel(BaseModel):
         description="Force termination of running task"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "reason": "Task no longer needed",
                 "force": False
             }
-        }
+        })
 
 
 class TaskV2Retry(BaseModel):
@@ -269,14 +266,13 @@ class TaskV2Retry(BaseModel):
         description="Notes about manual retry"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "override_retry_limit": True,
                 "delay_seconds": 60,
                 "notes": "Retrying after fixing database connection"
             }
-        }
+        })
 
 
 # ============================================================================
@@ -296,15 +292,14 @@ class TaskLogEntryV2(BaseModel):
         description="Additional context data"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "timestamp": "2025-01-17T15:30:00Z",
                 "level": "INFO",
                 "message": "Processing batch 3 of 7",
                 "context": {"batch_size": 100, "processed": 300}
             }
-        }
+        })
 
 
 class TaskV2Response(TaskV2Base):
@@ -353,9 +348,9 @@ class TaskV2Response(TaskV2Base):
     user_id: Optional[str] = Field(None, description="User who created the task")
     runtime_seconds: Optional[float] = Field(None, description="Total execution time")
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "celery_task_id": "abc123-def456-ghi789",
@@ -374,7 +369,7 @@ class TaskV2Response(TaskV2Base):
                 "created_at": "2025-01-17T15:00:00Z",
                 "started_at": "2025-01-17T15:00:05Z"
             }
-        }
+        })
 
 
 class TaskV2List(CursorPaginatedResponse[TaskV2Response]):
@@ -390,8 +385,7 @@ class TaskV2WithLogs(TaskV2Response):
         description="Task log entries"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "task_name": "Generate Analytics",
@@ -409,7 +403,7 @@ class TaskV2WithLogs(TaskV2Response):
                     }
                 ]
             }
-        }
+        })
 
 
 # ============================================================================
@@ -455,8 +449,7 @@ class TaskStatisticsV2(BaseModel):
         description="Analysis period in hours"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "total_tasks": 1250,
                 "pending_tasks": 15,
@@ -483,7 +476,7 @@ class TaskStatisticsV2(BaseModel):
                 ],
                 "analysis_period_hours": 24
             }
-        }
+        })
 
 
 class QueueStatusV2(BaseModel):
@@ -501,8 +494,7 @@ class QueueStatusV2(BaseModel):
         description="Average task processing time"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "queue_name": "celery",
                 "pending_count": 45,
@@ -510,7 +502,7 @@ class QueueStatusV2(BaseModel):
                 "workers": ["celery@worker1", "celery@worker2"],
                 "avg_processing_time": 23.5
             }
-        }
+        })
 
 
 class WorkerStatusV2(BaseModel):
@@ -526,8 +518,7 @@ class WorkerStatusV2(BaseModel):
         description="System load average"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "worker_name": "celery@worker1",
                 "status": "online",
@@ -536,7 +527,7 @@ class WorkerStatusV2(BaseModel):
                 "failed_tasks": 12,
                 "load_average": [0.5, 0.6, 0.55]
             }
-        }
+        })
 
 
 # ============================================================================
@@ -548,8 +539,8 @@ class BulkTaskOperation(BaseModel):
 
     task_ids: List[str] = Field(
         ...,
-        min_items=1,
-        max_items=100,
+        min_length=1,
+        max_length=100,
         description="List of task IDs to operate on (max 100)"
     )
     operation: constr(pattern="^(cancel|retry|delete)$") = Field(
@@ -561,15 +552,15 @@ class BulkTaskOperation(BaseModel):
         description="Reason for bulk operation"
     )
 
-    @validator("task_ids")
+    @field_validator("task_ids")
+    @classmethod
     def validate_task_ids(cls, v):
         """Ensure no duplicate task IDs."""
         if len(v) != len(set(v)):
             raise ValueError("Duplicate task IDs are not allowed")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "task_ids": [
                     "task-id-1",
@@ -579,7 +570,7 @@ class BulkTaskOperation(BaseModel):
                 "operation": "cancel",
                 "reason": "Cancelling outdated batch jobs"
             }
-        }
+        })
 
 
 class BulkTaskResult(BaseModel):
@@ -596,15 +587,14 @@ class BulkTaskResult(BaseModel):
         description="Error messages by task ID"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "success_count": 3,
                 "failed_count": 0,
                 "failed_ids": [],
                 "errors": {}
             }
-        }
+        })
 
 
 # ============================================================================
@@ -635,15 +625,14 @@ class TaskCleanupConfigV2(BaseModel):
         description="Process in batches of this size"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "days_old": 90,
                 "status_filter": ["SUCCESS", "FAILURE"],
                 "dry_run": False,
                 "batch_size": 100
             }
-        }
+        })
 
 
 class TaskCleanupResultV2(BaseModel):
@@ -655,8 +644,7 @@ class TaskCleanupResultV2(BaseModel):
     dry_run: bool = Field(description="Whether this was a dry run")
     completion_time: datetime = Field(description="When cleanup completed")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "tasks_deleted": 1250,
                 "tasks_analyzed": 1500,
@@ -664,4 +652,4 @@ class TaskCleanupResultV2(BaseModel):
                 "dry_run": False,
                 "completion_time": "2025-01-17T15:30:00Z"
             }
-        }
+        })

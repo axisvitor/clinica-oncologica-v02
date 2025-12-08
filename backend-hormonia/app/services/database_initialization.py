@@ -14,7 +14,6 @@ import logging
 from contextlib import asynccontextmanager
 
 from sqlalchemy import text, inspect, MetaData
-from sqlalchemy.orm import Session
 from sqlalchemy.engine import Engine
 from alembic import command
 from alembic.config import Config
@@ -374,8 +373,8 @@ class DatabaseInitializationService:
                     start_time = datetime.utcnow()
                     conn.execute(text("SELECT COUNT(*) FROM users"))
                     count_query_time = (datetime.utcnow() - start_time).total_seconds() * 1000
-                except:
-                    count_query_time = None
+                except Exception:
+                    count_query_time = None  # Table may not exist yet
                 
                 # Get connection pool stats
                 pool = self.engine.pool
@@ -483,7 +482,7 @@ class DatabaseInitializationService:
                         "status": "healthy",
                         "sample_count": user_count
                     }
-                except:
+                except Exception:
                     status["basic_checks"]["data_access"] = {
                         "status": "warning",
                         "message": "Could not access user table"

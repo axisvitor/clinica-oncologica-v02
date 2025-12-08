@@ -12,7 +12,6 @@ Features:
 - Metrics tracking for monitoring
 """
 
-import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -23,10 +22,11 @@ from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.utils.async_helpers import run_async
 from app.models.patient_onboarding_saga import PatientOnboardingSaga, SagaStatus
-from app.coordination.saga_orchestrator import SagaOrchestrator
+from app.orchestration.saga_orchestrator import SagaOrchestrator
 from app.core.redis_client import get_redis_client
-from app.core.monitoring import capture_exception, capture_message
+from app.core.monitoring_config import capture_exception, capture_message
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -82,7 +82,7 @@ def retry_patient_onboarding_saga(self, saga_id: str) -> dict:
             logger.warning(
                 f"Saga {saga_id} has exceeded max retries ({saga.retry_count})"
             )
-            asyncio.run(_alert_admin_max_retries_exceeded(saga, db))
+            run_async(_alert_admin_max_retries_exceeded(saga, db))
             return {
                 "status": "max_retries_exceeded",
                 "message": f"Saga has been retried {saga.retry_count} times",
@@ -115,8 +115,8 @@ def retry_patient_onboarding_saga(self, saga_id: str) -> dict:
         # Initialize saga orchestrator
         orchestrator = SagaOrchestrator(db=db, redis_client=redis_client)
 
-        # Attempt to resume saga from last successful step
-        result = asyncio.run(orchestrator.resume_saga(saga_id=UUID(saga_id)))
+        # Attempt to resume saga from last successful step (using run_async for event loop reuse)
+        result = run_async(orchestrator.resume_saga(saga_id=UUID(saga_id)))
 
         if result["status"] == "completed":
             logger.info(f"Saga {saga_id} completed successfully on retry")
@@ -493,7 +493,7 @@ async def _send_admin_email_alert(saga: PatientOnboardingSaga) -> None:
         <h3>Action Required:</h3>
         <p>Please review the saga logs and take appropriate action to resolve the issue.</p>
 
-        <p><strong>View Saga:</strong> <a href="{settings.ADMIN_DASHBOARD_URL}/sagas/{saga.id}">Click here</a></p>
+        <p><strong>View Saga:</strong> <a href="{settings.APP_ADMIN_DASHBOARD_URL}/sagas/{saga.id}">Click here</a></p>
         '''
 
         admin_email = settings.get("ADMIN_EMAIL", "admin@example.com")

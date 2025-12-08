@@ -7,7 +7,7 @@ import logging
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -30,10 +30,8 @@ from app.dependencies import (
     get_current_user,
     validate_patient_access,
     get_flow_management_service,
-    get_patient_service,
 )
 from app.services.flow_management import FlowManagementService
-from app.services.patient import PatientService
 from app.exceptions import (
     FlowStateNotFoundError,
     FlowOperationError,
@@ -75,7 +73,6 @@ def _create_cursor(item_id: str, created_at: datetime) -> str:
 async def get_flow_state(
     patient_id: UUID,
     db: Session = Depends(get_db),
-    patient: Patient = Depends(validate_patient_access),
     current_user: User = Depends(get_current_user),
     flow_management: FlowManagementService = Depends(get_flow_management_service),
     include: Optional[List[str]] = Depends(get_eager_load_params),
@@ -86,6 +83,17 @@ async def get_flow_state(
     Supports eager loading:
     - ?include=patient,template
     """
+    repo = PatientRepository(db)
+    patient = repo.get_by_id(patient_id)
+    if not patient:
+        raise flow_not_found_exception(str(patient_id))
+    
+    if patient.doctor_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this patient"
+        )
+
     try:
         flow_state = await flow_management.get_patient_flow_state(patient_id)
 
@@ -123,7 +131,16 @@ async def advance_patient_flow(
 ):
     """Advance patient flow with optional force to specific day"""
     # Validate patient access
-    patient = await validate_patient_access(patient_id, current_user, patient_service)
+    repo = PatientRepository(db)
+    patient = repo.get_by_id(patient_id)
+    if not patient:
+        raise flow_not_found_exception(str(patient_id))
+    
+    if patient.doctor_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this patient"
+        )
 
     try:
         advancement = await flow_management.advance_patient_flow(
@@ -159,12 +176,20 @@ async def pause_patient_flow(
     patient_id: UUID,
     request: Optional[FlowPauseV2Request] = None,
     current_user: User = Depends(get_current_user),
-    patient_service: PatientService = Depends(get_patient_service),
     flow_management: FlowManagementService = Depends(get_flow_management_service),
 ):
     """Pause patient flow with optional auto-resume"""
     # Validate patient access
-    patient = await validate_patient_access(patient_id, current_user, patient_service)
+    repo = PatientRepository(db)
+    patient = repo.get_by_id(patient_id)
+    if not patient:
+        raise flow_not_found_exception(str(patient_id))
+    
+    if patient.doctor_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this patient"
+        )
 
     try:
         reason = request.reason if request else "Manual pause"
@@ -204,12 +229,20 @@ async def pause_patient_flow(
 async def resume_patient_flow(
     patient_id: UUID,
     current_user: User = Depends(get_current_user),
-    patient_service: PatientService = Depends(get_patient_service),
     flow_management: FlowManagementService = Depends(get_flow_management_service),
 ):
     """Resume a previously paused flow"""
     # Validate patient access
-    patient = await validate_patient_access(patient_id, current_user, patient_service)
+    repo = PatientRepository(db)
+    patient = repo.get_by_id(patient_id)
+    if not patient:
+        raise flow_not_found_exception(str(patient_id))
+    
+    if patient.doctor_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this patient"
+        )
 
     try:
         resume_result = await flow_management.resume_patient_flow(
@@ -245,7 +278,6 @@ async def get_patient_flow_history(
     patient_id: UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    patient_service: PatientService = Depends(get_patient_service),
     flow_management: FlowManagementService = Depends(get_flow_management_service),
     pagination = Depends(get_pagination_params),
     include: Optional[List[str]] = Depends(get_eager_load_params),
@@ -257,7 +289,16 @@ async def get_patient_flow_history(
     - ?include=patient,template
     """
     # Validate patient access
-    patient = await validate_patient_access(patient_id, current_user, patient_service)
+    repo = PatientRepository(db)
+    patient = repo.get_by_id(patient_id)
+    if not patient:
+        raise flow_not_found_exception(str(patient_id))
+    
+    if patient.doctor_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this patient"
+        )
 
     try:
         cursor_data = pagination["cursor_data"]

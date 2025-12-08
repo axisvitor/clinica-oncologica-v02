@@ -45,6 +45,7 @@ export const PublicQuizAccess: React.FC = () => {
     if (!token || !quizData) return;
 
     const currentQuestion = quizData.questions[currentQuestionIndex];
+    if (!currentQuestion) return;
 
     const response = await submitQuizResponse({
       token,
@@ -122,6 +123,9 @@ export const PublicQuizAccess: React.FC = () => {
   }
 
   const currentQuestion = quizData.questions[currentQuestionIndex];
+  if (!currentQuestion) {
+    return null;
+  }
   const progress = ((currentQuestionIndex + 1) / quizData.total_questions) * 100;
 
   return (

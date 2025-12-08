@@ -5,12 +5,6 @@ export type User = ApiUser
 export type AuthTokens = ApiAuthTokens
 export type LoginResponse = ApiLoginResponse
 
-export interface SupabaseAuthData {
-  user: any | null  // Removed Supabase dependency
-  session: any | null  // Removed Supabase dependency
-  loading: boolean
-}
-
 export interface SessionData {
   expiry: number | null
   isExpiring: boolean
@@ -47,7 +41,7 @@ export type AuthEventType = 'SIGNED_IN' | 'SIGNED_OUT' | 'TOKEN_REFRESHED' | 'SE
 
 export interface AuthEvent {
   type: AuthEventType
-  data?: any
+  data?: Record<string, unknown>
   error?: AuthError
 }
 

@@ -1,3 +1,4 @@
+from typing import Any
 """
 Alert monitoring submodule.
 

@@ -12,7 +12,6 @@ Total: 3 files → 1 file
 from typing import List, Optional, Dict, Any, Tuple
 from uuid import UUID
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from app.models.quiz import QuizTemplate, QuizSession, QuizResponse
@@ -34,7 +33,7 @@ from app.utils.db_retry import with_db_retry
 class QuizService:
     """Unified quiz service for all quiz operations."""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         self.db = db
         self.template_service = QuizTemplateService(db)
         self.session_service = QuizSessionService(db)
@@ -44,7 +43,7 @@ class QuizService:
 class QuizTemplateService:
     """Service for managing quiz templates."""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         self.db = db
         self.repository = QuizTemplateRepository(db)
     
@@ -89,7 +88,7 @@ class QuizTemplateService:
 class QuizSessionService:
     """Service for managing quiz sessions."""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         self.db = db
         self.repository = QuizSessionRepository(db)
     
@@ -105,7 +104,7 @@ class QuizSessionService:
 class QuizResponseService:
     """Service for managing quiz responses."""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         self.db = db
         self.repository = QuizResponseRepository(db)
     
@@ -121,7 +120,7 @@ class QuizResponseService:
 class MonthlyQuizService:
     """Service for monthly quiz management."""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         self.db = db
         self.quiz_service = QuizService(db)
     
@@ -136,11 +135,11 @@ class MonthlyQuizService:
         return self.quiz_service.session_service.create_session(session_data)
 
 
-def get_quiz_service(db: Session) -> QuizService:
+def get_quiz_service(db: Any) -> QuizService:
     """Get QuizService instance."""
     return QuizService(db)
 
 
-def get_monthly_quiz_service(db: Session) -> MonthlyQuizService:
+def get_monthly_quiz_service(db: Any) -> MonthlyQuizService:
     """Get MonthlyQuizService instance."""
     return MonthlyQuizService(db)

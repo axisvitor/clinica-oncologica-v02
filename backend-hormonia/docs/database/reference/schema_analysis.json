@@ -1,0 +1,1232 @@
+{
+  "summary": {
+    "total_tables": 47,
+    "total_relationships": 57,
+    "total_user_defined_types": 14,
+    "core_tables_count": 5,
+    "isolated_tables_count": 9
+  },
+  "core_tables": [
+    {
+      "table": "patients",
+      "referenced_by_count": 15,
+      "references_count": 1,
+      "importance_score": 30.5
+    },
+    {
+      "table": "users",
+      "referenced_by_count": 15,
+      "references_count": 0,
+      "importance_score": 30.0
+    },
+    {
+      "table": "admin_users",
+      "referenced_by_count": 9,
+      "references_count": 2,
+      "importance_score": 19.0
+    },
+    {
+      "table": "flow_template_versions",
+      "referenced_by_count": 5,
+      "references_count": 2,
+      "importance_score": 11.0
+    },
+    {
+      "table": "quiz_templates",
+      "referenced_by_count": 3,
+      "references_count": 0,
+      "importance_score": 6.0
+    },
+    {
+      "table": "admin_sessions",
+      "referenced_by_count": 2,
+      "references_count": 1,
+      "importance_score": 4.5
+    },
+    {
+      "table": "messages",
+      "referenced_by_count": 2,
+      "references_count": 1,
+      "importance_score": 4.5
+    },
+    {
+      "table": "admin_permissions",
+      "referenced_by_count": 2,
+      "references_count": 0,
+      "importance_score": 4.0
+    },
+    {
+      "table": "quiz_template_versions_v2",
+      "referenced_by_count": 1,
+      "references_count": 2,
+      "importance_score": 3.0
+    },
+    {
+      "table": "quiz_sessions",
+      "referenced_by_count": 1,
+      "references_count": 2,
+      "importance_score": 3.0
+    }
+  ],
+  "isolated_tables": [
+    "whatsapp_contacts",
+    "whatsapp_instances",
+    "error_logs",
+    "flow_template_categories",
+    "webhook_events",
+    "audit_trail",
+    "audit_log_entries",
+    "alembic_version",
+    "whatsapp_messages"
+  ],
+  "table_domains": {
+    "Other": [
+      "users",
+      "notifications",
+      "alerts",
+      "user_profiles",
+      "alembic_version"
+    ],
+    "Messaging & WhatsApp": [
+      "whatsapp_contacts",
+      "whatsapp_instances",
+      "message_status_events",
+      "whatsapp_delivery_failures",
+      "flow_messages",
+      "webhook_events",
+      "messages",
+      "contacts",
+      "whatsapp_messages"
+    ],
+    "Patients & Medical": [
+      "patients",
+      "patient_onboarding_saga",
+      "patient_flow_states",
+      "medical_reports",
+      "appointments"
+    ],
+    "Quiz & Flow Engine": [
+      "flow_kinds",
+      "flow_template_versions",
+      "flow_template_stats",
+      "flow_template_shares",
+      "flow_template_categories",
+      "flow_states",
+      "quiz_templates",
+      "quiz_template_versions_v2",
+      "quiz_sessions",
+      "quiz_sessions_v2",
+      "quiz_responses",
+      "flow_analytics"
+    ],
+    "Audit & Logging": [
+      "error_logs",
+      "security_audit_log",
+      "user_sync_log",
+      "audit_trail",
+      "audit_log_entries",
+      "audit_logs"
+    ],
+    "Admin & Security": [
+      "admin_users",
+      "admin_user_permissions",
+      "admin_permissions",
+      "admin_roles",
+      "admin_role_permissions",
+      "admin_sessions",
+      "admin_audit_log",
+      "admin_security_events",
+      "admin_ip_whitelist",
+      "admin_ip_blacklist"
+    ]
+  },
+  "relationship_graph": {
+    "users": {
+      "references": [],
+      "referenced_by": [
+        {
+          "table": "patients",
+          "from_column": "doctor_id",
+          "to_column": "id"
+        },
+        {
+          "table": "flow_template_versions",
+          "from_column": "created_by",
+          "to_column": "id"
+        },
+        {
+          "table": "patient_onboarding_saga",
+          "from_column": "doctor_id",
+          "to_column": "id"
+        },
+        {
+          "table": "flow_template_shares",
+          "from_column": "shared_by",
+          "to_column": "id"
+        },
+        {
+          "table": "flow_template_shares",
+          "from_column": "shared_with",
+          "to_column": "id"
+        },
+        {
+          "table": "quiz_template_versions_v2",
+          "from_column": "created_by",
+          "to_column": "id"
+        },
+        {
+          "table": "notifications",
+          "from_column": "user_id",
+          "to_column": "id"
+        },
+        {
+          "table": "whatsapp_delivery_failures",
+          "from_column": "reviewed_by",
+          "to_column": "id"
+        },
+        {
+          "table": "medical_reports",
+          "from_column": "generated_by",
+          "to_column": "id"
+        },
+        {
+          "table": "alerts",
+          "from_column": "acknowledged_by",
+          "to_column": "id"
+        },
+        {
+          "table": "user_sync_log",
+          "from_column": "supabase_user_id",
+          "to_column": "id"
+        },
+        {
+          "table": "user_profiles",
+          "from_column": "user_id",
+          "to_column": "id"
+        },
+        {
+          "table": "appointments",
+          "from_column": "doctor_id",
+          "to_column": "id"
+        },
+        {
+          "table": "contacts",
+          "from_column": "related_user_id",
+          "to_column": "id"
+        },
+        {
+          "table": "audit_logs",
+          "from_column": "user_id",
+          "to_column": "id"
+        }
+      ]
+    },
+    "whatsapp_contacts": {
+      "references": [],
+      "referenced_by": []
+    },
+    "whatsapp_instances": {
+      "references": [],
+      "referenced_by": []
+    },
+    "patients": {
+      "references": [
+        {
+          "table": "users",
+          "from_column": "doctor_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": [
+        {
+          "table": "patient_onboarding_saga",
+          "from_column": "patient_id",
+          "to_column": "id"
+        },
+        {
+          "table": "patient_flow_states",
+          "from_column": "patient_id",
+          "to_column": "id"
+        },
+        {
+          "table": "flow_states",
+          "from_column": "patient_id",
+          "to_column": "id"
+        },
+        {
+          "table": "quiz_sessions",
+          "from_column": "patient_id",
+          "to_column": "id"
+        },
+        {
+          "table": "quiz_sessions_v2",
+          "from_column": "patient_id",
+          "to_column": "id"
+        },
+        {
+          "table": "quiz_responses",
+          "from_column": "patient_id",
+          "to_column": "id"
+        },
+        {
+          "table": "notifications",
+          "from_column": "related_patient_id",
+          "to_column": "id"
+        },
+        {
+          "table": "whatsapp_delivery_failures",
+          "from_column": "patient_id",
+          "to_column": "id"
+        },
+        {
+          "table": "medical_reports",
+          "from_column": "patient_id",
+          "to_column": "id"
+        },
+        {
+          "table": "alerts",
+          "from_column": "patient_id",
+          "to_column": "id"
+        },
+        {
+          "table": "flow_analytics",
+          "from_column": "patient_id",
+          "to_column": "id"
+        },
+        {
+          "table": "security_audit_log",
+          "from_column": "patient_id",
+          "to_column": "id"
+        },
+        {
+          "table": "messages",
+          "from_column": "patient_id",
+          "to_column": "id"
+        },
+        {
+          "table": "appointments",
+          "from_column": "patient_id",
+          "to_column": "id"
+        },
+        {
+          "table": "contacts",
+          "from_column": "related_patient_id",
+          "to_column": "id"
+        }
+      ]
+    },
+    "message_status_events": {
+      "references": [
+        {
+          "table": "messages",
+          "from_column": "message_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "flow_kinds": {
+      "references": [],
+      "referenced_by": [
+        {
+          "table": "flow_template_versions",
+          "from_column": "flow_kind_id",
+          "to_column": "id"
+        }
+      ]
+    },
+    "flow_template_versions": {
+      "references": [
+        {
+          "table": "users",
+          "from_column": "created_by",
+          "to_column": "id"
+        },
+        {
+          "table": "flow_kinds",
+          "from_column": "flow_kind_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": [
+        {
+          "table": "patient_flow_states",
+          "from_column": "flow_template_version_id",
+          "to_column": "id"
+        },
+        {
+          "table": "flow_template_stats",
+          "from_column": "flow_template_version_id",
+          "to_column": "id"
+        },
+        {
+          "table": "flow_template_shares",
+          "from_column": "flow_template_version_id",
+          "to_column": "id"
+        },
+        {
+          "table": "flow_analytics",
+          "from_column": "flow_template_version_id",
+          "to_column": "id"
+        },
+        {
+          "table": "flow_messages",
+          "from_column": "flow_template_version_id",
+          "to_column": "id"
+        }
+      ]
+    },
+    "patient_onboarding_saga": {
+      "references": [
+        {
+          "table": "users",
+          "from_column": "doctor_id",
+          "to_column": "id"
+        },
+        {
+          "table": "patients",
+          "from_column": "patient_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "patient_flow_states": {
+      "references": [
+        {
+          "table": "flow_template_versions",
+          "from_column": "flow_template_version_id",
+          "to_column": "id"
+        },
+        {
+          "table": "patients",
+          "from_column": "patient_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "flow_template_stats": {
+      "references": [
+        {
+          "table": "flow_template_versions",
+          "from_column": "flow_template_version_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "error_logs": {
+      "references": [],
+      "referenced_by": []
+    },
+    "flow_template_shares": {
+      "references": [
+        {
+          "table": "flow_template_versions",
+          "from_column": "flow_template_version_id",
+          "to_column": "id"
+        },
+        {
+          "table": "users",
+          "from_column": "shared_by",
+          "to_column": "id"
+        },
+        {
+          "table": "users",
+          "from_column": "shared_with",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "flow_template_categories": {
+      "references": [],
+      "referenced_by": []
+    },
+    "flow_states": {
+      "references": [
+        {
+          "table": "patients",
+          "from_column": "patient_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "quiz_templates": {
+      "references": [],
+      "referenced_by": [
+        {
+          "table": "quiz_template_versions_v2",
+          "from_column": "template_id",
+          "to_column": "id"
+        },
+        {
+          "table": "quiz_sessions",
+          "from_column": "quiz_template_id",
+          "to_column": "id"
+        },
+        {
+          "table": "quiz_responses",
+          "from_column": "quiz_template_id",
+          "to_column": "id"
+        }
+      ]
+    },
+    "quiz_template_versions_v2": {
+      "references": [
+        {
+          "table": "users",
+          "from_column": "created_by",
+          "to_column": "id"
+        },
+        {
+          "table": "quiz_templates",
+          "from_column": "template_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": [
+        {
+          "table": "quiz_sessions_v2",
+          "from_column": "template_version_id",
+          "to_column": "id"
+        }
+      ]
+    },
+    "quiz_sessions": {
+      "references": [
+        {
+          "table": "patients",
+          "from_column": "patient_id",
+          "to_column": "id"
+        },
+        {
+          "table": "quiz_templates",
+          "from_column": "quiz_template_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": [
+        {
+          "table": "quiz_responses",
+          "from_column": "quiz_session_id",
+          "to_column": "id"
+        }
+      ]
+    },
+    "quiz_sessions_v2": {
+      "references": [
+        {
+          "table": "patients",
+          "from_column": "patient_id",
+          "to_column": "id"
+        },
+        {
+          "table": "quiz_template_versions_v2",
+          "from_column": "template_version_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "quiz_responses": {
+      "references": [
+        {
+          "table": "patients",
+          "from_column": "patient_id",
+          "to_column": "id"
+        },
+        {
+          "table": "quiz_templates",
+          "from_column": "quiz_template_id",
+          "to_column": "id"
+        },
+        {
+          "table": "quiz_sessions",
+          "from_column": "quiz_session_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "notifications": {
+      "references": [
+        {
+          "table": "patients",
+          "from_column": "related_patient_id",
+          "to_column": "id"
+        },
+        {
+          "table": "users",
+          "from_column": "user_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "whatsapp_delivery_failures": {
+      "references": [
+        {
+          "table": "messages",
+          "from_column": "original_message_id",
+          "to_column": "id"
+        },
+        {
+          "table": "patients",
+          "from_column": "patient_id",
+          "to_column": "id"
+        },
+        {
+          "table": "users",
+          "from_column": "reviewed_by",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "admin_users": {
+      "references": [
+        {
+          "table": "admin_users",
+          "from_column": "created_by",
+          "to_column": "id"
+        },
+        {
+          "table": "admin_users",
+          "from_column": "updated_by",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": [
+        {
+          "table": "admin_users",
+          "from_column": "created_by",
+          "to_column": "id"
+        },
+        {
+          "table": "admin_users",
+          "from_column": "updated_by",
+          "to_column": "id"
+        },
+        {
+          "table": "admin_user_permissions",
+          "from_column": "admin_user_id",
+          "to_column": "id"
+        },
+        {
+          "table": "admin_user_permissions",
+          "from_column": "granted_by",
+          "to_column": "id"
+        },
+        {
+          "table": "admin_sessions",
+          "from_column": "admin_user_id",
+          "to_column": "id"
+        },
+        {
+          "table": "admin_audit_log",
+          "from_column": "admin_user_id",
+          "to_column": "id"
+        },
+        {
+          "table": "admin_security_events",
+          "from_column": "admin_user_id",
+          "to_column": "id"
+        },
+        {
+          "table": "admin_ip_whitelist",
+          "from_column": "added_by",
+          "to_column": "id"
+        },
+        {
+          "table": "admin_ip_blacklist",
+          "from_column": "blocked_by",
+          "to_column": "id"
+        }
+      ]
+    },
+    "medical_reports": {
+      "references": [
+        {
+          "table": "users",
+          "from_column": "generated_by",
+          "to_column": "id"
+        },
+        {
+          "table": "patients",
+          "from_column": "patient_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "alerts": {
+      "references": [
+        {
+          "table": "users",
+          "from_column": "acknowledged_by",
+          "to_column": "id"
+        },
+        {
+          "table": "patients",
+          "from_column": "patient_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "flow_analytics": {
+      "references": [
+        {
+          "table": "flow_template_versions",
+          "from_column": "flow_template_version_id",
+          "to_column": "id"
+        },
+        {
+          "table": "patients",
+          "from_column": "patient_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "flow_messages": {
+      "references": [
+        {
+          "table": "flow_template_versions",
+          "from_column": "flow_template_version_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "admin_user_permissions": {
+      "references": [
+        {
+          "table": "admin_users",
+          "from_column": "admin_user_id",
+          "to_column": "id"
+        },
+        {
+          "table": "admin_users",
+          "from_column": "granted_by",
+          "to_column": "id"
+        },
+        {
+          "table": "admin_permissions",
+          "from_column": "permission_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "admin_permissions": {
+      "references": [],
+      "referenced_by": [
+        {
+          "table": "admin_user_permissions",
+          "from_column": "permission_id",
+          "to_column": "id"
+        },
+        {
+          "table": "admin_role_permissions",
+          "from_column": "permission_id",
+          "to_column": "id"
+        }
+      ]
+    },
+    "admin_roles": {
+      "references": [],
+      "referenced_by": [
+        {
+          "table": "admin_role_permissions",
+          "from_column": "role_id",
+          "to_column": "id"
+        }
+      ]
+    },
+    "admin_role_permissions": {
+      "references": [
+        {
+          "table": "admin_permissions",
+          "from_column": "permission_id",
+          "to_column": "id"
+        },
+        {
+          "table": "admin_roles",
+          "from_column": "role_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "webhook_events": {
+      "references": [],
+      "referenced_by": []
+    },
+    "security_audit_log": {
+      "references": [
+        {
+          "table": "patients",
+          "from_column": "patient_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "admin_sessions": {
+      "references": [
+        {
+          "table": "admin_users",
+          "from_column": "admin_user_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": [
+        {
+          "table": "admin_audit_log",
+          "from_column": "session_id",
+          "to_column": "id"
+        },
+        {
+          "table": "admin_security_events",
+          "from_column": "session_id",
+          "to_column": "id"
+        }
+      ]
+    },
+    "admin_audit_log": {
+      "references": [
+        {
+          "table": "admin_users",
+          "from_column": "admin_user_id",
+          "to_column": "id"
+        },
+        {
+          "table": "admin_sessions",
+          "from_column": "session_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "messages": {
+      "references": [
+        {
+          "table": "patients",
+          "from_column": "patient_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": [
+        {
+          "table": "message_status_events",
+          "from_column": "message_id",
+          "to_column": "id"
+        },
+        {
+          "table": "whatsapp_delivery_failures",
+          "from_column": "original_message_id",
+          "to_column": "id"
+        }
+      ]
+    },
+    "user_sync_log": {
+      "references": [
+        {
+          "table": "users",
+          "from_column": "supabase_user_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "admin_security_events": {
+      "references": [
+        {
+          "table": "admin_users",
+          "from_column": "admin_user_id",
+          "to_column": "id"
+        },
+        {
+          "table": "admin_sessions",
+          "from_column": "session_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "admin_ip_whitelist": {
+      "references": [
+        {
+          "table": "admin_users",
+          "from_column": "added_by",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "admin_ip_blacklist": {
+      "references": [
+        {
+          "table": "admin_users",
+          "from_column": "blocked_by",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "user_profiles": {
+      "references": [
+        {
+          "table": "users",
+          "from_column": "user_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "audit_trail": {
+      "references": [],
+      "referenced_by": []
+    },
+    "audit_log_entries": {
+      "references": [],
+      "referenced_by": []
+    },
+    "alembic_version": {
+      "references": [],
+      "referenced_by": []
+    },
+    "appointments": {
+      "references": [
+        {
+          "table": "users",
+          "from_column": "doctor_id",
+          "to_column": "id"
+        },
+        {
+          "table": "patients",
+          "from_column": "patient_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "contacts": {
+      "references": [
+        {
+          "table": "patients",
+          "from_column": "related_patient_id",
+          "to_column": "id"
+        },
+        {
+          "table": "users",
+          "from_column": "related_user_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "audit_logs": {
+      "references": [
+        {
+          "table": "users",
+          "from_column": "user_id",
+          "to_column": "id"
+        }
+      ],
+      "referenced_by": []
+    },
+    "whatsapp_messages": {
+      "references": [],
+      "referenced_by": []
+    }
+  },
+  "table_complexity": {
+    "users": {
+      "columns": 17,
+      "indexes": 8,
+      "foreign_keys": 0,
+      "complexity_score": 19.5
+    },
+    "whatsapp_contacts": {
+      "columns": 11,
+      "indexes": 2,
+      "foreign_keys": 0,
+      "complexity_score": 7.5
+    },
+    "whatsapp_instances": {
+      "columns": 13,
+      "indexes": 2,
+      "foreign_keys": 0,
+      "complexity_score": 8.5
+    },
+    "patients": {
+      "columns": 18,
+      "indexes": 23,
+      "foreign_keys": 1,
+      "complexity_score": 36.0
+    },
+    "message_status_events": {
+      "columns": 13,
+      "indexes": 4,
+      "foreign_keys": 1,
+      "complexity_score": 11.5
+    },
+    "flow_kinds": {
+      "columns": 7,
+      "indexes": 3,
+      "foreign_keys": 0,
+      "complexity_score": 6.7
+    },
+    "flow_template_versions": {
+      "columns": 14,
+      "indexes": 4,
+      "foreign_keys": 2,
+      "complexity_score": 14.0
+    },
+    "patient_onboarding_saga": {
+      "columns": 18,
+      "indexes": 5,
+      "foreign_keys": 2,
+      "complexity_score": 16.0
+    },
+    "patient_flow_states": {
+      "columns": 14,
+      "indexes": 10,
+      "foreign_keys": 2,
+      "complexity_score": 19.0
+    },
+    "flow_template_stats": {
+      "columns": 10,
+      "indexes": 1,
+      "foreign_keys": 1,
+      "complexity_score": 7.0
+    },
+    "error_logs": {
+      "columns": 12,
+      "indexes": 11,
+      "foreign_keys": 0,
+      "complexity_score": 17.0
+    },
+    "flow_template_shares": {
+      "columns": 10,
+      "indexes": 1,
+      "foreign_keys": 3,
+      "complexity_score": 9.0
+    },
+    "flow_template_categories": {
+      "columns": 8,
+      "indexes": 1,
+      "foreign_keys": 0,
+      "complexity_score": 5.0
+    },
+    "flow_states": {
+      "columns": 9,
+      "indexes": 2,
+      "foreign_keys": 1,
+      "complexity_score": 7.5
+    },
+    "quiz_templates": {
+      "columns": 13,
+      "indexes": 2,
+      "foreign_keys": 0,
+      "complexity_score": 9.1
+    },
+    "quiz_template_versions_v2": {
+      "columns": 11,
+      "indexes": 3,
+      "foreign_keys": 2,
+      "complexity_score": 10.7
+    },
+    "quiz_sessions": {
+      "columns": 16,
+      "indexes": 15,
+      "foreign_keys": 2,
+      "complexity_score": 25.2
+    },
+    "quiz_sessions_v2": {
+      "columns": 8,
+      "indexes": 2,
+      "foreign_keys": 2,
+      "complexity_score": 8.0
+    },
+    "quiz_responses": {
+      "columns": 16,
+      "indexes": 8,
+      "foreign_keys": 3,
+      "complexity_score": 19.0
+    },
+    "notifications": {
+      "columns": 17,
+      "indexes": 8,
+      "foreign_keys": 2,
+      "complexity_score": 18.5
+    },
+    "whatsapp_delivery_failures": {
+      "columns": 18,
+      "indexes": 3,
+      "foreign_keys": 3,
+      "complexity_score": 15.0
+    },
+    "admin_users": {
+      "columns": 24,
+      "indexes": 6,
+      "foreign_keys": 2,
+      "complexity_score": 21.8
+    },
+    "medical_reports": {
+      "columns": 13,
+      "indexes": 4,
+      "foreign_keys": 2,
+      "complexity_score": 12.5
+    },
+    "alerts": {
+      "columns": 11,
+      "indexes": 7,
+      "foreign_keys": 2,
+      "complexity_score": 14.5
+    },
+    "flow_analytics": {
+      "columns": 12,
+      "indexes": 5,
+      "foreign_keys": 2,
+      "complexity_score": 13.0
+    },
+    "flow_messages": {
+      "columns": 11,
+      "indexes": 5,
+      "foreign_keys": 1,
+      "complexity_score": 11.5
+    },
+    "admin_user_permissions": {
+      "columns": 4,
+      "indexes": 1,
+      "foreign_keys": 3,
+      "complexity_score": 6.0
+    },
+    "admin_permissions": {
+      "columns": 5,
+      "indexes": 2,
+      "foreign_keys": 0,
+      "complexity_score": 4.9
+    },
+    "admin_roles": {
+      "columns": 6,
+      "indexes": 1,
+      "foreign_keys": 0,
+      "complexity_score": 4.2
+    },
+    "admin_role_permissions": {
+      "columns": 3,
+      "indexes": 1,
+      "foreign_keys": 2,
+      "complexity_score": 4.5
+    },
+    "webhook_events": {
+      "columns": 17,
+      "indexes": 8,
+      "foreign_keys": 0,
+      "complexity_score": 16.5
+    },
+    "security_audit_log": {
+      "columns": 13,
+      "indexes": 11,
+      "foreign_keys": 1,
+      "complexity_score": 18.5
+    },
+    "admin_sessions": {
+      "columns": 13,
+      "indexes": 7,
+      "foreign_keys": 1,
+      "complexity_score": 14.9
+    },
+    "admin_audit_log": {
+      "columns": 19,
+      "indexes": 6,
+      "foreign_keys": 2,
+      "complexity_score": 17.5
+    },
+    "messages": {
+      "columns": 21,
+      "indexes": 20,
+      "foreign_keys": 1,
+      "complexity_score": 31.9
+    },
+    "user_sync_log": {
+      "columns": 12,
+      "indexes": 4,
+      "foreign_keys": 1,
+      "complexity_score": 11.0
+    },
+    "admin_security_events": {
+      "columns": 16,
+      "indexes": 5,
+      "foreign_keys": 2,
+      "complexity_score": 15.0
+    },
+    "admin_ip_whitelist": {
+      "columns": 10,
+      "indexes": 3,
+      "foreign_keys": 1,
+      "complexity_score": 9.0
+    },
+    "admin_ip_blacklist": {
+      "columns": 12,
+      "indexes": 2,
+      "foreign_keys": 1,
+      "complexity_score": 9.0
+    },
+    "user_profiles": {
+      "columns": 12,
+      "indexes": 2,
+      "foreign_keys": 1,
+      "complexity_score": 9.0
+    },
+    "audit_trail": {
+      "columns": 14,
+      "indexes": 4,
+      "foreign_keys": 0,
+      "complexity_score": 11.0
+    },
+    "audit_log_entries": {
+      "columns": 11,
+      "indexes": 3,
+      "foreign_keys": 0,
+      "complexity_score": 8.5
+    },
+    "alembic_version": {
+      "columns": 1,
+      "indexes": 0,
+      "foreign_keys": 0,
+      "complexity_score": 0.5
+    },
+    "appointments": {
+      "columns": 14,
+      "indexes": 4,
+      "foreign_keys": 2,
+      "complexity_score": 13.0
+    },
+    "contacts": {
+      "columns": 12,
+      "indexes": 3,
+      "foreign_keys": 2,
+      "complexity_score": 11.0
+    },
+    "audit_logs": {
+      "columns": 15,
+      "indexes": 8,
+      "foreign_keys": 1,
+      "complexity_score": 16.5
+    },
+    "whatsapp_messages": {
+      "columns": 20,
+      "indexes": 4,
+      "foreign_keys": 0,
+      "complexity_score": 14.0
+    }
+  }
+}

@@ -1,7 +1,7 @@
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, ConfigDict
 
 
 class TokenData(BaseModel):
@@ -42,9 +42,8 @@ class UserResponse(BaseModel):
     full_name: Optional[str]
     role: str
     is_active: bool
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Update forward reference

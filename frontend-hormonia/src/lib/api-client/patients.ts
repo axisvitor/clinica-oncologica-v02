@@ -11,43 +11,14 @@
 
 import type { ApiClientCore, PaginatedResponse } from './core'
 import type { TimelineEvent } from '@/types/api'
+import { normalizePatient, denormalizePatient, normalizePatientList } from './normalizers'
+import type { BackendPatient, FrontendPatient } from './normalizers'
 
-export interface Patient {
-  id: string
-  name: string
-  email?: string
-  phone?: string
-  cpf?: string
-  birth_date?: string
-  treatment_type?: string
-  treatment_start_date?: string
-  doctor_notes?: string
-  diagnosis?: string
-  treatment_phase?: string
-  gender?: 'M' | 'F' | 'other'
-  address?: {
-    street?: string
-    number?: string
-    complement?: string
-    neighborhood?: string
-    city?: string
-    state?: string
-    zip_code?: string
-  }
-  medical_info?: {
-    diagnosis?: string
-    treatment_start_date?: string
-    allergies?: string[]
-    medications?: string[]
-    notes?: string
-  }
-  status?: 'active' | 'inactive' | 'archived' | 'paused' | 'completed'
-  created_at?: string
-  updated_at?: string
-  doctor_id?: string
-  current_day?: number
-  flow_state?: string
-}
+/**
+ * Patient type - uses FrontendPatient from normalizers
+ * This ensures consistent typing across the application
+ */
+export type Patient = FrontendPatient
 
 export interface PatientCreate {
   name: string
@@ -62,6 +33,7 @@ export interface PatientCreate {
   treatment_type?: string
   treatment_start_date?: string
   doctor_notes?: string
+  timezone?: string
 }
 
 export interface PatientUpdate extends Partial<PatientCreate> {
@@ -122,23 +94,7 @@ export interface PatientStats {
   by_doctor?: Record<string, number>
 }
 
-type PatientApiResponse = Patient & { flow_state?: string }
 
-const normalizePatientResponse = (patient: PatientApiResponse): Patient => {
-  if (!patient) {
-    return patient
-  }
-  const flowState = patient.flow_state ?? patient.status ?? 'active'
-  const normalizedStatus = (flowState || patient.status || 'active') as Patient['status']
-  return {
-    ...patient,
-    flow_state: flowState as string,
-    status: normalizedStatus as "active" | "inactive" | "completed" | "paused" | "archived"
-  }
-}
-
-const normalizePatientList = (patients: PatientApiResponse[] = []): Patient[] =>
-  patients.map((patient) => normalizePatientResponse(patient))
 
 /**
  * Patients API methods
@@ -157,7 +113,7 @@ export function createPatientsApi(client: ApiClientCore) {
       let page = 1
       let limit = 20
       let cursor: string | undefined
-      let rest: Record<string, any> = {}
+      let rest: Record<string, unknown> = {}
 
       if (typeof pageOrOptions === 'number') {
         page = pageOrOptions
@@ -181,7 +137,7 @@ export function createPatientsApi(client: ApiClientCore) {
 
       // Normalize to keep backward compatibility with components expecting `items`
       const rawItems = Array.isArray(res?.data) ? res.data : (res?.items ?? [])
-      const items = normalizePatientList(rawItems as PatientApiResponse[])
+      const items = normalizePatientList(rawItems as BackendPatient[])
       const total = res?.total ?? res?.total_count ?? items.length ?? 0
       const has_more = res?.has_more ?? (typeof res?.pages === 'number' && page < res.pages)
       const next_cursor = res?.next_cursor ?? null
@@ -204,8 +160,8 @@ export function createPatientsApi(client: ApiClientCore) {
      * Get patient by ID
      */
     get: async (patientId: string): Promise<Patient> => {
-      const patient = await client.get<PatientApiResponse>(`/api/v2/patients/${patientId}`)
-      return normalizePatientResponse(patient)
+      const patient = await client.get<BackendPatient>(`/api/v2/patients/${patientId}`)
+      return normalizePatient(patient)
     },
 
     /**
@@ -215,16 +171,35 @@ export function createPatientsApi(client: ApiClientCore) {
       if (!data?.doctor_id) {
         throw new Error('doctor_id is required to create a patient')
       }
-      const patient = await client.post<PatientApiResponse>('/api/v2/patients', data)
-      return normalizePatientResponse(patient)
+      // Denormalize frontend data to backend format before sending
+      const backendData = denormalizePatient(data as any)
+      const patient = await client.post<BackendPatient>('/api/v2/patients', backendData)
+      return normalizePatient(patient)
     },
 
     /**
      * Update patient
      */
-    update: async (patientId: string, data: PatientUpdate): Promise<Patient> => {
-      const patient = await client.patch<PatientApiResponse>(`/api/v2/patients/${patientId}`, data)
-      return normalizePatientResponse(patient)
+    update: async (patientId: string, data: PatientUpdate, options?: { headers?: Record<string, string> }): Promise<Patient> => {
+      // Denormalize frontend data to backend format before sending
+      const backendData = denormalizePatient(data as any)
+
+      // If options.headers provided, we need to pass them through request options
+      // Since patch doesn't support options, we'll call request directly
+      if (options?.headers) {
+        const patient = await client.request<BackendPatient>(`/api/v2/patients/${patientId}`, {
+          method: 'PATCH',
+          body: JSON.stringify(backendData),
+          headers: {
+            'Content-Type': 'application/json',
+            ...options.headers
+          }
+        })
+        return normalizePatient(patient)
+      }
+
+      const patient = await client.patch<BackendPatient>(`/api/v2/patients/${patientId}`, backendData)
+      return normalizePatient(patient)
     },
 
     /**
@@ -234,49 +209,40 @@ export function createPatientsApi(client: ApiClientCore) {
       return client.delete<{ message: string }>(`/api/v2/patients/${patientId}`)
     },
 
+    /**
+     * Alias for delete to match component usage
+     */
     deletePatient: async (patientId: string): Promise<{ message: string }> => {
       return client.delete<{ message: string }>(`/api/v2/patients/${patientId}`)
     },
 
+    /**
+     * Activate patient
+     */
     activate: async (patientId: string): Promise<Patient> => {
-      const patient = await client.post<PatientApiResponse>(`/api/v2/patients/${patientId}/activate`)
-      return normalizePatientResponse(patient)
+      // Using update to set status to active
+      const backendData = denormalizePatient({ status: 'active' } as any)
+      const patient = await client.patch<BackendPatient>(`/api/v2/patients/${patientId}`, backendData)
+      return normalizePatient(patient)
     },
 
+    /**
+     * Deactivate (pause) patient
+     */
     deactivate: async (patientId: string): Promise<Patient> => {
-      const patient = await client.post<PatientApiResponse>(`/api/v2/patients/${patientId}/deactivate`)
-      return normalizePatientResponse(patient)
+      // Using update to set status to paused
+      const backendData = denormalizePatient({ status: 'paused' } as any)
+      const patient = await client.patch<BackendPatient>(`/api/v2/patients/${patientId}`, backendData)
+      return normalizePatient(patient)
     },
 
     /**
-     * Archive patient (V1 - no V2 equivalent, use deactivate instead)
-     * @deprecated Use deactivate() for V2 compatibility
+     * Get patient timeline
      */
-    archive: async (patientId: string): Promise<Patient> => {
-      return client.patch<Patient>(`/api/v2/patients/${patientId}/archive`)
+    timeline: async (patientId: string): Promise<{ events: TimelineEvent[] }> => {
+      return client.get<{ events: TimelineEvent[] }>(`/api/v2/patients/${patientId}/timeline`)
     },
 
-    /**
-     * Restore archived patient
-     */
-    restore: async (patientId: string): Promise<Patient> => {
-      const patient = await client.post<PatientApiResponse>(`/api/v2/patients/${patientId}/restore`)
-      return normalizePatientResponse(patient)
-    },
-
-    /**
-     * Get patient timeline events
-     */
-    timeline: async (patientId: string): Promise<{ patient_id: string; events: TimelineEvent[] }> => {
-      return client.get<{ patient_id: string; events: TimelineEvent[] }>(`/api/v2/patients/${patientId}/timeline`)
-    },
-
-    /**
-     * Search patients
-     */
-    search: async (query: string): Promise<Patient[]> => {
-      return client.get<Patient[]>(`/api/v2/patients/search`, { q: query })
-    },
 
     /**
      * REMOVED: Medical History, Appointments, Documents
@@ -371,6 +337,158 @@ export function createPatientsApi(client: ApiClientCore) {
      */
     checkEmailExists: async (email: string): Promise<{ exists: boolean }> => {
       return client.get<{ exists: boolean }>('/api/v2/patients/check-email', { email })
+    },
+
+    /**
+     * Import patients from CSV/Excel file
+     */
+    importPatients: async (
+      file: File,
+      options?: {
+        skipDuplicates?: boolean;
+        updateExisting?: boolean;
+        validateOnly?: boolean;
+      }
+    ): Promise<{
+      total: number;
+      successful: number;
+      failed: number;
+      skipped: number;
+      updated: number;
+      errors: Array<{ row: number; patientName?: string; message: string; code?: string }>;
+      sessionId?: string;
+    }> => {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      // Add options as query params
+      const params = new URLSearchParams()
+      if (options?.skipDuplicates) params.append('skip_duplicates', 'true')
+      if (options?.updateExisting) params.append('update_existing', 'true')
+      if (options?.validateOnly) params.append('validate_only', 'true')
+
+      const queryString = params.toString() ? `?${params.toString()}` : ''
+
+      const response = await fetch(
+        `${client.getBaseURL()}/api/v2/patients/import${queryString}`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${client.getAuthToken()}`
+          },
+          credentials: 'include',
+          body: formData
+        }
+      )
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'Import failed' }))
+        throw new Error(error.detail || 'Failed to import patients')
+      }
+
+      return response.json()
+    },
+
+    /**
+     * Validate import file without importing
+     */
+    validateImport: async (file: File): Promise<{
+      valid: boolean;
+      totalRows: number;
+      validRows: number;
+      errorRows: number;
+      warningRows: number;
+      errors: Array<{ row: number; column?: string; message: string; severity: 'error' | 'warning' }>;
+      warnings: Array<{ row: number; column?: string; message: string }>;
+      preview: Array<{ row: number; name: string; email?: string; phone?: string; cpf?: string }>;
+      format: 'csv' | 'xlsx';
+      fileSize: number;
+    }> => {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch(
+        `${client.getBaseURL()}/api/v2/patients/import/validate`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${client.getAuthToken()}`
+          },
+          credentials: 'include',
+          body: formData
+        }
+      )
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'Validation failed' }))
+        throw new Error(error.detail || 'Failed to validate import file')
+      }
+
+      return response.json()
+    },
+
+    /**
+     * Download CSV/Excel template for patient import
+     */
+    downloadTemplate: async (format: 'csv' | 'xlsx' = 'csv'): Promise<Blob> => {
+      const response = await fetch(
+        `${client.getBaseURL()}/api/v2/patients/import/template?format=${format}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${client.getAuthToken()}`
+          },
+          credentials: 'include'
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error('Failed to download template')
+      }
+
+      return response.blob()
+    },
+
+    /**
+     * Get import history
+     */
+    getImportHistory: async (filters?: {
+      userId?: string;
+      status?: 'pending' | 'processing' | 'completed' | 'failed';
+      startDate?: string;
+      endDate?: string;
+      page?: number;
+      size?: number;
+    }): Promise<{
+      items: Array<{
+        id: string;
+        userId: string;
+        userName: string;
+        filename: string;
+        format: 'csv' | 'xlsx';
+        status: 'pending' | 'processing' | 'completed' | 'failed';
+        totalRows: number;
+        successfulRows: number;
+        failedRows: number;
+        skippedRows: number;
+        startedAt: string;
+        completedAt?: string;
+        duration?: number;
+      }>;
+      total: number;
+      page: number;
+      size: number;
+      pages: number;
+    }> => {
+      const params: Record<string, string | number> = {}
+      if (filters?.userId) params['user_id'] = filters.userId
+      if (filters?.status) params['status'] = filters.status
+      if (filters?.startDate) params['start_date'] = filters.startDate
+      if (filters?.endDate) params['end_date'] = filters.endDate
+      if (filters?.page) params['page'] = filters.page
+      if (filters?.size) params['size'] = filters.size
+
+      return client.get('/api/v2/patients/import/history', params)
     }
   }
 }

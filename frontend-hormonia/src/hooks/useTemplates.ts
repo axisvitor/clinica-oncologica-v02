@@ -11,21 +11,45 @@ import { apiClient } from '@/lib/api-client';
 
 // ==================== Types ====================
 
+export interface InteractiveElement {
+  type: 'button' | 'input' | 'select' | 'checkbox' | 'radio';
+  id: string;
+  label?: string;
+  value?: string;
+  options?: Array<{ label: string; value: string }>;
+  required?: boolean;
+  validation?: {
+    pattern?: string;
+    min?: number;
+    max?: number;
+    message?: string;
+  };
+}
+
 export interface FlowTemplateStep {
   step_number?: number;
   intent: string;
   ai_instructions?: string;
   personalization_hints?: string[];
-  interactive_elements?: any;
+  interactive_elements?: InteractiveElement[];
   message_type?: string;
   base_content?: string;
+}
+
+export interface FullTemplate {
+  version: string;
+  author?: string;
+  created_at?: string;
+  updated_at?: string;
+  steps: FlowTemplateStep[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface FlowTemplateMetadata {
   flow_type: string;
   humanization_level: string;
   version: string;
-  full_template?: any;
+  full_template?: FullTemplate;
 }
 
 export interface FlowTemplateCreate {
@@ -57,13 +81,34 @@ export interface FlowTemplate {
   version_number: number;
   template_name: string;
   description?: string;
-  steps: FlowTemplateStep[] | Record<string, any>; // Array (preferred) or dict (legacy)
-  metadata?: any;
+  steps: FlowTemplateStep[] | Record<string, FlowTemplateStep>; // Array (preferred) or dict (legacy)
+  metadata?: FlowTemplateMetadata | Record<string, unknown>;
   is_active: boolean;
   is_draft: boolean;
   published_at?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface QuizQuestionOption {
+  text?: string;
+  value?: string | number | boolean;
+  score?: number;
+}
+
+export interface QuizValidationRule {
+  type: 'required' | 'min' | 'max' | 'pattern' | 'custom';
+  value?: unknown;
+  message?: string;
+}
+
+export interface QuizQuestionMetadata {
+  category?: string;
+  tags?: string[];
+  weight?: number;
+  display_order?: number;
+  conditional_logic?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 export interface QuizQuestion {
@@ -72,13 +117,9 @@ export interface QuizQuestion {
   text: string;
   category?: string;
   required?: boolean;
-  options?: Array<{
-    text: string;
-    value?: any;
-    score?: number;
-  }>;
-  validation_rules?: any[];
-  metadata?: any;
+  options?: QuizQuestionOption[];
+  validation_rules?: QuizValidationRule[];
+  metadata?: QuizQuestionMetadata;
 }
 
 export interface QuizTemplateCreate {
@@ -146,10 +187,13 @@ export function useTemplates() {
       });
 
       return response;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'response' in error
+        ? (error.response as any)?.data?.detail || 'Ocorreu um erro ao criar o template'
+        : 'Ocorreu um erro ao criar o template';
       toast({
         title: 'Erro ao criar template',
-        description: error.response?.data?.detail || 'Ocorreu um erro ao criar o template',
+        description: errorMessage,
         variant: 'destructive',
       });
       return null;
@@ -170,10 +214,13 @@ export function useTemplates() {
       const response = await apiClient.get<PaginatedResponse<FlowTemplate>>('/api/v2/templates/flows', params || undefined);
 
       return response;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'response' in error
+        ? (error.response as any)?.data?.detail || 'Ocorreu um erro ao listar templates'
+        : 'Ocorreu um erro ao listar templates';
       toast({
         title: 'Erro ao listar templates',
-        description: error.response?.data?.detail || 'Ocorreu um erro ao listar templates',
+        description: errorMessage,
         variant: 'destructive',
       });
       return null;
@@ -187,10 +234,13 @@ export function useTemplates() {
     try {
       const response = await apiClient.get<FlowTemplate>(`/api/v2/templates/flows/${templateId}`);
       return response;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'response' in error
+        ? (error.response as any)?.data?.detail || 'Template não encontrado'
+        : 'Template não encontrado';
       toast({
         title: 'Erro ao buscar template',
-        description: error.response?.data?.detail || 'Template não encontrado',
+        description: errorMessage,
         variant: 'destructive',
       });
       return null;
@@ -213,10 +263,13 @@ export function useTemplates() {
       });
 
       return response;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'response' in error
+        ? (error.response as any)?.data?.detail || 'Ocorreu um erro ao atualizar o template'
+        : 'Ocorreu um erro ao atualizar o template';
       toast({
         title: 'Erro ao atualizar template',
-        description: error.response?.data?.detail || 'Ocorreu um erro ao atualizar o template',
+        description: errorMessage,
         variant: 'destructive',
       });
       return null;
@@ -239,10 +292,13 @@ export function useTemplates() {
       });
 
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'response' in error
+        ? (error.response as any)?.data?.detail || 'Ocorreu um erro ao remover o template'
+        : 'Ocorreu um erro ao remover o template';
       toast({
         title: 'Erro ao remover template',
-        description: error.response?.data?.detail || 'Ocorreu um erro ao remover o template',
+        description: errorMessage,
         variant: 'destructive',
       });
       return false;
@@ -264,10 +320,13 @@ export function useTemplates() {
       });
 
       return response;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'response' in error
+        ? (error.response as any)?.data?.detail || 'Ocorreu um erro ao criar o quiz'
+        : 'Ocorreu um erro ao criar o quiz';
       toast({
         title: 'Erro ao criar quiz',
-        description: error.response?.data?.detail || 'Ocorreu um erro ao criar o quiz',
+        description: errorMessage,
         variant: 'destructive',
       });
       return null;
@@ -287,10 +346,13 @@ export function useTemplates() {
       const response = await apiClient.get<PaginatedResponse<QuizTemplate>>('/api/v2/templates/quiz', params || undefined);
 
       return response;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'response' in error
+        ? (error.response as any)?.data?.detail || 'Ocorreu um erro ao listar quizzes'
+        : 'Ocorreu um erro ao listar quizzes';
       toast({
         title: 'Erro ao listar quizzes',
-        description: error.response?.data?.detail || 'Ocorreu um erro ao listar quizzes',
+        description: errorMessage,
         variant: 'destructive',
       });
       return null;
@@ -304,10 +366,13 @@ export function useTemplates() {
     try {
       const response = await apiClient.get<QuizTemplate>(`/api/v2/templates/quiz/${quizId}`);
       return response;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'response' in error
+        ? (error.response as any)?.data?.detail || 'Quiz não encontrado'
+        : 'Quiz não encontrado';
       toast({
         title: 'Erro ao buscar quiz',
-        description: error.response?.data?.detail || 'Quiz não encontrado',
+        description: errorMessage,
         variant: 'destructive',
       });
       return null;
@@ -330,10 +395,13 @@ export function useTemplates() {
       });
 
       return response;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'response' in error
+        ? (error.response as any)?.data?.detail || 'Ocorreu um erro ao atualizar o quiz'
+        : 'Ocorreu um erro ao atualizar o quiz';
       toast({
         title: 'Erro ao atualizar quiz',
-        description: error.response?.data?.detail || 'Ocorreu um erro ao atualizar o quiz',
+        description: errorMessage,
         variant: 'destructive',
       });
       return null;
@@ -356,10 +424,13 @@ export function useTemplates() {
       });
 
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'response' in error
+        ? (error.response as any)?.data?.detail || 'Ocorreu um erro ao remover o quiz'
+        : 'Ocorreu um erro ao remover o quiz';
       toast({
         title: 'Erro ao remover quiz',
-        description: error.response?.data?.detail || 'Ocorreu um erro ao remover o quiz',
+        description: errorMessage,
         variant: 'destructive',
       });
       return false;

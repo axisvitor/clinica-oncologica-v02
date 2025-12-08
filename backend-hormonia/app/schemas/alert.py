@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional, Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from app.models.alert import AlertSeverity, AlertStatus
 
@@ -40,8 +40,7 @@ class AlertResponse(AlertBase):
     created_at: datetime = Field(..., description="When alert was created")
     updated_at: datetime = Field(..., description="When alert was last updated")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AlertAcknowledge(BaseModel):

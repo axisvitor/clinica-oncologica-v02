@@ -236,10 +236,11 @@ export function useUserProfile() {
         description: 'Suas informações foram atualizadas com sucesso.',
       })
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error ? error.message : 'Não foi possível atualizar suas informações.';
       toast({
         title: 'Erro ao atualizar perfil',
-        description: error.message || 'Não foi possível atualizar suas informações.',
+        description: errorMessage,
         variant: 'destructive',
       })
     }
@@ -254,10 +255,11 @@ export function useUserProfile() {
         description: 'Sua foto de perfil foi atualizada com sucesso.',
       })
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error ? error.message : 'Não foi possível fazer o upload da imagem.';
       toast({
         title: 'Erro ao fazer upload',
-        description: error.message || 'Não foi possível fazer o upload da imagem.',
+        description: errorMessage,
         variant: 'destructive',
       })
     }
@@ -281,10 +283,11 @@ export function usePasswordChange() {
         description: 'Sua senha foi alterada com sucesso.',
       })
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error ? error.message : 'Não foi possível alterar sua senha.';
       toast({
         title: 'Erro ao alterar senha',
-        description: error.message || 'Não foi possível alterar sua senha.',
+        description: errorMessage,
         variant: 'destructive',
       })
     }
@@ -315,10 +318,11 @@ export function useUserPreferences() {
         description: 'Suas preferências foram salvas com sucesso.',
       })
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error ? error.message : 'Não foi possível salvar suas preferências.';
       toast({
         title: 'Erro ao salvar preferências',
-        description: error.message || 'Não foi possível salvar suas preferências.',
+        description: errorMessage,
         variant: 'destructive',
       })
     }

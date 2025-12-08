@@ -7,7 +7,7 @@ import logging
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, status, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
@@ -29,10 +29,8 @@ from app.dependencies import (
     get_current_user,
     validate_patient_access,
     get_flow_management_service,
-    get_patient_service,
 )
 from app.services.flow_management import FlowManagementService
-from app.services.patient import PatientService
 from app.exceptions import (
     FlowStateNotFoundError,
     flow_not_found_exception,
@@ -148,6 +146,7 @@ async def get_flow_templates(
 )
 @limiter.limit("10/hour")
 async def create_flow_template(
+    request: Request,
     template_data: FlowTemplateV2Create,
     current_user: User = Depends(get_current_user),
     flow_management: FlowManagementService = Depends(get_flow_management_service),
@@ -194,6 +193,7 @@ async def get_flow_template(
 )
 @limiter.limit("20/hour")
 async def update_flow_template(
+    request: Request,
     template_id: UUID,
     template_data: FlowTemplateV2Update,
     current_user: User = Depends(get_current_user),
@@ -222,6 +222,7 @@ async def update_flow_template(
 )
 @limiter.limit("10/hour")
 async def delete_flow_template(
+    request: Request,
     template_id: UUID,
     current_user: User = Depends(get_current_user),
     flow_management: FlowManagementService = Depends(get_flow_management_service),
@@ -255,12 +256,21 @@ async def customize_patient_flow(
     patient_id: UUID,
     customization_data: FlowCustomizationV2Request,
     current_user: User = Depends(get_current_user),
-    patient_service: PatientService = Depends(get_patient_service),
+    db: Session = Depends(get_db),
     flow_management: FlowManagementService = Depends(get_flow_management_service),
 ):
     """Create patient-specific flow customization"""
     # Validate patient access
-    patient = await validate_patient_access(patient_id, current_user, patient_service)
+    repo = PatientRepository(db)
+    patient = repo.get_by_id(patient_id)
+    if not patient:
+        raise flow_not_found_exception(str(patient_id))
+    
+    if patient.doctor_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this patient"
+        )
 
     try:
         customization = await flow_management.customize_patient_flow(
@@ -285,12 +295,21 @@ async def customize_patient_flow(
 async def get_patient_flow_customization(
     patient_id: UUID,
     current_user: User = Depends(get_current_user),
-    patient_service: PatientService = Depends(get_patient_service),
+    db: Session = Depends(get_db),
     flow_management: FlowManagementService = Depends(get_flow_management_service),
 ):
     """Get patient flow customization"""
     # Validate patient access
-    patient = await validate_patient_access(patient_id, current_user, patient_service)
+    repo = PatientRepository(db)
+    patient = repo.get_by_id(patient_id)
+    if not patient:
+        raise flow_not_found_exception(str(patient_id))
+    
+    if patient.doctor_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this patient"
+        )
 
     try:
         customization = await flow_management.get_patient_flow_customization(patient_id)
@@ -312,12 +331,21 @@ async def update_patient_flow_customization(
     patient_id: UUID,
     customization_data: FlowCustomizationV2Request,
     current_user: User = Depends(get_current_user),
-    patient_service: PatientService = Depends(get_patient_service),
+    db: Session = Depends(get_db),
     flow_management: FlowManagementService = Depends(get_flow_management_service),
 ):
     """Update patient flow customization"""
     # Validate patient access
-    patient = await validate_patient_access(patient_id, current_user, patient_service)
+    repo = PatientRepository(db)
+    patient = repo.get_by_id(patient_id)
+    if not patient:
+        raise flow_not_found_exception(str(patient_id))
+    
+    if patient.doctor_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this patient"
+        )
 
     try:
         customization = await flow_management.update_patient_flow_customization(
@@ -342,12 +370,21 @@ async def update_patient_flow_customization(
 async def remove_patient_flow_customization(
     patient_id: UUID,
     current_user: User = Depends(get_current_user),
-    patient_service: PatientService = Depends(get_patient_service),
+    db: Session = Depends(get_db),
     flow_management: FlowManagementService = Depends(get_flow_management_service),
 ):
     """Remove patient flow customization"""
     # Validate patient access
-    patient = await validate_patient_access(patient_id, current_user, patient_service)
+    repo = PatientRepository(db)
+    patient = repo.get_by_id(patient_id)
+    if not patient:
+        raise flow_not_found_exception(str(patient_id))
+    
+    if patient.doctor_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this patient"
+        )
 
     try:
         await flow_management.remove_patient_flow_customization(

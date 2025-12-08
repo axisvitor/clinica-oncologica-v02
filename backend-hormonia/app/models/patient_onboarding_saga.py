@@ -36,7 +36,9 @@ class SagaStatus(str, Enum):
     STARTED = "STARTED"
     IN_PROGRESS = "IN_PROGRESS"  # Alias for STARTED - saga orchestrator compatibility
     STEP_1_PATIENT_CREATED = "STEP_1_PATIENT_CREATED"
-    STEP_2_FIREBASE_USER_CREATED = "STEP_2_FIREBASE_USER_CREATED"
+    # DEPRECATED: Firebase integration removed - keeping for DB compatibility
+    # This step is skipped in saga execution (see saga_orchestrator.py)
+    STEP_2_FIREBASE_USER_CREATED = "STEP_2_FIREBASE_USER_CREATED"  # @deprecated
     STEP_3_FLOW_INITIALIZED = "STEP_3_FLOW_INITIALIZED"
     STEP_4_MESSAGE_SENT = "STEP_4_MESSAGE_SENT"
     COMPLETED = "COMPLETED"

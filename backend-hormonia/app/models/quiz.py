@@ -4,6 +4,7 @@ Quiz and assessment models.
 from sqlalchemy import Column, String, Text, Boolean, DateTime, ForeignKey, Integer, Numeric, Index, CheckConstraint, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, validates
+from datetime import datetime, timedelta
 
 from app.models.base import BaseModel
 
@@ -69,7 +70,7 @@ class QuizSession(BaseModel):
     quiz_template_id = Column(UUID(as_uuid=True), ForeignKey("quiz_templates.id", ondelete="RESTRICT"), nullable=False)
 
     # Session state - FIX: Match actual database schema
-    status = Column(String(50), nullable=False, default="started")  # started, completed, cancelled
+    status = Column(String(50), nullable=False, default="started")  # started, completed, cancelled, expired
     current_question = Column(Integer, nullable=True, default=0)  # FIX: Renamed from current_question_index
     total_questions = Column(Integer, nullable=True)
     answered_questions = Column(Integer, nullable=True, default=0)
@@ -82,6 +83,7 @@ class QuizSession(BaseModel):
     # Timing
     started_at = Column(DateTime(timezone=True), nullable=False)
     completed_at = Column(DateTime(timezone=True), nullable=True)
+    expiration_date = Column(DateTime(timezone=True), nullable=True)  # Auto-calculated: started_at + 48 hours
     time_spent_seconds = Column(Integer, nullable=True)
 
     # Session metadata for tracking additional info
@@ -99,7 +101,7 @@ class QuizSession(BaseModel):
         CheckConstraint('current_question >= 0', name='ck_quiz_session_question_positive'),
         CheckConstraint('score >= 0', name='ck_quiz_session_score_positive'),
         CheckConstraint(
-            "status IN ('started', 'completed', 'cancelled')",
+            "status IN ('started', 'completed', 'cancelled', 'expired')",
             name='ck_quiz_session_status_valid'
         ),
         # NOTE: Removed NOW() constraint for SQLite compatibility
@@ -122,7 +124,7 @@ class QuizSession(BaseModel):
     @validates('status')
     def validate_status(self, key, status):
         # FIX: Match actual database status values
-        valid_statuses = ['started', 'completed', 'cancelled']
+        valid_statuses = ['started', 'completed', 'cancelled', 'expired']
         if status not in valid_statuses:
             raise ValueError(f"Status must be one of: {valid_statuses}")
         return status
@@ -163,6 +165,20 @@ class QuizSession(BaseModel):
         elif self.status == "completed":
             self.status = "started"
 
+    @property
+    def is_expired(self) -> bool:
+        """Check if session has expired."""
+        if self.status == "expired":
+            return True
+        if self.expiration_date and datetime.now(self.expiration_date.tzinfo) >= self.expiration_date:
+            return True
+        return False
+
+    def set_expiration_date(self, hours: int = 48) -> None:
+        """Set expiration date based on started_at time."""
+        if self.started_at and not self.expiration_date:
+            self.expiration_date = self.started_at + timedelta(hours=hours)
+
 
 
 # Partial unique index ensures at most one started session per patient and template.
@@ -188,7 +204,12 @@ class QuizResponse(BaseModel):
 
     # Response details
     response_type = Column(String(50), nullable=False)  # 'multiple_choice', 'open_text', 'scale'
-    response_value = Column(Text, nullable=False)
+    # JSONB column for structured response storage - supports:
+    # - Plain text: "response text" or {"text": "response text"}
+    # - Multiple choice: ["option1", "option2"]
+    # - Scale: {"value": 7, "type": "scale"}
+    # - Boolean: {"text": "yes", "boolean": true}
+    response_value = Column(JSONB, nullable=False)
     response_metadata = Column(JSONB, nullable=True, default=dict)  # Sentiment analysis, entities, etc.
     other_text = Column(Text, nullable=True)  # Custom text for 'other' option
 

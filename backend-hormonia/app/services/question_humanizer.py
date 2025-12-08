@@ -9,9 +9,7 @@ from datetime import datetime, timedelta
 import hashlib
 import json
 from uuid import UUID
-from sqlalchemy.orm import Session
-from app.services.ai import get_ai_humanizer, PatientContext, get_context_builder
-from app.services.flow_engine_ai_integration import FlowEngineAIIntegration
+from app.services.ai import get_ai_humanizer, PatientContext, get_context_builder, get_ai_service
 from app.core.redis_unified import get_async_redis
 from app.models.patient import Patient
 from app.repositories.patient import PatientRepository
@@ -84,7 +82,6 @@ class QuestionHumanizer:
 
     def __init__(self):
         self.ai_service = get_ai_service()
-        self.ai_integration = FlowEngineAIIntegration()
         self._redis_client = None  # Will be initialized async
         self.history_window_hours = 72  # Track last 3 days
         self._patient_cache: Dict[str, tuple[Optional[Patient], datetime]] = {}
@@ -310,8 +307,8 @@ class QuestionHumanizer:
                 next_pattern = patterns[(last_index + 1) % len(patterns)]
                 logger.info(f"All patterns used, rotating from {last_used} to {next_pattern}")
                 return next_pattern
-            except ValueError:
-                pass
+            except ValueError as e:
+                logger.debug(f"Last used pattern not found in available patterns: {e}")
 
         # Fallback to first pattern
         logger.info(f"Fallback to first pattern: {patterns[0]}")
@@ -448,7 +445,7 @@ class QuestionHumanizer:
                     del self._patient_cache[cache_key]
 
             # Fetch from database
-            db: Session = SessionLocal()
+            db: Any = SessionLocal()
             try:
                 patient_repo = PatientRepository(db)
                 patient = patient_repo.get(patient_uuid)

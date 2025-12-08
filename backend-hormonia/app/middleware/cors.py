@@ -75,11 +75,17 @@ def configure_cors(
     - allow_origins: Must be explicit HTTPS URLs
     - allow_credentials: True (for httpOnly cookies)
     - allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
-    - allow_headers: ["*"]
+    - allow_headers: Explicit whitelist (NEVER "*" with credentials)
 
     Development Defaults:
     - allow_origins: ["http://localhost:3000", "http://localhost:3001"]
     - More permissive configuration
+
+    SECURITY NOTE:
+    Using allow_headers=["*"] with allow_credentials=True is a critical
+    security vulnerability that exposes all request headers (including
+    Authorization, cookies, etc.) to cross-origin requests. This violates
+    the CORS security model and can lead to credential leakage.
 
     Args:
         app: FastAPI application instance
@@ -87,7 +93,7 @@ def configure_cors(
         allowed_origin_regex: Regex pattern for origins (PROD: forbidden)
         allow_credentials: Allow credentials (cookies)
         allow_methods: Allowed HTTP methods
-        allow_headers: Allowed request headers
+        allow_headers: Allowed request headers (explicit list required)
 
     Raises:
         ValueError: If production security rules violated
@@ -120,14 +126,18 @@ def configure_cors(
         allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
 
     # Default headers - Use explicit list for security
+    # SECURITY: Never use ["*"] with allow_credentials=True
+    # This would expose all request headers to cross-origin requests,
+    # potentially leaking sensitive authentication tokens and credentials.
+    # Explicit whitelist follows principle of least privilege.
     if allow_headers is None:
         allow_headers = [
-            "authorization",
-            "content-type",
-            "x-csrf-token",
-            "x-requested-with",
-            "accept",
-            "origin"
+            "Content-Type",      # Standard content negotiation
+            "Authorization",     # Bearer tokens and basic auth
+            "X-Requested-With",  # AJAX request detection
+            "X-CSRF-Token",      # CSRF protection tokens
+            "Accept",            # Content type acceptance
+            "Origin"             # Request origin (required for CORS)
         ]
 
     # Add CORS middleware
@@ -143,7 +153,24 @@ def configure_cors(
     )
 
     # Log configuration (sanitized)
+    import logging
+    logger = logging.getLogger(__name__)
+
     if is_production():
-        print(f"[OK] CORS configured for PRODUCTION with {len(allowed_origins)} explicit origins")
+        logger.info(
+            "CORS configured for PRODUCTION",
+            extra={
+                "origins_count": len(allowed_origins),
+                "environment": "production",
+                "allow_credentials": allow_credentials
+            }
+        )
     else:
-        print(f"[WARNING] CORS configured for DEVELOPMENT with {len(allowed_origins)} origins")
+        logger.warning(
+            "CORS configured for DEVELOPMENT",
+            extra={
+                "origins_count": len(allowed_origins),
+                "environment": "development",
+                "origins": allowed_origins
+            }
+        )

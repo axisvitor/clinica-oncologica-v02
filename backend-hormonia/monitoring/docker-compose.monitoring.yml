@@ -1,10 +1,139 @@
-# Docker Compose for monitoring stack (Prometheus + Grafana + Redis Exporter)
+# Docker Compose for Advanced Monitoring Stack
+# Clínica Hormonia - P3-3 Implementation
+# Includes: Prometheus, Grafana, Alertmanager, Node Exporter, cAdvisor, Postgres Exporter, Redis Exporter
 # Usage: docker-compose -f docker-compose.monitoring.yml up -d
 
 version: '3.8'
 
 services:
-  # Redis Exporter for metrics scraping
+  # Prometheus - Time Series Database & Metrics Collection
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: hormonia-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.retention.size=50GB'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./prometheus/recording-rules.yml:/etc/prometheus/recording-rules.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - monitoring
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Grafana - Metrics Visualization & Dashboards
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: hormonia-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Alertmanager - Alert Management & Routing
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: hormonia-alertmanager
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+      - '--storage.path=/alertmanager'
+    volumes:
+      - ./alertmanager/config.yml:/etc/alertmanager/config.yml:ro
+      - alertmanager_data:/alertmanager
+    ports:
+      - "9093:9093"
+    networks:
+      - monitoring
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Node Exporter - System Metrics
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: hormonia-node-exporter
+    restart: unless-stopped
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    ports:
+      - "9100:9100"
+    networks:
+      - monitoring
+
+  # cAdvisor - Container Metrics
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: hormonia-cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    ports:
+      - "8080:8080"
+    networks:
+      - monitoring
+
+  # PostgreSQL Exporter - Database Metrics
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: hormonia-postgres-exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@${DB_HOST:-postgres}:5432/${DB_NAME:-hormonia}?sslmode=disable"
+    ports:
+      - "9187:9187"
+    networks:
+      - monitoring
+
+  # Redis Exporter - Cache Metrics
   redis-exporter:
     image: oliver006/redis_exporter:v1.55.0
     container_name: hormonia-redis-exporter
@@ -61,6 +190,36 @@ services:
       timeout: 5s
       retries: 3
 
+  # Flower - Celery Monitoring UI
+  flower:
+    build:
+      context: ../flower
+      dockerfile: Dockerfile
+    container_name: hormonia-flower
+    restart: unless-stopped
+    ports:
+      - "5555:5555"
+    environment:
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:-}@redis:6379/1
+      FLOWER_BASIC_AUTH: ${FLOWER_BASIC_AUTH:-admin:admin123}
+      FLOWER_PORT: 5555
+      FLOWER_MAX_TASKS: 10000
+      FLOWER_PERSISTENT: "true"
+      FLOWER_DB: /app/flower.db
+    volumes:
+      - flower-data:/app
+    networks:
+      - monitoring
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5555/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
   # Prometheus for metrics collection
   prometheus:
     image: prom/prometheus:v2.48.0
@@ -70,6 +229,7 @@ services:
       - "9090:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts:/etc/prometheus/alerts:ro
       - ./prometheus/rules:/etc/prometheus/rules:ro
       - prometheus-data:/prometheus
     command:
@@ -83,6 +243,7 @@ services:
       - monitoring
     depends_on:
       - redis-exporter
+      - flower
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
       interval: 10s
@@ -167,4 +328,6 @@ volumes:
   alertmanager-data:
     driver: local
   redis-data:
+    driver: local
+  flower-data:
     driver: local

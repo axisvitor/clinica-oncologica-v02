@@ -765,7 +765,7 @@ class TestHelperFunctions:
 
     def test_resolve_fallback_chain(self):
         """Test fallback chain resolution."""
-        from app.api.v2.localization import _resolve_fallback_chain
+        from app.api.v2.routers.localization import _resolve_fallback_chain
 
         # Test pt-BR fallback chain
         chain_pt_br = _resolve_fallback_chain("pt-BR")
@@ -781,7 +781,7 @@ class TestHelperFunctions:
 
     def test_apply_pluralization_singular(self):
         """Test pluralization for singular count."""
-        from app.api.v2.localization import _apply_pluralization
+        from app.api.v2.routers.localization import _apply_pluralization
 
         text = "You have {count} {message|messages}"
         result = _apply_pluralization(text, 1, "en-US")
@@ -792,7 +792,7 @@ class TestHelperFunctions:
 
     def test_apply_pluralization_plural(self):
         """Test pluralization for plural count."""
-        from app.api.v2.localization import _apply_pluralization
+        from app.api.v2.routers.localization import _apply_pluralization
 
         text = "You have {count} {message|messages}"
         result = _apply_pluralization(text, 5, "en-US")
@@ -802,7 +802,7 @@ class TestHelperFunctions:
 
     def test_substitute_variables(self):
         """Test variable substitution."""
-        from app.api.v2.localization import _substitute_variables
+        from app.api.v2.routers.localization import _substitute_variables
 
         text = "Hello {name}, you have {count} new notifications"
         variables = {"name": "John", "count": 3}
@@ -815,7 +815,7 @@ class TestHelperFunctions:
 
     def test_substitute_variables_missing(self):
         """Test variable substitution with missing variables."""
-        from app.api.v2.localization import _substitute_variables
+        from app.api.v2.routers.localization import _substitute_variables
 
         text = "Hello {name}, you have {count} new notifications"
         variables = {"name": "John"}  # Missing 'count'
@@ -826,7 +826,7 @@ class TestHelperFunctions:
 
     def test_flatten_translations(self):
         """Test flattening nested translation dictionary."""
-        from app.api.v2.localization import _flatten_translations
+        from app.api.v2.routers.localization import _flatten_translations
 
         nested = {
             "auth": {

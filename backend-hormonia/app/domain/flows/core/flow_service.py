@@ -9,10 +9,10 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.services.enhanced_flow_engine import EnhancedFlowEngine, FlowType
-from app.services.message_scheduler import MessageScheduler
+from app.domain.messaging.scheduling import MessageScheduler
 from app.domain.messaging.delivery import MessageSender
 from app.services.template_loader import EnhancedTemplateLoader
-from app.services.flow_analytics import FlowAnalyticsService
+from app.services.analytics import FlowAnalyticsService
 from app.repositories.patient import PatientRepository
 from app.repositories.flow import FlowStateRepository
 

@@ -1,8 +1,8 @@
+from __future__ import annotations
+from typing import Any, Optional
 """
 Simple circuit breaker implementation for flow integrations.
 """
-
-from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta

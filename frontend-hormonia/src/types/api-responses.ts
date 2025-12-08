@@ -209,21 +209,8 @@ export interface EngagementAnalytics {
 // ============================================================================
 // Alert Response Types
 // ============================================================================
-
-export interface Alert {
-  id: string
-  patient_id?: string
-  type: string
-  severity: 'low' | 'medium' | 'high' | 'critical'
-  title: string
-  message: string
-  acknowledged: boolean
-  resolved: boolean
-  created_at: string
-  acknowledged_at?: string
-  resolved_at?: string
-  metadata?: Record<string, unknown>
-}
+// Alert type is now in @/lib/api-client/types
+// Import from there instead of using this duplicate
 
 export interface CreateAlertRequest {
   patient_id?: string
@@ -286,16 +273,9 @@ export interface ValidationRule {
   message: string
 }
 
-export interface QuizSession {
-  id: string
-  patient_id: string
-  quiz_template_id: string
-  status: 'pending' | 'in_progress' | 'completed' | 'expired'
-  started_at?: string
-  completed_at?: string
-  responses?: Record<string, unknown>
-  score?: number
-}
+// QuizSession type is now in @/lib/api-client/types
+// Import from there instead of using this duplicate
+import type { QuizSession } from '@/lib/api-client/types'
 
 export interface QuizTemplateListResponse {
   items: QuizTemplate[]
@@ -363,29 +343,8 @@ export interface MonthlyQuizStats {
 // ============================================================================
 // Admin User Management Response Types
 // ============================================================================
-
-export interface AdminUser {
-  id: string
-  email: string
-  full_name: string
-  role: string
-  is_active: boolean
-  permissions?: string[]
-  created_at: string
-  updated_at: string
-  last_login?: string
-}
-
-export interface UserActivity {
-  id: string
-  user_id: string
-  action: string
-  resource?: string
-  details?: Record<string, unknown>
-  ip_address?: string
-  user_agent?: string
-  created_at: string
-}
+// AdminUser and UserActivity types are now in @/types/admin
+// Import from there instead of using these duplicates
 
 export interface CreateUserRequest {
   email: string

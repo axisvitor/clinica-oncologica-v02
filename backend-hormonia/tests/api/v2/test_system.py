@@ -283,7 +283,7 @@ async def test_system_health_caching(mock_redis_client, admin_user, mock_redis):
 def test_system_health_score_calculation():
     """Test health score calculation logic."""
     from app.schemas.v2.system import ComponentHealth
-    from app.api.v2.system import _calculate_health_score
+    from app.api.v2.routers.system import _calculate_health_score
 
     components = {
         "db": ComponentHealth(name="db", status="healthy", last_check=datetime.utcnow()),
@@ -362,7 +362,7 @@ def test_initialize_system_response_structure(mock_redis_client, admin_user, db_
 def test_initialize_system_prevent_concurrent(admin_user):
     """Test that initialization prevents concurrent requests."""
     # Set initialization state to in_progress
-    from app.api.v2.system import _initialization_state
+    from app.api.v2.routers.system import _initialization_state
     _initialization_state["status"] = "in_progress"
 
     with patch('app.dependencies.auth_dependencies.get_current_user_from_session', return_value=admin_user):
@@ -585,7 +585,7 @@ def test_validate_configuration_response_structure(admin_user):
 
 def test_validate_configuration_detects_missing_secret_key(admin_user):
     """Test that validation detects missing SECRET_KEY."""
-    with patch('app.config.settings.SECRET_KEY', ''):
+    with patch('app.config.settings.SECURITY_SECRET_KEY', ''):
         with patch('app.dependencies.auth_dependencies.get_current_user_from_session', return_value=admin_user):
             response = client.post("/api/v2/system/validate")
 
@@ -599,8 +599,8 @@ def test_validate_configuration_detects_missing_secret_key(admin_user):
 
 def test_validate_configuration_production_checks(admin_user):
     """Test production-specific validation checks."""
-    with patch('app.config.settings.ENVIRONMENT', 'production'):
-        with patch('app.config.settings.DEBUG', True):
+    with patch('app.config.settings.APP_ENVIRONMENT', 'production'):
+        with patch('app.config.settings.APP_ENABLE_DEBUG', True):
             with patch('app.dependencies.auth_dependencies.get_current_user_from_session', return_value=admin_user):
                 response = client.post("/api/v2/system/validate")
 

@@ -161,8 +161,8 @@ export const firebaseAuthLazy = {
     try {
       const auth = await getFirebaseAuth()
       return auth.currentUser
-    } catch (error) {
-      console.error('Failed to get current user:', error)
+    } catch (_error) {
+      // Error already logged by getFirebaseAuth if initialization failed
       return null
     }
   },
@@ -229,8 +229,8 @@ export const firebaseAuthLazy = {
         return { access_token: token }
       }
       return null
-    } catch (error) {
-      console.error('Failed to get current session:', error)
+    } catch (_error) {
+      // Error already logged by getFirebaseAuth if initialization failed
       return null
     }
   },
@@ -247,8 +247,8 @@ export const firebaseAuthLazy = {
         return { access_token: token }
       }
       return null
-    } catch (error) {
-      console.error('Failed to refresh session:', error)
+    } catch (_error) {
+      // Error already logged by getFirebaseAuth if initialization failed
       return null
     }
   },

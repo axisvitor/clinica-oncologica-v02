@@ -6,8 +6,8 @@
  * of system health, patient engagement, and AI performance.
  */
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { MetricsDashboard } from '@/components/metrics/MetricsDashboard';
+import { useAuth } from '@/app/providers/AuthContext';
+import { MetricsDashboard } from '@/features/metrics/MetricsDashboard';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,7 +17,7 @@ import {
   Activity, BarChart3, TrendingUp, Users, Brain, Target,
   Settings, Download, RefreshCw, AlertTriangle
 } from 'lucide-react';
-import { createLogger } from '../lib/logger'
+import { createLogger } from '@/lib/logger'
 
 const logger = createLogger('MetricsDashboardPage')
 

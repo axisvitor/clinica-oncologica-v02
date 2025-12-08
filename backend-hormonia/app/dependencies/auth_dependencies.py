@@ -176,7 +176,7 @@ def _get_user_from_db(firebase_uid: str) -> Optional[User]:
 async def get_current_user_from_session(
     session_cookie_id: str = Cookie(None, alias="session_id"),
     x_session_id: str = Header(None, alias="X-Session-ID"),
-    services: ServiceProvider = Depends(_get_service_provider),
+    services: Any = Depends(_get_service_provider),
     redis_cache: 'FirebaseRedisCache' = Depends(get_redis_cache)
 ) -> Dict:
     """
@@ -292,6 +292,41 @@ async def get_current_user_from_session(
             detail=f"Session validation failed: {str(e)}",
             headers={"WWW-Authenticate": "Session"}
         )
+
+
+async def get_current_user_object_from_session(
+    user_data: Dict = Depends(get_current_user_from_session)
+) -> User:
+    """
+    Get current authenticated user as a User model object from session.
+    
+    Useful for endpoints that require a User object (like upload.py) 
+    but need to support session-based authentication.
+    """
+    try:
+        # Create a copy to avoid modifying the cached dict
+        user_dict = user_data.copy()
+        
+        # Remove non-model fields
+        user_dict.pop('permissions', None)
+        user_dict.pop('cached_at', None)
+        
+        # Handle role conversion
+        role_value = user_dict.get("role")
+        if isinstance(role_value, str):
+            try:
+                user_dict["role"] = UserRole(role_value.lower())
+            except ValueError:
+                user_dict["role"] = UserRole.DOCTOR
+                
+        return User(**user_dict)
+    except Exception as e:
+        logger.error(f"Failed to convert session data to User object: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Session data error"
+        )
+
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -584,3 +619,20 @@ async def get_current_user_websocket(
     except Exception as e:
         logger.error(f"WebSocket authentication failed: {str(e)}")
         return None
+
+
+async def get_current_active_admin(
+    current_user: Dict = Depends(get_current_user_from_session)
+) -> Dict:
+    """
+    Get current active admin user from session.
+    
+    Validates that the session belongs to an active user with ADMIN role.
+    """
+    role = current_user.get("role", "").upper()
+    if role != "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    return current_user

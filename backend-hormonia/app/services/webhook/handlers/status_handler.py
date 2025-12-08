@@ -1,0 +1,149 @@
+"""
+Status webhook handler for Evolution API integration.
+Processes message delivery status updates.
+"""
+import logging
+from typing import Any, Optional
+from uuid import UUID
+
+from app.config.settings.cache import cache_settings
+from app.models.message import MessageStatus
+from app.domain.messaging.core import MessageService
+from app.services.websocket_events import websocket_events
+from app.schemas.websocket import WebSocketEventType
+from app.core.redis_unified import get_async_redis
+from app.utils.db_retry import with_db_retry
+
+logger = logging.getLogger(__name__)
+
+
+class StatusWebhookHandler:
+    """
+    Handler for message status update webhooks.
+    
+    Processes delivery status updates from Evolution API
+    (pending, sent, delivered, read, failed).
+    """
+    
+    def __init__(self, db: Any):
+        """
+        Initialize status handler.
+        
+        Args:
+            db: Database session
+        """
+        self.db = db
+        self.message_service = MessageService(db)
+    
+    @with_db_retry(max_retries=3)
+    async def process_status(
+        self,
+        event_data: dict[str, Any],
+        webhook_store: Optional[Any] = None
+    ) -> bool:
+        """
+        Process message status update webhook.
+        
+        Args:
+            event_data: Webhook event data
+            webhook_store: Optional webhook persistence store
+            
+        Returns:
+            True if processed successfully
+        """
+        webhook_id = None
+        try:
+            # Persist webhook event if store provided
+            if webhook_store:
+                webhook_id = await webhook_store.persist_event(
+                    event_type="message.status",
+                    source="evolution_api",
+                    payload=event_data
+                )
+            
+            # Extract status data
+            whatsapp_id = event_data.get("key", {}).get("id")
+            status = event_data.get("update", {}).get("status")
+            
+            if not whatsapp_id or not status:
+                logger.warning("Missing required fields in status webhook")
+                if webhook_id and webhook_store:
+                    await webhook_store.mark_processed(webhook_id, False, "Missing required fields")
+                return False
+            
+            # Idempotency check
+            redis_client = await get_async_redis()
+            idempotency_key = f"webhook:status:{whatsapp_id}:{status}"
+            
+            is_duplicate = await redis_client.exists(idempotency_key)
+            if is_duplicate:
+                logger.info(f"Duplicate status webhook detected: {whatsapp_id} -> {status}")
+                if webhook_id and webhook_store:
+                    await webhook_store.mark_processed(webhook_id, True, "Duplicate status event")
+                return True
+            
+            # Update message status
+            message = self.message_service.update_message_status_by_whatsapp_id(
+                whatsapp_id=whatsapp_id,
+                status=self._map_evolution_status(status)
+            )
+            
+            if message:
+                # Publish WebSocket event for status update
+                await websocket_events.publish_message_event(
+                    event_type=WebSocketEventType.MESSAGE_STATUS_UPDATED,
+                    message_id=message.id,
+                    patient_id=message.patient_id,
+                    direction=message.direction.value,
+                    message_type=message.type.value,
+                    status=message.status.value,
+                    metadata={"whatsapp_id": whatsapp_id}
+                )
+                
+                logger.info(f"Updated message {message.id} status to {status}")
+                
+                # Cache status update in Redis
+                await redis_client.setex(
+                    idempotency_key,
+                    cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS,
+                    "1"
+                )
+                
+                if webhook_id and webhook_store:
+                    await webhook_store.mark_processed(webhook_id, True)
+                return True
+            
+            logger.warning(f"Message not found for WhatsApp ID: {whatsapp_id}")
+            if webhook_id and webhook_store:
+                await webhook_store.mark_processed(webhook_id, False, "Message not found")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error processing status webhook: {e}", exc_info=True)
+            if webhook_id and webhook_store:
+                await webhook_store.mark_processed(webhook_id, False, str(e))
+            return False
+    
+    def _map_evolution_status(self, evolution_status: str) -> MessageStatus:
+        """
+        Map Evolution API status to internal MessageStatus.
+        
+        Args:
+            evolution_status: Status from Evolution API
+            
+        Returns:
+            Internal MessageStatus enum
+        """
+        status_mapping = {
+            "PENDING": MessageStatus.PENDING,
+            "SENT": MessageStatus.SENT,
+            "DELIVERED": MessageStatus.DELIVERED,
+            "READ": MessageStatus.READ,
+            "FAILED": MessageStatus.FAILED,
+            "ERROR": MessageStatus.FAILED,
+        }
+        
+        return status_mapping.get(
+            evolution_status.upper(),
+            MessageStatus.PENDING
+        )

@@ -7,7 +7,7 @@
  * Coverage target: >85% of token validation functionality
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from '@jest/globals'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import '@testing-library/jest-dom'
@@ -15,22 +15,22 @@ import { quizAPI, QuizAPI, isTokenExpired } from '@/lib/api'
 import type { QuizSession, QuizSubmitResponse } from '@/types/quiz'
 
 // Mock modules
-vi.mock('@/lib/api', async () => {
-  const actual = await vi.importActual('@/lib/api')
+jest.mock('@/lib/api', () => {
+  const actual = jest.requireActual('@/lib/api')
   return {
     ...actual,
     quizAPI: {
-      accessQuiz: vi.fn(),
-      submitAnswer: vi.fn(),
-      completeQuiz: vi.fn(),
-      healthCheck: vi.fn(),
-      getBaseURL: vi.fn(() => 'http://localhost:8000/api/v2/monthly-quiz-public')
+      accessQuiz: jest.fn(),
+      submitAnswer: jest.fn(),
+      completeQuiz: jest.fn(),
+      healthCheck: jest.fn(),
+      getBaseURL: jest.fn(() => 'http://localhost:8000/api/v2/monthly-quiz-public')
     }
   }
 })
 
 // Mock fetch for direct API testing
-const mockFetch = vi.fn()
+const mockFetch = jest.fn()
 global.fetch = mockFetch
 
 // Mock document.cookie for HttpOnly cookie testing
@@ -80,7 +80,7 @@ const mockQuizSession: QuizSession = {
 
 describe('Token Extraction and Validation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    jest.clearAllMocks()
     mockFetch.mockClear()
     document.cookie = ''
   })
@@ -203,7 +203,7 @@ describe('Token Extraction and Validation', () => {
 
 describe('HttpOnly Cookie Management', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    jest.clearAllMocks()
     document.cookie = ''
   })
 
@@ -357,7 +357,7 @@ describe('HttpOnly Cookie Management', () => {
 
 describe('Session Initialization and Management', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    jest.clearAllMocks()
     mockFetch.mockClear()
   })
 
@@ -495,7 +495,7 @@ describe('Session Initialization and Management', () => {
 
 describe('Quiz Submission Security', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    jest.clearAllMocks()
     mockFetch.mockClear()
   })
 
@@ -617,7 +617,7 @@ describe('Quiz Submission Security', () => {
 
 describe('Error Handling and Recovery', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    jest.clearAllMocks()
     mockFetch.mockClear()
   })
 
@@ -753,7 +753,7 @@ describe('Error Handling and Recovery', () => {
 
 describe('Performance and Load Testing', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    jest.clearAllMocks()
     mockFetch.mockClear()
   })
 

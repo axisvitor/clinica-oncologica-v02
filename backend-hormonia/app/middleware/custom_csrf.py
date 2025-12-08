@@ -172,11 +172,11 @@ def get_custom_csrf_protection() -> CustomCSRFProtection:
     if _csrf_protection is None:
         from app.config import settings
         
-        if not settings.CSRF_SECRET_KEY:
+        if not settings.SECURITY_CSRF_SECRET_KEY:
             raise ValueError("CSRF_SECRET_KEY is required")
         
         _csrf_protection = CustomCSRFProtection(
-            secret_key=settings.CSRF_SECRET_KEY,
+            secret_key=settings.SECURITY_CSRF_SECRET_KEY,
             token_expiry=3600  # 1 hour
         )
         

@@ -717,7 +717,7 @@ class TestTemplateRendering:
 
     def test_render_template_with_variables(self):
         """Test template variable rendering"""
-        from app.api.v2.enhanced_messages import _render_template
+        from app.api.v2.routers.enhanced_messages import _render_template
 
         template = "Hello {{name}}, your appointment is at {{time}}."
         variables = {
@@ -730,7 +730,7 @@ class TestTemplateRendering:
 
     def test_render_template_missing_variable_fails(self):
         """Test rendering with missing variable fails"""
-        from app.api.v2.enhanced_messages import _render_template
+        from app.api.v2.routers.enhanced_messages import _render_template
 
         template = "Hello {{name}}, your appointment is at {{time}}."
         variables = {

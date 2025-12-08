@@ -8,7 +8,7 @@ import logging
 from typing import Dict, List, Set, Optional, Tuple, Union, Any
 from enum import Enum
 from datetime import datetime, timedelta
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 from functools import wraps
 import re
 
@@ -119,7 +119,8 @@ class RoleDefinition(BaseModel):
     allowed_domains: Optional[List[str]] = None
     restricted_domains: Optional[List[str]] = None
 
-    @validator('permissions')
+    @field_validator('permissions')
+    @classmethod
     def validate_permissions(cls, v):
         """Ensure permissions are valid."""
         if not v:
@@ -189,83 +190,6 @@ ROLE_DEFINITIONS: Dict[UserRole, RoleDefinition] = {
         requires_verification=True,
         allowed_domains=["med.br", "saude.gov.br", "crm.org.br", "hospital.com.br"],
     ),
-
-    UserRole.NURSE: RoleDefinition(
-        name="Nurse",
-        permissions={
-            Permission.USER_READ,
-            Permission.PATIENT_READ, Permission.PATIENT_UPDATE, Permission.PATIENT_LIST,
-            Permission.PATIENT_MEDICAL_RECORDS,
-            Permission.QUIZ_READ, Permission.QUIZ_RESULTS_VIEW,
-            Permission.REPORT_READ,
-            Permission.AI_ACCESS,
-            Permission.FLOW_EXECUTE,
-            Permission.TEMPLATE_READ,
-            Permission.MESSAGE_SEND,
-            Permission.API_ACCESS,
-        },
-        security_level=SecurityLevel.VERIFIED,
-        description="Nursing staff with patient care support",
-        requires_verification=True,
-        allowed_domains=["enfermagem.org.br", "coren.gov.br", "hospital.com.br"],
-    ),
-
-    UserRole.PATIENT: RoleDefinition(
-        name="Patient",
-        permissions={
-            Permission.USER_READ,  # Own profile only
-            Permission.PATIENT_READ,  # Own data only
-            Permission.QUIZ_READ,  # Assigned quizzes only
-            Permission.REPORT_READ,  # Own reports only
-            Permission.TEMPLATE_READ,  # Public templates only
-            Permission.API_ACCESS,
-        },
-        security_level=SecurityLevel.AUTHENTICATED,
-        description="Patient with access to own data",
-        is_default=True,  # Default role for new users
-        requires_verification=False,
-        allowed_domains=["gmail.com", "outlook.com", "yahoo.com", "hotmail.com"],  # Common domains
-    ),
-
-    UserRole.RESEARCHER: RoleDefinition(
-        name="Researcher",
-        permissions={
-            Permission.USER_READ,
-            Permission.PATIENT_READ,  # Anonymized data only
-            Permission.QUIZ_READ, Permission.QUIZ_ANALYTICS,
-            Permission.REPORT_READ, Permission.REPORT_CREATE,
-            Permission.ANALYTICS_VIEW, Permission.ANALYTICS_ADVANCED,
-            Permission.AI_ACCESS,
-            Permission.TEMPLATE_READ,
-            Permission.API_ACCESS,
-        },
-        security_level=SecurityLevel.VERIFIED,
-        description="Research access to anonymized data",
-        requires_verification=True,
-        allowed_domains=["univ.br", "usp.br", "ufmg.br", "research.org"],
-    ),
-
-    UserRole.COORDINATOR: RoleDefinition(
-        name="Coordinator",
-        permissions={
-            Permission.USER_READ, Permission.USER_CREATE, Permission.USER_UPDATE,
-            Permission.USER_LIST,
-            Permission.PATIENT_READ, Permission.PATIENT_LIST,
-            Permission.QUIZ_CREATE, Permission.QUIZ_READ, Permission.QUIZ_UPDATE,
-            Permission.QUIZ_RESULTS_VIEW,
-            Permission.REPORT_CREATE, Permission.REPORT_READ, Permission.REPORT_UPDATE,
-            Permission.ANALYTICS_VIEW,
-            Permission.AI_ACCESS,
-            Permission.FLOW_CREATE, Permission.FLOW_EXECUTE,
-            Permission.TEMPLATE_CREATE, Permission.TEMPLATE_READ, Permission.TEMPLATE_UPDATE,
-            Permission.MESSAGE_SEND, Permission.NOTIFICATION_MANAGE,
-            Permission.API_ACCESS,
-        },
-        security_level=SecurityLevel.VERIFIED,
-        description="Program coordination and management",
-        requires_verification=True,
-        allowed_domains=["coordinacao.med.br", "gestao.saude.gov.br"],
-    ),
 }
 
 
@@ -332,7 +256,7 @@ class SecureRoleDeterminer:
                 return domain_role, f"Auto-assigned based on domain: {domain}"
 
             # Priority 3: Default role (most restrictive)
-            default_role = UserRole.PATIENT
+            default_role = UserRole.DOCTOR
             audit_entry.update({
                 "role_assigned": default_role,
                 "assignment_reason": "default_fallback",
@@ -345,7 +269,7 @@ class SecureRoleDeterminer:
 
         except Exception as e:
             audit_entry.update({
-                "role_assigned": UserRole.PATIENT,
+                "role_assigned": UserRole.DOCTOR,
                 "assignment_reason": "error_fallback",
                 "error": str(e),
                 "security_level": "critical"
@@ -353,7 +277,7 @@ class SecureRoleDeterminer:
             self.audit_log.append(audit_entry)
 
             logger.error(f"Error determining role for {email}: {e}")
-            return UserRole.PATIENT, f"Error occurred - assigned default role: {e}"
+            return UserRole.DOCTOR, f"Error occurred - assigned default role: {e}"
 
     def _extract_domain(self, email: str) -> str:
         """Safely extract domain from email."""
@@ -480,10 +404,6 @@ class SecureRoleDeterminer:
 
         # Admin can assign non-admin roles
         if assigner_role == UserRole.ADMIN and target_role != UserRole.ADMIN:
-            return True
-
-        # Coordinator can assign patient role only
-        if assigner_role == UserRole.COORDINATOR and target_role == UserRole.PATIENT:
             return True
 
         return False
@@ -689,3 +609,102 @@ def determine_user_role(email: str, identity_claims: Optional[Dict[str, Any]] = 
 def has_permission(user_role: UserRole, permission: Permission) -> bool:
     """Backward compatible function for permission checking."""
     return permission_checker.has_permission(user_role, permission)
+
+
+# =============================================================================
+# BACKWARD COMPATIBILITY WRAPPER
+# =============================================================================
+
+class RolePermissions:
+    """
+    Backward compatibility wrapper for PermissionChecker.
+
+    This class provides a static interface matching the legacy RolePermissions
+    API while delegating to the new PermissionChecker implementation.
+
+    Note: This is a compatibility shim. New code should use PermissionChecker directly.
+    """
+
+    @staticmethod
+    def has_permission(user_role: Union[str, UserRole], permission: Permission) -> bool:
+        """
+        Check if a role has a specific permission.
+
+        Args:
+            user_role: Role as string or UserRole enum
+            permission: Permission to check
+
+        Returns:
+            True if role has permission, False otherwise
+        """
+        # Convert string to UserRole enum if needed
+        if isinstance(user_role, str):
+            try:
+                user_role = UserRole(user_role.lower())
+            except ValueError:
+                logger.warning(f"Invalid role string: {user_role}")
+                return False
+
+        return permission_checker.has_permission(user_role, permission)
+
+    @staticmethod
+    def has_any_permission(user_role: Union[str, UserRole], permissions: List[Permission]) -> bool:
+        """
+        Check if a role has any of the specified permissions.
+
+        Args:
+            user_role: Role as string or UserRole enum
+            permissions: List of permissions to check
+
+        Returns:
+            True if role has any permission, False otherwise
+        """
+        if isinstance(user_role, str):
+            try:
+                user_role = UserRole(user_role.lower())
+            except ValueError:
+                logger.warning(f"Invalid role string: {user_role}")
+                return False
+
+        return permission_checker.has_any_permission(user_role, permissions)
+
+    @staticmethod
+    def has_all_permissions(user_role: Union[str, UserRole], permissions: List[Permission]) -> bool:
+        """
+        Check if a role has all of the specified permissions.
+
+        Args:
+            user_role: Role as string or UserRole enum
+            permissions: List of permissions to check
+
+        Returns:
+            True if role has all permissions, False otherwise
+        """
+        if isinstance(user_role, str):
+            try:
+                user_role = UserRole(user_role.lower())
+            except ValueError:
+                logger.warning(f"Invalid role string: {user_role}")
+                return False
+
+        return permission_checker.has_all_permissions(user_role, permissions)
+
+    @staticmethod
+    def get_user_permissions(user_role: Union[str, UserRole]) -> Set[Permission]:
+        """
+        Get all permissions for a user role.
+
+        Args:
+            user_role: Role as string or UserRole enum
+
+        Returns:
+            Set of permissions for the role
+        """
+        if isinstance(user_role, str):
+            try:
+                user_role = UserRole(user_role.lower())
+            except ValueError:
+                logger.warning(f"Invalid role string: {user_role}")
+                return set()
+
+        return permission_checker.get_user_permissions(user_role)

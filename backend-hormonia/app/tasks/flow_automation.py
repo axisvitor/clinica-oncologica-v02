@@ -9,12 +9,12 @@ from datetime import datetime, timedelta
 from typing import Optional
 import logging
 import asyncio
-from sqlalchemy import text
+from sqlalchemy import text, select
+from app.models.template import MessageTemplate
 
 from app.database import get_db_session
-from app.services.flow_engine import FlowEngine
-from app.services.patient import PatientService
-from app.services.monthly_quiz_service import MonthlyQuizService
+from app.services.enhanced_flow_engine import get_enhanced_flow_engine
+from app.domain.quizzes import MonthlyQuizService
 from app.models.patient import Patient
 from app.models.flow import PatientFlowState
 
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 def check_and_start_pending_flows() -> dict:
     """
     Check for patients without active flows and start them automatically.
-    This task should be scheduled to run every hour via Celery Beat.
+    This task should be scheduled to run every 15 minutes via Celery Beat.
 
     Returns:
         dict: Summary of flows started
@@ -34,7 +34,7 @@ def check_and_start_pending_flows() -> dict:
         flows_started = 0
         errors = []
 
-        async with get_db_session() as db:
+        with get_db_session() as db:
             try:
                 # Query for patients without active flows
                 query = text("""
@@ -55,8 +55,7 @@ def check_and_start_pending_flows() -> dict:
 
                 logger.info(f"Found {len(patients_without_flow)} patients without active flows")
 
-                flow_engine = FlowEngine()
-                patient_service = PatientService(db)
+                flow_engine = get_enhanced_flow_engine(db)
 
                 for patient_row in patients_without_flow:
                     try:
@@ -65,10 +64,10 @@ def check_and_start_pending_flows() -> dict:
 
                         if template_name:
                             # Start the flow
-                            await flow_engine.start_flow(
+                            # Enhanced engine uses enroll_patient instead of start_flow
+                            await flow_engine.enroll_patient(
                                 patient_id=patient_row.id,
-                                template_name=template_name,
-                                user_id=None  # System-initiated
+                                flow_type=template_name
                             )
 
                             flows_started += 1
@@ -114,8 +113,16 @@ def send_daily_reminders() -> dict:
         reminders_sent = 0
         errors = []
 
-        async with get_db_session() as db:
+        with get_db_session() as db:
             try:
+                # Fetch reminder template
+                template_query = select(MessageTemplate).where(
+                    MessageTemplate.name == 'daily_reminder_generic',
+                    MessageTemplate.is_active == True
+                )
+                template_result = await db.execute(template_query)
+                template = template_result.scalar_one_or_none()
+                
                 # Query for patients with pending quiz sessions
                 query = text("""
                     SELECT DISTINCT p.*, qs.id as session_id
@@ -136,26 +143,36 @@ def send_daily_reminders() -> dict:
                 logger.info(f"Found {len(patients_with_pending_quiz)} patients with pending quizzes")
 
                 # Send reminders
-                from app.domain.messaging.delivery import MessageSender
-                message_sender = MessageSender(db)
+                from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
+                from app.models.message import Message, MessageType, MessageDirection, MessageStatus
+                
+                unified_service = UnifiedWhatsAppService(db, messaging_mode=MessagingMode.QUEUE)
 
                 for patient_row in patients_with_pending_quiz:
                     try:
                         # Send reminder message
-                        reminder_message = (
-                            f"Olá {patient_row.name}! 👋\n\n"
-                            f"Você tem um questionário pendente que é importante "
-                            f"para acompanharmos seu tratamento.\n\n"
-                            f"Por favor, reserve alguns minutos para completá-lo. "
-                            f"Sua participação é fundamental! 💪\n\n"
-                            f"Equipe Hormonia"
+                        if template:
+                            try:
+                                reminder_content = template.content.format(patient_name=patient_row.name)
+                            except Exception as e:
+                                logger.warning(f"Failed to format template: {e}. Using fallback.")
+                                reminder_content = _get_reminder_message(patient_row.name)
+                        else:
+                            reminder_content = _get_reminder_message(patient_row.name)
+                        
+                        # Create message object required by Unified Service
+                        message = Message(
+                            patient_id=patient_row.id,
+                            direction=MessageDirection.OUTBOUND,
+                            type=MessageType.TEXT,
+                            content=reminder_content,
+                            status=MessageStatus.PENDING,
+                            message_metadata={"source": "automation_reminder"}
                         )
+                        db.add(message)
+                        await db.flush()
 
-                        await message_sender.send_whatsapp_message(
-                            phone=patient_row.phone,
-                            message=reminder_message,
-                            patient_id=patient_row.id
-                        )
+                        await unified_service.send_message(message)
 
                         reminders_sent += 1
                         logger.info(f"Sent reminder to patient {patient_row.id} ({patient_row.name})")
@@ -192,7 +209,7 @@ def resume_paused_flows() -> dict:
         flows_resumed = 0
         errors = []
 
-        async with get_db_session() as db:
+        with get_db_session() as db:
             try:
                 # Query for paused flows that should be resumed
                 query = text("""
@@ -211,12 +228,12 @@ def resume_paused_flows() -> dict:
 
                 logger.info(f"Found {len(paused_flows)} paused flows to potentially resume")
 
-                flow_engine = FlowEngine()
+                flow_engine = get_enhanced_flow_engine(db)
 
                 for flow_row in paused_flows:
                     try:
                         # Resume the flow
-                        await flow_engine.resume_flow(flow_row.id)
+                        await flow_engine.resume_patient_flow(flow_row.id)
 
                         flows_resumed += 1
                         logger.info(f"Resumed flow {flow_row.id} for patient {flow_row.patient_id}")
@@ -253,7 +270,7 @@ def cleanup_expired_quiz_links() -> dict:
         links_cleaned = 0
         errors = []
 
-        async with get_db_session() as db:
+        with get_db_session() as db:
             try:
                 # Update expired quiz sessions
                 query = text("""
@@ -293,6 +310,45 @@ def cleanup_expired_quiz_links() -> dict:
     return asyncio.run(_process())
 
 
+def _get_reminder_message(patient_name: str) -> str:
+    """
+    Generate reminder message content.
+    
+    TODO: Migrate this to database MessageTemplate (template_name='daily_reminder_generic')
+    to allow dynamic updates without code changes.
+    """
+    return (
+        f"Olá {patient_name}! 👋\n\n"
+        f"Você tem um questionário pendente que é importante "
+        f"para acompanharmos seu tratamento.\n\n"
+        f"Por favor, reserve alguns minutos para completá-lo. "
+        f"Sua participação é fundamental! 💪\n\n"
+        f"Equipe Hormonia"
+    )
+
+
+def _get_reminder_template() -> str:
+    """
+    Get the reminder message template.
+    """
+    return (
+        "Olá {patient_name}! 👋\n\n"
+        "Você tem um questionário pendente que é importante "
+        "para acompanharmos seu tratamento.\n\n"
+        "Por favor, reserve alguns minutos para completá-lo. "
+        "Sua participação é fundamental! 💪\n\n"
+        "Equipe Hormonia"
+    )
+
+
+def _format_reminder_message(patient_name: str) -> str:
+    """
+    Format the reminder message with the patient's name.
+    """
+    template = _get_reminder_template()
+    return template.format(patient_name=patient_name)
+
+
 def _determine_template_for_patient(patient) -> Optional[str]:
     """
     Determine the appropriate flow template based on patient data.
@@ -314,10 +370,11 @@ def _determine_template_for_patient(patient) -> Optional[str]:
         elif 'radio' in treatment_lower or 'radiation' in treatment_lower:
             return 'hormonia_fluxo_radio'
 
-    # Check for cancer type in metadata
+    # Check for specific cancer types (now mapped to treatment_type or diagnosis)
+    # Fallback for legacy data that might still be in metadata
     if hasattr(patient, 'metadata') and patient.metadata:
         cancer_type = patient.metadata.get('cancer_type', '').lower()
-
+        
         if 'mama' in cancer_type or 'breast' in cancer_type:
             return 'hormonia_fluxo_mama'
         elif 'prostata' in cancer_type or 'prostate' in cancer_type:
@@ -334,7 +391,7 @@ def _determine_template_for_patient(patient) -> Optional[str]:
 CELERYBEAT_SCHEDULE = {
     'check-pending-flows': {
         'task': 'flow_automation.check_and_start_pending_flows',
-        'schedule': timedelta(hours=1),  # Every hour
+        'schedule': timedelta(minutes=15),  # Every 15 minutes
         'options': {'queue': 'default'}
     },
     'send-daily-reminders': {

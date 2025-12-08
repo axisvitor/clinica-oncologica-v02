@@ -9,7 +9,6 @@ import asyncio
 from typing import Optional, Dict, Any, List, Tuple
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
-from sqlalchemy.orm import Session
 from sqlalchemy import text, func, and_, or_
 from sqlalchemy.exc import IntegrityError
 import redis.asyncio as redis
@@ -36,7 +35,7 @@ class SecurityMonitor:
     - Audit trail for compliance
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         """Initialize security monitor with database session."""
         self.db = db
         self.redis_client = None

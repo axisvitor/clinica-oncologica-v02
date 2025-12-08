@@ -9,7 +9,6 @@ from datetime import datetime
 from uuid import UUID
 import json
 
-from sqlalchemy.orm import Session
 from redis import Redis
 
 from app.models.patient import Patient
@@ -27,7 +26,7 @@ logger = logging.getLogger(__name__)
 class PlatformSynchronizationService:
     """Service for synchronizing flow system data with core platform."""
     
-    def __init__(self, db: Session, redis: Redis, 
+    def __init__(self, db: Any, redis: Redis, 
                  patient_repository: PatientRepository,
                  flow_repository: FlowStateRepository,
                  websocket_service: WebSocketEventService):
@@ -688,7 +687,7 @@ class PlatformSynchronizationService:
 
 
 # Service factory function
-def get_platform_sync_service(db: Session) -> PlatformSynchronizationService:
+def get_platform_sync_service(db: Any) -> PlatformSynchronizationService:
     """Factory function to create PlatformSynchronizationService instance."""
     from redis import Redis
     from app.repositories.patient import PatientRepository

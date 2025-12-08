@@ -19,6 +19,25 @@ import { createLogger } from './logger';
 
 const logger = createLogger('RuntimeConfig');
 
+/**
+ * Automatically upgrades WebSocket protocol based on page protocol
+ * Ensures wss:// is used when page is served over HTTPS
+ *
+ * @param wsUrl - WebSocket URL to upgrade
+ * @returns Upgraded WebSocket URL with appropriate protocol
+ */
+function upgradeWebSocketProtocol(wsUrl: string | undefined): string | undefined {
+  if (!wsUrl || typeof window === 'undefined') {
+    return wsUrl
+  }
+
+  // Determine the appropriate protocol based on current page protocol
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+
+  // Replace ws:// or wss:// with the appropriate protocol
+  return wsUrl.replace(/^(ws|wss):/, protocol)
+}
+
 // Environment configuration interface
 export interface RuntimeConfig {
   VITE_API_URL: string;
@@ -66,11 +85,12 @@ export interface RuntimeConfig {
 }
 
 // Production fallback configuration
+// WebSocket URLs will be auto-upgraded based on page protocol
 const PRODUCTION_FALLBACK_CONFIG: RuntimeConfig = {
   VITE_API_URL: 'https://clinica-oncologica-v02-production.up.railway.app/api/v2',
   VITE_API_BASE_URL: 'https://clinica-oncologica-v02-production.up.railway.app',
-  VITE_WS_URL: 'wss://clinica-oncologica-v02-production.up.railway.app/ws',
-  VITE_WS_BASE_URL: 'wss://clinica-oncologica-v02-production.up.railway.app/ws',
+  VITE_WS_URL: 'ws://clinica-oncologica-v02-production.up.railway.app/ws', // Will auto-upgrade to wss://
+  VITE_WS_BASE_URL: 'ws://clinica-oncologica-v02-production.up.railway.app/ws', // Will auto-upgrade to wss://
   VITE_WHATSAPP_INSTANCE_NAME: 'hormonia-instance',
 
   // Firebase Client Configuration (must be provided via environment)
@@ -141,15 +161,18 @@ async function loadRuntimeConfiguration(): Promise<RuntimeConfig> {
 
   // In development, use Vite's import.meta.env directly
   if (!isProduction) {
-    const apiBaseUrl = import.meta.env['VITE_API_BASE_URL'] || 'http://localhost:8000';
-    const apiUrl = import.meta.env['VITE_API_URL'] || `${apiBaseUrl}/api/v2`;
-    const wsBaseUrl = import.meta.env['VITE_WS_BASE_URL'] || import.meta.env['VITE_WS_URL'] || 'ws://localhost:8000/ws';
+    const apiBaseUrl = import.meta.env['VITE_API_BASE_URL'] || import.meta.env.VITE_API_BASE_URL || (import.meta.env.VITE_API_URL || "http://localhost:8000");
+    const apiUrl = import.meta.env['VITE_API_URL'] || import.meta.env.VITE_API_URL || `${apiBaseUrl}/api/v2`;
+    const wsBaseUrl = import.meta.env['VITE_WS_BASE_URL'] || import.meta.env['VITE_WS_URL'] || import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000/ws';
+
+    // Auto-upgrade WebSocket protocol in development if using HTTPS
+    const upgradedWsUrl = upgradeWebSocketProtocol(wsBaseUrl);
 
     const devConfig: RuntimeConfig = {
       VITE_API_URL: apiUrl,
       ...(apiBaseUrl && { VITE_API_BASE_URL: apiBaseUrl }),
-      VITE_WS_URL: wsBaseUrl,
-      ...(wsBaseUrl && { VITE_WS_BASE_URL: wsBaseUrl }),
+      VITE_WS_URL: upgradedWsUrl,
+      ...(upgradedWsUrl && { VITE_WS_BASE_URL: upgradedWsUrl }),
       ...(import.meta.env['VITE_WHATSAPP_INSTANCE_NAME'] && { VITE_WHATSAPP_INSTANCE_NAME: import.meta.env['VITE_WHATSAPP_INSTANCE_NAME'] }),
 
       // Firebase Client Configuration
@@ -256,7 +279,7 @@ async function loadFromRuntimeAPI(): Promise<RuntimeConfig | null> {
       ...(controller ? { signal: controller.signal } : {})
     };
 
-    const response = await fetch('/api/config', requestInit);
+    const response = await fetch('/api/v2/config', requestInit);
 
     if (!response.ok) {
       if (import.meta.env['DEV']) {
@@ -385,13 +408,16 @@ async function loadFromWindowConfig(): Promise<RuntimeConfig | null> {
 function normalizeConfig(config: any): RuntimeConfig {
   // Ensure WS_BASE_URL and WS_URL are both set (use whichever is available)
   const wsUrl = config.VITE_WS_BASE_URL || config.VITE_WS_URL || '';
+  // Auto-upgrade WebSocket protocol based on page protocol
+  const upgradedWsUrl = upgradeWebSocketProtocol(wsUrl);
+
   // Ensure API_BASE_URL is set (prefer explicit base, else derive from API_URL)
   const apiBaseUrl = config.VITE_API_BASE_URL || config.VITE_API_URL?.replace(/\/api\/v2$/, '') || '';
 
   return {
     ...config,
-    VITE_WS_URL: wsUrl,
-    VITE_WS_BASE_URL: wsUrl,
+    VITE_WS_URL: upgradedWsUrl,
+    VITE_WS_BASE_URL: upgradedWsUrl,
     VITE_API_BASE_URL: apiBaseUrl
   };
 }

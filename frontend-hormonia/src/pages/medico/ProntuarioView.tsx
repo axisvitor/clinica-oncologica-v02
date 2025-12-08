@@ -48,7 +48,7 @@ export default function ProntuarioView() {
       // Fetch timeline as a proxy for consultations/history
       try {
         const timeline = await apiClient.patients.timeline(pacienteId as string)
-        const mappedConsultas: Consulta[] = (timeline.events || []).map((e: any) => ({
+        const mappedConsultas: Consulta[] = (timeline.events || []).map((e) => ({
           id: e.id || `${Date.now()}-${Math.random()}`,
           data_consulta: e.created_at || new Date().toISOString(),
           diagnostico: e.title || e.event_type,

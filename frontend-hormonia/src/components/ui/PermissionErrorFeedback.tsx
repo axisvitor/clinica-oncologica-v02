@@ -371,7 +371,7 @@ export function PermissionGuard({
  * Hook for handling errors in components
  */
 export function useErrorHandler() {
-  const showError = (error: any, context?: string) => {
+  const showError = (error: Error | unknown, context?: string) => {
     // This would integrate with your toast/notification system
     logger.error('Error occurred:', error, context)
 
@@ -383,7 +383,7 @@ export function useErrorHandler() {
     // })
   }
 
-  const handleAuthError = (error: any, context?: string) => {
+  const handleAuthError = (error: Error | unknown, context?: string) => {
     const userFriendlyError = createUserFriendlyError(error, context)
     showError(userFriendlyError, context)
     return userFriendlyError

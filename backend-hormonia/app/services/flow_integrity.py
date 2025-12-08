@@ -6,7 +6,6 @@ import hashlib
 import logging
 from typing import List, Optional
 from datetime import datetime
-from sqlalchemy.orm import Session
 from uuid import UUID
 
 from app.models.flow import PatientFlowState
@@ -24,7 +23,7 @@ class FlowIntegrityService:
     Provides comprehensive validation for flow states, transitions, and data integrity.
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         """
         Initialize flow integrity service.
 
@@ -462,7 +461,7 @@ class FlowIntegrityService:
 
 
 # Global service instance factory
-def get_flow_integrity_service(db: Session) -> FlowIntegrityService:
+def get_flow_integrity_service(db: Any) -> FlowIntegrityService:
     """
     Get flow integrity service instance.
 

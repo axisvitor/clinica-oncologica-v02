@@ -5,7 +5,7 @@ Complex analytics models with validation and examples.
 
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
 
 
@@ -87,8 +87,7 @@ class EnhancedDashboardMetrics(BaseModel):
     alerts: Dict[str, int] = Field(..., description="System alerts by severity")
     generated_at: str = Field(..., description="Generation timestamp")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "time_range": "30d",
                 "period": {
@@ -123,7 +122,7 @@ class EnhancedDashboardMetrics(BaseModel):
                 },
                 "generated_at": "2025-01-31T12:00:00Z"
             }
-        }
+        })
 
 
 class CohortMetrics(BaseModel):
@@ -163,8 +162,7 @@ class PatientCohortAnalysis(BaseModel):
     pagination: PaginationInfo = Field(..., description="Pagination info")
     generated_at: str = Field(..., description="Generation timestamp")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "cohort_filter": "high_engagement",
                 "time_range": "90d",
@@ -200,7 +198,7 @@ class PatientCohortAnalysis(BaseModel):
                 },
                 "generated_at": "2025-01-31T12:00:00Z"
             }
-        }
+        })
 
 
 class FunnelStageMetrics(BaseModel):
@@ -224,8 +222,7 @@ class EngagementFunnelMetrics(BaseModel):
     total_converted: int = Field(..., ge=0, description="Total fully engaged patients")
     generated_at: str = Field(..., description="Generation timestamp")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "time_range": "30d",
                 "period": {
@@ -245,7 +242,7 @@ class EngagementFunnelMetrics(BaseModel):
                 "total_converted": 30,
                 "generated_at": "2025-01-31T12:00:00Z"
             }
-        }
+        })
 
 
 class PredictionPoint(BaseModel):
@@ -270,9 +267,9 @@ class PredictiveAnalytics(BaseModel):
     generated_at: str = Field(..., description="Generation timestamp")
     notes: str = Field(..., description="Additional notes about predictions")
 
-    class Config:
-        protected_namespaces = ()
-        json_schema_extra = {
+    model_config = ConfigDict(
+        protected_namespaces=(),
+        json_schema_extra={
             "example": {
                 "metric_type": "patients",
                 "forecast_period_days": 30,
@@ -299,6 +296,7 @@ class PredictiveAnalytics(BaseModel):
                 "notes": "Predictions based on linear regression of 90-day historical data"
             }
         }
+    )
 
 
 class CustomMetricDefinition(BaseModel):
@@ -310,8 +308,7 @@ class CustomMetricDefinition(BaseModel):
     aggregation: Optional[AggregationType] = Field(AggregationType.COUNT, description="Aggregation function")
     filters: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Filter criteria")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "name": "High-Risk Patients Completed",
                 "description": "Count of high-risk patients who completed at least one quiz",
@@ -322,7 +319,7 @@ class CustomMetricDefinition(BaseModel):
                     "min_quizzes": 1
                 }
             }
-        }
+        })
 
 
 class CustomMetricResponse(BaseModel):
@@ -336,8 +333,7 @@ class CustomMetricResponse(BaseModel):
     calculated_at: str = Field(..., description="Calculation timestamp")
     status: str = Field(..., description="Calculation status")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "metric_id": "high_risk_patients_completed",
                 "name": "High-Risk Patients Completed",
@@ -347,7 +343,7 @@ class CustomMetricResponse(BaseModel):
                 "calculated_at": "2025-01-31T12:00:00Z",
                 "status": "success"
             }
-        }
+        })
 
 
 class SystemHealthMetrics(BaseModel):
@@ -367,8 +363,7 @@ class RealtimeAnalyticsStream(BaseModel):
     system_health: SystemHealthMetrics = Field(..., description="System health metrics")
     metrics: Dict[str, Any] = Field(..., description="Live metric values")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "timestamp": "2025-01-31T12:00:00Z",
                 "active_sessions": 45,
@@ -383,7 +378,7 @@ class RealtimeAnalyticsStream(BaseModel):
                     "quizzes_today": 125
                 }
             }
-        }
+        })
 
 
 class AnalyticsExportResponse(BaseModel):
@@ -398,8 +393,7 @@ class AnalyticsExportResponse(BaseModel):
     download_url: str = Field(..., description="Download URL")
     expires_at: str = Field(..., description="Download URL expiration")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "export_id": "exp_abc123",
                 "format": "csv",
@@ -410,7 +404,7 @@ class AnalyticsExportResponse(BaseModel):
                 "download_url": "/api/v2/enhanced-analytics/downloads/exp_abc123",
                 "expires_at": "2025-01-31T18:00:00Z"
             }
-        }
+        })
 
 
 class PeriodMetrics(BaseModel):
@@ -438,8 +432,7 @@ class ComparativeAnalytics(BaseModel):
     change_metrics: ChangeMetrics = Field(..., description="Change indicators")
     generated_at: str = Field(..., description="Generation timestamp")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "metric_type": "patients",
                 "current_period": {
@@ -459,4 +452,4 @@ class ComparativeAnalytics(BaseModel):
                 },
                 "generated_at": "2025-01-31T12:00:00Z"
             }
-        }
+        })

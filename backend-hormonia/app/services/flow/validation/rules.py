@@ -7,7 +7,7 @@ Rules are lightweight asynchronous checks that FlowValidator can compose.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import List, Tuple, Optional
+from typing import Any, List, Tuple, Optional
 
 from ..types import FlowContext, FlowStepData
 

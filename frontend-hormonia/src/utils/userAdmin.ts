@@ -234,8 +234,8 @@ export function filterUsers(
     if (filters.search) {
       const searchLower = filters.search.toLowerCase()
       const matchesSearch =
-        user['full_name'].toLowerCase().includes(searchLower) ||
-        user['email'].toLowerCase().includes(searchLower)
+        (user['full_name'] || '').toLowerCase().includes(searchLower) ||
+        (user['email'] || '').toLowerCase().includes(searchLower)
       if (!matchesSearch) return false
     }
 

@@ -12,13 +12,8 @@ from datetime import datetime, timedelta
 from uuid import UUID
 from enum import Enum
 
-from sqlalchemy.orm import Session
 
 # Removed direct imports to avoid circular dependency - now using lazy imports in methods
-# from app.coordination.swarm_manager import get_swarm_manager, SwarmManager
-# from app.agents.patient.flow_coordinator import FlowCoordinatorAgent
-# from app.agents.communication.quiz_conductor import QuizConductorAgent
-# from app.agents.communication.message_composer import MessageComposerAgent
 from app.agents.base import MessagePriority
 from app.services.enhanced_flow_engine import EnhancedFlowEngine, FlowType
 from app.services.template_loader import EnhancedTemplateLoader
@@ -44,7 +39,7 @@ class HiveMindIntegrationService:
     hybrid operation modes.
     """
     
-    def __init__(self, db_session: Session, template_loader: Optional[EnhancedTemplateLoader] = None):
+    def __init__(self, db_session: Any, template_loader: Optional[EnhancedTemplateLoader] = None):
         """Initialize integration service."""
         self.db_session = db_session
         self.logger = get_logger("hive_mind_integration")
@@ -77,7 +72,7 @@ class HiveMindIntegrationService:
             self.logger.info("Initializing Hive-Mind integration service")
             
             # Initialize swarm manager (lazy import to avoid circular dependency)
-            from app.coordination.swarm_manager import get_swarm_manager
+            from app.orchestration.swarm_manager import get_swarm_manager
             self.swarm_manager = await get_swarm_manager()
             
             # Initialize enhanced flow engine
@@ -98,8 +93,11 @@ class HiveMindIntegrationService:
         try:
             # Lazy imports to avoid circular dependency
             from app.agents.patient.flow_coordinator import FlowCoordinatorAgent
-            from app.agents.communication.quiz_conductor import QuizConductorAgent
+            from app.agents.patient.flow_coordinator import FlowCoordinatorAgent
+            from app.domain.agents.quiz import QuizConductor as QuizConductorAgent
             from app.agents.communication.message_composer import MessageComposerAgent
+            from app.agents.patient.patient_monitor import PatientMonitorAgent
+            from app.agents.analytics.alert_analyzer import AlertAnalyzerAgent
 
             # Create Flow Coordinator Agent with template support
             flow_coordinator = FlowCoordinatorAgent(
@@ -131,6 +129,22 @@ class HiveMindIntegrationService:
                 self.agents["message_composer"] = message_composer
                 self.logger.info("Message Composer Agent registered successfully")
             
+            # Create Patient Monitor Agent
+            patient_monitor = PatientMonitorAgent(self.db_session)
+            success = await self.swarm_manager.register_agent(patient_monitor)
+            
+            if success:
+                self.agents["patient_monitor"] = patient_monitor
+                self.logger.info("Patient Monitor Agent registered successfully")
+
+            # Create Alert Analyzer Agent
+            alert_analyzer = AlertAnalyzerAgent(self.db_session)
+            success = await self.swarm_manager.register_agent(alert_analyzer)
+            
+            if success:
+                self.agents["alert_analyzer"] = alert_analyzer
+                self.logger.info("Alert Analyzer Agent registered successfully")
+            
             # Initialize all agents
             for agent_name, agent in self.agents.items():
                 if hasattr(agent, 'initialize'):
@@ -140,9 +154,14 @@ class HiveMindIntegrationService:
             self.logger.info(f"Successfully initialized {len(self.agents)} agents with template support")
             
             # TODO: Add more agents as they're implemented
-            # - PatientMonitorAgent
-            # - AlertAnalyzerAgent
-            # - ResponseProcessorAgent
+            # Create ResponseProcessorAgent
+            from app.domain.agents.response_processor_agent import ResponseProcessorAgent
+            response_processor = ResponseProcessorAgent(self.db_session)
+            success = await self.swarm_manager.register_agent(response_processor)
+            
+            if success:
+                self.agents["response_processor"] = response_processor
+                self.logger.info("Response Processor Agent registered successfully")
             
         except Exception as e:
             self.logger.error(f"Failed to initialize agents: {e}")
@@ -468,7 +487,7 @@ class HiveMindIntegrationService:
         """Conduct quiz using legacy system."""
         try:
             # Use existing quiz flow integration
-            from app.services.quiz_flow_integration import get_quiz_trigger_service
+            from app.domain.quizzes.integration.flow_integration import get_quiz_trigger_service
             
             quiz_service = get_quiz_trigger_service(self.db_session)
             
@@ -575,7 +594,7 @@ class HiveMindIntegrationService:
         """Process response using legacy system."""
         try:
             # Use existing conversational quiz service
-            from app.services.quiz_flow_integration import get_conversational_quiz_service
+            from app.domain.quizzes.integration.flow_integration import get_conversational_quiz_service
             
             quiz_service = get_conversational_quiz_service(self.db_session)
             result = await quiz_service.process_quiz_response(
@@ -654,7 +673,7 @@ async def get_hive_mind_integration() -> HiveMindIntegrationService:
     return _integration_service
 
 
-async def initialize_integration_service(db_session: Session) -> HiveMindIntegrationService:
+async def initialize_integration_service(db_session: Any) -> HiveMindIntegrationService:
     """Initialize integration service with specific database session."""
     global _integration_service
 

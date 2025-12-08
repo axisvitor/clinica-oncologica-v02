@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMedicoAuth } from '../../contexts/MedicoAuthContext'
+import { useMedicoAuth } from '@/app/providers/MedicoAuthContext'
 
 export default function MedicoLogin() {
   const navigate = useNavigate()
@@ -111,9 +111,8 @@ export default function MedicoLogin() {
                 required
                 value={formData.crm}
                 onChange={handleChange}
-                className={`appearance-none relative block w-full px-3 py-2 border ${
-                  errors['crm'] ? 'border-red-300' : 'border-gray-300'
-                } placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm`}
+                className={`appearance-none relative block w-full px-3 py-2 border ${errors['crm'] ? 'border-red-300' : 'border-gray-300'
+                  } placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm`}
                 placeholder="Digite seu CRM (somente números)"
               />
               {errors['crm'] && (
@@ -133,9 +132,8 @@ export default function MedicoLogin() {
                 required
                 value={formData.senha}
                 onChange={handleChange}
-                className={`appearance-none relative block w-full px-3 py-2 border ${
-                  errors['senha'] ? 'border-red-300' : 'border-gray-300'
-                } placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm`}
+                className={`appearance-none relative block w-full px-3 py-2 border ${errors['senha'] ? 'border-red-300' : 'border-gray-300'
+                  } placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm`}
                 placeholder="Digite sua senha"
               />
               {errors['senha'] && (
@@ -178,11 +176,10 @@ export default function MedicoLogin() {
             <button
               type="submit"
               disabled={isLoading}
-              className={`group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white ${
-                isLoading
+              className={`group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white ${isLoading
                   ? 'bg-blue-400 cursor-not-allowed'
                   : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
-              } transition-colors duration-200`}
+                } transition-colors duration-200`}
             >
               {isLoading ? (
                 <>

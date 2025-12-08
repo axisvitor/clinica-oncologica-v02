@@ -29,37 +29,6 @@ export interface MedicoAuthState {
   /** Current logged-in medico user */
   user: MedicoUser | null
 
-  /** Whether user is authenticated */
-  isAuthenticated: boolean
-
-  /** Loading state during authentication */
-  isLoading: boolean
-
-  /** Authentication error message */
-  error: string | null
-
-  /** Session expiry timestamp */
-  sessionExpiry: Date | null
-
-  /** Cached list of paciente IDs */
-  pacientes: string[]
-
-  // Backward compatibility properties
-  /** @deprecated Use 'user' instead */
-  medico?: MedicoUser | null
-
-  /** @deprecated Firebase handles tokens internally */
-  token?: string | undefined
-}
-
-/**
- * Medico Login Credentials
- */
-export interface MedicoLoginCredentials {
-  /** Email address */
-  email: string
-
-  /** Password */
   password: string
 
   /** Remember me flag for persistent session */

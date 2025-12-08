@@ -6,7 +6,7 @@ from typing import List, Optional, Any, Union
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class FlowTemplateBase(BaseModel):
@@ -23,23 +23,24 @@ class FlowTemplateBase(BaseModel):
 class FlowTemplateCreate(FlowTemplateBase):
     """Schema for creating flow templates."""
     
-    @validator('template_data')
+    @field_validator('template_data')
+    @classmethod
     def validate_template_data(cls, v):
         """Validate template data structure."""
         if not isinstance(v, dict):
             raise ValueError("template_data must be a dictionary")
-        
+
         # Check for required fields
         required_fields = ['steps', 'triggers']
         for field in required_fields:
             if field not in v:
                 raise ValueError(f"template_data must contain '{field}' field")
-        
+
         # Validate steps structure
         steps = v.get('steps', [])
         if not isinstance(steps, list) or len(steps) == 0:
             raise ValueError("template_data.steps must be a non-empty list")
-        
+
         return v
 
 
@@ -51,19 +52,20 @@ class FlowTemplateUpdate(BaseModel):
     is_active: Optional[bool] = Field(None, description="Whether template is active")
     template_data: Optional[dict[str, Any]] = Field(None, description="Template configuration data")
     
-    @validator('template_data')
+    @field_validator('template_data')
+    @classmethod
     def validate_template_data(cls, v):
         """Validate template data structure."""
         if v is not None:
             if not isinstance(v, dict):
                 raise ValueError("template_data must be a dictionary")
-            
+
             # Check for required fields if provided
             if 'steps' in v:
                 steps = v['steps']
                 if not isinstance(steps, list) or len(steps) == 0:
                     raise ValueError("template_data.steps must be a non-empty list")
-        
+
         return v
 
 
@@ -72,9 +74,8 @@ class FlowTemplateResponse(FlowTemplateBase):
     id: UUID = Field(..., description="Template ID")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PatientFlowStateBase(BaseModel):
@@ -105,9 +106,8 @@ class PatientFlowStateResponse(PatientFlowStateBase):
     completed_at: Optional[datetime] = Field(None, description="Flow completion timestamp")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FlowProgressionRequest(BaseModel):
@@ -235,10 +235,11 @@ class BaseFlowResponse(BaseModel):
     patient_id: UUID = Field(..., description="Patient ID")
     message: str = Field(..., description="Result message")
 
-    class Config:
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )
 
 
 # Response models for flow state endpoints
@@ -249,10 +250,11 @@ class FlowStateResponse(BaseModel):
     flow_state: Optional[FlowStateData] = Field(None, description="Current flow state data")
     message: Optional[str] = Field(None, description="Additional message")
 
-    class Config:
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )
 
 
 class FlowAdvancementResponse(BaseFlowResponse):
@@ -288,10 +290,11 @@ class FlowHistoryItem(BaseModel):
     is_paused: bool = Field(..., description="Whether flow is paused")
     state_data: FlowStateData = Field(default_factory=dict, description="Flow state data")
 
-    class Config:
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )
 
 
 class FlowHistoryResponse(BaseModel):
@@ -302,10 +305,11 @@ class FlowHistoryResponse(BaseModel):
     total_flows: int = Field(..., description="Total number of flows")
     pagination: dict[str, Any] = Field(..., description="Pagination information")
 
-    class Config:
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )
 
 
 # Request models for improved validation
@@ -331,14 +335,16 @@ class FlowPauseRequest(BaseModel):
         example=24
     )
 
-    @validator('reason')
+    @field_validator('reason')
+    @classmethod
     def validate_reason(cls, v):
         """Validate reason field."""
         if v is not None and not v.strip():
             raise ValueError('Reason cannot be empty if provided')
         return v.strip() if v else None
 
-    @validator('duration_hours')
+    @field_validator('duration_hours')
+    @classmethod
     def validate_duration_hours(cls, v):
         """Validate duration hours field."""
         if v is not None:
@@ -365,7 +371,8 @@ class FlowAdvanceRequest(BaseModel):
         example=15
     )
 
-    @validator('force_day')
+    @field_validator('force_day')
+    @classmethod
     def validate_force_day(cls, v):
         """Validate force day field."""
         if v is not None:
@@ -386,9 +393,8 @@ class FlowTemplateResponse(FlowTemplateBase):
     updated_at: Optional[datetime] = None
     created_by: UUID
     updated_by: Optional[UUID] = None
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FlowCustomizationRequest(BaseModel):
@@ -414,9 +420,8 @@ class FlowCustomizationResponse(BaseModel):
     updated_at: Optional[datetime] = None
     created_by: UUID
     updated_by: Optional[UUID] = None
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FlowRuleRequest(BaseModel):
@@ -444,9 +449,8 @@ class FlowRuleResponse(BaseModel):
     updated_at: Optional[datetime] = None
     created_by: UUID
     updated_by: Optional[UUID] = None
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ABTestVariant(BaseModel):
@@ -461,13 +465,14 @@ class ABTestConfigRequest(BaseModel):
     """Schema for A/B test configuration requests."""
     name: str = Field(..., min_length=1, max_length=100, description="Test name")
     flow_type: str = Field(..., description="Flow type for testing")
-    variants: List[ABTestVariant] = Field(..., min_items=2, max_items=5, description="Test variants")
+    variants: List[ABTestVariant] = Field(..., min_length=2, max_length=5, description="Test variants")
     success_metrics: List[str] = Field(..., description="Metrics to measure success")
     target_sample_size: int = Field(..., ge=10, description="Target number of participants")
     duration_days: int = Field(..., ge=1, le=90, description="Test duration in days")
     description: Optional[str] = Field(None, description="Test description")
     
-    @validator('variants')
+    @field_validator('variants')
+    @classmethod
     def validate_variants(cls, v):
         """Validate variant allocation percentages sum to 100."""
         total_allocation = sum(variant.allocation_percentage for variant in v)
@@ -505,9 +510,8 @@ class ABTestConfigResponse(BaseModel):
     updated_at: Optional[datetime] = None
     created_by: UUID
     updated_by: Optional[UUID] = None
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FlowAdvanceRequest(BaseModel):

@@ -310,8 +310,8 @@ class UnifiedCacheService:
         Cache quiz session data.
 
         Args:
-            session_id: Session identifier
-            session_data: Session data
+            session_id: Any identifier
+            session_data: Any data
             ttl: Time-to-live in seconds
 
         Returns:
@@ -328,7 +328,7 @@ class UnifiedCacheService:
         Get cached quiz session data.
 
         Args:
-            session_id: Session identifier
+            session_id: Any identifier
 
         Returns:
             Cached session data or None if not found
@@ -354,7 +354,7 @@ class UnifiedCacheService:
         Invalidate specific quiz session cache.
 
         Args:
-            session_id: Session identifier
+            session_id: Any identifier
 
         Returns:
             True if invalidated successfully, False otherwise

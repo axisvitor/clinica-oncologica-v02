@@ -9,7 +9,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class AlertSeverity(str, Enum):
@@ -173,8 +173,7 @@ class Alert(BaseModel):
     escalated: bool = False
     escalation_level: int = 0
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AlertStatistics(BaseModel):

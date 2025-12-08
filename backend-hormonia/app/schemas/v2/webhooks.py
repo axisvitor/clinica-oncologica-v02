@@ -6,7 +6,7 @@ Pydantic models for webhook management with validation.
 from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field, HttpUrl, validator, root_validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator, ConfigDict
 from uuid import UUID
 
 
@@ -47,7 +47,7 @@ class DeliveryStatus(str, Enum):
 class WebhookCreate(BaseModel):
     """Create new webhook configuration"""
     url: HttpUrl = Field(..., description="Webhook endpoint URL")
-    events: List[WebhookEventType] = Field(..., min_items=1, description="Events to subscribe to")
+    events: List[WebhookEventType] = Field(..., min_length=1, description="Events to subscribe to")
     description: Optional[str] = Field(None, max_length=500, description="Webhook description")
     secret: Optional[str] = Field(None, min_length=16, max_length=256, description="Custom HMAC secret (auto-generated if not provided)")
     headers: Optional[Dict[str, str]] = Field(default_factory=dict, description="Custom HTTP headers")
@@ -55,7 +55,8 @@ class WebhookCreate(BaseModel):
     retry_enabled: bool = Field(True, description="Enable automatic retries")
     max_retries: int = Field(3, ge=0, le=10, description="Maximum retry attempts")
 
-    @validator("headers")
+    @field_validator("headers")
+    @classmethod
     def validate_headers(cls, v):
         """Prevent setting authentication headers"""
         forbidden = {"authorization", "x-webhook-signature", "x-webhook-timestamp", "x-webhook-id"}
@@ -65,8 +66,7 @@ class WebhookCreate(BaseModel):
                 raise ValueError(f"Headers cannot include: {', '.join(forbidden)}")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "url": "https://api.example.com/webhooks",
                 "events": ["message.received", "message.sent"],
@@ -76,13 +76,13 @@ class WebhookCreate(BaseModel):
                 "retry_enabled": True,
                 "max_retries": 3
             }
-        }
+        })
 
 
 class WebhookUpdate(BaseModel):
     """Update webhook configuration"""
     url: Optional[HttpUrl] = Field(None, description="Webhook endpoint URL")
-    events: Optional[List[WebhookEventType]] = Field(None, min_items=1, description="Events to subscribe to")
+    events: Optional[List[WebhookEventType]] = Field(None, min_length=1, description="Events to subscribe to")
     description: Optional[str] = Field(None, max_length=500, description="Webhook description")
     status: Optional[WebhookStatus] = Field(None, description="Webhook status")
     headers: Optional[Dict[str, str]] = Field(None, description="Custom HTTP headers")
@@ -90,7 +90,8 @@ class WebhookUpdate(BaseModel):
     retry_enabled: Optional[bool] = Field(None, description="Enable automatic retries")
     max_retries: Optional[int] = Field(None, ge=0, le=10, description="Maximum retry attempts")
 
-    @validator("headers")
+    @field_validator("headers")
+    @classmethod
     def validate_headers(cls, v):
         """Prevent setting authentication headers"""
         if v:
@@ -100,14 +101,13 @@ class WebhookUpdate(BaseModel):
                 raise ValueError(f"Headers cannot include: {', '.join(forbidden)}")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "status": "active",
                 "events": ["message.received", "message.sent", "message.delivered"],
                 "description": "Updated webhook configuration"
             }
-        }
+        })
 
 
 class WebhookResponse(BaseModel):
@@ -128,9 +128,9 @@ class WebhookResponse(BaseModel):
     success_count: int = Field(0, description="Successful deliveries")
     failure_count: int = Field(0, description="Failed deliveries")
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "id": "550e8400-e29b-41d4-a716-446655440000",
                 "url": "https://api.example.com/webhooks",
@@ -148,7 +148,7 @@ class WebhookResponse(BaseModel):
                 "success_count": 1250,
                 "failure_count": 5
             }
-        }
+        })
 
 
 class WebhookList(BaseModel):
@@ -158,15 +158,14 @@ class WebhookList(BaseModel):
     has_more: bool = Field(..., description="More items available")
     total: Optional[int] = Field(None, description="Total count")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "data": [],
                 "next_cursor": "eyJpZCI6MTIzfQ==",
                 "has_more": True,
                 "total": 50
             }
-        }
+        })
 
 
 class WebhookTestRequest(BaseModel):
@@ -174,13 +173,12 @@ class WebhookTestRequest(BaseModel):
     event_type: WebhookEventType = Field(..., description="Event type to test")
     payload: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Custom test payload")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "event_type": "message.received",
                 "payload": {"test": True, "message": "Test webhook"}
             }
-        }
+        })
 
 
 class WebhookTestResponse(BaseModel):
@@ -191,8 +189,7 @@ class WebhookTestResponse(BaseModel):
     response_body: Optional[str] = Field(None, description="Response body preview")
     error: Optional[str] = Field(None, description="Error message if failed")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "success": True,
                 "status_code": 200,
@@ -200,7 +197,7 @@ class WebhookTestResponse(BaseModel):
                 "response_body": "{\"status\":\"ok\"}",
                 "error": None
             }
-        }
+        })
 
 
 class WebhookDelivery(BaseModel):
@@ -217,9 +214,9 @@ class WebhookDelivery(BaseModel):
     created_at: datetime = Field(..., description="Creation timestamp")
     completed_at: Optional[datetime] = Field(None, description="Completion timestamp")
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "id": "550e8400-e29b-41d4-a716-446655440001",
                 "webhook_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -233,7 +230,7 @@ class WebhookDelivery(BaseModel):
                 "created_at": "2025-01-01T12:00:00Z",
                 "completed_at": "2025-01-01T12:00:00Z"
             }
-        }
+        })
 
 
 class WebhookDeliveryList(BaseModel):
@@ -243,27 +240,25 @@ class WebhookDeliveryList(BaseModel):
     has_more: bool = Field(..., description="More items available")
     total: Optional[int] = Field(None, description="Total count")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "data": [],
                 "next_cursor": "eyJpZCI6MTIzfQ==",
                 "has_more": True,
                 "total": 5000
             }
-        }
+        })
 
 
 class WebhookRetryRequest(BaseModel):
     """Request to retry failed delivery"""
     force: bool = Field(False, description="Force retry even if max attempts reached")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "force": False
             }
-        }
+        })
 
 
 class WebhookRetryResponse(BaseModel):
@@ -273,27 +268,25 @@ class WebhookRetryResponse(BaseModel):
     attempt: int = Field(..., description="New attempt number")
     message: str = Field(..., description="Result message")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "success": True,
                 "delivery_id": "550e8400-e29b-41d4-a716-446655440001",
                 "attempt": 2,
                 "message": "Retry scheduled successfully"
             }
-        }
+        })
 
 
 class WebhookSecretRotate(BaseModel):
     """Rotate webhook secret"""
     new_secret: Optional[str] = Field(None, min_length=16, max_length=256, description="New secret (auto-generated if not provided)")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "new_secret": None
             }
-        }
+        })
 
 
 class WebhookSecretResponse(BaseModel):
@@ -302,14 +295,13 @@ class WebhookSecretResponse(BaseModel):
     rotated_at: datetime = Field(..., description="Rotation timestamp")
     message: str = Field(..., description="Success message")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "secret_preview": "wh_new_se",
                 "rotated_at": "2025-01-01T12:00:00Z",
                 "message": "Secret rotated successfully. Save your new secret securely."
             }
-        }
+        })
 
 
 class WebhookLog(BaseModel):
@@ -321,9 +313,9 @@ class WebhookLog(BaseModel):
     details: Optional[Dict[str, Any]] = Field(None, description="Additional details")
     created_at: datetime = Field(..., description="Timestamp")
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "id": "550e8400-e29b-41d4-a716-446655440002",
                 "webhook_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -332,7 +324,7 @@ class WebhookLog(BaseModel):
                 "details": {"status_code": 200, "response_time_ms": 145.2},
                 "created_at": "2025-01-01T12:00:00Z"
             }
-        }
+        })
 
 
 class WebhookLogList(BaseModel):
@@ -342,15 +334,14 @@ class WebhookLogList(BaseModel):
     has_more: bool = Field(..., description="More items available")
     total: Optional[int] = Field(None, description="Total count")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "data": [],
                 "next_cursor": "eyJpZCI6MTIzfQ==",
                 "has_more": True,
                 "total": 10000
             }
-        }
+        })
 
 
 class WebhookStats(BaseModel):
@@ -365,8 +356,7 @@ class WebhookStats(BaseModel):
     success_rate: float = Field(..., description="Success rate (0-100)")
     last_24h_deliveries: int = Field(..., description="Deliveries in last 24 hours")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "total_webhooks": 10,
                 "active_webhooks": 8,
@@ -378,7 +368,7 @@ class WebhookStats(BaseModel):
                 "success_rate": 99.0,
                 "last_24h_deliveries": 1250
             }
-        }
+        })
 
 
 class WebhookHealth(BaseModel):
@@ -392,8 +382,7 @@ class WebhookHealth(BaseModel):
     last_failure_at: Optional[datetime] = Field(None, description="Last failed delivery")
     recommendations: List[str] = Field(default_factory=list, description="Health recommendations")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "webhook_id": "550e8400-e29b-41d4-a716-446655440000",
                 "status": "healthy",
@@ -404,7 +393,7 @@ class WebhookHealth(BaseModel):
                 "last_failure_at": "2024-12-31T10:00:00Z",
                 "recommendations": []
             }
-        }
+        })
 
 
 class WebhookInboundEvent(BaseModel):
@@ -413,8 +402,7 @@ class WebhookInboundEvent(BaseModel):
     data: Dict[str, Any] = Field(..., description="Event payload")
     timestamp: Optional[str] = Field(None, description="Event timestamp")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "event": "message.received",
                 "data": {
@@ -424,7 +412,7 @@ class WebhookInboundEvent(BaseModel):
                 },
                 "timestamp": "1704067200"
             }
-        }
+        })
 
 
 class WebhookInboundResponse(BaseModel):
@@ -434,15 +422,14 @@ class WebhookInboundResponse(BaseModel):
     webhook_id: Optional[str] = Field(None, description="Webhook ID (for idempotency)")
     message_id: Optional[str] = Field(None, description="Created message ID")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "status": "success",
                 "message": "Message processed successfully",
                 "webhook_id": "wh_evt_123456",
                 "message_id": "msg_789"
             }
-        }
+        })
 
 
 class WebhookEventTypeInfo(BaseModel):
@@ -451,8 +438,7 @@ class WebhookEventTypeInfo(BaseModel):
     description: str = Field(..., description="Event description")
     payload_schema: Dict[str, Any] = Field(..., description="Expected payload structure")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "event": "message.received",
                 "description": "Triggered when a new message is received",
@@ -463,7 +449,7 @@ class WebhookEventTypeInfo(BaseModel):
                     "timestamp": "string"
                 }
             }
-        }
+        })
 
 
 class WebhookEventTypeList(BaseModel):
@@ -471,13 +457,12 @@ class WebhookEventTypeList(BaseModel):
     events: List[WebhookEventTypeInfo] = Field(..., description="Available events")
     total: int = Field(..., description="Total event types")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "events": [],
                 "total": 14
             }
-        }
+        })
 
 
 class FailedWebhook(BaseModel):
@@ -490,9 +475,9 @@ class FailedWebhook(BaseModel):
     last_error: Optional[str] = Field(None, description="Last error message")
     status: str = Field(..., description="Current status")
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "webhook_id": "550e8400-e29b-41d4-a716-446655440000",
                 "url": "https://api.example.com/webhooks",
@@ -502,7 +487,7 @@ class FailedWebhook(BaseModel):
                 "last_error": "Connection timeout",
                 "status": "error"
             }
-        }
+        })
 
 
 class FailedWebhookList(BaseModel):
@@ -510,10 +495,9 @@ class FailedWebhookList(BaseModel):
     data: List[FailedWebhook] = Field(..., description="Failed webhooks")
     total: int = Field(..., description="Total failed webhooks")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "data": [],
                 "total": 3
             }
-        }
+        })

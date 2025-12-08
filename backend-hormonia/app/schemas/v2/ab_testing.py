@@ -15,7 +15,7 @@ from datetime import datetime, date
 from typing import Optional, List, Dict, Any, Literal
 from uuid import UUID
 from enum import Enum
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 
 
 # ============================================================================
@@ -92,8 +92,7 @@ class VariantConfig(BaseModel):
     traffic_weight: float = Field(..., gt=0, le=1, description="Traffic allocation (0-1)")
     configuration: Dict[str, Any] = Field(default_factory=dict, description="Variant-specific config")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "name": "Treatment - AI Humanized",
                 "type": "treatment",
@@ -101,7 +100,7 @@ class VariantConfig(BaseModel):
                 "traffic_weight": 0.5,
                 "configuration": {"use_ai": True, "model": "gpt-4"}
             }
-        }
+        })
 
 
 class VariantPerformance(BaseModel):
@@ -116,8 +115,7 @@ class VariantPerformance(BaseModel):
     error_rate: float = Field(0.0, ge=0, le=1)
     confidence_interval: Optional[Dict[str, float]] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -132,8 +130,7 @@ class ConversionGoal(BaseModel):
     target_value: Optional[float] = Field(None, description="Target value for goal")
     is_primary: bool = Field(False, description="Is this the primary goal?")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "goal_name": "message_response",
                 "goal_type": "response",
@@ -141,7 +138,7 @@ class ConversionGoal(BaseModel):
                 "target_value": 0.3,
                 "is_primary": True
             }
-        }
+        })
 
 
 class ConversionEventCreate(BaseModel):
@@ -156,12 +153,12 @@ class ConversionEventCreate(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
     timestamp: Optional[datetime] = None
 
-    @root_validator(skip_on_failure=True)
-    def validate_user_identifier(cls, values):
+    @model_validator(mode='after')
+    def validate_user_identifier(self):
         """Ensure either user_id or anonymous_id is provided."""
-        if not values.get("user_id") and not values.get("anonymous_id"):
+        if not self.user_id and not self.anonymous_id:
             raise ValueError("Either user_id or anonymous_id must be provided")
-        return values
+        return self
 
 
 class ConversionEventResponse(BaseModel):
@@ -174,8 +171,7 @@ class ConversionEventResponse(BaseModel):
     value: Optional[float]
     recorded_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -191,8 +187,7 @@ class StatisticalConfig(BaseModel):
     power: float = Field(0.8, gt=0, lt=1)
     early_stopping_enabled: bool = Field(True)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "confidence_level": "95",
                 "statistical_test": "chi_square",
@@ -201,7 +196,7 @@ class StatisticalConfig(BaseModel):
                 "power": 0.8,
                 "early_stopping_enabled": True
             }
-        }
+        })
 
 
 class ConfidenceInterval(BaseModel):
@@ -211,15 +206,14 @@ class ConfidenceInterval(BaseModel):
     confidence_level: float
     margin_of_error: float
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "lower_bound": 0.23,
                 "upper_bound": 0.37,
                 "confidence_level": 0.95,
                 "margin_of_error": 0.07
             }
-        }
+        })
 
 
 class StatisticalTestResult(BaseModel):
@@ -233,8 +227,7 @@ class StatisticalTestResult(BaseModel):
     effect_size: Optional[float] = None
     effect_size_interpretation: Optional[Literal["negligible", "small", "medium", "large"]] = None
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "test_type": "chi_square",
                 "test_statistic": 4.32,
@@ -244,7 +237,7 @@ class StatisticalTestResult(BaseModel):
                 "effect_size": 0.15,
                 "effect_size_interpretation": "small"
             }
-        }
+        })
 
 
 class ExperimentStatistics(BaseModel):
@@ -259,8 +252,7 @@ class ExperimentStatistics(BaseModel):
     relative_improvement: Optional[float] = None
     absolute_improvement: Optional[float] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -273,25 +265,23 @@ class SegmentCriteria(BaseModel):
     operator: Literal["equals", "not_equals", "greater_than", "less_than", "contains", "in"] = "equals"
     value: Any = Field(..., description="Value to compare against")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "attribute_name": "age",
                 "operator": "greater_than",
                 "value": 40
             }
-        }
+        })
 
 
 class Segment(BaseModel):
     """User segment definition."""
     name: str = Field(..., min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
-    criteria: List[SegmentCriteria] = Field(..., min_items=1)
+    criteria: List[SegmentCriteria] = Field(..., min_length=1)
     is_exclusive: bool = Field(False, description="Mutually exclusive with other segments")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "name": "Age 40+",
                 "description": "Users aged 40 and above",
@@ -300,7 +290,7 @@ class Segment(BaseModel):
                 ],
                 "is_exclusive": False
             }
-        }
+        })
 
 
 # ============================================================================
@@ -314,10 +304,10 @@ class ExperimentCreate(BaseModel):
     hypothesis: Optional[str] = Field(None, max_length=1000, description="Experiment hypothesis")
 
     # Variants configuration
-    variants: List[VariantConfig] = Field(..., min_items=2, max_items=5)
+    variants: List[VariantConfig] = Field(..., min_length=2, max_length=5)
 
     # Conversion goals
-    conversion_goals: List[ConversionGoal] = Field(..., min_items=1, max_items=10)
+    conversion_goals: List[ConversionGoal] = Field(..., min_length=1, max_length=10)
 
     # Duration
     start_date: Optional[datetime] = None
@@ -328,14 +318,15 @@ class ExperimentCreate(BaseModel):
     statistical_config: StatisticalConfig = Field(default_factory=StatisticalConfig)
 
     # Segmentation
-    segments: Optional[List[Segment]] = Field(None, max_items=10)
+    segments: Optional[List[Segment]] = Field(None, max_length=10)
     target_population_filter: Optional[Dict[str, Any]] = None
 
     # Winner declaration
     winner_decision_mode: WinnerDecisionMode = Field(WinnerDecisionMode.MANUAL)
     auto_declare_threshold: Optional[float] = Field(None, ge=0.9, le=0.99, description="Confidence threshold for auto winner")
 
-    @validator("variants")
+    @field_validator("variants")
+    @classmethod
     def validate_variant_weights(cls, v):
         """Ensure traffic weights sum to 1.0."""
         total_weight = sum(variant.traffic_weight for variant in v)
@@ -343,7 +334,8 @@ class ExperimentCreate(BaseModel):
             raise ValueError(f"Variant traffic weights must sum to 1.0, got {total_weight}")
         return v
 
-    @validator("conversion_goals")
+    @field_validator("conversion_goals")
+    @classmethod
     def validate_primary_goal(cls, v):
         """Ensure exactly one primary goal."""
         primary_goals = [g for g in v if g.is_primary]
@@ -351,16 +343,12 @@ class ExperimentCreate(BaseModel):
             raise ValueError("Exactly one conversion goal must be marked as primary")
         return v
 
-    @root_validator(skip_on_failure=True)
-    def validate_dates(cls, values):
+    @model_validator(mode='after')
+    def validate_dates(self):
         """Validate start/end dates."""
-        start_date = values.get("start_date")
-        end_date = values.get("end_date")
-
-        if start_date and end_date and start_date >= end_date:
+        if self.start_date and self.end_date and self.start_date >= self.end_date:
             raise ValueError("end_date must be after start_date")
-
-        return values
+        return self
 
 
 class ExperimentUpdate(BaseModel):
@@ -409,8 +397,7 @@ class ExperimentResponse(BaseModel):
     winner_declared_at: Optional[datetime] = None
     winner_confidence: Optional[float] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ExperimentListResponse(BaseModel):
@@ -433,12 +420,12 @@ class VariantAssignmentRequest(BaseModel):
     user_attributes: Optional[Dict[str, Any]] = Field(None, description="User attributes for segmentation")
     force_variant: Optional[VariantType] = Field(None, description="Force specific variant (testing only)")
 
-    @root_validator(skip_on_failure=True)
-    def validate_user_identifier(cls, values):
+    @model_validator(mode='after')
+    def validate_user_identifier(self):
         """Ensure either user_id or anonymous_id is provided."""
-        if not values.get("user_id") and not values.get("anonymous_id"):
+        if not self.user_id and not self.anonymous_id:
             raise ValueError("Either user_id or anonymous_id must be provided")
-        return values
+        return self
 
 
 class VariantAssignmentResponse(BaseModel):
@@ -451,8 +438,7 @@ class VariantAssignmentResponse(BaseModel):
     is_eligible: bool
     assignment_reason: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -494,8 +480,7 @@ class ExperimentResults(BaseModel):
     confidence_level: float
     is_conclusive: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -521,8 +506,7 @@ class WinnerDeclarationResponse(BaseModel):
     status_change: ExperimentStatus
     rollout_recommendation: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -579,8 +563,7 @@ class ExperimentDashboard(BaseModel):
     experiments_needing_review: int
     experiments_ready_for_winner: int
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "total_experiments": 25,
                 "active_experiments": 3,
@@ -594,7 +577,7 @@ class ExperimentDashboard(BaseModel):
                 "experiments_needing_review": 2,
                 "experiments_ready_for_winner": 1
             }
-        }
+        })
 
 
 # ============================================================================
@@ -620,8 +603,7 @@ class ExportResponse(BaseModel):
     created_at: datetime
     expires_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -646,8 +628,7 @@ class SampleSizeCalculationResponse(BaseModel):
     confidence_level: float
     power: float
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "total_sample_size": 2000,
                 "sample_size_per_variant": 1000,
@@ -656,4 +637,4 @@ class SampleSizeCalculationResponse(BaseModel):
                 "confidence_level": 0.95,
                 "power": 0.8
             }
-        }
+        })

@@ -15,13 +15,14 @@
  * ```
  */
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useAuth } from '../contexts/AuthContext'
+import { useAuth } from '@/app/providers/AuthContext'
 import { createLogger } from '../lib/logger'
+import type { MetricsWebSocketData } from './types'
 
 const logger = createLogger('metrics:websocket')
 
 interface UseMetricsWebSocketOptions {
-  onMessage?: (data: any) => void
+  onMessage?: (data: MetricsWebSocketData) => void
   onError?: (error: Event) => void
   onConnect?: () => void
   onDisconnect?: () => void
@@ -34,9 +35,9 @@ interface UseMetricsWebSocketReturn {
   isConnected: boolean
   isConnecting: boolean
   error: string | null
-  lastMessage: any
+  lastMessage: MetricsWebSocketData | null
   reconnectAttempts: number
-  send: (data: any) => void
+  send: (data: MetricsWebSocketData) => void
   connect: () => void
   disconnect: () => void
 }
@@ -75,7 +76,7 @@ export function useMetricsWebSocket({
   const [isConnected, setIsConnected] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [lastMessage, setLastMessage] = useState<any>(null)
+  const [lastMessage, setLastMessage] = useState<MetricsWebSocketData | null>(null)
   const [reconnectAttempts, setReconnectAttempts] = useState(0)
 
   const ws = useRef<WebSocket | null>(null)
@@ -278,7 +279,7 @@ export function useMetricsWebSocket({
   /**
    * Send data through WebSocket
    */
-  const send = useCallback((data: any) => {
+  const send = useCallback((data: MetricsWebSocketData) => {
     if (ws.current?.readyState === WebSocket.OPEN) {
       try {
         ws.current.send(JSON.stringify(data))

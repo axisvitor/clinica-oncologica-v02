@@ -6,7 +6,7 @@ Enhanced flow models with cursor pagination, field selection, and eager loading 
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from .common import CursorPaginatedResponse, ErrorResponse
 
@@ -44,8 +44,7 @@ class PatientV2Brief(BaseModel):
     phone: Optional[str] = None
     current_day: Optional[int] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FlowTemplateV2Brief(BaseModel):
@@ -57,8 +56,7 @@ class FlowTemplateV2Brief(BaseModel):
     version: str
     duration_days: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -76,7 +74,8 @@ class FlowTemplateV2Base(BaseModel):
     is_active: bool = Field(True, description="Whether template is active")
     template_data: Dict[str, Any] = Field(..., description="Template configuration data")
 
-    @validator("version")
+    @field_validator("version")
+    @classmethod
     def validate_version(cls, v):
         """Validate semantic versioning format"""
         parts = v.split(".")
@@ -86,7 +85,8 @@ class FlowTemplateV2Base(BaseModel):
             raise ValueError("Version parts must be numeric")
         return v
 
-    @validator("template_data")
+    @field_validator("template_data")
+    @classmethod
     def validate_template_data(cls, v):
         """Validate template data structure"""
         required_fields = ["steps", "triggers"]
@@ -103,25 +103,7 @@ class FlowTemplateV2Base(BaseModel):
 
 class FlowTemplateV2Create(FlowTemplateV2Base):
     """Schema for creating a flow template"""
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "name": "Hormonal Treatment Flow",
-                "flow_type": "hormonal_treatment",
-                "version": "2.1.0",
-                "description": "30-day personalized hormonal treatment journey",
-                "duration_days": 30,
-                "is_active": True,
-                "template_data": {
-                    "steps": [
-                        {"day": 1, "message": "Welcome to your treatment"},
-                        {"day": 7, "message": "Week 1 check-in"}
-                    ],
-                    "triggers": ["daily_check", "quiz_completion"]
-                }
-            }
-        }
+    pass
 
 
 class FlowTemplateV2Update(BaseModel):
@@ -133,23 +115,13 @@ class FlowTemplateV2Update(BaseModel):
     is_active: Optional[bool] = None
     template_data: Optional[Dict[str, Any]] = None
 
-    @validator("template_data")
+    @field_validator("template_data")
+    @classmethod
     def validate_template_data(cls, v):
-        """Validate template data if provided"""
-        if v is not None:
-            if "steps" in v:
-                steps = v["steps"]
-                if not isinstance(steps, list) or len(steps) == 0:
-                    raise ValueError("template_data.steps must be a non-empty list")
+        if v is not None and "steps" in v:
+            if not isinstance(v["steps"], list) or len(v["steps"]) == 0:
+                raise ValueError("template_data.steps must be a non-empty list")
         return v
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "description": "Updated 30-day treatment with new messaging",
-                "is_active": True
-            }
-        }
 
 
 class FlowTemplateV2Response(FlowTemplateV2Base):
@@ -158,54 +130,16 @@ class FlowTemplateV2Response(FlowTemplateV2Base):
     id: str
     created_at: datetime
     updated_at: datetime
-    created_by: Optional[str] = Field(None, description="User ID who created template")
+    created_by: Optional[str] = None
+    active_patients: Optional[int] = None
+    completion_rate: Optional[float] = Field(None, ge=0, le=100)
 
-    # Analytics (optional, computed fields)
-    active_patients: Optional[int] = Field(None, description="Number of patients using this template")
-    completion_rate: Optional[float] = Field(None, ge=0, le=100, description="Completion rate percentage")
-
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
-            "example": {
-                "id": "123e4567-e89b-12d3-a456-426614174000",
-                "name": "Hormonal Treatment Flow",
-                "flow_type": "hormonal_treatment",
-                "version": "2.1.0",
-                "description": "30-day personalized treatment journey",
-                "duration_days": 30,
-                "is_active": True,
-                "template_data": {"steps": [], "triggers": []},
-                "created_at": "2025-01-01T10:00:00Z",
-                "updated_at": "2025-11-07T09:00:00Z",
-                "created_by": "user_123",
-                "active_patients": 45,
-                "completion_rate": 78.5
-            }
-        }
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FlowTemplateV2List(CursorPaginatedResponse[FlowTemplateV2Response]):
     """Paginated list of flow templates"""
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "data": [
-                    {
-                        "id": "123e4567-e89b-12d3-a456-426614174000",
-                        "name": "Hormonal Treatment Flow",
-                        "flow_type": "hormonal_treatment",
-                        "version": "2.1.0",
-                        "is_active": True,
-                        "created_at": "2025-01-01T10:00:00Z"
-                    }
-                ],
-                "next_cursor": "eyJpZCI6IjEyM2U0NTY3In0=",
-                "has_more": True,
-                "total": 12
-            }
-        }
+    pass
 
 
 # ============================================================================
@@ -219,52 +153,23 @@ class FlowStateV2Response(BaseModel):
     patient_id: str
     flow_type: str
     template_version: str
-    current_step: int = Field(..., ge=0, description="Current step in flow (0-based)")
+    current_step: int = Field(..., ge=0)
     status: FlowStatusV2
     started_at: datetime
     completed_at: Optional[datetime] = None
     paused_at: Optional[datetime] = None
-    state_data: Dict[str, Any] = Field(default_factory=dict, description="Flow state data")
-
-    # Optional eager-loaded relationships
+    state_data: Dict[str, Any] = Field(default_factory=dict)
     patient: Optional[PatientV2Brief] = None
     template: Optional[FlowTemplateV2Brief] = None
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
-            "example": {
-                "id": "flow_123abc",
-                "patient_id": "pat_456def",
-                "flow_type": "hormonal_treatment",
-                "template_version": "2.1.0",
-                "current_step": 7,
-                "status": "active",
-                "started_at": "2025-01-01T10:00:00Z",
-                "completed_at": None,
-                "state_data": {"last_interaction": "2025-11-07T08:00:00Z"},
-                "patient": {
-                    "id": "pat_456def",
-                    "name": "João Silva",
-                    "current_day": 7
-                }
-            }
-        }
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FlowAdvanceV2Request(BaseModel):
     """Request to advance a flow"""
 
-    force_day: Optional[int] = Field(None, ge=1, le=365, description="Force advance to specific day")
-    reason: Optional[str] = Field(None, max_length=500, description="Reason for manual advancement")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "force_day": 15,
-                "reason": "Patient requested to skip to week 3"
-            }
-        }
+    force_day: Optional[int] = Field(None, ge=1, le=365)
+    reason: Optional[str] = Field(None, max_length=500)
 
 
 class FlowAdvanceV2Response(BaseModel):
@@ -274,42 +179,22 @@ class FlowAdvanceV2Response(BaseModel):
     patient_id: str
     previous_step: int
     current_step: int
-    next_actions: List[str] = Field(default_factory=list, description="Scheduled actions")
+    next_actions: List[str] = Field(default_factory=list)
     message: str
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": True,
-                "patient_id": "pat_456def",
-                "previous_step": 7,
-                "current_step": 15,
-                "next_actions": ["send_message", "schedule_quiz"],
-                "message": "Flow advanced to day 15"
-            }
-        }
 
 
 class FlowPauseV2Request(BaseModel):
     """Request to pause a flow"""
 
-    reason: Optional[str] = Field(None, max_length=500, description="Reason for pausing")
-    duration_hours: Optional[int] = Field(None, ge=1, le=168, description="Auto-resume after hours (1-168)")
+    reason: Optional[str] = Field(None, max_length=500)
+    duration_hours: Optional[int] = Field(None, ge=1, le=168)
 
-    @validator("reason")
+    @field_validator("reason")
+    @classmethod
     def validate_reason(cls, v):
-        """Validate reason is not empty if provided"""
         if v is not None and not v.strip():
             raise ValueError("Reason cannot be empty if provided")
         return v.strip() if v else None
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "reason": "Patient requested temporary break",
-                "duration_hours": 24
-            }
-        }
 
 
 class FlowPauseV2Response(BaseModel):
@@ -322,18 +207,6 @@ class FlowPauseV2Response(BaseModel):
     auto_resume_at: Optional[datetime] = None
     message: str
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": True,
-                "patient_id": "pat_456def",
-                "paused_at": "2025-11-07T10:00:00Z",
-                "reason": "Patient requested break",
-                "auto_resume_at": "2025-11-08T10:00:00Z",
-                "message": "Flow paused for 24 hours"
-            }
-        }
-
 
 class FlowResumeV2Response(BaseModel):
     """Response after resuming a flow"""
@@ -345,49 +218,12 @@ class FlowResumeV2Response(BaseModel):
     next_message_at: Optional[datetime] = None
     message: str
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": True,
-                "patient_id": "pat_456def",
-                "resumed_at": "2025-11-08T10:00:00Z",
-                "paused_duration_hours": 24.0,
-                "next_message_at": "2025-11-08T12:00:00Z",
-                "message": "Flow resumed successfully"
-            }
-        }
-
 
 class FlowHistoryV2Response(CursorPaginatedResponse[FlowStateV2Response]):
     """Flow history for a patient with cursor pagination"""
 
     patient_id: str
     current_flow: Optional[FlowStateV2Response] = None
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "patient_id": "pat_456def",
-                "data": [
-                    {
-                        "id": "flow_123",
-                        "flow_type": "hormonal_treatment",
-                        "status": "completed",
-                        "started_at": "2024-12-01T10:00:00Z",
-                        "completed_at": "2024-12-31T10:00:00Z"
-                    }
-                ],
-                "next_cursor": "eyJpZCI6ImZsb3dfMTIzIn0=",
-                "has_more": False,
-                "total": 3,
-                "current_flow": {
-                    "id": "flow_456",
-                    "flow_type": "hormonal_treatment",
-                    "status": "active",
-                    "current_step": 7
-                }
-            }
-        }
 
 
 # ============================================================================
@@ -397,25 +233,11 @@ class FlowHistoryV2Response(CursorPaginatedResponse[FlowStateV2Response]):
 class FlowCustomizationV2Request(BaseModel):
     """Request to create flow customization"""
 
-    customization_type: str = Field(..., max_length=50, description="Type of customization")
-    customization_data: Dict[str, Any] = Field(..., description="Customization configuration")
-    priority: int = Field(1, ge=1, le=10, description="Customization priority (1-10)")
-    conditions: Optional[Dict[str, Any]] = Field(None, description="Application conditions")
-    expires_at: Optional[datetime] = Field(None, description="Expiration timestamp")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "customization_type": "message_timing",
-                "customization_data": {
-                    "preferred_time": "09:00",
-                    "timezone": "America/Sao_Paulo"
-                },
-                "priority": 5,
-                "conditions": {"days": [1, 7, 14, 21]},
-                "expires_at": "2025-12-31T23:59:59Z"
-            }
-        }
+    customization_type: str = Field(..., max_length=50)
+    customization_data: Dict[str, Any]
+    priority: int = Field(1, ge=1, le=10)
+    conditions: Optional[Dict[str, Any]] = None
+    expires_at: Optional[datetime] = None
 
 
 class FlowCustomizationV2Response(BaseModel):
@@ -432,9 +254,9 @@ class FlowCustomizationV2Response(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "id": "custom_123",
                 "patient_id": "pat_456def",
@@ -446,20 +268,20 @@ class FlowCustomizationV2Response(BaseModel):
                 "updated_at": "2025-11-07T10:00:00Z"
             }
         }
+    )
 
 
 class FlowCustomizationV2List(CursorPaginatedResponse[FlowCustomizationV2Response]):
     """Paginated list of flow customizations"""
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "data": [{"id": "custom_123", "customization_type": "message_timing"}],
                 "next_cursor": "eyJpZCI6ImN1c3RvbV8xMjMifQ==",
                 "has_more": False,
                 "total": 5
             }
-        }
+        })
 
 
 # ============================================================================
@@ -481,8 +303,7 @@ class FlowRuleV2Base(BaseModel):
 class FlowRuleV2Create(FlowRuleV2Base):
     """Schema for creating a flow rule"""
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "name": "Skip Weekend Messages",
                 "flow_type": "hormonal_treatment",
@@ -492,7 +313,7 @@ class FlowRuleV2Create(FlowRuleV2Base):
                 "is_active": True,
                 "description": "Don't send messages on weekends"
             }
-        }
+        })
 
 
 class FlowRuleV2Update(BaseModel):
@@ -514,9 +335,9 @@ class FlowRuleV2Response(FlowRuleV2Base):
     updated_at: datetime
     created_by: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "id": "rule_123abc",
                 "name": "Skip Weekend Messages",
@@ -529,20 +350,20 @@ class FlowRuleV2Response(FlowRuleV2Base):
                 "updated_at": "2025-11-07T10:00:00Z"
             }
         }
+    )
 
 
 class FlowRuleV2List(CursorPaginatedResponse[FlowRuleV2Response]):
     """Paginated list of flow rules"""
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "data": [{"id": "rule_123", "name": "Skip Weekend Messages"}],
                 "next_cursor": None,
                 "has_more": False,
                 "total": 8
             }
-        }
+        })
 
 
 # ============================================================================
@@ -557,15 +378,14 @@ class ABTestVariantV2(BaseModel):
     allocation_percentage: float = Field(..., ge=0, le=100, description="Allocation percentage")
     description: Optional[str] = Field(None, max_length=200)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "name": "Control",
                 "template_id": "template_123",
                 "allocation_percentage": 50.0,
                 "description": "Original message timing"
             }
-        }
+        })
 
 
 class ABTestV2Base(BaseModel):
@@ -579,7 +399,8 @@ class ABTestV2Base(BaseModel):
     duration_days: int = Field(..., ge=1, le=90, description="Test duration")
     description: Optional[str] = Field(None, max_length=500)
 
-    @validator("variants")
+    @field_validator("variants")
+    @classmethod
     def validate_variants(cls, v):
         """Validate variant allocations sum to 100"""
         total = sum(variant.allocation_percentage for variant in v)
@@ -591,8 +412,7 @@ class ABTestV2Base(BaseModel):
 class ABTestV2Create(ABTestV2Base):
     """Schema for creating an A/B test"""
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "name": "Message Timing Test",
                 "flow_type": "hormonal_treatment",
@@ -605,7 +425,7 @@ class ABTestV2Create(ABTestV2Base):
                 "duration_days": 30,
                 "description": "Test optimal message timing"
             }
-        }
+        })
 
 
 class ABTestV2Update(BaseModel):
@@ -626,8 +446,7 @@ class ABTestResultsV2(BaseModel):
     statistical_significance: float = Field(..., ge=0, le=1, description="p-value")
     confidence_interval: List[float] = Field(..., min_items=2, max_items=2)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "variant_name": "Morning",
                 "participants": 52,
@@ -636,7 +455,7 @@ class ABTestResultsV2(BaseModel):
                 "statistical_significance": 0.03,
                 "confidence_interval": [75.2, 81.8]
             }
-        }
+        })
 
 
 class ABTestV2Response(ABTestV2Base):
@@ -651,9 +470,9 @@ class ABTestV2Response(ABTestV2Base):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "id": "test_123abc",
                 "name": "Message Timing Test",
@@ -669,20 +488,20 @@ class ABTestV2Response(ABTestV2Base):
                 "updated_at": "2025-11-07T10:00:00Z"
             }
         }
+    )
 
 
 class ABTestV2List(CursorPaginatedResponse[ABTestV2Response]):
     """Paginated list of A/B tests"""
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "data": [{"id": "test_123", "name": "Message Timing Test", "status": "active"}],
                 "next_cursor": None,
                 "has_more": False,
                 "total": 3
             }
-        }
+        })
 
 
 # ============================================================================
@@ -700,8 +519,7 @@ class FlowMetricsV2Response(BaseModel):
     average_completion_days: Optional[float] = None
     engagement_rate: float = Field(..., ge=0, le=100)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "flow_type": "hormonal_treatment",
                 "total_patients": 150,
@@ -711,7 +529,7 @@ class FlowMetricsV2Response(BaseModel):
                 "average_completion_days": 28.3,
                 "engagement_rate": 85.2
             }
-        }
+        })
 
 
 class PatientEngagementV2Response(BaseModel):
@@ -723,8 +541,7 @@ class PatientEngagementV2Response(BaseModel):
     last_interaction: Optional[datetime] = None
     engagement_score: float = Field(..., ge=0, le=100)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "patient_id": "pat_456def",
                 "response_rate": 92.3,
@@ -732,7 +549,7 @@ class PatientEngagementV2Response(BaseModel):
                 "last_interaction": "2025-11-07T08:30:00Z",
                 "engagement_score": 88.7
             }
-        }
+        })
 
 
 class RiskAssessmentV2Response(BaseModel):
@@ -744,7 +561,8 @@ class RiskAssessmentV2Response(BaseModel):
     recommended_actions: List[str]
     assessed_at: datetime
 
-    @validator("risk_level")
+    @field_validator("risk_level")
+    @classmethod
     def validate_risk_level(cls, v):
         """Validate risk level"""
         allowed = ["low", "medium", "high"]
@@ -752,8 +570,7 @@ class RiskAssessmentV2Response(BaseModel):
             raise ValueError(f"Risk level must be one of: {', '.join(allowed)}")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "patient_id": "pat_456def",
                 "risk_level": "medium",
@@ -761,7 +578,7 @@ class RiskAssessmentV2Response(BaseModel):
                 "recommended_actions": ["send_reminder", "doctor_review"],
                 "assessed_at": "2025-11-07T10:00:00Z"
             }
-        }
+        })
 
 
 class FlowPerformanceV2Response(BaseModel):
@@ -774,8 +591,7 @@ class FlowPerformanceV2Response(BaseModel):
     trends: Dict[str, Any]
     insights: List[str]
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "flow_type": "hormonal_treatment",
                 "period_start": "2025-10-01T00:00:00Z",
@@ -793,7 +609,7 @@ class FlowPerformanceV2Response(BaseModel):
                     "Peak engagement occurs at 9 AM"
                 ]
             }
-        }
+        })
 
 
 class PatientJourneyV2Response(BaseModel):
@@ -806,8 +622,7 @@ class PatientJourneyV2Response(BaseModel):
     milestones_achieved: List[str]
     upcoming_milestones: List[str]
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "patient_id": "pat_456def",
                 "journey_stages": [
@@ -819,7 +634,7 @@ class PatientJourneyV2Response(BaseModel):
                 "milestones_achieved": ["first_week", "first_quiz"],
                 "upcoming_milestones": ["mid_treatment_review", "second_quiz"]
             }
-        }
+        })
 
 
 class FlowInsightsV2Response(BaseModel):
@@ -830,8 +645,7 @@ class FlowInsightsV2Response(BaseModel):
     recommendations: List[Dict[str, Any]]
     generated_at: datetime
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "flow_type": "hormonal_treatment",
                 "insights": [
@@ -850,7 +664,7 @@ class FlowInsightsV2Response(BaseModel):
                 ],
                 "generated_at": "2025-11-07T10:00:00Z"
             }
-        }
+        })
 
 
 class FlowDashboardV2Response(BaseModel):
@@ -861,8 +675,7 @@ class FlowDashboardV2Response(BaseModel):
     insights: FlowInsightsV2Response
     generated_at: datetime
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "overview": {
                     "flow_type": "hormonal_treatment",
@@ -881,4 +694,4 @@ class FlowDashboardV2Response(BaseModel):
                 },
                 "generated_at": "2025-11-07T10:00:00Z"
             }
-        }
+        })

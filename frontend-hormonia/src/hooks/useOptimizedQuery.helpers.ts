@@ -26,7 +26,7 @@ interface DedupeCacheEntry<TData> {
 
 type QueryFunctionType<TData, TError> = NonNullable<UseQueryOptions<TData, TError>['queryFn']>;
 
-type ExecutableQueryFn<TData, TError> = (...args: any[]) => Promise<TData> | TData;
+type ExecutableQueryFn<TData, TError> = (...args: unknown[]) => Promise<TData> | TData;
 
 function isExecutableQueryFn<TData, TError>(
   fn?: QueryFunctionType<TData, TError>

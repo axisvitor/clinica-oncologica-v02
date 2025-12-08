@@ -10,7 +10,6 @@ SECURITY:
 - Automatic rejection of unauthorized access attempts
 """
 from typing import Optional, Dict, Any, Tuple, List
-from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime
 import logging
@@ -42,7 +41,7 @@ class FirebaseUserSyncService:
     - Automatic rejection logging
     """
 
-    def __init__(self, db: Session, firebase_service: FirebaseAuthService):
+    def __init__(self, db: Any, firebase_service: FirebaseAuthService):
         """
         Initialize sync service with security configuration.
 

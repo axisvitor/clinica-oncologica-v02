@@ -251,7 +251,7 @@ class DLQHandler:
 
             # Create new message for retry
             from app.models.message import MessageType, MessageDirection
-            from app.services.message_scheduler import MessageScheduler
+            from app.domain.messaging.scheduling import MessageScheduler
 
             retry_message = Message(
                 patient_id=failed_message.patient_id,

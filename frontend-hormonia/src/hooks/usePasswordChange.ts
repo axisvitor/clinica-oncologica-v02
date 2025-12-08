@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { getAuth, reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'firebase/auth'
 import { toast } from '@/hooks/use-toast'
 import { apiClient } from '@/lib/api-client'
+import { logger } from '@/lib/logger'
 
 export interface PasswordChangeData {
   current_password: string
@@ -53,16 +54,17 @@ export function usePasswordChange(): UsePasswordChangeReturn {
 
       try {
         await reauthenticateWithCredential(user, credential)
-      } catch (reAuthError: any) {
-        console.error('Re-authentication failed:', reAuthError)
+      } catch (reAuthError: unknown) {
+        logger.error('Re-authentication failed', reAuthError)
 
         // User-friendly error messages
+        const firebaseError = reAuthError as { code?: string }
         let errorMessage = 'Senha atual incorreta'
-        if (reAuthError.code === 'auth/wrong-password') {
+        if (firebaseError.code === 'auth/wrong-password') {
           errorMessage = 'Senha atual incorreta. Por favor, verifique e tente novamente.'
-        } else if (reAuthError.code === 'auth/too-many-requests') {
+        } else if (firebaseError.code === 'auth/too-many-requests') {
           errorMessage = 'Muitas tentativas falhadas. Por favor, aguarde alguns minutos.'
-        } else if (reAuthError.code === 'auth/network-request-failed') {
+        } else if (firebaseError.code === 'auth/network-request-failed') {
           errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.'
         }
 
@@ -72,17 +74,16 @@ export function usePasswordChange(): UsePasswordChangeReturn {
 
       // Step 2: Send password change request to backend (server-side validation + update)
       try {
-        const response: any = await apiClient.put('/auth/password', {
+        const response = await apiClient.put<{ message: string; success?: boolean }>('/auth/password', {
           current_password: data.current_password,
           new_password: data.new_password,
         })
 
-        if (
-          response?.data &&
-          typeof response.data === 'object' &&
-          'success' in response.data &&
-          response.data.success
-        ) {
+        // Handle both direct success and nested data.success responses
+        const isSuccess = response?.success ||
+                         (response && typeof response === 'object' && 'success' in response && response.success)
+
+        if (isSuccess) {
           toast({
             title: 'Senha alterada com sucesso',
             description: 'Por segurança, você será desconectado em breve. Faça login novamente com sua nova senha.',
@@ -93,10 +94,11 @@ export function usePasswordChange(): UsePasswordChangeReturn {
             window.location.href = '/login?reason=password-changed'
           }, 3000)
         }
-      } catch (apiError: any) {
-        console.error('Backend password change failed:', apiError)
+      } catch (apiError: unknown) {
+        logger.error('Backend password change failed', apiError)
 
-        const errorMessage = apiError.response?.data?.detail ||
+        const error = apiError as { response?: { data?: { detail?: string } } }
+        const errorMessage = error.response?.data?.detail ||
                             'Erro ao alterar senha. Por favor, tente novamente.'
 
         setError(errorMessage)
@@ -107,9 +109,9 @@ export function usePasswordChange(): UsePasswordChangeReturn {
         })
         throw new Error(errorMessage)
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Error already handled and set above
-      console.error('Password change error:', err)
+      logger.error('Password change error', err)
       throw err
     } finally {
       setIsChangingPassword(false)

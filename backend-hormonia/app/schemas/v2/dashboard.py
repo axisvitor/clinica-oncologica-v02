@@ -19,7 +19,7 @@ from datetime import datetime
 from uuid import UUID
 from enum import Enum
 
-from pydantic import BaseModel, Field, validator, constr, conint, confloat
+from pydantic import BaseModel, Field, field_validator, ConfigDict, constr, conint, confloat
 
 
 # ============================================================================
@@ -83,7 +83,8 @@ class WidgetConfig(BaseModel):
         description="Auto-refresh interval in seconds (30-3600)"
     )
 
-    @validator("position")
+    @field_validator("position")
+    @classmethod
     def validate_position(cls, v):
         """Ensure position has x and y coordinates."""
         if "x" not in v or "y" not in v:
@@ -92,7 +93,9 @@ class WidgetConfig(BaseModel):
             raise ValueError("Position coordinates must be non-negative")
         return v
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "widget_id": "widget_patients_total",
@@ -104,6 +107,7 @@ class WidgetConfig(BaseModel):
                 "refresh_interval": 120
             }
         }
+    )
 
 
 # ============================================================================
@@ -121,7 +125,9 @@ class MetricWidgetData(BaseModel):
     trend: Optional[str] = Field(None, description="Trend direction (up, down, stable)")
     color: Optional[str] = Field(None, description="Display color (success, warning, danger)")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "value": 245,
@@ -133,6 +139,7 @@ class MetricWidgetData(BaseModel):
                 "color": "success"
             }
         }
+    )
 
 
 class ChartDataPoint(BaseModel):
@@ -153,7 +160,9 @@ class ChartWidgetData(BaseModel):
     y_axis_label: Optional[str] = Field(None, description="Y-axis label")
     legend: Optional[List[str]] = Field(None, description="Legend labels")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "chart_type": "line",
@@ -166,6 +175,7 @@ class ChartWidgetData(BaseModel):
                 "y_axis_label": "Messages Sent"
             }
         }
+    )
 
 
 class TableRow(BaseModel):
@@ -184,7 +194,9 @@ class TableWidgetData(BaseModel):
     sortable: bool = Field(default=True, description="Whether table is sortable")
     total_count: Optional[int] = Field(None, description="Total row count (for pagination)")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "columns": [
@@ -206,6 +218,7 @@ class TableWidgetData(BaseModel):
                 "total_count": 25
             }
         }
+    )
 
 
 class ActivityItem(BaseModel):
@@ -227,7 +240,9 @@ class ActivityFeedData(BaseModel):
     total_count: conint(ge=0) = Field(description="Total activity count")
     last_updated: str = Field(description="Last update timestamp")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "activities": [
@@ -244,6 +259,7 @@ class ActivityFeedData(BaseModel):
                 "last_updated": "2025-01-17T15:35:00Z"
             }
         }
+    )
 
 
 class AlertsSummaryData(BaseModel):
@@ -338,7 +354,9 @@ class DashboardMainResponse(BaseModel):
     recent_activity: List[ActivityItem] = Field(description="Recent activity feed")
     generated_at: str = Field(description="Response generation timestamp")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "user_role": "doctor",
@@ -381,6 +399,7 @@ class DashboardMainResponse(BaseModel):
                 "generated_at": "2025-01-17T15:00:00Z"
             }
         }
+    )
 
 
 class PatientInfo(BaseModel):
@@ -407,7 +426,9 @@ class DashboardPatientResponse(BaseModel):
     engagement_chart: List[Dict[str, Any]] = Field(description="Engagement chart data")
     generated_at: str = Field(description="Response generation timestamp")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "patient": {
@@ -450,6 +471,7 @@ class DashboardPatientResponse(BaseModel):
                 "generated_at": "2025-01-17T15:00:00Z"
             }
         }
+    )
 
 
 class AlertSummary(BaseModel):
@@ -486,7 +508,9 @@ class DashboardPhysicianResponse(BaseModel):
     top_risk_patients: List[RiskPatient] = Field(description="Top risk patients")
     generated_at: str = Field(description="Response generation timestamp")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "user_id": "223e4567-e89b-12d3-a456-426614174001",
@@ -530,6 +554,7 @@ class DashboardPhysicianResponse(BaseModel):
                 "generated_at": "2025-01-17T15:00:00Z"
             }
         }
+    )
 
 
 class PhysicianPerformance(BaseModel):
@@ -566,7 +591,9 @@ class DashboardAdminResponse(BaseModel):
     system_health: SystemHealth = Field(description="System health indicators")
     generated_at: str = Field(description="Response generation timestamp")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "time_range": "month",
@@ -622,6 +649,7 @@ class DashboardAdminResponse(BaseModel):
                 "generated_at": "2025-01-17T15:00:00Z"
             }
         }
+    )
 
 
 # ============================================================================
@@ -640,7 +668,9 @@ class CustomDashboardResponse(BaseModel):
     created_at: Optional[str] = Field(None, description="Creation timestamp")
     updated_at: Optional[str] = Field(None, description="Last update timestamp")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "dashboard_id": "323e4567-e89b-12d3-a456-426614174002",
@@ -663,6 +693,7 @@ class CustomDashboardResponse(BaseModel):
                 "updated_at": "2025-01-17T15:00:00Z"
             }
         }
+    )
 
 
 class DashboardLayoutUpdate(BaseModel):
@@ -673,7 +704,8 @@ class DashboardLayoutUpdate(BaseModel):
     widgets: Optional[List[WidgetConfig]] = Field(None, description="Updated widgets")
     layout: Optional[Dict[str, Any]] = Field(None, description="Updated layout config")
 
-    @validator("widgets")
+    @field_validator("widgets")
+    @classmethod
     def validate_widgets(cls, v):
         """Ensure widget IDs are unique."""
         if v:
@@ -682,7 +714,9 @@ class DashboardLayoutUpdate(BaseModel):
                 raise ValueError("Widget IDs must be unique")
         return v
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "name": "Updated Dashboard",
@@ -700,3 +734,4 @@ class DashboardLayoutUpdate(BaseModel):
                 "layout": {"columns": 4, "row_height": 120}
             }
         }
+    )

@@ -1,6 +1,6 @@
 import React from 'react'
 import { Toaster } from './components/ui/toaster'
-import AdminRoutes from './routes/AdminRoutes'
+import AdminRoutes from '@/app/routes/AdminRoutes'
 import { ErrorBoundary } from './components/error/ErrorBoundary'
 
 /**

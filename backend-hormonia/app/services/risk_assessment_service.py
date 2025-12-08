@@ -7,10 +7,9 @@ N+1 query patterns with efficient JOIN queries.
 Performance target: < 200ms for 50 patients
 """
 import logging
-from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional
+from typing import Any, List, Dict, Optional
 from uuid import UUID
 
 from app.models.patient import Patient
@@ -27,7 +26,7 @@ class RiskAssessmentService:
     and provides bulk operations for physician dashboard views.
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         """
         Initialize risk assessment service.
 

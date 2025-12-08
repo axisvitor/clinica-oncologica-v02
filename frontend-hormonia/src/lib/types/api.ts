@@ -138,14 +138,14 @@ export interface ErrorResponse {
   readonly error: string
   readonly message: string
   readonly status_code: number
-  readonly details?: Record<string, any>
+  readonly details?: Record<string, unknown>
 }
 
 /** @deprecated Use ApiResponse from shared types */
 export interface SuccessResponse {
   readonly success: boolean
   readonly message?: string
-  readonly data?: any
+  readonly data?: unknown
 }
 
 // ============================================================================
@@ -158,14 +158,14 @@ export interface SuccessResponse {
 // Platform Sync Types
 export interface PlatformSyncPatientRecord {
   patient_id: string
-  interactions: Array<Record<string, any>>
+  interactions: Array<Record<string, unknown>>
 }
 
 export interface AuditEntry {
   entity_type: string
   entity_id: string
   action: string
-  changes: Record<string, any>
+  changes: Record<string, unknown>
   user_id?: string
   source_system?: string
 }
@@ -182,7 +182,7 @@ export interface ConsistencyReport {
   timestamp: string
   issues_found: number
   recommendations: string[]
-  details: Record<string, any>
+  details: Record<string, unknown>
 }
 
 // Monitoring Types
@@ -192,7 +192,7 @@ export interface SystemHealth {
     name: string
     status: 'up' | 'down' | 'degraded'
     last_check: string
-    details?: Record<string, any>
+    details?: Record<string, unknown>
   }>
   metrics: Record<string, number>
 }
@@ -202,7 +202,7 @@ export interface PerformanceMetric {
   value: number
   component: string
   timestamp: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 export interface PerformanceBottleneck {
@@ -224,7 +224,7 @@ export interface Escalation {
   resolved_at?: string
   acknowledged_by?: string
   resolved_by?: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 // Tasks Types
@@ -236,7 +236,7 @@ export interface TaskStatus {
   started_at?: string
   completed_at?: string
   progress?: number
-  result?: any
+  result?: unknown
   error?: string
 }
 
@@ -254,7 +254,7 @@ export interface WorkerStats {
   }
 }
 
-export interface TaskResult<T = any> {
+export interface TaskResult<T = unknown> {
   task_id: string
   status: 'pending' | 'running' | 'success' | 'failure' | 'revoked'
   ready: boolean
@@ -270,7 +270,7 @@ export interface BulkMessageData {
   content: string
   type?: string
   scheduled_for?: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 // ============================================================================
@@ -287,7 +287,7 @@ export interface PaginatedResponseAlt<T> {
 }
 
 /** @deprecated Use ApiResponse from shared types */
-export interface ApiSuccessResponse<T = any> {
+export interface ApiSuccessResponse<T = unknown> {
   readonly success: boolean
   readonly message: string
   readonly data?: T
@@ -308,15 +308,15 @@ export interface ApiErrorDetails {
   readonly issue?: string
   readonly code?: string
   readonly constraint?: string
-  readonly expected?: any
-  readonly received?: any
+  readonly expected?: unknown
+  readonly received?: unknown
 }
 
 /** @deprecated Use ApiErrorResponse from shared types */
 export interface EnhancedApiError {
   readonly error: string
   readonly message: string
-  readonly details?: ApiErrorDetails | ApiErrorDetails[] | Record<string, any>
+  readonly details?: ApiErrorDetails | ApiErrorDetails[] | Record<string, unknown>
   readonly timestamp: string
   readonly request_id?: string
   readonly trace_id?: string
@@ -416,7 +416,7 @@ export interface MessagingTaskParams {
 // ============================================================================
 
 /** Real-time database update structure */
-export interface RealtimeUpdate<T = any> {
+export interface RealtimeUpdate<T = unknown> {
   table: string
   event: 'INSERT' | 'UPDATE' | 'DELETE'
   old?: T
@@ -434,7 +434,7 @@ export interface HealthCheck {
   status: 'pass' | 'fail' | 'warn'
   duration_ms: number
   message?: string
-  details?: Record<string, any>
+  details?: Record<string, unknown>
 }
 
 /** Complete system health report */
@@ -504,7 +504,7 @@ export interface Notification {
   type: 'info' | 'success' | 'warning' | 'error'
   read: boolean
   created_at: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 // ============================================================================

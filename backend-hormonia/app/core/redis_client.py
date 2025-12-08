@@ -114,7 +114,7 @@ async def check_redis_health() -> dict:
         ```python
         health = await check_redis_health()
         if health["status"] == "healthy":
-            print("Redis is operational")
+            logger.info("Redis is operational", extra={"health": health})
         ```
     """
     return await redis_health_check()

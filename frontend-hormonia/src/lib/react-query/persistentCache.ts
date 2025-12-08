@@ -73,17 +73,17 @@ const DEFAULT_MAX_SIZE = 50 * 1024 * 1024; // 50MB
 class CacheLogger {
   constructor(private debug: boolean = false) {}
 
-  info(message: string, ...args: any[]) {
+  info(message: string, ...args: unknown[]) {
     if (this.debug) {
       logger.info(`[QueryCache] ${message}`, ...args);
     }
   }
 
-  warn(message: string, ...args: any[]) {
+  warn(message: string, ...args: unknown[]) {
     logger.warn(`[QueryCache] ${message}`, ...args);
   }
 
-  error(message: string, ...args: any[]) {
+  error(message: string, ...args: unknown[]) {
     logger.error(`[QueryCache] ${message}`, ...args);
   }
 }

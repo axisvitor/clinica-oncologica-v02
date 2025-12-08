@@ -1,6 +1,6 @@
-import React from 'react'
-import { Search, User, LogOut, Settings, Menu } from 'lucide-react'
-import { useAuth } from '@/contexts/AuthContext'
+import React, { useState } from 'react'
+import { Search, User, LogOut, Settings, Menu, X } from 'lucide-react'
+import { useAuth } from '@/app/providers/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { TaskHealthIndicator } from '../monitoring/TaskHealthIndicator'
 import { NotificationCenter } from './NotificationCenter'
 import { Breadcrumb } from './Breadcrumb'
 
@@ -21,6 +22,7 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const { user, logout } = useAuth()
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
 
   const getInitials = (name: string) => {
     return name
@@ -45,7 +47,7 @@ export function Header({ onMenuClick }: HeaderProps) {
           <Menu className="h-5 w-5" />
         </Button>
 
-        {/* Search - hidden on mobile */}
+        {/* Search - hidden on mobile, shown on md+ */}
         <div className="hidden md:flex flex-1 max-w-md">
           <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -57,11 +59,23 @@ export function Header({ onMenuClick }: HeaderProps) {
           </div>
         </div>
 
-        {/* Mobile: Show only search icon */}
-        <div className="flex-1 md:hidden" />
+        {/* Mobile: Search icon to expand search */}
+        <div className="flex-1 md:hidden flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-11 w-11"
+            onClick={() => setMobileSearchOpen(true)}
+          >
+            <Search className="h-5 w-5" />
+          </Button>
+        </div>
 
         {/* Right side */}
         <div className="flex items-center space-x-2 md:space-x-4">
+          {/* System Health */}
+          <TaskHealthIndicator />
+
           {/* Notifications */}
           <NotificationCenter />
 
@@ -116,6 +130,34 @@ export function Header({ onMenuClick }: HeaderProps) {
           maxItems={3}
         />
       </div>
+
+      {/* Mobile Search Overlay */}
+      {mobileSearchOpen && (
+        <div className="md:hidden fixed inset-0 z-50 bg-white">
+          <div className="flex items-center h-16 px-4 gap-2 border-b">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                type="search"
+                placeholder="Buscar pacientes, mensagens..."
+                className="pl-10 bg-gray-50 border-gray-200 h-11"
+                autoFocus
+              />
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-11 w-11 shrink-0"
+              onClick={() => setMobileSearchOpen(false)}
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+          <div className="p-4">
+            <p className="text-sm text-gray-500">Digite para buscar pacientes, mensagens ou relatórios...</p>
+          </div>
+        </div>
+      )}
     </header>
   )
 }

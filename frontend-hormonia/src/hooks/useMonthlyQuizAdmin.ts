@@ -1,6 +1,8 @@
+import { useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '@/components/ui/use-toast'
 import { apiClient } from '@/lib/api-client'
+import { getErrorMessage } from '@/lib/type-guards'
 import type { QuizHistoryEntry, QuizLinkStatus } from '@/lib/api-client/monthly-quiz'
 
 type DeliveryMethod = 'whatsapp' | 'email' | 'sms' | 'manual'
@@ -28,17 +30,17 @@ export function useMonthlyQuizAdmin() {
   const queryClient = useQueryClient()
 
   // Send quiz link to a single patient
-  const sendQuizLink = async (data: CreateQuizLinkData) => {
+  const sendQuizLink = useCallback(async (data: CreateQuizLinkData) => {
     return await apiClient.monthlyQuiz.createLink(data)
-  }
+  }, [])
 
   // Send quiz link to multiple patients (bulk)
-  const sendBulkQuizLinks = async (data: BulkCreateQuizLinkData) => {
+  const sendBulkQuizLinks = useCallback(async (data: BulkCreateQuizLinkData) => {
     return await apiClient.monthlyQuiz.bulkCreate(data)
-  }
+  }, [])
 
   // Resend quiz link
-  const resendQuizLink = async (sessionId: string) => {
+  const resendQuizLink = useCallback(async (sessionId: string) => {
     try {
       const result = await apiClient.monthlyQuiz.resend(sessionId)
 
@@ -52,20 +54,20 @@ export function useMonthlyQuizAdmin() {
       queryClient.invalidateQueries({ queryKey: ['monthly-quiz-stats'] })
 
       return result
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Erro ao reenviar link',
-        description: error.data?.message || 'Ocorreu um erro ao reenviar o link',
+        description: getErrorMessage(error) || 'Ocorreu um erro ao reenviar o link',
         variant: 'destructive'
       })
       throw error
     }
-  }
+  }, [queryClient, toast])
 
   // Get quiz link status for a patient
-  const getQuizLinkStatus = async (patientId: string) => {
+  const getQuizLinkStatus = useCallback(async (patientId: string) => {
     return await apiClient.monthlyQuiz.getPatientStatus(patientId)
-  }
+  }, [])
 
   // Use query to get quiz link status with caching
   const useQuizLinkStatus = (patientId: string) => {
@@ -85,9 +87,9 @@ export function useMonthlyQuizAdmin() {
   }
 
   // Get quiz link history for a patient
-  const getQuizLinkHistory = async (patientId: string) => {
+  const getQuizLinkHistory = useCallback(async (patientId: string) => {
     return await apiClient.monthlyQuiz.getHistory(patientId)
-  }
+  }, [])
 
   // Use query to get quiz link history with caching
   const useQuizLinkHistory = (patientId: string) => {
@@ -99,7 +101,7 @@ export function useMonthlyQuizAdmin() {
   }
 
   // Cancel quiz link
-  const cancelQuizLink = async (sessionId: string) => {
+  const cancelQuizLink = useCallback(async (sessionId: string) => {
     try {
       const result = await apiClient.monthlyQuiz.cancel(sessionId)
 
@@ -113,24 +115,24 @@ export function useMonthlyQuizAdmin() {
       queryClient.invalidateQueries({ queryKey: ['monthly-quiz-stats'] })
 
       return result
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Erro ao cancelar link',
-        description: error.data?.message || 'Ocorreu um erro ao cancelar o link',
+        description: getErrorMessage(error) || 'Ocorreu um erro ao cancelar o link',
         variant: 'destructive'
       })
       throw error
     }
-  }
+  }, [queryClient, toast])
 
   // Get quiz statistics
-  const getQuizStats = async (dateFrom?: string, dateTo?: string) => {
+  const getQuizStats = useCallback(async (dateFrom?: string, dateTo?: string) => {
     const statsParams: { start_date?: string; end_date?: string } = {}
     if (dateFrom) statsParams.start_date = dateFrom
     if (dateTo) statsParams.end_date = dateTo
 
     return await apiClient.monthlyQuiz.getStats(statsParams)
-  }
+  }, [])
 
   // Use query to get quiz stats with caching
   const useQuizStats = (dateFrom?: string, dateTo?: string) => {
@@ -153,10 +155,10 @@ export function useMonthlyQuizAdmin() {
         queryClient.invalidateQueries({ queryKey: ['monthly-quiz-stats'] })
         queryClient.invalidateQueries({ queryKey: ['patients'] })
       },
-      onError: (error: any) => {
+      onError: (error: unknown) => {
         toast({
           title: 'Erro ao enviar link',
-          description: error.data?.message || 'Ocorreu um erro ao enviar o link',
+          description: getErrorMessage(error) || 'Ocorreu um erro ao enviar o link',
           variant: 'destructive'
         })
       }
@@ -175,10 +177,10 @@ export function useMonthlyQuizAdmin() {
         queryClient.invalidateQueries({ queryKey: ['monthly-quiz-stats'] })
         queryClient.invalidateQueries({ queryKey: ['patients'] })
       },
-      onError: (error: any) => {
+      onError: (error: unknown) => {
         toast({
           title: 'Erro ao enviar links',
-          description: error.data?.message || 'Ocorreu um erro ao enviar os links',
+          description: getErrorMessage(error) || 'Ocorreu um erro ao enviar os links',
           variant: 'destructive'
         })
       }

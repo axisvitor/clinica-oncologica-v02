@@ -55,8 +55,8 @@ engine = create_optimized_engine(
     # Connection validation and cleanup with environment-aware timeouts
     connect_args=pool_config.get_connect_args(),
 
-    echo=settings.DEBUG,
-    echo_pool=settings.DEBUG if hasattr(settings, 'DEBUG') else False
+    echo=settings.APP_ENABLE_DEBUG,
+    echo_pool=settings.APP_ENABLE_DEBUG if hasattr(settings, 'DEBUG') else False
 )
 
 # Connection pool monitor
@@ -231,8 +231,8 @@ def force_pool_recreation():
             pool_reset_on_return='commit',
             pool_logging_name='hormonia_db',
             connect_args=pool_config.get_connect_args(),
-            echo=settings.DEBUG,
-            echo_pool=settings.DEBUG if hasattr(settings, 'DEBUG') else False
+            echo=settings.APP_ENABLE_DEBUG,
+            echo_pool=settings.APP_ENABLE_DEBUG if hasattr(settings, 'DEBUG') else False
         )
 
         # Recreate session factory

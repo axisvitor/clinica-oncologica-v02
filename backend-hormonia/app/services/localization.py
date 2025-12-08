@@ -148,12 +148,12 @@ class LocalizationService:
                     
                     if kwargs and isinstance(value, str):
                         value = value.format(**kwargs)
-                    
+
                     logger.warning(f"Translation not found for {locale}, using default: {key}")
                     return value
-                    
-                except (KeyError, TypeError):
-                    pass
+
+                except (KeyError, TypeError) as e:
+                    logger.debug(f"Failed to access nested translation key: {e}")
             
             # Use fallback or return the key itself
             result = fallback or key

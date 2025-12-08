@@ -19,7 +19,6 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from fastapi import WebSocket
-from sqlalchemy.orm import Session
 from jose import jwt, JWTError
 
 from app.config import settings
@@ -206,7 +205,7 @@ class UnifiedWebSocketConnectionManager:
         self,
         connection_id: str,
         token: str,
-        db: Session,
+        db: Any,
         auth_type: str = "auto"
     ) -> User:
         """
@@ -267,7 +266,7 @@ class UnifiedWebSocketConnectionManager:
         self,
         connection_id: str,
         token: str,
-        db: Session
+        db: Any
     ) -> Optional[User]:
         """Authenticate using Firebase (RS256)."""
         from fastapi import HTTPException, status as http_status
@@ -303,7 +302,7 @@ class UnifiedWebSocketConnectionManager:
         self,
         connection_id: str,
         token: str,
-        db: Session
+        db: Any
     ) -> Optional[User]:
         """Authenticate using internal JWT (HS256)."""
         from fastapi import HTTPException, status as http_status
@@ -311,7 +310,7 @@ class UnifiedWebSocketConnectionManager:
         try:
             payload = jwt.decode(
                 token,
-                settings.SECRET_KEY,
+                settings.SECURITY_SECRET_KEY,
                 algorithms=["HS256"]
             )
 

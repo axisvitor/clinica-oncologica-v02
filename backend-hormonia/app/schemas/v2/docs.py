@@ -4,7 +4,7 @@ Models for API documentation, guides, examples, and changelog.
 """
 
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, ConfigDict
 
 
 # ==================== API Endpoint Documentation ====================
@@ -18,9 +18,9 @@ class APIEndpointParameter(BaseModel):
     required: bool = Field(False, description="Whether parameter is required")
     schema_: Optional[Dict[str, Any]] = Field(None, alias="schema", description="Parameter schema")
 
-    class Config:
-        populate_by_name = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_schema_extra={
             "example": {
                 "name": "patient_id",
                 "in": "path",
@@ -29,6 +29,7 @@ class APIEndpointParameter(BaseModel):
                 "schema": {"type": "string", "format": "uuid"}
             }
         }
+    )
 
 
 class APIEndpointResponse(BaseModel):
@@ -44,8 +45,7 @@ class APIEndpointResponse(BaseModel):
     requires_auth: bool = Field(..., description="Whether authentication is required")
     deprecated: bool = Field(False, description="Whether endpoint is deprecated")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "id": "a1b2c3d4e5f6",
                 "method": "GET",
@@ -57,7 +57,7 @@ class APIEndpointResponse(BaseModel):
                 "requires_auth": True,
                 "deprecated": False
             }
-        }
+        })
 
 
 class APIEndpointDetail(APIEndpointResponse):
@@ -68,8 +68,7 @@ class APIEndpointDetail(APIEndpointResponse):
     responses: Dict[str, Any] = Field({}, description="Response schemas")
     related_endpoints: List[Dict[str, str]] = Field([], description="Related endpoints")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "id": "a1b2c3d4e5f6",
                 "method": "GET",
@@ -91,7 +90,7 @@ class APIEndpointDetail(APIEndpointResponse):
                     {"method": "GET", "path": "/api/v2/patients/{id}", "summary": "Get patient"}
                 ]
             }
-        }
+        })
 
 
 class APIEndpointList(BaseModel):
@@ -102,8 +101,7 @@ class APIEndpointList(BaseModel):
     total: int = Field(..., description="Total endpoint count")
     categories: List[str] = Field(..., description="Available categories")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "data": [],
                 "by_category": {
@@ -113,7 +111,7 @@ class APIEndpointList(BaseModel):
                 "total": 45,
                 "categories": ["Patients", "Authentication", "Reports"]
             }
-        }
+        })
 
 
 # ==================== Guides & Tutorials ====================
@@ -131,8 +129,7 @@ class GuideResponse(BaseModel):
     created_at: str = Field(..., description="Creation timestamp")
     updated_at: str = Field(..., description="Last update timestamp")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "id": "getting-started",
                 "slug": "getting-started",
@@ -144,7 +141,7 @@ class GuideResponse(BaseModel):
                 "created_at": "2025-01-01T00:00:00Z",
                 "updated_at": "2025-01-17T00:00:00Z"
             }
-        }
+        })
 
 
 class GuideDetail(GuideResponse):
@@ -153,8 +150,7 @@ class GuideDetail(GuideResponse):
     content: str = Field(..., description="Full guide content in Markdown")
     related_guides: List[Dict[str, str]] = Field([], description="Related guides")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "id": "getting-started",
                 "slug": "getting-started",
@@ -170,7 +166,7 @@ class GuideDetail(GuideResponse):
                 "created_at": "2025-01-01T00:00:00Z",
                 "updated_at": "2025-01-17T00:00:00Z"
             }
-        }
+        })
 
 
 class GuideList(BaseModel):
@@ -180,14 +176,13 @@ class GuideList(BaseModel):
     total: int = Field(..., description="Total guide count")
     categories: List[str] = Field(..., description="Available categories")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "data": [],
                 "total": 5,
                 "categories": ["basics", "security", "performance"]
             }
-        }
+        })
 
 
 # ==================== Code Examples ====================
@@ -204,8 +199,7 @@ class CodeExampleResponse(BaseModel):
     endpoint: Optional[str] = Field(None, description="Related endpoint")
     created_at: str = Field(..., description="Creation timestamp")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "id": "example-001",
                 "title": "List Patients with Pagination",
@@ -216,7 +210,7 @@ class CodeExampleResponse(BaseModel):
                 "endpoint": "/api/v2/patients",
                 "created_at": "2025-01-01T00:00:00Z"
             }
-        }
+        })
 
 
 class CodeExampleDetail(CodeExampleResponse):
@@ -225,8 +219,7 @@ class CodeExampleDetail(CodeExampleResponse):
     code: str = Field(..., description="Full source code")
     related_examples: List[Dict[str, str]] = Field([], description="Related examples")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "id": "example-001",
                 "title": "List Patients",
@@ -241,7 +234,7 @@ class CodeExampleDetail(CodeExampleResponse):
                 ],
                 "created_at": "2025-01-01T00:00:00Z"
             }
-        }
+        })
 
 
 class CodeExampleList(BaseModel):
@@ -252,15 +245,14 @@ class CodeExampleList(BaseModel):
     languages: List[str] = Field(..., description="Available languages")
     categories: List[str] = Field(..., description="Available categories")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "data": [],
                 "total": 10,
                 "languages": ["python", "javascript", "curl"],
                 "categories": ["patients", "authentication"]
             }
-        }
+        })
 
 
 # ==================== Search ====================
@@ -276,8 +268,7 @@ class DocumentationSearchResult(BaseModel):
     relevance_score: float = Field(..., ge=0, description="Relevance score")
     url: str = Field(..., description="Result URL")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "type": "guide",
                 "id": "getting-started",
@@ -287,7 +278,7 @@ class DocumentationSearchResult(BaseModel):
                 "relevance_score": 0.95,
                 "url": "/api/v2/docs/guides/getting-started"
             }
-        }
+        })
 
 
 class DocumentationSearchResponse(BaseModel):
@@ -298,15 +289,14 @@ class DocumentationSearchResponse(BaseModel):
     total: int = Field(..., description="Total result count")
     types: List[str] = Field(..., description="Result types found")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "query": "authentication",
                 "results": [],
                 "total": 15,
                 "types": ["guide", "endpoint", "example"]
             }
-        }
+        })
 
 
 # ==================== Changelog & Versions ====================
@@ -318,14 +308,13 @@ class APIChange(BaseModel):
     category: str = Field(..., description="Change category")
     description: str = Field(..., description="Change description")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "type": "added",
                 "category": "api",
                 "description": "New V2 API with improved performance"
             }
-        }
+        })
 
 
 class APIVersion(BaseModel):
@@ -337,8 +326,7 @@ class APIVersion(BaseModel):
     breaking_changes: bool = Field(..., description="Whether version has breaking changes")
     changes: List[APIChange] = Field(..., description="Version changes")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "version": "2.0.0",
                 "release_date": "2025-01-17",
@@ -352,7 +340,7 @@ class APIVersion(BaseModel):
                     }
                 ]
             }
-        }
+        })
 
 
 class APIChangelogResponse(BaseModel):
@@ -363,15 +351,14 @@ class APIChangelogResponse(BaseModel):
     latest_stable: str = Field(..., description="Latest stable version")
     deprecated_versions: List[str] = Field(..., description="Deprecated versions")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "versions": [],
                 "current_version": "2.0.0",
                 "latest_stable": "2.0.0",
                 "deprecated_versions": ["1.0.0"]
             }
-        }
+        })
 
 
 class APIVersionResponse(BaseModel):
@@ -383,8 +370,7 @@ class APIVersionResponse(BaseModel):
     documentation_url: str = Field(..., description="Documentation URL")
     openapi_url: str = Field(..., description="OpenAPI spec URL")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "version": "2.0.0",
                 "release_date": "2025-01-17",
@@ -392,7 +378,7 @@ class APIVersionResponse(BaseModel):
                 "documentation_url": "/api/v2/docs",
                 "openapi_url": "/api/v2/openapi.json"
             }
-        }
+        })
 
 
 # ==================== Statistics & Metadata ====================
@@ -407,8 +393,7 @@ class DocumentationStatsResponse(BaseModel):
     languages: List[str] = Field(..., description="Available programming languages")
     last_updated: str = Field(..., description="Last update timestamp")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "total_endpoints": 45,
                 "total_guides": 5,
@@ -417,7 +402,7 @@ class DocumentationStatsResponse(BaseModel):
                 "languages": ["python", "javascript", "curl"],
                 "last_updated": "2025-01-17T15:00:00Z"
             }
-        }
+        })
 
 
 class OpenAPISchemaResponse(BaseModel):
@@ -429,8 +414,7 @@ class OpenAPISchemaResponse(BaseModel):
     paths: Dict[str, Any] = Field(..., description="API paths")
     components: Dict[str, Any] = Field(..., description="Reusable components")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "openapi": "3.0.2",
                 "info": {
@@ -443,4 +427,4 @@ class OpenAPISchemaResponse(BaseModel):
                 "paths": {},
                 "components": {}
             }
-        }
+        })

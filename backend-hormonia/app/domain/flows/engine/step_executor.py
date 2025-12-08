@@ -14,7 +14,7 @@ from app.models.message import MessageType
 from app.repositories.patient import PatientRepository
 from app.services.template_loader import FlowStep
 from app.services.state_machine import StateMachine
-from app.services.message import MessageService
+from app.domain.messaging.core import MessageService
 from app.services.quiz import QuizSessionService, QuizResponseService
 from app.schemas.quiz import QuizSessionCreate, QuizResponseCreate, QuestionType
 from app.config import is_ai_humanization_enabled

@@ -546,3 +546,6 @@ def get_pdf_generator() -> MedicalReportGenerator:
         _pdf_generator = MedicalReportGenerator()
     
     return _pdf_generator
+
+# Backward compatibility alias
+PDFGenerator = MedicalReportGenerator

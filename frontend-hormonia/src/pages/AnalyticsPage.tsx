@@ -17,15 +17,15 @@ import {
   PieChart,
   Pie,
   Cell
-} from '@/components/charts/LazyRechartsComponents'
+} from '@/components/ui/charts/LazyRechartsComponents'
 import type { TooltipProps } from 'recharts'
 import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent'
 import { ChartSkeleton } from '@/components/ui/chart-skeleton'
-import { apiClient } from '../lib/api-client'
+import { apiClient } from '@/lib/api-client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { LoadingSpinner } from '../components/ui/loading-spinner'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import {
   Select,
   SelectContent,
@@ -298,41 +298,41 @@ export function AnalyticsPage() {
           <CardContent>
             <div className="h-[300px]">
               <Suspense fallback={<ChartSkeleton height="300px" />}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={engagementTrendData}>
-                  <defs>
-                    <linearGradient id="colorMessages" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                    </linearGradient>
-                    <linearGradient id="colorResponses" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0.1}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                  <XAxis dataKey="date" stroke="#666" fontSize={12} tickLine={false} />
-                  <YAxis stroke="#666" fontSize={12} tickLine={false} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                  <Area
-                    type="monotone"
-                    dataKey="messages_sent"
-                    stroke="#3b82f6"
-                    fill="url(#colorMessages)"
-                    strokeWidth={2}
-                    name="Mensagens Enviadas"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="responses_received"
-                    stroke="#10b981"
-                    fill="url(#colorResponses)"
-                    strokeWidth={2}
-                    name="Respostas Recebidas"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={engagementTrendData}>
+                    <defs>
+                      <linearGradient id="colorMessages" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} />
+                      </linearGradient>
+                      <linearGradient id="colorResponses" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.1} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                    <XAxis dataKey="date" stroke="#666" fontSize={12} tickLine={false} />
+                    <YAxis stroke="#666" fontSize={12} tickLine={false} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                    <Area
+                      type="monotone"
+                      dataKey="messages_sent"
+                      stroke="#3b82f6"
+                      fill="url(#colorMessages)"
+                      strokeWidth={2}
+                      name="Mensagens Enviadas"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="responses_received"
+                      stroke="#10b981"
+                      fill="url(#colorResponses)"
+                      strokeWidth={2}
+                      name="Respostas Recebidas"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
               </Suspense>
             </div>
           </CardContent>
@@ -404,41 +404,41 @@ export function AnalyticsPage() {
                 </div>
                 <div className="h-[300px] flex items-center justify-center">
                   <Suspense fallback={<ChartSkeleton height="300px" />}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={treatmentDistribution.distribution}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ percentage }: { percentage: number }) => `${percentage.toFixed(1)}%`}
-                        outerRadius={90}
-                        innerRadius={50}
-                        fill="#8884d8"
-                        dataKey="count"
-                        paddingAngle={2}
-                      >
-                        {treatmentDistribution.distribution.map((entry, index: number) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        content={({ active, payload }: TooltipProps<ValueType, NameType>) => {
-                          if (active && payload && payload.length && payload[0]) {
-                            const data = payload[0].payload as { treatment_type: string; percentage: number };
-                            return (
-                              <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-                                <p className="font-medium text-sm">{data.treatment_type}</p>
-                                <p className="text-sm text-gray-600">{payload[0].value} pacientes</p>
-                                <p className="text-sm text-gray-500">{data.percentage.toFixed(1)}%</p>
-                              </div>
-                            )
-                          }
-                          return null
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={treatmentDistribution.distribution}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ percentage }: { percentage: number }) => `${percentage.toFixed(1)}%`}
+                          outerRadius={90}
+                          innerRadius={50}
+                          fill="#8884d8"
+                          dataKey="count"
+                          paddingAngle={2}
+                        >
+                          {treatmentDistribution.distribution.map((entry, index: number) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          content={({ active, payload }: TooltipProps<ValueType, NameType>) => {
+                            if (active && payload && payload.length && payload[0]) {
+                              const data = payload[0].payload as { treatment_type: string; percentage: number };
+                              return (
+                                <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+                                  <p className="font-medium text-sm">{data.treatment_type}</p>
+                                  <p className="text-sm text-gray-600">{payload[0].value} pacientes</p>
+                                  <p className="text-sm text-gray-500">{data.percentage.toFixed(1)}%</p>
+                                </div>
+                              )
+                            }
+                            return null
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
                   </Suspense>
                 </div>
                 <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3">
@@ -476,23 +476,23 @@ export function AnalyticsPage() {
         <CardContent>
           <div className="h-[400px]">
             <Suspense fallback={<ChartSkeleton height="400px" />}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={engagementTrendData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="date" stroke="#666" fontSize={12} />
-                <YAxis stroke="#666" fontSize={12} />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="response_rate"
-                  stroke="#f59e0b"
-                  strokeWidth={3}
-                  dot={{ fill: '#f59e0b', strokeWidth: 2, r: 6 }}
-                  name="Taxa de Resposta (%)"
-                />
-              </LineChart>
-            </ResponsiveContainer>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={engagementTrendData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="date" stroke="#666" fontSize={12} />
+                  <YAxis stroke="#666" fontSize={12} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="response_rate"
+                    stroke="#f59e0b"
+                    strokeWidth={3}
+                    dot={{ fill: '#f59e0b', strokeWidth: 2, r: 6 }}
+                    name="Taxa de Resposta (%)"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </Suspense>
           </div>
         </CardContent>

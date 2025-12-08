@@ -78,7 +78,7 @@ class Logger {
   /**
    * Send error to Sentry (if configured)
    */
-  private sendToSentry(error: Error | string, context?: Record<string, any>): void {
+  private sendToSentry(error: Error | string, context?: Record<string, unknown>): void {
     if (!this.config.sendToSentry) {
       return;
     }
@@ -103,7 +103,7 @@ class Logger {
   /**
    * Debug level logging (only in development)
    */
-  debug(message: string, ...args: any[]): void {
+  debug(message: string, ...args: unknown[]): void {
     if (this.shouldLog('debug')) {
       console.debug(this.formatMessage('debug', message), ...args);
     }
@@ -112,7 +112,7 @@ class Logger {
   /**
    * Info level logging
    */
-  info(message: string, ...args: any[]): void {
+  info(message: string, ...args: unknown[]): void {
     if (this.shouldLog('info')) {
       console.info(this.formatMessage('info', message), ...args);
     }
@@ -121,7 +121,7 @@ class Logger {
   /**
    * Warning level logging
    */
-  warn(message: string, ...args: any[]): void {
+  warn(message: string, ...args: unknown[]): void {
     if (this.shouldLog('warn')) {
       console.warn(this.formatMessage('warn', message), ...args);
     }
@@ -130,7 +130,7 @@ class Logger {
   /**
    * Error level logging (always logged, sent to Sentry in production)
    */
-  error(message: string, error?: Error | unknown, context?: Record<string, any>): void {
+  error(message: string, error?: Error | unknown, context?: Record<string, unknown>): void {
     if (this.shouldLog('error')) {
       console.error(this.formatMessage('error', message), error, context);
     }

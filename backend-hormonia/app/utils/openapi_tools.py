@@ -340,8 +340,8 @@ def get_api_version_info() -> Dict[str, Any]:
         Dictionary containing version strategy and compatibility info
     """
     return {
-        "current_version": "v1",
-        "supported_versions": ["v1"],
+        "current_version": "v2",
+        "supported_versions": ["v2"],
         "version_strategy": "url_path",
         "deprecation_policy": {
             "notice_period": "6 months",
@@ -349,11 +349,13 @@ def get_api_version_info() -> Dict[str, Any]:
             "migration_guide": "https://docs.hormonia.com/api/migration"
         },
         "breaking_changes": {
-            "v1.0.0": "Initial release"
+            "v1.0.0": "Initial release",
+            "v2.0.0": "Complete API redesign with enhanced endpoints, cursor pagination, and caching"
         },
         "compatibility": {
-            "backward_compatible": True,
-            "forward_compatible": False
+            "backward_compatible": False,
+            "forward_compatible": False,
+            "notes": "V1 API has been fully deprecated. System is 100% V2."
         },
         "versioning_guidelines": {
             "major_version": "Breaking changes that require client updates",
@@ -361,8 +363,8 @@ def get_api_version_info() -> Dict[str, Any]:
             "patch_version": "Bug fixes and minor improvements"
         },
         "version_header": "API-Version",
-        "default_version": "v1",
-        "latest_version": "v1"
+        "default_version": "v2",
+        "latest_version": "v2"
     }
 
 

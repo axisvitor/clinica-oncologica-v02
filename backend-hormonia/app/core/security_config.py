@@ -6,7 +6,7 @@ authentication, and role-based access control.
 """
 import logging
 from typing import Dict, List, Optional, Any
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from datetime import timedelta
 import os
 
@@ -31,9 +31,10 @@ class RateLimitConfig(BaseModel):
     # Privileged endpoint limits
     admin_requests_per_minute: int = Field(default=100, ge=1, le=500)
 
-    @validator('requests_per_hour')
-    def validate_hourly_limit(cls, v, values):
-        if 'requests_per_minute' in values and v < values['requests_per_minute']:
+    @field_validator('requests_per_hour')
+    @classmethod
+    def validate_hourly_limit(cls, v, info):
+        if 'requests_per_minute' in info.data and v < info.data['requests_per_minute']:
             raise ValueError('Hourly limit must be >= minute limit')
         return v
 
@@ -97,7 +98,17 @@ class APISecurityConfig(BaseModel):
     cors_allow_origins: List[str] = ["https://app.hormonia.io"]
     cors_allow_credentials: bool = True
     cors_allow_methods: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-    cors_allow_headers: List[str] = ["*"]
+    # SECURITY: Explicit header whitelist - NEVER use ["*"] with credentials
+    # Using wildcard headers with allow_credentials=True violates CORS security
+    # and can expose all request headers to cross-origin requests
+    cors_allow_headers: List[str] = [
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "X-CSRF-Token",
+        "Accept",
+        "Origin"
+    ]
 
     # API key settings
     require_api_key_for_public_endpoints: bool = False
@@ -190,16 +201,18 @@ class SecurityConfig(BaseModel):
     enable_audit_logging: bool = True
     enable_whatsapp_security_monitoring: bool = True
 
-    @validator('environment')
+    @field_validator('environment')
+    @classmethod
     def validate_environment(cls, v):
         allowed_envs = ['development', 'testing', 'staging', 'production']
         if v not in allowed_envs:
             raise ValueError(f'Environment must be one of: {allowed_envs}')
         return v
 
-    @validator('debug_mode')
-    def validate_debug_mode(cls, v, values):
-        if v and values.get('environment') == 'production':
+    @field_validator('debug_mode')
+    @classmethod
+    def validate_debug_mode(cls, v, info):
+        if v and info.data.get('environment') == 'production':
             logger.warning("Debug mode should not be enabled in production")
         return v
 
@@ -349,6 +362,15 @@ class SecurityConfigLoader:
         # Check CORS settings
         if "*" in self._config.api_security.cors_allow_origins:
             warnings.append("CORS allow origins should not include wildcard in production")
+
+        # SECURITY: Check for wildcard headers with credentials
+        if (self._config.api_security.cors_allow_credentials and
+            "*" in self._config.api_security.cors_allow_headers):
+            warnings.append(
+                "CRITICAL: CORS wildcard headers with credentials enabled - "
+                "this exposes all request headers to cross-origin requests and "
+                "can lead to credential leakage"
+            )
 
         return warnings
 

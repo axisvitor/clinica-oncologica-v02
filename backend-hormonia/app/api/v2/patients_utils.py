@@ -245,3 +245,39 @@ def _serialize_patient(patient) -> Optional[dict]:
         "created_at": created_at,
         "updated_at": updated_at,
     }
+
+
+def _serialize_patient_with_includes(patient, include: Optional[list] = None) -> Optional[dict]:
+    """
+    Serialize patient with optional eager loaded relations.
+    Encapsulates manual serialization logic for nested objects.
+    """
+    if not patient:
+        return None
+        
+    patient_dict = _serialize_patient(patient)
+    
+    if include:
+        if "doctor" in include and getattr(patient, "doctor", None):
+            patient_dict["doctor"] = {
+                "id": str(patient.doctor.id),
+                "name": patient.doctor.name,
+                "email": patient.doctor.email,
+            }
+            
+        if ("quiz_sessions" in include or "quizzes" in include) and hasattr(patient, "quiz_sessions"):
+            # Use getattr to be safe with None/Missing
+            sessions = getattr(patient, "quiz_sessions", [])
+            patient_dict["quiz_sessions"] = [
+                {
+                    "id": str(q.id),
+                    "status": q.status,
+                    "started_at": q.started_at,
+                    "completed_at": q.completed_at,
+                    "score": float(q.score) if q.score is not None else None,
+                    "passed": q.passed,
+                }
+                for q in sessions
+            ]
+            
+    return patient_dict

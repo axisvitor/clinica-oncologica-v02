@@ -17,10 +17,10 @@ export function useQuizState({ session, initialToken, onComplete, resumeFromSave
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isCompleted, setIsCompleted] = useState(false)
 
-  const currentQuestion = session.questions[currentQuestionIndex]
-  const totalQuestions = session.total_questions
-  const progress = ((currentQuestionIndex + 1) / totalQuestions) * 100
-  const isLastQuestion = currentQuestionIndex === totalQuestions - 1
+  const currentQuestion = session.questions[currentQuestionIndex || 0]
+  const totalQuestions = session.questions.length
+  const progress = (((currentQuestionIndex || 0) + 1) / totalQuestions) * 100
+  const isLastQuestion = (currentQuestionIndex || 0) === totalQuestions - 1
 
   // Load saved progress on mount if resuming
   useEffect(() => {
@@ -47,13 +47,13 @@ export function useQuizState({ session, initialToken, onComplete, resumeFromSave
   const saveProgress = useCallback(() => {
     const progressData: QuizProgress = {
       sessionId: session.quiz_session_id,
-      currentQuestionIndex,
+      currentQuestionIndex: currentQuestionIndex || 0,
       answers: Object.fromEntries(answers),
       otherTexts: Object.fromEntries(otherTexts),
       lastSaved: Date.now(),
       patientName: session.patient_name,
       templateName: session.template_name,
-      totalQuestions: session.total_questions
+      totalQuestions: session.questions.length
     }
     saveQuizProgress(progressData)
   }, [session, currentQuestionIndex, answers, otherTexts])
@@ -116,7 +116,7 @@ export function useQuizState({ session, initialToken, onComplete, resumeFromSave
         clearQuizProgress(session.quiz_session_id)
         onComplete?.()
       } else {
-        setCurrentQuestionIndex(prev => prev + 1)
+        setCurrentQuestionIndex(prev => (prev || 0) + 1)
         setSelectedAnswer(null)
       }
 

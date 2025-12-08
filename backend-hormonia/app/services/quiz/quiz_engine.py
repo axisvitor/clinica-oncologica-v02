@@ -13,7 +13,6 @@ Total: 4 files → 1 file
 from typing import Dict, Any, List, Optional
 from uuid import UUID
 from datetime import datetime
-from sqlalchemy.orm import Session
 
 from app.models.quiz import QuizResponse, QuizSession, QuizTemplate
 from app.repositories.quiz import QuizResponseRepository, QuizSessionRepository
@@ -23,7 +22,7 @@ from app.schemas.quiz import QuizQuestion, QuestionType
 class QuizEvaluator:
     """Service for evaluating quiz responses."""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         self.db = db
         self.response_repo = QuizResponseRepository(db)
     
@@ -73,7 +72,7 @@ class QuizEvaluator:
 class QuizScorer:
     """Service for scoring quiz sessions."""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         self.db = db
         self.evaluator = QuizEvaluator(db)
     
@@ -105,7 +104,7 @@ class QuizScorer:
 class QuizAnalyzer:
     """Service for quiz analytics and insights."""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         self.db = db
         self.session_repo = QuizSessionRepository(db)
     
@@ -154,7 +153,7 @@ class ResponseUtils:
 class QuizMetricsCollector:
     """Service for collecting quiz metrics."""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         self.db = db
         self.session_repo = QuizSessionRepository(db)
     
@@ -181,7 +180,7 @@ class QuizMetricsCollector:
 class QuizReportGenerator:
     """Service for generating quiz reports."""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         self.db = db
         self.scorer = QuizScorer(db)
         self.analyzer = QuizAnalyzer(db)
@@ -204,11 +203,11 @@ class QuizReportGenerator:
         }
 
 
-def get_quiz_evaluator(db: Session) -> QuizEvaluator:
+def get_quiz_evaluator(db: Any) -> QuizEvaluator:
     """Get QuizEvaluator instance."""
     return QuizEvaluator(db)
 
 
-def get_quiz_scorer(db: Session) -> QuizScorer:
+def get_quiz_scorer(db: Any) -> QuizScorer:
     """Get QuizScorer instance."""
     return QuizScorer(db)

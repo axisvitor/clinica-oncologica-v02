@@ -126,7 +126,7 @@ class FlowScheduler:
                 return {'triggered': False, 'reason': 'Not a quiz trigger day'}
 
             # Import quiz flow integration service
-            from app.services.quiz_flow_integration import QuizTriggerService
+            from app.domain.quizzes.integration.flow_integration import QuizTriggerService
             from app.core.monthly_quiz_config import get_monthly_quiz_config
 
             quiz_trigger_service = QuizTriggerService(self.db)

@@ -1,3 +1,4 @@
+from typing import Any
 """
 Unified Alert System - Public API.
 
@@ -95,11 +96,87 @@ from .config import (
     PagerDutyChannelConfig,
 )
 
-from .alert_manager import (
-    AlertManager,
-    get_alert_manager,
-    set_alert_manager,
+# Refactored modular components (NEW)
+from .base import (
+    NotificationHandlerProtocol,
+    EscalationHandlerProtocol,
+    PersistenceHandlerProtocol,
+    ThresholdManagerProtocol,
+    MetricsCollectorProtocol,
+    AlertRepository,
+    NotificationChannelHandler,
+    TargetResolverProtocol,
 )
+
+from .notification_handler import (
+    NotificationHandler,
+    get_notification_handler,
+    set_notification_handler,
+)
+
+from .escalation_handler import (
+    EscalationHandler,
+    get_escalation_handler,
+    set_escalation_handler,
+)
+
+from .persistence_handler import (
+    PersistenceHandler,
+    get_persistence_handler,
+    set_persistence_handler,
+)
+
+from .threshold_manager import (
+    ThresholdManager,
+    get_threshold_manager,
+    set_threshold_manager,
+)
+
+from .metrics import (
+    MetricsCollector,
+    get_metrics_collector,
+    set_metrics_collector,
+)
+
+# NEW MODULAR COMPONENTS
+from .evaluator import AlertEvaluator
+from .processor import AlertProcessor
+from .escalation import AlertEscalation
+from .statistics import AlertStatisticsCollector
+from .target_resolver import TargetResolver
+
+# NEW: Modular AlertManager (RECOMMENDED)
+from .manager import (
+    AlertManager as AlertManagerModular,
+    get_alert_manager as get_alert_manager_modular,
+    set_alert_manager as set_alert_manager_modular,
+)
+
+# Refactored AlertManager (NEW - recommended)
+from .alert_manager_refactored import (
+    AlertManager as AlertManagerRefactored,
+    get_alert_manager as get_alert_manager_refactored,
+    set_alert_manager as set_alert_manager_refactored,
+)
+
+# Legacy AlertManager (for backward compatibility)
+from .alert_manager import (
+    AlertManager as AlertManagerLegacy,
+    get_alert_manager as get_alert_manager_legacy,
+    set_alert_manager as set_alert_manager_legacy,
+)
+
+# Migration utilities
+from .migration import (
+    migrate_to_refactored,
+    rollback_to_legacy,
+    AlertManagerProxy,
+)
+
+# Default exports (use NEW modular version)
+AlertManager = AlertManagerModular
+get_alert_manager = get_alert_manager_modular
+set_alert_manager = set_alert_manager_modular
 
 from .evaluation.rule_engine import (
     RuleEngine,
@@ -162,6 +239,15 @@ from .adapter import (
 )
 
 __all__ = [
+    # ===== NEW MODULAR COMPONENTS =====
+    "AlertEvaluator",
+    "AlertProcessor",
+    "AlertEscalation",
+    "AlertStatisticsCollector",
+    "TargetResolver",
+    "AlertManagerModular",  # NEW recommended version
+    "get_alert_manager_modular",
+    "set_alert_manager_modular",
     # ===== TYPES =====
     # Enums
     "AlertSeverity",
@@ -192,10 +278,46 @@ __all__ = [
     "WebhookChannelConfig",
     "SlackChannelConfig",
     "PagerDutyChannelConfig",
+    # ===== PROTOCOLS (NEW) =====
+    "NotificationHandlerProtocol",
+    "EscalationHandlerProtocol",
+    "PersistenceHandlerProtocol",
+    "ThresholdManagerProtocol",
+    "MetricsCollectorProtocol",
+    "AlertRepository",
+    "NotificationChannelHandler",
+    "TargetResolverProtocol",
+    # ===== MODULAR HANDLERS (NEW) =====
+    "NotificationHandler",
+    "get_notification_handler",
+    "set_notification_handler",
+    "EscalationHandler",
+    "get_escalation_handler",
+    "set_escalation_handler",
+    "PersistenceHandler",
+    "get_persistence_handler",
+    "set_persistence_handler",
+    "ThresholdManager",
+    "get_threshold_manager",
+    "set_threshold_manager",
+    "MetricsCollector",
+    "get_metrics_collector",
+    "set_metrics_collector",
     # ===== CORE COMPONENTS =====
-    "AlertManager",
+    "AlertManager",  # Refactored version
     "get_alert_manager",
     "set_alert_manager",
+    "AlertManagerRefactored",  # Explicit refactored
+    "AlertManagerLegacy",  # Explicit legacy
+    "get_alert_manager_refactored",
+    "set_alert_manager_refactored",
+    "get_alert_manager_legacy",
+    "set_alert_manager_legacy",
+    # ===== MIGRATION =====
+    "migrate_to_refactored",
+    "rollback_to_legacy",
+    "AlertManagerProxy",
+    # ===== EVALUATION =====
     "RuleEngine",
     "get_rule_engine",
     "set_rule_engine",

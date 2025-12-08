@@ -6,7 +6,7 @@ Enhanced authentication models with field selection and eager loading support.
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 
 from .common import CursorPaginatedResponse
 
@@ -22,8 +22,7 @@ class RoleV2Brief(BaseModel):
     name: str
     permissions: Optional[List[str]] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -44,28 +43,33 @@ class UserPreferencesV2(BaseModel):
     data_sharing_consent: bool = Field(True, description="Data sharing consent")
     marketing_consent: bool = Field(False, description="Marketing communications consent")
 
-    @validator("language")
+    @field_validator("language")
+    @classmethod
     def validate_language(cls, v):
         allowed = ["pt-BR", "en-US", "es-ES"]
         if v not in allowed:
             raise ValueError(f"Language must be one of: {', '.join(allowed)}")
         return v
 
-    @validator("email_digest_frequency")
+    @field_validator("email_digest_frequency")
+    @classmethod
     def validate_digest_frequency(cls, v):
         allowed = ["daily", "weekly", "monthly", "never"]
         if v not in allowed:
             raise ValueError(f"Frequency must be one of: {', '.join(allowed)}")
         return v
 
-    @validator("theme")
+    @field_validator("theme")
+    @classmethod
     def validate_theme(cls, v):
         allowed = ["light", "dark", "auto"]
         if v not in allowed:
             raise ValueError(f"Theme must be one of: {', '.join(allowed)}")
         return v
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "notification_email": True,
@@ -79,6 +83,7 @@ class UserPreferencesV2(BaseModel):
                 "marketing_consent": False
             }
         }
+    )
 
 
 class UserPreferencesV2Update(BaseModel):
@@ -95,7 +100,9 @@ class UserPreferencesV2Update(BaseModel):
     data_sharing_consent: Optional[bool] = None
     marketing_consent: Optional[bool] = None
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "theme": "dark",
@@ -103,6 +110,7 @@ class UserPreferencesV2Update(BaseModel):
                 "email_digest_frequency": "weekly"
             }
         }
+    )
 
 
 class UserPreferencesV2Response(BaseModel):
@@ -112,7 +120,9 @@ class UserPreferencesV2Response(BaseModel):
     preferences: UserPreferencesV2
     updated_at: datetime
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "user_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -124,6 +134,7 @@ class UserPreferencesV2Response(BaseModel):
                 "updated_at": "2025-11-07T10:30:00Z"
             }
         }
+    )
 
 
 # ============================================================================
@@ -143,15 +154,16 @@ class NotificationV2Response(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional notification metadata")
     action_url: Optional[str] = Field(None, description="URL for notification action")
 
-    @validator("type")
+    @field_validator("type")
+    @classmethod
     def validate_type(cls, v):
         allowed = ["info", "warning", "error", "success"]
         if v not in allowed:
             raise ValueError(f"Type must be one of: {', '.join(allowed)}")
         return v
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(
+        from_attributes=True,
         json_schema_extra = {
             "example": {
                 "id": "notif_123abc",
@@ -163,6 +175,7 @@ class NotificationV2Response(BaseModel):
                 "action_url": "/messages/msg_456def"
             }
         }
+    )
 
 
 class NotificationV2List(CursorPaginatedResponse[NotificationV2Response]):
@@ -170,7 +183,9 @@ class NotificationV2List(CursorPaginatedResponse[NotificationV2Response]):
 
     unread_count: int = Field(0, description="Total unread notifications")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "data": [
@@ -189,19 +204,23 @@ class NotificationV2List(CursorPaginatedResponse[NotificationV2Response]):
                 "unread_count": 12
             }
         }
+    )
 
 
 class NotificationMarkReadRequest(BaseModel):
     """Request to mark notification(s) as read"""
 
-    notification_ids: List[str] = Field(..., min_items=1, max_items=100)
+    notification_ids: List[str] = Field(..., min_length=1, max_length=100)
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "notification_ids": ["notif_123", "notif_456", "notif_789"]
             }
         }
+    )
 
 
 class NotificationMarkReadResponse(BaseModel):
@@ -210,13 +229,16 @@ class NotificationMarkReadResponse(BaseModel):
     marked_count: int = Field(..., description="Number of notifications marked as read")
     success: bool = True
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "marked_count": 3,
                 "success": True
             }
         }
+    )
 
 
 # ============================================================================
@@ -230,7 +252,8 @@ class UserV2Base(BaseModel):
     full_name: Optional[str] = Field(None, max_length=200)
     role: str = Field(..., description="User role: admin, doctor, patient, nurse")
 
-    @validator("role")
+    @field_validator("role")
+    @classmethod
     def validate_role(cls, v):
         allowed = ["admin", "doctor", "patient", "nurse", "receptionist"]
         if v not in allowed:
@@ -244,7 +267,9 @@ class UserV2Create(UserV2Base):
     password: str = Field(..., min_length=8, max_length=128)
     is_active: bool = Field(True, description="Account active status")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "email": "doctor@example.com",
@@ -254,6 +279,7 @@ class UserV2Create(UserV2Base):
                 "is_active": True
             }
         }
+    )
 
 
 class UserV2Update(BaseModel):
@@ -264,13 +290,16 @@ class UserV2Update(BaseModel):
     role: Optional[str] = None
     is_active: Optional[bool] = None
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "full_name": "Dr. Maria Silva Santos",
                 "is_active": True
             }
         }
+    )
 
 
 class UserV2Response(UserV2Base):
@@ -290,8 +319,8 @@ class UserV2Response(UserV2Base):
     patient_count: Optional[int] = Field(None, description="Number of patients (for doctors)")
     notification_count: Optional[int] = Field(None, description="Unread notification count")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(
+        from_attributes=True,
         json_schema_extra = {
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
@@ -306,12 +335,15 @@ class UserV2Response(UserV2Base):
                 "notification_count": 3
             }
         }
+    )
 
 
 class UserV2List(CursorPaginatedResponse[UserV2Response]):
     """Paginated list of users"""
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "data": [
@@ -330,6 +362,7 @@ class UserV2List(CursorPaginatedResponse[UserV2Response]):
                 "total": 120
             }
         }
+    )
 
 
 # ============================================================================
@@ -347,7 +380,9 @@ class SessionV2Response(BaseModel):
     user_agent: Optional[str] = None
     is_current: bool = Field(False, description="Whether this is the current session")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "session_id": "sess_abc123def456",
@@ -359,6 +394,7 @@ class SessionV2Response(BaseModel):
                 "is_current": True
             }
         }
+    )
 
 
 class SessionV2List(BaseModel):
@@ -367,7 +403,9 @@ class SessionV2List(BaseModel):
     sessions: List[SessionV2Response]
     total: int
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "sessions": [
@@ -381,6 +419,7 @@ class SessionV2List(BaseModel):
                 "total": 1
             }
         }
+    )
 
 
 class SessionRevokeRequest(BaseModel):
@@ -388,12 +427,15 @@ class SessionRevokeRequest(BaseModel):
 
     session_id: str = Field(..., description="Session ID to revoke")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "session_id": "sess_abc123def456"
             }
         }
+    )
 
 
 class SessionRevokeResponse(BaseModel):
@@ -403,7 +445,9 @@ class SessionRevokeResponse(BaseModel):
     revoked: bool = True
     message: str = "Session revoked successfully"
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "session_id": "sess_abc123",
@@ -411,6 +455,7 @@ class SessionRevokeResponse(BaseModel):
                 "message": "Session revoked successfully"
             }
         }
+    )
 
 
 # ============================================================================
@@ -422,23 +467,28 @@ class FirebaseTokenVerifyRequest(BaseModel):
 
     id_token: str = Field(..., description="Firebase ID token from client")
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "id_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjFlOWdkazcifQ..."
             }
         }
+    )
 
 
 class FirebaseTokenVerifyResponse(BaseModel):
     """Response after verifying Firebase token"""
 
     valid: bool
-    user: Optional[UserV2Response] = None
+    # user: Optional[UserV2Response] = None
     session_id: Optional[str] = None
     message: Optional[str] = None
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "valid": True,
@@ -451,6 +501,7 @@ class FirebaseTokenVerifyResponse(BaseModel):
                 "session_id": "sess_abc123"
             }
         }
+    )
 
 
 # ============================================================================
@@ -463,7 +514,8 @@ class PasswordChangeRequest(BaseModel):
     current_password: str = Field(..., min_length=8)
     new_password: str = Field(..., min_length=8, max_length=128)
 
-    @validator("new_password")
+    @field_validator("new_password")
+    @classmethod
     def validate_password_strength(cls, v):
         if not any(c.isupper() for c in v):
             raise ValueError("Password must contain at least one uppercase letter")
@@ -475,13 +527,16 @@ class PasswordChangeRequest(BaseModel):
             raise ValueError("Password must contain at least one special character")
         return v
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "current_password": "OldP@ssw0rd",
                 "new_password": "NewSecureP@ssw0rd123"
             }
         }
+    )
 
 
 class PasswordResetRequest(BaseModel):
@@ -489,12 +544,15 @@ class PasswordResetRequest(BaseModel):
 
     email: EmailStr
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "email": "doctor@example.com"
             }
         }
+    )
 
 
 class PasswordResetConfirm(BaseModel):
@@ -503,10 +561,13 @@ class PasswordResetConfirm(BaseModel):
     token: str = Field(..., description="Reset token from email")
     new_password: str = Field(..., min_length=8, max_length=128)
 
-    class Config:
+    model_config = ConfigDict(
+
+
         json_schema_extra = {
             "example": {
                 "token": "reset_token_abc123",
                 "new_password": "NewSecureP@ssw0rd123"
             }
         }
+    )

@@ -1,9 +1,9 @@
 import React, { useState } from 'react'
 import { RefreshCw, AlertCircle } from 'lucide-react'
 import { useFlows, useFlowStats } from '@/hooks/useFlows'
-import { FlowsStats } from '@/components/flows/FlowsStats'
-import { FlowsTable } from '@/components/flows/FlowsTable'
-import { FlowsFilters } from '@/components/flows/FlowsFilters'
+import { FlowsStats } from '@/features/flows/FlowsStats'
+import { FlowsTable } from '@/features/flows/FlowsTable'
+import { FlowsFilters } from '@/features/flows/FlowsFilters'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
@@ -11,7 +11,7 @@ export function FlowsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
 
   const { data: flowsData, isLoading: flowsLoading, error: flowsError, refetch } = useFlows({
-    ...(statusFilter !== 'all' && { status: statusFilter }),
+    ...(statusFilter !== 'all' && { isActive: statusFilter === 'active' }),
   })
 
   const { data: statsData, isLoading: statsLoading } = useFlowStats()
@@ -50,7 +50,7 @@ export function FlowsPage() {
         </Alert>
       )}
 
-      <FlowsStats stats={statsData} isLoading={statsLoading} />
+      <FlowsStats stats={statsData || undefined} isLoading={statsLoading} />
 
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -62,7 +62,7 @@ export function FlowsPage() {
         </div>
 
         <FlowsTable
-          flows={flowsData?.items || []}
+          flows={flowsData || []}
           isLoading={flowsLoading}
         />
       </div>

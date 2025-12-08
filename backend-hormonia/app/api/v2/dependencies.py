@@ -11,23 +11,23 @@ import json
 
 def get_pagination_params(
     cursor: Optional[str] = Query(None, description="Cursor for pagination"),
-    limit: int = Query(20, ge=1, le=100, description="Items per page")
+    limit: int = Query(20, ge=1, le=1000, description="Items per page (max 1000)")
 ):
     """
     Extract and validate cursor-based pagination parameters.
-    
+
     Args:
         cursor: Base64-encoded cursor string
-        limit: Number of items per page (1-100)
-    
+        limit: Number of items per page (1-1000)
+
     Returns:
         dict: Decoded cursor data and limit
-    
+
     Raises:
         HTTPException: If cursor is invalid
     """
     cursor_data = None
-    
+
     if cursor:
         try:
             decoded = base64.b64decode(cursor).decode("utf-8")
@@ -37,10 +37,15 @@ def get_pagination_params(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid cursor format: {str(e)}"
             )
-    
+
+    # QW-001: Hard limit enforcement to prevent excessive queries
+    # Even if the limit parameter is bypassed, enforce maximum
+    MAX_PAGE_SIZE = 1000
+    safe_limit = min(limit, MAX_PAGE_SIZE)
+
     return {
         "cursor_data": cursor_data,
-        "limit": limit
+        "limit": safe_limit
     }
 
 

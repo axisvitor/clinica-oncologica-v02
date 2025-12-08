@@ -108,7 +108,7 @@ Version History:
     - v2.0: Consolidated system (QW-021) - IN PROGRESS
 """
 
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 # Import configuration (always available)
 from .config import (
@@ -147,9 +147,9 @@ from .types import (
 )
 
 # Import core components (implementation)
+# Import core components (implementation)
 from .core.manager import FlowManager
 from .core.engine import FlowEngine
-from .adapter import FlowManagerAdapter, get_enhanced_flow_engine
 
 # Import core components
 from .validation import FlowValidator
@@ -198,30 +198,14 @@ def get_flow_manager(db, **kwargs):
         **kwargs: Additional configuration
 
     Returns:
-        FlowManager instance (new) or FlowManagerAdapter (compatibility)
+        FlowManager instance (new)
 
     Example:
         >>> manager = get_flow_manager(db)
         >>> flow_id = await manager.start_flow(patient_id, FlowType.DAILY_CHECKIN)
     """
-    config = get_flow_config()
-
-    if config.is_consolidated_enabled():
-        # Use new consolidated system
-        return FlowManager(db, **kwargs)
-    else:
-        # Use adapter for backward compatibility
-        import warnings
-
-        if config.feature_flags.show_legacy_deprecation_warnings:
-            warnings.warn(
-                "Using legacy flow system via adapter. "
-                "Enable USE_CONSOLIDATED_FLOWS=True to use new system (QW-021).",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-        return FlowManagerAdapter(db, show_warnings=False)
+    # Always return FlowManager as adapter is missing
+    return FlowManager(db, **kwargs)
 
 
 # ============================================================================
@@ -229,7 +213,7 @@ def get_flow_manager(db, **kwargs):
 # ============================================================================
 
 # Alias for legacy FlowEngineIntegrationService imports
-FlowEngineIntegrationService = FlowManagerAdapter
+# FlowEngineIntegrationService = FlowManagerAdapter  # Removed as adapter is missing
 
 # ============================================================================
 # Public Exports
@@ -241,11 +225,10 @@ __all__ = [
     "FlowEngine",
     "FlowValidator",
     "FlowErrorHandler",
-    "FlowManagerAdapter",
+    # "FlowManagerAdapter",  # Removed
     "get_flow_manager",
-    "get_enhanced_flow_engine",
     # Legacy Compatibility
-    "FlowEngineIntegrationService",
+    # "FlowEngineIntegrationService",  # Removed
     # Analytics
     "FlowAnalytics",
     "FlowMetricsCollector",

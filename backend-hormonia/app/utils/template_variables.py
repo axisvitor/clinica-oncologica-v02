@@ -119,7 +119,7 @@ class TemplateVariableProcessor:
                 if isinstance(start_date, str):
                     try:
                         start_date = datetime.fromisoformat(start_date)
-                    except:
+                    except (ValueError, TypeError):
                         start_date = None
                 
                 if start_date:
@@ -136,8 +136,8 @@ class TemplateVariableProcessor:
                 try:
                     progress = min(100, int((int(current_day) / 180) * 100))
                     content = content.replace("{progress_percentage}", f"{progress}%")
-                except (ValueError, TypeError):
-                    pass
+                except (ValueError, TypeError) as e:
+                    logger.debug(f"Failed to calculate progress percentage: {e}")
         
         # Calculate next quiz date (monthly on day 15)
         if "{next_quiz_date}" in content:
@@ -154,8 +154,8 @@ class TemplateVariableProcessor:
                         days_until_quiz = 15 - days_in_cycle if days_in_cycle < 15 else 45 - days_in_cycle
                         next_date = datetime.now() + timedelta(days=days_until_quiz)
                         content = content.replace("{next_quiz_date}", next_date.strftime("%d/%m/%Y"))
-                except (ValueError, TypeError):
-                    pass
+                except (ValueError, TypeError) as e:
+                    logger.debug(f"Failed to calculate next quiz date: {e}")
         
         return content
     

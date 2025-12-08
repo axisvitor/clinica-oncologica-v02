@@ -11,7 +11,6 @@ from uuid import UUID
 from app.services.question_humanizer import get_question_humanizer
 from app.config import is_ai_humanization_enabled
 from app.models.patient import Patient
-from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +21,7 @@ class QuizQuestionHumanizerIntegration:
     Integration layer for applying intelligent humanization to quiz questions.
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Any):
         self.db = db
         self.question_humanizer = get_question_humanizer()
 

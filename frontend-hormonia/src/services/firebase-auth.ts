@@ -13,6 +13,7 @@
 import { firebaseAuthLazy } from '../lib/firebase-lazy'
 import { apiClient } from '../lib/api-client'
 import { createLogger } from '../lib/logger'
+import { isErrorWithMessage, getErrorMessage } from '@/lib/utils/type-guards'
 import type { User, LoginResponse } from '@/types/api'
 
 const logger = createLogger('FirebaseAuthService')
@@ -94,10 +95,10 @@ export async function loginUser(
 
       // Provide helpful error message
       if (error instanceof Error) {
-        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        if (isErrorWithMessage(error) && error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
           throw new Error('Cannot connect to server. Please check your internet connection and try again.')
         }
-        if (error.message.includes('blocked') || error.message.includes('CORS')) {
+        if (isErrorWithMessage(error) && error.message.includes('blocked') || error.message.includes('CORS')) {
           throw new Error('Security error: Connection blocked. Please contact support.')
         }
       }

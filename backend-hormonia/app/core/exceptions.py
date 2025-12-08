@@ -101,18 +101,93 @@ class APIException(HormoniaException):
 # =========================================================================
 
 
+class BusinessRuleError(APIException):
+    """
+    Business rule violation (400 Bad Request).
+
+    Use when operation violates business logic rules.
+
+    Reference: LOW-017 - Inconsistent Error Handling
+
+    Example:
+        raise BusinessRuleError(
+            "Patient already exists",
+            field="cpf",
+            code="duplicate_cpf"
+        )
+    """
+
+    def __init__(
+        self,
+        message: str,
+        field: Optional[str] = None,
+        code: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None
+    ):
+        """
+        Initialize business rule error.
+
+        Args:
+            message: Human-readable error message
+            field: Field that caused the error (optional)
+            code: Machine-readable error code (optional)
+            details: Additional error context
+        """
+        error_details = details or {}
+        if field:
+            error_details["field"] = field
+        if code:
+            error_details["code"] = code
+
+        super().__init__(
+            message,
+            400,
+            code or "BUSINESS_RULE_VIOLATION",
+            error_details
+        )
+        self.field = field
+        self.code = code
+
+
 class ValidationError(APIException):
     """
     Validation error (422 Unprocessable Entity).
 
     Use when input data fails validation rules.
 
-    Example:
+    Reference: LOW-017 - Inconsistent Error Handling
+
+    Examples:
+        # Single field error
         raise ValidationError("Invalid CPF format", {"cpf": "123.456.789-00"})
+
+        # Multiple field errors
+        raise ValidationError("Input validation failed", {
+            "cpf": "Invalid CPF format",
+            "birth_date": "Patient must be at least 18 years old"
+        })
     """
 
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
-        super().__init__(message, 422, "VALIDATION_ERROR", details)
+    def __init__(
+        self,
+        message: str,
+        details: Optional[Dict[str, Any]] = None,
+        errors: Optional[Dict[str, str]] = None
+    ):
+        """
+        Initialize validation error.
+
+        Args:
+            message: Human-readable error message
+            details: Additional error details
+            errors: Dict of field-level errors (field -> error message)
+        """
+        error_details = details or {}
+        if errors:
+            error_details["errors"] = errors
+
+        super().__init__(message, 422, "VALIDATION_ERROR", error_details)
+        self.errors = errors
 
 
 class NotFoundError(APIException):
@@ -121,14 +196,26 @@ class NotFoundError(APIException):
 
     Use when a requested resource doesn't exist.
 
-    Example:
+    Reference: LOW-017 - Inconsistent Error Handling
+
+    Examples:
         raise NotFoundError("Patient", patient_id)
+        raise NotFoundError("Quiz Session", session_id)
     """
 
-    def __init__(self, resource: str, identifier: str):
+    def __init__(self, resource: str, identifier: Any):
+        """
+        Initialize not found error.
+
+        Args:
+            resource: Resource type (e.g., "Patient", "Quiz Session")
+            identifier: Resource identifier (ID, UUID, etc.)
+        """
         message = f"{resource} not found"
         details = {"resource": resource, "identifier": str(identifier)}
         super().__init__(message, 404, "NOT_FOUND", details)
+        self.resource = resource
+        self.identifier = identifier
 
 
 class ConflictError(APIException):
@@ -493,6 +580,7 @@ __all__ = [
     "HormoniaException",
     "APIException",
     # HTTP Exceptions
+    "BusinessRuleError",
     "ValidationError",
     "NotFoundError",
     "ConflictError",

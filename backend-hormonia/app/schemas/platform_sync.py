@@ -1,7 +1,7 @@
 """
 Schemas for Platform Synchronization API.
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Any
 from datetime import datetime
 from uuid import UUID
@@ -19,12 +19,13 @@ class SyncEventResponse(BaseModel):
     error_message: Optional[str] = None
     data: dict[str, Any]
     metadata: dict[str, Any]
-    
-    class Config:
-        json_encoders = {
+
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat(),
             UUID: str
         }
+    )
 
 
 class DataConsistencyCheckResponse(BaseModel):
@@ -35,12 +36,13 @@ class DataConsistencyCheckResponse(BaseModel):
     inconsistencies: List[str]
     last_checked: datetime
     resolution_actions: List[str]
-    
-    class Config:
-        json_encoders = {
+
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat(),
             UUID: str
         }
+    )
 
 
 class SyncStatusResponse(BaseModel):
@@ -52,12 +54,13 @@ class SyncStatusResponse(BaseModel):
     pending_events: int
     last_sync: Optional[datetime] = None
     is_up_to_date: bool
-    
-    class Config:
-        json_encoders = {
+
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat(),
             UUID: str
         }
+    )
 
 
 class RetryStatsResponse(BaseModel):
@@ -84,11 +87,12 @@ class AuthenticationResponse(BaseModel):
     user_role: Optional[str] = None
     permissions: List[str] = Field(default_factory=list)
     message: str
-    
-    class Config:
-        json_encoders = {
+
+    model_config = ConfigDict(
+        json_encoders={
             UUID: str
         }
+    )
 
 
 class PatientSyncRequest(BaseModel):
@@ -96,11 +100,12 @@ class PatientSyncRequest(BaseModel):
     patient_id: UUID
     flow_interaction_data: dict[str, Any]
     user_id: Optional[UUID] = None
-    
-    class Config:
-        json_encoders = {
+
+    model_config = ConfigDict(
+        json_encoders={
             UUID: str
         }
+    )
 
 
 class PatientSyncResponse(BaseModel):
@@ -110,12 +115,13 @@ class PatientSyncResponse(BaseModel):
     status: str
     message: str
     timestamp: datetime
-    
-    class Config:
-        json_encoders = {
+
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat(),
             UUID: str
         }
+    )
 
 
 class ConsistencyValidationRequest(BaseModel):
@@ -129,11 +135,12 @@ class ConsistencyValidationRequest(BaseModel):
         False, 
         description="Check all entities of the specified type"
     )
-    
-    class Config:
-        json_encoders = {
+
+    model_config = ConfigDict(
+        json_encoders={
             UUID: str
         }
+    )
 
 
 class AuditLogEntrySchema(BaseModel):
@@ -146,12 +153,13 @@ class AuditLogEntrySchema(BaseModel):
     user_id: Optional[UUID] = None
     source: str = "flow_system"
     metadata: dict[str, Any] = Field(default_factory=dict)
-    
-    class Config:
-        json_encoders = {
+
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat(),
             UUID: str
         }
+    )
 
 
 class PlatformHealthResponse(BaseModel):
@@ -164,8 +172,9 @@ class PlatformHealthResponse(BaseModel):
     retry_events: int
     last_check: datetime
     recommendations: List[Optional[str]]
-    
-    class Config:
-        json_encoders = {
+
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )

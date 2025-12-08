@@ -5,7 +5,7 @@ Defines the data structures used for queue-based message processing.
 """
 
 from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 
 
@@ -64,14 +64,15 @@ class MessageRequest(BaseModel):
         description="Number of retry attempts"
     )
     scheduled_at: Optional[datetime] = Field(
-        None, 
+        None,
         description="Scheduled delivery time"
     )
-    
-    class Config:
-        json_encoders = {
+
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat() if v else None
         }
+    )
 
 
 class MessageResponse(BaseModel):
@@ -104,14 +105,15 @@ class MessageResponse(BaseModel):
         description="Name of the Evolution instance that processed the message"
     )
     retry_after: Optional[int] = Field(
-        None, 
+        None,
         description="Seconds to wait before retry (if applicable)"
     )
-    
-    class Config:
-        json_encoders = {
+
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat() if v else None
         }
+    )
 
 
 class QueueStatus(BaseModel):
@@ -140,11 +142,12 @@ class QueueStatus(BaseModel):
         description="Timestamp of last queue activity"
     )
     is_healthy: bool = Field(
-        ..., 
+        ...,
         description="Whether the queue is healthy and operational"
     )
-    
-    class Config:
-        json_encoders = {
+
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat() if v else None
         }
+    )

@@ -62,7 +62,7 @@ async def _startup(app: FastAPI) -> object:
     logger = get_logger(__name__)
 
     # Configure structured logging with JSON output
-    log_level = 'DEBUG' if settings.DEBUG else 'INFO'
+    log_level = 'DEBUG' if settings.APP_ENABLE_DEBUG else 'INFO'
     configure_structured_logging(log_level=log_level)
     logger.info("Structured logging configured", extra={'log_level': log_level})
 
@@ -90,6 +90,9 @@ async def _startup(app: FastAPI) -> object:
 
     # Initialize enum validation middleware
     await _initialize_enum_validation(app, logger)
+
+    # Initialize follow-up system with Redis state rehydration
+    await _initialize_follow_up_system(app, logger)
 
     logger.info("Hormonia Backend System startup completed successfully")
     return logger
@@ -367,6 +370,34 @@ async def _initialize_enum_validation(app: FastAPI, logger) -> None:
     except Exception as e:
         logger.error(f"Failed to initialize enum validation: {e}")
         logger.warning("Continuing without enum validation - database enum errors may occur")
+
+
+async def _initialize_follow_up_system(app: FastAPI, logger) -> None:
+    """Initialize follow-up system with Redis state rehydration."""
+    try:
+        from app.services.follow_up_system.service import FollowUpSystemService
+        from app.database import SessionLocal
+
+        logger.info("Initializing follow-up system...")
+
+        db = SessionLocal()
+        try:
+            follow_up_service = FollowUpSystemService(db)
+            result = await follow_up_service.rehydrate_from_redis()
+            app.state.follow_up_service = follow_up_service
+
+            logger.info(
+                f"✓ Follow-up system rehydrated: "
+                f"{result['pending_actions']} actions, "
+                f"{result['active_alerts']} alerts"
+            )
+        finally:
+            db.close()
+
+    except Exception as e:
+        logger.warning(f"Follow-up system initialization failed: {e}")
+        logger.info("Continuing without follow-up system - will initialize on first use")
+        app.state.follow_up_service = None
 
 
 async def _cleanup_session_manager(app: FastAPI, logger) -> None:

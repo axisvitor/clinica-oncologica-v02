@@ -2,7 +2,11 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
     "target": "es2020",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": false,
@@ -22,11 +26,20 @@
     "jsxImportSource": "react",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "~backend/*": ["../Backend/*"],
-      "~backend/client": ["./client.ts"]
+      "@/*": [
+        "./src/*"
+      ],
+      "~backend/*": [
+        "../backend-hormonia/*"
+      ],
+      "~backend/client": [
+        "./client.ts"
+      ]
     },
-    "types": ["react", "react-dom"],
+    "types": [
+      "react",
+      "react-dom"
+    ],
     "skipDefaultLibCheck": true
   },
   "include": [

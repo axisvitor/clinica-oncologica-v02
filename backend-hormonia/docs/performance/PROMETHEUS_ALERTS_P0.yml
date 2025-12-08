@@ -1,0 +1,378 @@
+# Prometheus Alert Rules for P0 Performance Monitoring
+# Comprehensive alerting for database, async operations, and template loading
+
+groups:
+  # ========================================
+  # P0.1: Database Performance Alerts
+  # ========================================
+  - name: p0_database_performance
+    interval: 30s
+    rules:
+      - alert: HighDatabaseQueryLatency
+        expr: histogram_quantile(0.95, rate(database_query_duration_seconds_bucket[5m])) > 0.02
+        for: 5m
+        labels:
+          severity: critical
+          category: database
+          p0_issue: P0.1
+        annotations:
+          summary: "High database query latency detected (P95 > 20ms)"
+          description: "Database query latency P95 is {{ $value | humanizeDuration }} for {{ $labels.query_type }}. Expected: <20ms. Check indexes and query plans."
+          runbook: "docs/performance/RUNBOOK.md#high-database-latency"
+          dashboard: "https://grafana/d/p0-performance-monitoring"
+
+      - alert: DatabaseIndexNotUsed
+        expr: (pg_stat_user_tables_seq_scans / (pg_stat_user_tables_seq_scans + pg_stat_user_tables_idx_scans)) > 0.2
+        for: 10m
+        labels:
+          severity: warning
+          category: database
+          p0_issue: P0.1
+        annotations:
+          summary: "High sequential scan rate detected"
+          description: "Table {{ $labels.table }} has {{ $value | humanizePercentage }} sequential scans. Possible missing index."
+          runbook: "docs/performance/RUNBOOK.md#missing-indexes"
+
+      - alert: SlowQueryDetected
+        expr: rate(database_slow_queries_total[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: high
+          category: database
+          p0_issue: P0.1
+        annotations:
+          summary: "Slow queries detected (>100ms)"
+          description: "{{ $value }} slow queries per second detected. Check query optimization and indexes."
+          runbook: "docs/performance/RUNBOOK.md#slow-queries"
+
+      - alert: DatabaseCPUHigh
+        expr: rate(pg_stat_database_blk_read_time[5m]) > 1000
+        for: 5m
+        labels:
+          severity: high
+          category: database
+          p0_issue: P0.1
+        annotations:
+          summary: "Database CPU usage is high"
+          description: "Database CPU time is {{ $value }}ms per second. Possible inefficient queries."
+          runbook: "docs/performance/RUNBOOK.md#high-db-cpu"
+
+      - alert: DatabaseConnectionPoolExhaustion
+        expr: (db_connection_pool_active / db_connection_pool_max) > 0.9
+        for: 2m
+        labels:
+          severity: critical
+          category: database
+          p0_issue: P0.1
+        annotations:
+          summary: "Database connection pool near exhaustion"
+          description: "{{ $value | humanizePercentage }} of database connections in use. Risk of connection errors."
+          runbook: "docs/performance/RUNBOOK.md#connection-pool"
+
+  # ========================================
+  # P0.2: Async/Sync Event Loop Alerts
+  # ========================================
+  - name: p0_async_performance
+    interval: 30s
+    rules:
+      - alert: HighEventLoopLag
+        expr: histogram_quantile(0.95, rate(event_loop_lag_milliseconds_bucket[5m])) > 50
+        for: 3m
+        labels:
+          severity: critical
+          category: async
+          p0_issue: P0.2
+        annotations:
+          summary: "High event loop lag detected (P95 > 50ms)"
+          description: "Event loop lag P95 is {{ $value }}ms. Expected: <20ms. Possible blocking operations."
+          runbook: "docs/performance/RUNBOOK.md#event-loop-lag"
+          dashboard: "https://grafana/d/p0-performance-monitoring"
+
+      - alert: HighOnboardingLatency
+        expr: histogram_quantile(0.95, rate(onboarding_latency_milliseconds_bucket[5m])) > 250
+        for: 5m
+        labels:
+          severity: high
+          category: async
+          p0_issue: P0.2
+        annotations:
+          summary: "High patient onboarding latency (P95 > 250ms)"
+          description: "Onboarding latency P95 is {{ $value }}ms. Target: <200ms. Check ThreadPool and database."
+          runbook: "docs/performance/RUNBOOK.md#high-onboarding-latency"
+
+      - alert: ThreadPoolQueueBacklog
+        expr: executor_queue_depth{pool="onboarding_sync"} > 10
+        for: 2m
+        labels:
+          severity: warning
+          category: async
+          p0_issue: P0.2
+        annotations:
+          summary: "ThreadPool queue backlog detected"
+          description: "Executor queue depth is {{ $value }}. Consider increasing max_workers or investigating slow operations."
+          runbook: "docs/performance/RUNBOOK.md#threadpool-backlog"
+
+      - alert: ExecutorTaskFailureRate
+        expr: (rate(executor_tasks_failed_total{pool="onboarding_sync"}[5m]) / rate(executor_tasks_submitted_total{pool="onboarding_sync"}[5m])) > 0.02
+        for: 5m
+        labels:
+          severity: critical
+          category: async
+          p0_issue: P0.2
+        annotations:
+          summary: "High executor task failure rate (>2%)"
+          description: "{{ $value | humanizePercentage }} of executor tasks are failing. Check logs for errors."
+          runbook: "docs/performance/RUNBOOK.md#executor-failures"
+
+      - alert: LowConcurrentRequestCapacity
+        expr: rate(http_requests_total[1m]) * 60 < 150
+        for: 10m
+        labels:
+          severity: warning
+          category: async
+          p0_issue: P0.2
+        annotations:
+          summary: "Low concurrent request capacity"
+          description: "Request throughput is {{ $value }} req/min. Expected: >200 req/min. Possible performance degradation."
+          runbook: "docs/performance/RUNBOOK.md#low-throughput"
+
+      - alert: DeadlockDetected
+        expr: increase(deadlock_errors_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          category: async
+          p0_issue: P0.2
+        annotations:
+          summary: "Deadlock detected in async operations"
+          description: "{{ $value }} deadlocks detected in last 5 minutes. Immediate investigation required."
+          runbook: "docs/performance/RUNBOOK.md#deadlocks"
+
+  # ========================================
+  # P0.3: Template Loading Performance Alerts
+  # ========================================
+  - name: p0_template_performance
+    interval: 60s
+    rules:
+      - alert: SlowTemplateSelection
+        expr: histogram_quantile(0.95, rate(template_selection_duration_milliseconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          category: templates
+          p0_issue: P0.3
+        annotations:
+          summary: "Slow template selection detected (P95 > 2ms)"
+          description: "Template selection latency is {{ $value }}ms. Expected: <2ms. Check configuration cache."
+          runbook: "docs/performance/RUNBOOK.md#slow-template-selection"
+
+      - alert: LowTemplateCacheHitRate
+        expr: (sum(rate(template_cache_hits_total[5m])) / sum(rate(template_cache_lookups_total[5m]))) < 0.90
+        for: 10m
+        labels:
+          severity: warning
+          category: templates
+          p0_issue: P0.3
+        annotations:
+          summary: "Low template cache hit rate (<90%)"
+          description: "Cache hit rate is {{ $value | humanizePercentage }}. Expected: >95%. Check cache TTL configuration."
+          runbook: "docs/performance/RUNBOOK.md#low-cache-hit-rate"
+
+      - alert: TemplateMappingErrors
+        expr: rate(template_mapping_errors_total[5m]) > 0.01
+        for: 3m
+        labels:
+          severity: high
+          category: templates
+          p0_issue: P0.3
+        annotations:
+          summary: "Template mapping errors detected"
+          description: "{{ $value }} template mapping errors per second. Check YAML configuration."
+          runbook: "docs/performance/RUNBOOK.md#template-mapping-errors"
+
+      - alert: ConfigurationReloadFailed
+        expr: increase(template_configuration_reload_failures_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          category: templates
+          p0_issue: P0.3
+        annotations:
+          summary: "Template configuration reload failed"
+          description: "Configuration reload failed {{ $value }} times. Check YAML syntax and permissions."
+          runbook: "docs/performance/RUNBOOK.md#config-reload-failed"
+
+      - alert: HighCodeComplexity
+        expr: code_cyclomatic_complexity{module="flow_service"} > 20
+        for: 1h
+        labels:
+          severity: warning
+          category: code_quality
+          p0_issue: P0.3
+        annotations:
+          summary: "High code complexity detected"
+          description: "Cyclomatic complexity is {{ $value }}. Target: <15. Consider refactoring."
+          runbook: "docs/performance/RUNBOOK.md#high-complexity"
+
+  # ========================================
+  # Overall System Health Alerts
+  # ========================================
+  - name: p0_system_health
+    interval: 30s
+    rules:
+      - alert: HighErrorRate
+        expr: (sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))) > 0.03
+        for: 5m
+        labels:
+          severity: critical
+          category: system
+          p0_issue: ALL
+        annotations:
+          summary: "High error rate detected (>3%)"
+          description: "Error rate is {{ $value | humanizePercentage }}. Expected: <1%. Check logs and monitoring."
+          runbook: "docs/performance/RUNBOOK.md#high-error-rate"
+
+      - alert: HighTimeoutRate
+        expr: (sum(rate(http_requests_timeout_total[5m])) / sum(rate(http_requests_total[5m]))) > 0.005
+        for: 5m
+        labels:
+          severity: high
+          category: system
+          p0_issue: ALL
+        annotations:
+          summary: "High timeout rate detected (>0.5%)"
+          description: "Timeout rate is {{ $value | humanizePercentage }}. Expected: <0.5%. Check database and async operations."
+          runbook: "docs/performance/RUNBOOK.md#high-timeout-rate"
+
+      - alert: LowSystemThroughput
+        expr: rate(http_requests_total[1m]) < 1.5
+        for: 10m
+        labels:
+          severity: warning
+          category: system
+          p0_issue: ALL
+        annotations:
+          summary: "Low system throughput detected"
+          description: "Request rate is {{ $value }} req/s. Expected: >2 req/s. Possible performance issue."
+          runbook: "docs/performance/RUNBOOK.md#low-throughput"
+
+      - alert: HighCPUUtilization
+        expr: rate(process_cpu_seconds_total[5m]) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          category: resources
+          p0_issue: ALL
+        annotations:
+          summary: "High CPU utilization (>80%)"
+          description: "CPU usage is {{ $value }}%. Expected: 40-60%. Check for inefficient operations."
+          runbook: "docs/performance/RUNBOOK.md#high-cpu"
+
+      - alert: HighMemoryUsage
+        expr: (process_resident_memory_bytes / 1024 / 1024) > 2048
+        for: 10m
+        labels:
+          severity: warning
+          category: resources
+          p0_issue: ALL
+        annotations:
+          summary: "High memory usage (>2GB)"
+          description: "Memory usage is {{ $value }}MB. Check for memory leaks."
+          runbook: "docs/performance/RUNBOOK.md#high-memory"
+
+      - alert: P0PerformanceRegression
+        expr: (database_performance_score + async_performance_score + code_quality_score) / 3 < 80
+        for: 15m
+        labels:
+          severity: critical
+          category: performance
+          p0_issue: ALL
+        annotations:
+          summary: "P0 performance regression detected"
+          description: "Overall performance score is {{ $value }}%. Expected: >85%. Multiple P0 metrics degraded."
+          runbook: "docs/performance/RUNBOOK.md#performance-regression"
+          dashboard: "https://grafana/d/p0-performance-monitoring"
+
+  # ========================================
+  # SLA and Business Metrics
+  # ========================================
+  - name: p0_sla_metrics
+    interval: 60s
+    rules:
+      - alert: SLAViolation_P95Latency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+        for: 10m
+        labels:
+          severity: critical
+          category: sla
+          p0_issue: ALL
+        annotations:
+          summary: "SLA violation: P95 latency >500ms"
+          description: "P95 latency is {{ $value | humanizeDuration }}. SLA: <500ms. Business impact: Poor user experience."
+          runbook: "docs/performance/RUNBOOK.md#sla-violation"
+
+      - alert: SLAViolation_Availability
+        expr: (sum(rate(http_requests_total{status!~"5.."}[5m])) / sum(rate(http_requests_total[5m]))) < 0.995
+        for: 5m
+        labels:
+          severity: critical
+          category: sla
+          p0_issue: ALL
+        annotations:
+          summary: "SLA violation: Availability <99.5%"
+          description: "Availability is {{ $value | humanizePercentage }}. SLA: >99.5%. Business impact: Service disruption."
+          runbook: "docs/performance/RUNBOOK.md#availability-sla"
+
+      - alert: SLAViolation_Throughput
+        expr: rate(http_requests_total[1m]) * 60 < 180
+        for: 15m
+        labels:
+          severity: high
+          category: sla
+          p0_issue: ALL
+        annotations:
+          summary: "SLA violation: Throughput <200 req/min"
+          description: "Throughput is {{ $value }} req/min. SLA: >200 req/min. Business impact: Reduced capacity."
+          runbook: "docs/performance/RUNBOOK.md#throughput-sla"
+
+  # ========================================
+  # Predictive Alerts (Trending)
+  # ========================================
+  - name: p0_predictive_alerts
+    interval: 5m
+    rules:
+      - alert: DatabaseLatencyTrending
+        expr: deriv(histogram_quantile(0.95, rate(database_query_duration_seconds_bucket[5m]))[30m:]) > 0.0001
+        for: 10m
+        labels:
+          severity: warning
+          category: predictive
+          p0_issue: P0.1
+        annotations:
+          summary: "Database latency trending upward"
+          description: "Database latency is increasing. Predicted to exceed threshold in 2-4 hours."
+          runbook: "docs/performance/RUNBOOK.md#latency-trending"
+
+      - alert: EventLoopLagTrending
+        expr: deriv(histogram_quantile(0.95, rate(event_loop_lag_milliseconds_bucket[5m]))[30m:]) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          category: predictive
+          p0_issue: P0.2
+        annotations:
+          summary: "Event loop lag trending upward"
+          description: "Event loop lag is increasing. Predicted to exceed threshold in 1-2 hours."
+          runbook: "docs/performance/RUNBOOK.md#event-loop-trending"
+
+      - alert: ErrorRateTrending
+        expr: deriv(rate(http_requests_total{status=~"5.."}[5m])[30m:]) > 0.0001
+        for: 15m
+        labels:
+          severity: warning
+          category: predictive
+          p0_issue: ALL
+        annotations:
+          summary: "Error rate trending upward"
+          description: "Error rate is increasing. Investigate before it exceeds threshold."
+          runbook: "docs/performance/RUNBOOK.md#error-rate-trending"

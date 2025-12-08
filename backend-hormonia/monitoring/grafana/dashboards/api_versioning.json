@@ -1,0 +1,357 @@
+{
+  "dashboard": {
+    "title": "API Versioning & Deprecation Tracking",
+    "description": "Monitor API version usage, deprecation status, and client migration progress",
+    "tags": ["api", "versioning", "deprecation"],
+    "timezone": "browser",
+    "schemaVersion": 27,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "API Version Distribution",
+        "type": "piechart",
+        "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "sum by (version) (rate(api_version_usage_total[5m]))",
+            "legendFormat": "{{ version }}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "list", "placement": "right" },
+          "pieType": "pie",
+          "tooltip": { "mode": "single" }
+        },
+        "description": "Distribution of API requests across versions (last 5 minutes)"
+      },
+      {
+        "id": 2,
+        "title": "Deprecated API Calls (Top 10 Endpoints)",
+        "type": "graph",
+        "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "topk(10, sum by (endpoint, version) (rate(api_deprecated_endpoint_calls_total[1h])))",
+            "legendFormat": "{{ version }}{{ endpoint }}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          { "format": "reqps", "label": "Requests/sec" },
+          { "format": "short" }
+        ],
+        "description": "Most frequently called deprecated endpoints"
+      },
+      {
+        "id": 3,
+        "title": "Clients Using Deprecated APIs",
+        "type": "table",
+        "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "sort_desc(sum by (client_id, version) (api_deprecated_endpoint_calls_total > 0))",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": { "Time": true },
+              "indexByName": {},
+              "renameByName": {
+                "client_id": "Client ID",
+                "version": "Deprecated Version",
+                "Value": "Total Calls"
+              }
+            }
+          }
+        ],
+        "description": "List of clients still using deprecated API versions"
+      },
+      {
+        "id": 4,
+        "title": "Days Until Sunset (v2)",
+        "type": "stat",
+        "gridPos": { "x": 12, "y": 8, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "api_version_sunset_days_remaining{version=\"v2\"}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "value_and_name",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "fields": "",
+            "calcs": ["lastNotNull"]
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": null, "color": "red" },
+                { "value": 30, "color": "orange" },
+                { "value": 90, "color": "green" }
+              ]
+            },
+            "unit": "days"
+          }
+        },
+        "description": "Countdown to v2 API sunset date"
+      },
+      {
+        "id": 5,
+        "title": "Client Migration Progress",
+        "type": "gauge",
+        "gridPos": { "x": 18, "y": 8, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "(1 - (count(api_deprecated_endpoint_calls_total > 0) / count(api_version_usage_total > 0))) * 100",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": null, "color": "red" },
+                { "value": 50, "color": "yellow" },
+                { "value": 80, "color": "green" },
+                { "value": 95, "color": "blue" }
+              ]
+            },
+            "min": 0,
+            "max": 100,
+            "unit": "percent"
+          }
+        },
+        "description": "Percentage of clients migrated from deprecated APIs"
+      },
+      {
+        "id": 6,
+        "title": "API Version Response Time Comparison",
+        "type": "graph",
+        "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(api_version_response_time_seconds_bucket[5m])) by (version, le))",
+            "legendFormat": "{{ version }} (p95)",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.50, sum(rate(api_version_response_time_seconds_bucket[5m])) by (version, le))",
+            "legendFormat": "{{ version }} (p50)",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          { "format": "s", "label": "Response Time" },
+          { "format": "short" }
+        ],
+        "description": "Compare response times between API versions"
+      },
+      {
+        "id": 7,
+        "title": "Deprecated Endpoint Calls by Client (Heatmap)",
+        "type": "heatmap",
+        "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "sum by (client_id) (increase(api_deprecated_endpoint_calls_total[1h]))",
+            "format": "time_series",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "calculate": false,
+          "calculation": {},
+          "cellGap": 2,
+          "cellRadius": 0,
+          "color": {
+            "mode": "scheme",
+            "scheme": "Oranges",
+            "steps": 128
+          },
+          "yAxis": {
+            "axisPlacement": "left",
+            "reverse": false
+          }
+        },
+        "description": "Identify which clients are heavily using deprecated APIs"
+      },
+      {
+        "id": 8,
+        "title": "Total Deprecated API Requests/min",
+        "type": "stat",
+        "gridPos": { "x": 0, "y": 12, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "sum(rate(api_deprecated_endpoint_calls_total[5m])) * 60",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value",
+          "textMode": "value_and_name",
+          "orientation": "auto"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": null, "color": "green" },
+                { "value": 100, "color": "yellow" },
+                { "value": 1000, "color": "red" }
+              ]
+            },
+            "unit": "rpm"
+          }
+        },
+        "description": "Current rate of deprecated API usage"
+      },
+      {
+        "id": 9,
+        "title": "Active Deprecated Endpoints",
+        "type": "stat",
+        "gridPos": { "x": 6, "y": 12, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "sum(api_deprecated_endpoints_active)",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": null, "color": "blue" }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "description": "Number of endpoints currently deprecated"
+      },
+      {
+        "id": 10,
+        "title": "Clients Migrated (Last 24h)",
+        "type": "stat",
+        "gridPos": { "x": 12, "y": 12, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "increase(api_clients_migrated_total[24h])",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": null, "color": "blue" }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "description": "Number of clients migrated in last 24 hours"
+      },
+      {
+        "id": 11,
+        "title": "Sunset Readiness",
+        "type": "bargauge",
+        "gridPos": { "x": 18, "y": 12, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "(1 - (count(api_deprecated_endpoint_calls_total > 0) / count(api_version_usage_total > 0))) * 100",
+            "legendFormat": "Migration %",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "orientation": "horizontal",
+          "displayMode": "gradient",
+          "showUnfilled": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "percentage",
+              "steps": [
+                { "value": null, "color": "red" },
+                { "value": 80, "color": "yellow" },
+                { "value": 95, "color": "green" }
+              ]
+            },
+            "min": 0,
+            "max": 100,
+            "unit": "percent"
+          }
+        },
+        "description": "Readiness for API sunset (target: 95%+ migrated)"
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "version",
+          "type": "query",
+          "query": "label_values(api_version_usage_total, version)",
+          "current": { "text": "All", "value": "$__all" },
+          "includeAll": true,
+          "multi": true
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Deprecation Announcements",
+          "datasource": "Prometheus",
+          "expr": "ALERTS{alertname=\"DeprecationAnnounced\"}",
+          "tagKeys": "version",
+          "textFormat": "{{ version }} deprecated",
+          "iconColor": "orange"
+        },
+        {
+          "name": "Sunset Dates",
+          "datasource": "Prometheus",
+          "expr": "ALERTS{alertname=\"APISunset\"}",
+          "tagKeys": "version",
+          "textFormat": "{{ version }} sunset",
+          "iconColor": "red"
+        }
+      ]
+    }
+  }
+}

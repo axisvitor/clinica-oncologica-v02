@@ -6,12 +6,37 @@ import { createLogger } from './logger'
 
 const logger = createLogger('WebSocket')
 
+/**
+ * Automatically upgrades WebSocket protocol based on page protocol
+ * Ensures wss:// is used when page is served over HTTPS
+ *
+ * @param wsUrl - WebSocket URL to upgrade
+ * @returns Upgraded WebSocket URL with appropriate protocol
+ */
+function upgradeWebSocketProtocol(wsUrl: string): string {
+  if (typeof window === 'undefined') {
+    return wsUrl
+  }
+
+  // Determine the appropriate protocol based on current page protocol
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+
+  // Replace ws:// or wss:// with the appropriate protocol
+  return wsUrl.replace(/^(ws|wss):/, protocol)
+}
+
 function resolveWsBaseUrl(): string | null {
   const envUrl = (import.meta.env as any).VITE_WS_URL as string | undefined
-  if (envUrl && envUrl.length) return envUrl
+  if (envUrl && envUrl.length) {
+    // Auto-upgrade protocol for security
+    return upgradeWebSocketProtocol(envUrl)
+  }
 
   const runtime = getRuntimeConfigSync()
-  if (runtime?.VITE_WS_URL) return runtime.VITE_WS_URL
+  if (runtime?.VITE_WS_URL) {
+    // Auto-upgrade protocol for security
+    return upgradeWebSocketProtocol(runtime.VITE_WS_URL)
+  }
 
   // Fallback to current host proxy (/ws/connect) if available
   if (typeof window !== 'undefined') {
@@ -35,18 +60,18 @@ const APP_CONFIG = {
 
 export interface WebSocketMessage {
   event: string
-  data: any
+  data: Record<string, unknown>
   timestamp?: string
   patient_id?: string
   session_id?: string
 }
 
-export type WebSocketEventHandler = (data: any) => void
+export type WebSocketEventHandler<T = unknown> = (data: T) => void
 
 // Backend protocol structures
 interface BackendMessage {
   type: string
-  data: Record<string, any>
+  data: Record<string, unknown>
 }
 
 // Protocol mapping: frontend events -> backend types
@@ -306,7 +331,7 @@ class WebSocketManager {
     }
   }
 
-  private emit(event: string, data: any) {
+  private emit(event: string, data: Record<string, unknown>) {
     const handlers = this.eventHandlers.get(event)
     if (handlers) {
       handlers.forEach(handler => {
@@ -323,7 +348,7 @@ class WebSocketManager {
    * Send message using backend protocol
    * Converts frontend event format to backend { type, data } format
    */
-  send(event: string, data: any) {
+  send(event: string, data: Record<string, unknown>) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       // Map frontend event to backend type
       const backendType = PROTOCOL_MAP[event] || event

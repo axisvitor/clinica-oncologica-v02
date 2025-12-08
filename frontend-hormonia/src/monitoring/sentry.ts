@@ -1,20 +1,23 @@
 /**
  * Sentry configuration for React frontend monitoring.
  *
- * TODO: Install required Sentry packages:
- * npm install --save @sentry/react @sentry/tracing @sentry/integrations @sentry/replay
- *
  * Provides comprehensive error tracking, performance monitoring, and user context
  * for the Clínica Oncológica frontend application.
+ *
+ * Sentry packages installed:
+ * - @sentry/react - Core React integration
+ * - @sentry/tracing - Performance monitoring
+ * - @sentry/integrations - Console capture and extra integrations
+ * - @sentry/replay - Session replay functionality
  */
 
+import * as Sentry from '@sentry/react';
+import { BrowserTracing } from '@sentry/tracing';
+import { CaptureConsole } from '@sentry/integrations';
+import { Replay } from '@sentry/replay';
 import { createLogger } from '@/lib/logger';
-const logger = createLogger('Sentry');
 
-/*
- * TEMPORARILY DISABLED - Sentry packages not installed
- * Uncomment after installing: @sentry/react, @sentry/tracing, @sentry/integrations, @sentry/replay
- */
+const logger = createLogger('Sentry');
 
 interface UserContext {
   id: string;
@@ -38,187 +41,308 @@ export class SentryMonitoring {
    * Initialize Sentry SDK with comprehensive monitoring configuration
    */
   static init(): void {
-    logger.warn('Sentry monitoring is disabled. Install @sentry/react and related packages to enable.');
-    // TODO: Uncomment after installing Sentry packages
-    /*
-    if (this.isInitialized || !SENTRY_DSN) {
-      if (!SENTRY_DSN) {
-        console.warn('Sentry DSN not configured. Monitoring disabled.');
-      }
+    const SENTRY_DSN = import.meta.env['VITE_SENTRY_DSN'];
+    const ENVIRONMENT = import.meta.env['VITE_ENVIRONMENT'] || 'development';
+
+    if (this.isInitialized) {
+      logger.debug('Sentry already initialized');
       return;
     }
 
-    const ENVIRONMENT = import.meta.env['VITE_ENVIRONMENT'] || 'development';
-    const SENTRY_DSN = import.meta.env['VITE_SENTRY_DSN'];
+    if (!SENTRY_DSN) {
+      logger.warn('Sentry DSN not configured. Monitoring disabled.');
+      return;
+    }
+
     const SENTRY_TRACES_SAMPLE_RATE = parseFloat(import.meta.env['VITE_SENTRY_TRACES_SAMPLE_RATE'] || '0.1');
     const SENTRY_REPLAYS_SESSION_SAMPLE_RATE = parseFloat(import.meta.env['VITE_SENTRY_REPLAYS_SESSION_SAMPLE_RATE'] || '0.1');
     const SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE = parseFloat(import.meta.env['VITE_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE'] || '1.0');
 
-    Sentry.init({
-      dsn: SENTRY_DSN,
-      environment: ENVIRONMENT,
-      integrations: [
-        new BrowserTracing({
-          routingInstrumentation: Sentry.reactRouterV6Instrumentation(
-            React.useEffect,
-            useLocation,
-            useNavigationType,
-            createRoutesFromChildren,
-            matchRoutes
-          ),
-          enableWebVitals: true,
-          beforeNavigate: (context: any) => ({
-            ...context,
-            name: `${context.location.pathname}`,
-            ['tags']: {
-              'route.name': context.location.pathname,
-            },
-          }),
-        }),
-        new Replay({
-          sessionSampleRate: SENTRY_REPLAYS_SESSION_SAMPLE_RATE,
-          errorSampleRate: SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE,
-          maskAllText: true,
-          maskAllInputs: true,
-          blockAllMedia: true,
-        }),
-        new CaptureConsole({
-          levels: ['error', 'warn'],
-        }),
-      ],
-      tracesSampleRate: SENTRY_TRACES_SAMPLE_RATE,
-      beforeSend: this.beforeSendFilter,
-      beforeSendTransaction: this.beforeSendTransactionFilter,
-      release: import.meta.env['VITE_APP_VERSION'] || 'unknown',
-      maxBreadcrumbs: 50,
-      attachStacktrace: true,
-      autoSessionTracking: true,
-      sendDefaultPii: false,
-      ignoreErrors: [
-        'top.GLOBALS',
-        'originalCreateNotification',
-        'canvas.contentDocument',
-        'MyApp_RemoveAllHighlights',
-        'http://tt.epicplay.com',
-        "Can't find variable: ZiteReader",
-        'jigsaw is not defined',
-        'ComboSearch is not defined',
-        'http://loading.retry.widdit.com/',
-        'atomicFindClose',
-        'Network request failed',
-        'NetworkError when attempting to fetch resource',
-        'The Internet connection appears to be offline',
-        'Load failed',
-        'blocked by client',
-      ],
-      denyUrls: [
-        /extensions\//i,
-        /^chrome:\/\//i,
-        /^chrome-extension:\/\//i,
-        /^resource:\/\//i,
-        /^safari-extension:\/\//i,
-        /^ms-browser-extension:\/\//i,
-      ],
-    });
+    try {
+      Sentry.init({
+        dsn: SENTRY_DSN,
+        environment: ENVIRONMENT,
+        integrations: [
+          new BrowserTracing({
+            tracePropagationTargets: ['localhost', /^https:\/\/[^/]*\.railway\.app/],
+            enableWebVitals: true,
+          } as any) as any,
+          new Replay({
+            sessionSampleRate: SENTRY_REPLAYS_SESSION_SAMPLE_RATE,
+            errorSampleRate: SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE,
+            maskAllText: true,
+            maskAllInputs: true,
+            blockAllMedia: true,
+          }) as any,
+          new CaptureConsole({
+            levels: ['error', 'warn'],
+          }) as any,
+        ],
+        tracesSampleRate: SENTRY_TRACES_SAMPLE_RATE,
+        beforeSend: this.beforeSendFilter,
+        beforeSendTransaction: this.beforeSendTransactionFilter,
+        release: import.meta.env['VITE_APP_VERSION'] || 'unknown',
+        maxBreadcrumbs: 50,
+        attachStacktrace: true,
+        sendDefaultPii: false,
+        ignoreErrors: [
+          'top.GLOBALS',
+          'originalCreateNotification',
+          'canvas.contentDocument',
+          'MyApp_RemoveAllHighlights',
+          'http://tt.epicplay.com',
+          "Can't find variable: ZiteReader",
+        ],
+        denyUrls: [
+          /extensions\//i,
+          /^chrome:\/\//i,
+          /^chrome-extension:\/\//i,
+          /^resource:\/\//i,
+          /^safari-extension:\/\//i,
+          /^ms-browser-extension:\/\//i,
+        ],
+      });
 
-    this.isInitialized = true;
-    this.initializeSessionContext();
-    console.log(`Sentry initialized for environment: ${ENVIRONMENT}`);
-    */
+      this.isInitialized = true;
+      this.initializeSessionContext();
+      logger.info(`Sentry initialized for environment: ${ENVIRONMENT}`);
+    } catch (error) {
+      logger.error('Failed to initialize Sentry:', error);
+    }
+  }
+
+  /**
+   * Filter events before sending to Sentry
+   */
+  private static beforeSendFilter(event: any): any | null {
+    // Filter out development errors if in production
+    if (event.environment === 'production' && event.level === 'debug') {
+      return null;
+    }
+
+    // Redact sensitive data from event
+    if (event.request?.headers) {
+      delete event.request.headers['Authorization'];
+      delete event.request.headers['Cookie'];
+    }
+
+    return event;
+  }
+
+  /**
+   * Filter transactions before sending to Sentry
+   */
+  private static beforeSendTransactionFilter(event: any): any | null {
+    // Filter out very short transactions (noise)
+    if (event.start_timestamp && event.timestamp) {
+      const duration = event.timestamp - event.start_timestamp;
+      if (duration < 0.01) { // Less than 10ms
+        return null;
+      }
+    }
+
+    return event;
   }
 
   /**
    * Set user context for error tracking
    */
   static setUserContext(user: UserContext): void {
-    logger.debug('User context would be set:', user);
-    // TODO: Uncomment after installing Sentry
-    // Sentry.setUser({ id: user.id, email: user.email, username: user.name, role: user.role });
+    if (!this.isInitialized) {
+      logger.debug('Sentry not initialized, skipping user context');
+      return;
+    }
+
+    try {
+      Sentry.setUser({
+        id: user.id,
+        email: user.email,
+        username: user.name,
+        role: user.role
+      });
+      logger.debug('User context set successfully');
+    } catch (error) {
+      logger.error('Failed to set user context:', error);
+    }
   }
 
   /**
    * Clear user context on logout
    */
   static clearUserContext(): void {
-    logger.debug('User context would be cleared');
-    // TODO: Uncomment after installing Sentry
-    // Sentry.setUser(null);
+    if (!this.isInitialized) {
+      logger.debug('Sentry not initialized, skipping clear user context');
+      return;
+    }
+
+    try {
+      Sentry.setUser(null);
+      logger.debug('User context cleared successfully');
+    } catch (error) {
+      logger.error('Failed to clear user context:', error);
+    }
   }
 
   /**
    * Track page views and navigation
    */
-  static trackPageView(pageName: string, additionalData?: Record<string, any>): void {
-    logger.debug('Page view would be tracked:', pageName, additionalData);
-    // TODO: Uncomment after installing Sentry
+  static trackPageView(pageName: string, additionalData?: Record<string, unknown>): void {
+    if (!this.isInitialized) return;
+
+    try {
+      Sentry.addBreadcrumb({
+        category: 'navigation',
+        message: `Page view: ${pageName}`,
+        level: 'info',
+        data: additionalData,
+      });
+    } catch (error) {
+      logger.error('Failed to track page view:', error);
+    }
   }
 
   /**
    * Track business events and user interactions
    */
-  static trackEvent(eventName: string, data: Record<string, any> = {}): void {
-    logger.debug('Event would be tracked:', eventName, data);
-    // TODO: Uncomment after installing Sentry
+  static trackEvent(eventName: string, data: Record<string, unknown> = {}): void {
+    if (!this.isInitialized) return;
+
+    try {
+      Sentry.addBreadcrumb({
+        category: 'user-interaction',
+        message: eventName,
+        level: 'info',
+        data,
+      });
+    } catch (error) {
+      logger.error('Failed to track event:', error);
+    }
   }
 
   /**
    * Track form interactions and validation errors
    */
   static trackFormError(formName: string, field: string, error: string): void {
-    logger.debug('Form error would be tracked:', { formName, field, error });
-    // TODO: Uncomment after installing Sentry
+    if (!this.isInitialized) return;
+
+    try {
+      Sentry.addBreadcrumb({
+        category: 'validation',
+        message: `Form error in ${formName}`,
+        level: 'warning',
+        data: { formName, field, error },
+      });
+    } catch (err) {
+      logger.error('Failed to track form error:', err);
+    }
   }
 
   /**
    * Track API call failures with context
    */
   static trackApiError(endpoint: string, method: string, status: number, error: string): void {
-    logger.debug('API error would be tracked:', { endpoint, method, status, error });
-    // TODO: Uncomment after installing Sentry
+    if (!this.isInitialized) return;
+
+    try {
+      Sentry.captureMessage(`API Error: ${method} ${endpoint}`, {
+        level: 'error',
+        tags: {
+          endpoint,
+          method,
+          status: status.toString(),
+        },
+        extra: { error },
+      });
+    } catch (err) {
+      logger.error('Failed to track API error:', err);
+    }
   }
 
   /**
    * Track clinical dashboard interactions
    */
-  static trackClinicalDashboard(action: string, componentName: string, metadata?: Record<string, any>): void {
-    logger.debug('Clinical dashboard interaction would be tracked:', { action, componentName, metadata });
-    // TODO: Uncomment after installing Sentry
+  static trackClinicalDashboard(action: string, componentName: string, metadata?: Record<string, unknown>): void {
+    if (!this.isInitialized) return;
+
+    try {
+      Sentry.addBreadcrumb({
+        category: 'clinical-dashboard',
+        message: `${action} in ${componentName}`,
+        level: 'info',
+        data: metadata,
+      });
+    } catch (error) {
+      logger.error('Failed to track clinical dashboard interaction:', error);
+    }
   }
 
   /**
-   * Track patient data access for audit purposes
+   * Track patient data access for audit purposes (HIPAA compliance)
    */
   static trackPatientDataAccess(dataType: string, accessLevel: string, patientId?: string): void {
-    logger.debug('Patient data access would be tracked:', { dataType, accessLevel, patientId: patientId ? '[REDACTED]' : undefined });
-    // TODO: Uncomment after installing Sentry
+    if (!this.isInitialized) return;
+
+    try {
+      // Never log actual patient ID to Sentry for privacy
+      Sentry.addBreadcrumb({
+        category: 'patient-data-access',
+        message: `Accessed ${dataType}`,
+        level: 'info',
+        data: {
+          dataType,
+          accessLevel,
+          hasPatientId: !!patientId
+        },
+      });
+    } catch (error) {
+      logger.error('Failed to track patient data access:', error);
+    }
   }
 
   /**
    * Track performance metrics manually
    */
   static trackPerformance(metricName: string, value: number, unit: string = 'ms'): void {
-    logger.debug('Performance metric would be tracked:', { metricName, value, unit });
-    // TODO: Uncomment after installing Sentry
+    if (!this.isInitialized) return;
+
+    try {
+      Sentry.setMeasurement(metricName, value, unit as any);
+    } catch (error) {
+      logger.error('Failed to track performance metric:', error);
+    }
   }
 
   /**
    * Capture custom exception with context
    */
-  static captureException(error: Error, context?: Record<string, any>): string {
-    logger.error('Exception would be captured:', error, context);
-    return 'disabled-sentry-id';
-    // TODO: Uncomment after installing Sentry
-    // return Sentry.captureException(error, { extra: context });
+  static captureException(error: Error, context?: Record<string, unknown>): string {
+    if (!this.isInitialized) {
+      logger.error('Exception (Sentry disabled):', error, context);
+      return 'sentry-disabled';
+    }
+
+    try {
+      const eventId = Sentry.captureException(error, { extra: context });
+      return eventId;
+    } catch (err) {
+      logger.error('Failed to capture exception:', err);
+      return 'capture-failed';
+    }
   }
 
   /**
    * Start a custom transaction for performance monitoring
    */
-  static startTransaction(name: string, op: string = 'custom'): any {
-    logger.debug('Transaction would be started:', { name, op });
-    return null;
-    // TODO: Uncomment after installing Sentry
-    // return Sentry.startTransaction({ name, op });
+  static startTransaction(name: string, op: string = 'custom'): any | null {
+    if (!this.isInitialized) return null;
+
+    try {
+      // @ts-ignore - Sentry SDK version mismatch workaround
+      return Sentry.startTransaction({ name, op });
+    } catch (error) {
+      logger.error('Failed to start transaction:', error);
+      return null;
+    }
   }
 
   /**
@@ -232,7 +356,7 @@ export class SentryMonitoring {
    * Check if Sentry is properly initialized
    */
   static isConfigured(): boolean {
-    return false; // Disabled until packages are installed
+    return this.isInitialized;
   }
 
   private static initializeSessionContext(): void {
@@ -242,15 +366,21 @@ export class SentryMonitoring {
       userAgent: navigator.userAgent,
       viewport: `${window.innerWidth}x${window.innerHeight}`,
     };
+
+    // Set session context in Sentry
+    if (this.isInitialized) {
+      Sentry.setContext('session', this.sessionContext as any);
+    }
   }
 }
 
-// Stub exports until Sentry is installed
-export const ErrorBoundary = null;
-export const withErrorBoundary = null;
-export const captureException = (error: Error) => logger.error(error);
-export const captureMessage = (message: string) => logger.info(message);
-export const withSentryConfig = null;
+// Export Sentry components for React integration
+export const ErrorBoundary = Sentry.ErrorBoundary;
+export const withErrorBoundary = Sentry.withErrorBoundary;
+export const captureException = (error: Error, context?: Record<string, unknown>) =>
+  SentryMonitoring.captureException(error, context);
+export const captureMessage = (message: string, level: Sentry.SeverityLevel = 'info') =>
+  Sentry.captureMessage(message, level);
 
 // Initialize Sentry when module is imported
 SentryMonitoring.init();

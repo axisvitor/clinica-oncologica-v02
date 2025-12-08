@@ -165,7 +165,7 @@ class PDFGenerator:
             patient_info = [
                 ['Name:', patient_data.get('name', 'N/A')],
                 ['ID:', str(patient_data.get('id', 'N/A'))],
-                ['Date of Birth:', patient_data.get('date_of_birth', 'N/A')],
+                ['Date of Birth:', patient_data.get('birth_date', 'N/A')],
                 ['Treatment Type:', patient_data.get('treatment_type', 'N/A')],
                 ['Current Day:', str(patient_data.get('current_day', 'N/A'))],
                 ['Status:', self._get_patient_status(patient_data)],

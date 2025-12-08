@@ -203,7 +203,7 @@ class HealthMonitor:
     async def _check_database_health(self) -> None:
         """Check database connectivity and performance."""
         start_time = time.time()
-        
+
         try:
             # Test database connection
             db = next(get_db())
@@ -211,24 +211,40 @@ class HealthMonitor:
                 # Simple query to test connectivity
                 result = db.execute(text("SELECT 1 as health_check"))
                 row = result.fetchone()
-                
+
                 if row and row[0] == 1:
                     response_time = (time.time() - start_time) * 1000
                     status = self._determine_status(response_time, 'response_time_ms')
-                    
+
                     # Get database statistics
                     stats_result = db.execute(text("""
-                        SELECT 
+                        SELECT
                             count(*) as total_connections,
                             sum(case when state = 'active' then 1 else 0 end) as active_connections
-                        FROM pg_stat_activity 
+                        FROM pg_stat_activity
                         WHERE datname = current_database()
                     """))
                     stats = stats_result.fetchone()
-                    
+
+                    # Get connection pool statistics
+                    from app.database import get_pool_status
+                    pool_stats = get_pool_status(use_service_role=True)
+
+                    # Calculate pool utilization
+                    pool_size = pool_stats.get('pool_size', 0)
+                    checked_out = pool_stats.get('checked_out', 0)
+                    utilization = (checked_out / pool_size * 100) if pool_size > 0 else 0
+
+                    # Determine pool health status
+                    pool_status = HealthStatus.HEALTHY
+                    if utilization >= 92:  # Critical threshold (was the issue)
+                        pool_status = HealthStatus.CRITICAL
+                    elif utilization >= 85:  # Warning threshold
+                        pool_status = HealthStatus.DEGRADED
+
                     self.components['database'] = ComponentHealth(
                         name='database',
-                        status=status,
+                        status=max(status, pool_status, key=lambda x: x.value),
                         response_time_ms=response_time,
                         metrics=[
                             HealthMetric(
@@ -250,6 +266,29 @@ class HealthMonitor:
                                 value=stats[1] if stats else 0,
                                 unit='count',
                                 status=HealthStatus.HEALTHY
+                            ),
+                            HealthMetric(
+                                name='pool_size',
+                                value=pool_size,
+                                unit='count',
+                                status=HealthStatus.HEALTHY,
+                                metadata=pool_stats
+                            ),
+                            HealthMetric(
+                                name='pool_checked_out',
+                                value=checked_out,
+                                unit='count',
+                                status=pool_status,
+                                threshold_warning=pool_size * 0.85,
+                                threshold_critical=pool_size * 0.92
+                            ),
+                            HealthMetric(
+                                name='pool_utilization',
+                                value=utilization,
+                                unit='%',
+                                status=pool_status,
+                                threshold_warning=85.0,
+                                threshold_critical=92.0
                             )
                         ]
                     )
@@ -257,7 +296,7 @@ class HealthMonitor:
                     raise Exception("Database health check query failed")
             finally:
                 db.close()
-                
+
         except Exception as e:
             self.logger.error(f"Database health check failed: {str(e)}", exc_info=True)
             self.components['database'] = ComponentHealth(
@@ -270,22 +309,37 @@ class HealthMonitor:
     async def _check_redis_health(self) -> None:
         """Check Redis connectivity and performance."""
         start_time = time.time()
-        
+
         try:
             import redis.asyncio as redis
-            
+
             # Create Redis client
             redis_client = redis.from_url(settings.REDIS_URL)
-            
+
             # Test Redis connection
             await redis_client.ping()
-            
+
             # Get Redis info
             info = await redis_client.info()
-            
+
             response_time = (time.time() - start_time) * 1000
             status = self._determine_status(response_time, 'response_time_ms')
-            
+
+            # Get Redis pool statistics
+            try:
+                from app.core.redis_manager import get_redis_manager
+                redis_manager = get_redis_manager()
+                pool_stats = await redis_manager.get_pool_stats_async()
+            except Exception as pool_err:
+                self.logger.warning(f"Could not get Redis pool stats: {pool_err}")
+                pool_stats = {"status": "unavailable"}
+
+            # Calculate cache hit ratio
+            hits = info.get('keyspace_hits', 0)
+            misses = info.get('keyspace_misses', 0)
+            total_ops = hits + misses
+            hit_ratio = (hits / total_ops * 100) if total_ops > 0 else 0
+
             self.components['redis'] = ComponentHealth(
                 name='redis',
                 status=status,
@@ -303,7 +357,8 @@ class HealthMonitor:
                         name='connected_clients',
                         value=info.get('connected_clients', 0),
                         unit='count',
-                        status=HealthStatus.HEALTHY
+                        status=HealthStatus.HEALTHY,
+                        metadata={"max_connections": pool_stats.get('max_connections', 'N/A')}
                     ),
                     HealthMetric(
                         name='used_memory_mb',
@@ -313,21 +368,36 @@ class HealthMonitor:
                     ),
                     HealthMetric(
                         name='keyspace_hits',
-                        value=info.get('keyspace_hits', 0),
+                        value=hits,
                         unit='count',
                         status=HealthStatus.HEALTHY
                     ),
                     HealthMetric(
                         name='keyspace_misses',
-                        value=info.get('keyspace_misses', 0),
+                        value=misses,
                         unit='count',
                         status=HealthStatus.HEALTHY
+                    ),
+                    HealthMetric(
+                        name='cache_hit_ratio',
+                        value=hit_ratio,
+                        unit='%',
+                        status=HealthStatus.HEALTHY if hit_ratio >= 80 else HealthStatus.DEGRADED,
+                        threshold_warning=80.0,
+                        threshold_critical=50.0
+                    ),
+                    HealthMetric(
+                        name='pool_status',
+                        value=1 if pool_stats.get('status') == 'healthy' else 0,
+                        unit='status',
+                        status=HealthStatus.HEALTHY if pool_stats.get('status') == 'healthy' else HealthStatus.DEGRADED,
+                        metadata=pool_stats
                     )
                 ]
             )
-            
+
             await redis_client.close()
-            
+
         except Exception as e:
             self.logger.error(f"Redis health check failed: {str(e)}", exc_info=True)
             self.components['redis'] = ComponentHealth(
@@ -344,8 +414,8 @@ class HealthMonitor:
         services = [
             {
                 'name': 'evolution_api',
-                'url': f"{settings.EVOLUTION_API_URL}/instance/connectionState/{settings.EVOLUTION_INSTANCE_NAME}",
-                'headers': {'apikey': settings.EVOLUTION_API_KEY}
+                'url': f"{settings.WHATSAPP_EVOLUTION_API_URL}/instance/connectionState/{settings.WHATSAPP_EVOLUTION_INSTANCE_NAME}",
+                'headers': {'apikey': settings.WHATSAPP_EVOLUTION_API_KEY}
             }
         ]
         
@@ -490,7 +560,7 @@ class HealthMonitor:
             'status': overall_status.value,
             'service': 'hormonia-backend',
             'version': '1.0.0',
-            'environment': settings.ENVIRONMENT,
+            'environment': settings.APP_ENVIRONMENT,
             'timestamp': datetime.utcnow().isoformat() + 'Z',
             'check_duration_ms': round(check_duration, 2),
             'components': {

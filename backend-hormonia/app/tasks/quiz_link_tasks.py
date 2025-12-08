@@ -17,12 +17,12 @@ from celery.exceptions import MaxRetriesExceededError
 
 from app.celery_app import celery_app
 from app.tasks.base import BaseTask, get_db_session
-from app.services.quiz_link_resilience import (
+from app.domain.quizzes.resilience import (
     QuizLinkResilienceService,
     FailureReason,
     CircuitBreakerState
 )
-from app.services.monthly_quiz_service import MonthlyQuizService
+from app.domain.quizzes import MonthlyQuizService
 from app.services.monthly_quiz_message_integration import MonthlyQuizMessageIntegration
 from app.core.monthly_quiz_config import get_monthly_quiz_config
 
@@ -389,7 +389,7 @@ def fallback_to_whatsapp(
     try:
         with get_db_session() as db:
             # Import here to avoid circular imports
-            from app.services.quiz_flow_integration_service import QuizFlowIntegrationService
+            from app.domain.quizzes.integration.flow_integration_service import QuizFlowIntegrationService
 
             flow_service = QuizFlowIntegrationService(db)
 

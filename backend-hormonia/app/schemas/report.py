@@ -5,7 +5,7 @@ from datetime import date, datetime
 from typing import List, Optional, Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class ReportSectionSchema(BaseModel):
@@ -25,10 +25,11 @@ class ReportGenerationRequest(BaseModel):
         description="Sections to include in report"
     )
     format: str = Field(default="pdf", description="Report format (pdf, json)")
-    
-    @validator('period_end')
-    def validate_period(cls, v, values):
-        if 'period_start' in values and v < values['period_start']:
+
+    @field_validator('period_end')
+    @classmethod
+    def validate_period(cls, v, info):
+        if info.data.get('period_start') and v < info.data['period_start']:
             raise ValueError('period_end must be after period_start')
         return v
 
@@ -67,9 +68,8 @@ class MedicalReportResponse(BaseModel):
     alerts: dict[str, Any] = Field(default_factory=dict, description="Alert data")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ReportListResponse(BaseModel):

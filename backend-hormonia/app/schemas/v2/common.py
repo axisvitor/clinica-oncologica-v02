@@ -4,7 +4,7 @@ Shared models for pagination, field selection, and eager loading.
 """
 
 from typing import Generic, TypeVar, Optional, List, Any, Dict, Set
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from datetime import datetime
 import base64
 import json
@@ -108,13 +108,16 @@ class PaginationParams(BaseModel):
     cursor: Optional[str] = Field(None, description="Cursor for next page")
     limit: int = Field(20, ge=1, le=100, description="Items per page")
     
-    class Config:
+    model_config = ConfigDict(
+
+    
         json_schema_extra = {
             "example": {
                 "cursor": "eyJpZCI6MTIzfQ==",
                 "limit": 20
             }
         }
+    )
 
 
 class CursorPaginatedResponse(BaseModel, Generic[T]):
@@ -125,7 +128,9 @@ class CursorPaginatedResponse(BaseModel, Generic[T]):
     has_more: bool = Field(description="Whether more items exist")
     total: Optional[int] = Field(None, description="Total count (optional)")
     
-    class Config:
+    model_config = ConfigDict(
+
+    
         json_schema_extra = {
             "example": {
                 "data": [],
@@ -134,6 +139,7 @@ class CursorPaginatedResponse(BaseModel, Generic[T]):
                 "total": 150
             }
         }
+    )
 
 
 class FieldSelection(BaseModel):
@@ -141,18 +147,22 @@ class FieldSelection(BaseModel):
     
     fields: Optional[List[str]] = Field(None, description="Fields to include")
     
-    @validator("fields")
+    @field_validator("fields")
+    @classmethod
     def validate_fields(cls, v):
         if v is not None and len(v) == 0:
             raise ValueError("fields cannot be empty list")
         return v
     
-    class Config:
+    model_config = ConfigDict(
+
+    
         json_schema_extra = {
             "example": {
                 "fields": ["id", "name", "email"]
             }
         }
+    )
 
 
 class EagerLoadParams(BaseModel):
@@ -160,7 +170,8 @@ class EagerLoadParams(BaseModel):
     
     include: Optional[List[str]] = Field(None, description="Relations to include")
     
-    @validator("include")
+    @field_validator("include")
+    @classmethod
     def validate_include(cls, v):
         allowed = {"doctor", "quizzes", "templates", "analytics"}
         if v is not None:
@@ -169,12 +180,15 @@ class EagerLoadParams(BaseModel):
                 raise ValueError(f"Invalid relations: {invalid}")
         return v
     
-    class Config:
+    model_config = ConfigDict(
+
+    
         json_schema_extra = {
             "example": {
                 "include": ["doctor", "quizzes"]
             }
         }
+    )
 
 
 class ErrorResponse(BaseModel):
@@ -185,7 +199,9 @@ class ErrorResponse(BaseModel):
     details: Optional[Any] = Field(None, description="Additional details")
     request_id: Optional[str] = Field(None, description="Request ID for tracking")
     
-    class Config:
+    model_config = ConfigDict(
+
+    
         json_schema_extra = {
             "example": {
                 "error": "ValidationError",
@@ -194,6 +210,7 @@ class ErrorResponse(BaseModel):
                 "request_id": "req_123abc"
             }
         }
+    )
 
 
 class HealthResponse(BaseModel):
@@ -203,7 +220,9 @@ class HealthResponse(BaseModel):
     version: str = Field(description="API version")
     timestamp: str = Field(description="Current timestamp")
     
-    class Config:
+    model_config = ConfigDict(
+
+    
         json_schema_extra = {
             "example": {
                 "status": "healthy",
@@ -211,3 +230,4 @@ class HealthResponse(BaseModel):
                 "timestamp": "2025-01-17T15:00:00Z"
             }
         }
+    )

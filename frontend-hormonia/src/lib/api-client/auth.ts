@@ -10,6 +10,8 @@
  */
 
 import type { ApiClientCore } from './core'
+import { normalizeUser } from './normalizers'
+import type { BackendUser, FrontendUser } from './normalizers'
 
 export interface LoginCredentials {
   email: string
@@ -23,21 +25,11 @@ export interface RegisterData {
   role?: string
 }
 
-export interface User {
-  id: string
-  email: string
-  full_name: string
-  role: string
-  is_active: boolean
-  permissions: string[]
-  created_at: string
-  name?: string
-  updated_at?: string
-  firebase_uid?: string
-  session_id?: string
-  token?: string
-  avatar_url?: string
-}
+/**
+ * User type - uses FrontendUser from normalizers
+ * This ensures consistent typing across the application
+ */
+export type User = FrontendUser
 
 export interface SessionValidationResponse {
   valid: boolean
@@ -52,7 +44,7 @@ export interface SessionValidationResponse {
     created_at?: string
     updated_at?: string
   }
-  session_data?: Record<string, any>
+  session_data?: Record<string, unknown>
 }
 
 interface LogoutResponse {
@@ -86,29 +78,33 @@ export interface PasswordChange {
  * Authentication API methods
  */
 export function createAuthApi(client: ApiClientCore) {
+  /**
+   * Maps session user data to normalized User object
+   * Uses normalizeUser from normalizers module for consistent field mapping
+   */
   const mapSessionUser = (sessionUser?: SessionValidationResponse['user']): User => {
     if (!sessionUser || !sessionUser.id || !sessionUser.email) {
       throw new Error('Invalid session user payload')
     }
 
-    const displayName = sessionUser.full_name ?? sessionUser.name ?? sessionUser.email
-
-    const user: User = {
+    // Convert to BackendUser shape then normalize
+    const backendUser: BackendUser = {
       id: sessionUser.id,
       email: sessionUser.email,
-      name: displayName,
-      full_name: sessionUser.full_name ?? sessionUser.name ?? displayName,
+      full_name: sessionUser.full_name ?? sessionUser.name,
+      name: sessionUser.name,
       role: sessionUser.role ?? 'doctor',
       permissions: sessionUser.permissions ?? [],
       is_active: sessionUser.is_active ?? true,
       created_at: sessionUser.created_at ?? new Date().toISOString(),
+      updated_at: sessionUser.updated_at,
     }
-    if (sessionUser.updated_at) user.updated_at = sessionUser.updated_at
-    return user
+
+    return normalizeUser(backendUser)
   }
 
   const fetchSession = async (): Promise<SessionValidationResponse> => {
-    return client.get<SessionValidationResponse>('/session/validate')
+    return client.get<SessionValidationResponse>('/api/v2/auth/verify-session')
   }
 
   const unsupported = (method: string): never => {
@@ -134,7 +130,7 @@ export function createAuthApi(client: ApiClientCore) {
       unsupported('resendVerificationEmail'),
 
     logout: async (): Promise<LogoutResponse> => {
-      const response = await client.delete<LogoutResponse>('/session/logout')
+      const response = await client.delete<LogoutResponse>('/api/v2/auth/logout')
       client.setAuthToken(null)
       return response
     },
@@ -163,7 +159,7 @@ export function createAuthApi(client: ApiClientCore) {
     },
 
     invalidateAllSessions: async (): Promise<LogoutResponse> => {
-      const response = await client.delete<LogoutResponse>('/session/logout-all')
+      const response = await client.delete<LogoutResponse>('/api/v2/auth/logout-all')
       client.setAuthToken(null)
       return response
     },
@@ -182,13 +178,13 @@ export function createAuthApi(client: ApiClientCore) {
         is_active: boolean
       }
     }> => {
-      return client.post('/session', {
-        firebase_token: firebaseToken,
-        device_info: deviceInfo
+      // Map to backend expected payload
+      return client.post('/api/v2/auth/firebase/verify', {
+        id_token: firebaseToken
       })
     },
 
-    me: async (): Promise<{ data: User | null; session?: Record<string, any> | undefined }> => {
+    me: async (): Promise<{ data: User | null; session?: Record<string, unknown> | undefined }> => {
       const session = await fetchSession()
       if (!session.valid || !session.user) {
         return { data: null, session: session.session_data }

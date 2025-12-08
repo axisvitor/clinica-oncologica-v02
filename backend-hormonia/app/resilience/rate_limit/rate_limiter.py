@@ -401,8 +401,8 @@ class RateLimiter:
             if url:
                 try:
                     return self._hash_path(str(url.path))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to hash URL path: {e}", exc_info=True)
 
         return 'unknown'
 

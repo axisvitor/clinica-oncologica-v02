@@ -31,7 +31,7 @@ def test_backward_compatibility():
         assert hasattr(settings, "DATABASE_URL"), "Missing DATABASE_URL"
         assert hasattr(settings, "SECRET_KEY"), "Missing SECRET_KEY"
         assert hasattr(settings, "REDIS_URL"), "Missing REDIS_URL"
-        assert hasattr(settings, "GEMINI_API_KEY"), "Missing GEMINI_API_KEY"
+        assert hasattr(settings, "AI_GEMINI_API_KEY"), "Missing AI_GEMINI_API_KEY"
         print("  ✅ All settings attributes accessible")
 
         # Test helper functions
@@ -114,12 +114,12 @@ def test_settings_inheritance():
             ("CSRF_SECRET_KEY", "security"),
             ("FRONTEND_URL", "security"),
             # From integrations.py
-            ("GEMINI_API_KEY", "integrations"),
-            ("EVOLUTION_API_URL", "integrations"),
+            ("AI_GEMINI_API_KEY", "integrations"),
+            ("WHATSAPP_EVOLUTION_API_URL", "integrations"),
             ("CELERY_BROKER_URL", "integrations"),
             ("AI_HUMANIZATION_ENABLED", "integrations"),
             # From features.py
-            ("MONTHLY_QUIZ_VIA_LINK", "features"),
+            ("QUIZ_ENABLE_VIA_LINK", "features"),
             ("UPLOAD_DIR", "features"),
             ("DEFAULT_LOCALE", "features"),
             # From monitoring.py

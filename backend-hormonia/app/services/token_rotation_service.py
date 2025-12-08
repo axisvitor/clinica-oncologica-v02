@@ -28,16 +28,16 @@ class TokenRotationService:
     def __init__(self):
         self.settings = get_settings()
         self.redis_manager = get_redis_manager()
-        self.algorithm = self.settings.ALGORITHM
-        self.secret_key = self.settings.SECRET_KEY
+        self.algorithm = self.settings.SECURITY_ALGORITHM
+        self.secret_key = self.settings.SECURITY_SECRET_KEY
 
         # Token expiration settings
-        self.access_token_expire = timedelta(minutes=self.settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        self.refresh_token_expire = timedelta(days=self.settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        self.access_token_expire = timedelta(minutes=self.settings.AUTH_ACCESS_TOKEN_EXPIRE_MINUTES)
+        self.refresh_token_expire = timedelta(days=self.settings.AUTH_REFRESH_TOKEN_EXPIRE_DAYS)
 
         # Rotation settings
-        self.rotation_enabled = self.settings.TOKEN_ROTATION_ENABLED
-        self.blacklist_enabled = self.settings.TOKEN_BLACKLIST_ENABLED
+        self.rotation_enabled = self.settings.AUTH_ENABLE_TOKEN_ROTATION
+        self.blacklist_enabled = self.settings.AUTH_ENABLE_TOKEN_BLACKLIST
         self.max_concurrent_sessions = getattr(self.settings, 'MAX_CONCURRENT_SESSIONS', 3)
 
     def create_access_token(self, data: dict, user_id: str) -> str:

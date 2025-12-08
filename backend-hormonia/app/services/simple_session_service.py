@@ -60,7 +60,7 @@ class SimpleSessionService:
         Args:
             user_id: User ID to associate with session
             metadata: Optional metadata to store with session
-            ttl: Session TTL in seconds (default: 24 hours)
+            ttl: Any TTL in seconds (default: 24 hours)
         
         Returns:
             session_id: Unique session identifier
@@ -100,7 +100,7 @@ class SimpleSessionService:
         Get user_id from session.
         
         Args:
-            session_id: Session identifier
+            session_id: Any identifier
         
         Returns:
             user_id if session exists and is valid, None otherwise
@@ -130,7 +130,7 @@ class SimpleSessionService:
         Get full session data.
         
         Args:
-            session_id: Session identifier
+            session_id: Any identifier
         
         Returns:
             Session data dict or None if not found
@@ -161,7 +161,7 @@ class SimpleSessionService:
         Delete session from Redis.
         
         Args:
-            session_id: Session identifier
+            session_id: Any identifier
         
         Returns:
             True if deleted, False otherwise
@@ -188,7 +188,7 @@ class SimpleSessionService:
         Refresh session TTL.
         
         Args:
-            session_id: Session identifier
+            session_id: Any identifier
             ttl: New TTL in seconds (default: 24 hours)
         
         Returns:
@@ -223,7 +223,7 @@ class SimpleSessionService:
         Check if session exists and is valid.
         
         Args:
-            session_id: Session identifier
+            session_id: Any identifier
         
         Returns:
             True if valid, False otherwise

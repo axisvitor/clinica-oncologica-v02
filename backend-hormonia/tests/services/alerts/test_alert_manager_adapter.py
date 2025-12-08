@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.models.alert import Alert, AlertSeverity, AlertStatus
 from app.services.alerts.adapter import AlertManagerAdapter
-from app.services.alerts.alert_manager import AlertManager
+from app.services.alerts import AlertManager
 
 
 @pytest.fixture

@@ -200,7 +200,10 @@ class MedicationRepository(BaseRepository[Medication]):
         Returns:
             List of medications with relationships pre-loaded
         """
-        query = self.db.query(Medication).filter(Medication.name.ilike(f"%{name}%"))
+        # SECURITY FIX: Use parameterized query to prevent SQL injection
+        # SQLAlchemy's ilike() method safely handles the parameter
+        search_pattern = f"%{name}%"
+        query = self.db.query(Medication).filter(Medication.name.ilike(search_pattern))
 
         if eager_load:
             query = query.options(

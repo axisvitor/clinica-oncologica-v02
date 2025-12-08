@@ -4,7 +4,7 @@ Appointment repository with eager loading optimizations.
 PERFORMANCE OPTIMIZATION: All methods support eager loading by default to eliminate N+1 queries.
 Achieves 60-80% query reduction for read operations.
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 from uuid import UUID
 
@@ -273,3 +273,58 @@ class AppointmentRepository(BaseRepository[Appointment]):
             )
 
         return query.all()
+
+    def find_conflicts(
+        self,
+        practitioner_id: UUID,
+        start_time: datetime,
+        end_time: datetime,
+        exclude_appointment_id: Optional[UUID] = None
+    ) -> List[Appointment]:
+        """
+        Find conflicting appointments for a practitioner in a time range.
+        
+        Criteria:
+        - Same practitioner
+        - Status is SCHEDULED, CONFIRMED, or IN_PROGRESS
+        - Time overlaps
+        """
+        query = self.db.query(Appointment).filter(
+            Appointment.practitioner_id == practitioner_id,
+            Appointment.status.in_([
+                AppointmentStatus.SCHEDULED,
+                AppointmentStatus.CONFIRMED,
+                AppointmentStatus.IN_PROGRESS
+            ]),
+            Appointment.scheduled_start.isnot(None)
+        )
+
+        if exclude_appointment_id:
+            query = query.filter(Appointment.id != exclude_appointment_id)
+
+        # Overlap logic: (StartA < EndB) and (EndA > StartB)
+        # StartA = start_time, EndA = end_time
+        # StartB = scheduled_start, EndB = scheduled_start + duration
+        
+        # Since duration calculation is dynamic in SQL, we might fetch candidates and filter in python
+        # OR use SQL expression if duration is a column.
+        # Appointment model has duration_minutes (int).
+        
+        # Simple approach: Fetch candidates for the day/window and filter in Python to avoid complex SQL arithmetic compatibility issues
+        # Or use simple overlaps if we trust standard SQL.
+        
+        # Optimization: Filter by start date range loosely
+        candidates = query.filter(
+            # Overlap check approximation
+            # appt.start < end_time
+            Appointment.scheduled_start < end_time
+        ).all()
+        
+        conflicts = []
+        for appt in candidates:
+            if not appt.duration_minutes: continue
+            appt_end = appt.scheduled_start + timedelta(minutes=appt.duration_minutes)
+            if start_time < appt_end and end_time > appt.scheduled_start:
+                conflicts.append(appt)
+                
+        return conflicts
