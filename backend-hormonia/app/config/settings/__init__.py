@@ -163,18 +163,24 @@ class Settings(
                         item.strip() for item in s.split(",") if item.strip()
                     ]
 
-        # Validate security keys are not placeholders
-        security_fields = [
-            "SECURITY_SECRET_KEY", "AUTH_JWT_SECRET_KEY", "SECURITY_ENCRYPTION_KEY"
-        ]
-        for field in security_fields:
-            if field in data:
-                v = data[field]
-                if v and ("CHANGE_THIS" in v.upper() or "YOUR_" in v.upper()):
-                    raise ValueError(
-                        f"{field} must be changed from placeholder value. "
-                        f"Never use default/example values in production."
-                    )
+        # Validate security keys are not placeholders (only in production)
+        # In development, default insecure keys are allowed for local testing
+        import os
+        is_production = os.environ.get("APP_ENVIRONMENT", "development").lower() == "production"
+
+        if is_production:
+            security_fields = [
+                "SECURITY_SECRET_KEY", "AUTH_JWT_SECRET_KEY", "SECURITY_ENCRYPTION_KEY"
+            ]
+            placeholder_patterns = ["CHANGE_THIS", "YOUR_", "INSECURE", "DEV-", "MUST-BE-CHANGED"]
+            for field in security_fields:
+                if field in data:
+                    v = data[field]
+                    if v and any(pattern in v.upper() for pattern in placeholder_patterns):
+                        raise ValueError(
+                            f"{field} must be changed from placeholder/default value in production. "
+                            f"Generate a secure key with: python -c 'import secrets; print(secrets.token_urlsafe(64))'"
+                        )
 
         return data
 

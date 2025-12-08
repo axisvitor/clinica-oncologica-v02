@@ -16,8 +16,8 @@ class SecuritySettings(BaseAppSettings):
     # Security Keys - Direct ENV names
     # ============================================================================
     SECURITY_SECRET_KEY: str = Field(
-        ...,
-        description="Secret key for JWT signing"
+        default="dev-insecure-secret-key-must-be-changed-in-production-railway",
+        description="Secret key for JWT signing. MUST be set via environment variable in production."
     )
     AUTH_JWT_SECRET_KEY: Optional[str] = Field(
         default=None,
@@ -262,15 +262,21 @@ class SecuritySettings(BaseAppSettings):
             else:
                 data["CORS_ALLOWED_ORIGINS"] = []
 
-        # Validate security keys are not placeholders
-        for field in ["SECURITY_SECRET_KEY", "AUTH_JWT_SECRET_KEY", "SECURITY_ENCRYPTION_KEY"]:
-            if field in data:
-                v = data[field]
-                if v and ("CHANGE_THIS" in v.upper() or "YOUR_" in v.upper()):
-                    raise ValueError(
-                        f"{field} must be changed from placeholder value. "
-                        f"Never use default/example values in production."
-                    )
+        # Validate security keys are not placeholders (only in production)
+        # In development, default insecure keys are allowed for local testing
+        import os
+        is_production = os.environ.get("APP_ENVIRONMENT", "development").lower() == "production"
+
+        if is_production:
+            placeholder_patterns = ["CHANGE_THIS", "YOUR_", "INSECURE", "DEV-", "MUST-BE-CHANGED"]
+            for field in ["SECURITY_SECRET_KEY", "AUTH_JWT_SECRET_KEY", "SECURITY_ENCRYPTION_KEY"]:
+                if field in data:
+                    v = data[field]
+                    if v and any(pattern in v.upper() for pattern in placeholder_patterns):
+                        raise ValueError(
+                            f"{field} must be changed from placeholder/default value in production. "
+                            f"Generate a secure key with: python -c 'import secrets; print(secrets.token_urlsafe(64))'"
+                        )
 
         return data
 
