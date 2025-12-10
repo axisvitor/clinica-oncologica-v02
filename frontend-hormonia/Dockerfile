@@ -15,6 +15,10 @@ COPY frontend-hormonia/index.html ./frontend-hormonia/
 COPY frontend-hormonia/public ./frontend-hormonia/public
 COPY frontend-hormonia/src ./frontend-hormonia/src
 
+# Copy nginx config and entrypoint early (before WORKDIR change)
+COPY frontend-hormonia/nginx.conf /app/nginx.conf
+COPY frontend-hormonia/docker-entrypoint.sh /app/docker-entrypoint.sh
+
 # Install dependencies and build
 WORKDIR /app/frontend-hormonia
 RUN npm install
@@ -75,13 +79,9 @@ RUN apk add --no-cache python3
 # Copiar build do stage anterior
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copiar configuração do Nginx com proxy para backend
-# Use path relative to build context (project root when building via Railway)
-COPY frontend-hormonia/nginx.conf /etc/nginx/nginx.conf.template
-
-# Copiar entrypoint para processar variáveis de ambiente
-# Use path relative to build context (project root when building via Railway)
-COPY frontend-hormonia/docker-entrypoint.sh /docker-entrypoint.sh
+# Copiar configuração do Nginx e entrypoint do stage builder
+COPY --from=builder /app/nginx.conf /etc/nginx/nginx.conf.template
+COPY --from=builder /app/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 # Definir porta padrão
