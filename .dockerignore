@@ -48,3 +48,8 @@ docs
 quiz-mensal-interface
 scripts
 tests
+
+# Explicitly include frontend essential files
+!frontend-hormonia/docker-entrypoint.sh
+!frontend-hormonia/nginx.conf
+!frontend-hormonia/Dockerfile
