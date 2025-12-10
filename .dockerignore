@@ -17,23 +17,23 @@ Thumbs.db
 # Logs
 *.log
 
-# Environment (secrets)
+# Environment (secrets - root level only)
 .env
 .env.local
 .env.development
 .env.test
 .env.production
 
-# Dependencies
-node_modules
-__pycache__
-*.pyc
+# Dependencies (will be installed in container)
+**/node_modules
+**/__pycache__
+**/*.pyc
 
 # Test artifacts
 .pytest_cache
-coverage
-test-results
-playwright-report
+**/coverage
+**/test-results
+**/playwright-report
 
 # Temporary
 tmp
@@ -44,12 +44,10 @@ docs
 .claude
 .windsurf
 
-# Other projects
+# Backend (not needed for frontend build)
+backend-hormonia
+
+# Other unrelated projects
 quiz-mensal-interface
 scripts
 tests
-
-# Explicitly include frontend essential files
-!frontend-hormonia/docker-entrypoint.sh
-!frontend-hormonia/nginx.conf
-!frontend-hormonia/Dockerfile
