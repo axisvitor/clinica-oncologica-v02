@@ -1,40 +1,27 @@
 # Dependencies
 node_modules
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-bun.lock
 
-# Build output
+# Build output (rebuilt in container)
 dist
-.next
-out
-build
 
 # Testing
 coverage
 test-results
 playwright-report
-.nyc_output
 
 # IDE
 .vscode
 .idea
-*.swp
-*.swo
 
-# Environment
+# Environment (secrets)
 .env
 .env.local
 .env.development
 .env.test
 .env.production
-!.env.example
 
 # Logs
 *.log
-logs
 
 # OS
 .DS_Store
@@ -42,38 +29,7 @@ Thumbs.db
 
 # Git
 .git
-.gitignore
 
-# Docker
-Dockerfile*
-docker-compose*.yml
-.dockerignore
-# docker-entrypoint.sh - MUST BE INCLUDED for container startup
-
-# Documentation
-*.md
-!README.md
-
-# Misc
+# Temporary
 .cache
-.temp
 tmp
-
-# TypeScript
-*.tsbuildinfo
-
-# ESLint
-.eslintcache
-
-# Prettier
-.prettierignore
-
-# Husky
-.husky
-
-# Railway
-.railwayignore
-
-# Backup
-*.bak
-*.backup

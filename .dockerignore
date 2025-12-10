@@ -3,23 +3,12 @@
 .gitignore
 .gitattributes
 
-# Documentation
-*.md
-LICENSE
-CHANGELOG
-
 # CI/CD
 .github
-.gitlab-ci.yml
-.travis.yml
-azure-pipelines.yml
 
 # IDE
 .vscode
 .idea
-*.swp
-*.swo
-*~
 
 # OS
 .DS_Store
@@ -27,52 +16,35 @@ Thumbs.db
 
 # Logs
 *.log
-logs
 
-# Environment
+# Environment (secrets)
 .env
-.env.*
-!.env.example
+.env.local
+.env.development
+.env.test
+.env.production
 
-# Dependencies (will be installed in container)
+# Dependencies
 node_modules
 __pycache__
 *.pyc
-*.pyo
-*.pyd
-.Python
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Build artifacts
-dist
-build
-*.egg-info
-.eggs
 
 # Test artifacts
 .pytest_cache
-.coverage
-htmlcov
 coverage
 test-results
 playwright-report
 
-# Temporary files
+# Temporary
 tmp
 temp
-*.tmp
 
-# Docker
-docker-compose*.yml
-Dockerfile*
-.dockerignore
+# Documentation
+docs
+.claude
+.windsurf
 
-# Backup files
-*.bak
-*.backup
-
-# Keep essential files for Docker build
-!frontend-hormonia/docker-entrypoint.sh
-!frontend-hormonia/nginx.conf
-!backend-hormonia/*.sh
+# Other projects
+quiz-mensal-interface
+scripts
+tests
