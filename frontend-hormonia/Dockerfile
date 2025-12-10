@@ -1,4 +1,5 @@
 # Frontend Dockerfile - React/Vite
+# Cache bust: 2024-12-10-v1
 FROM node:18-alpine AS builder
 WORKDIR /app
 
