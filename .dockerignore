@@ -71,3 +71,8 @@ Dockerfile*
 # Backup files
 *.bak
 *.backup
+
+# Keep essential files for Docker build
+!frontend-hormonia/docker-entrypoint.sh
+!frontend-hormonia/nginx.conf
+!backend-hormonia/*.sh
