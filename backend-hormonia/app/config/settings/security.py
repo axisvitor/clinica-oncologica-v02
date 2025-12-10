@@ -205,6 +205,104 @@ class SecuritySettings(BaseAppSettings):
     # Validators
     # ============================================================================
 
+    @model_validator(mode="after")
+    def validate_required_environment_variables(self) -> "SecuritySettings":
+        """
+        Validate that all required environment variables are set at startup.
+
+        This validator runs AFTER model initialization to ensure the app fails fast
+        with clear error messages if critical environment variables are missing.
+
+        In production, all security-critical variables must be set.
+        In development, only Firebase variables are validated (if Firebase is in use).
+        """
+        import os
+
+        is_production = self.APP_ENVIRONMENT.lower() == "production"
+        missing_vars = []
+
+        # ============================================================================
+        # Production-Only Required Variables
+        # ============================================================================
+        if is_production:
+            # CSRF Protection
+            if not self.SECURITY_CSRF_SECRET_KEY:
+                missing_vars.append(
+                    "SECURITY_CSRF_SECRET_KEY - Required for CSRF token generation\n"
+                    "  Generate with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+                )
+
+            # Encryption Keys (check environment directly as they're not in settings)
+            encryption_key = os.getenv("ENCRYPTION_KEY_CURRENT")
+            if not encryption_key:
+                missing_vars.append(
+                    "ENCRYPTION_KEY_CURRENT - Required for field-level encryption (PHI/PII)\n"
+                    "  Generate with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
+                )
+
+            # Hash Salt for searchable encryption
+            hash_salt = os.getenv("HASH_SALT")
+            if not hash_salt:
+                missing_vars.append(
+                    "HASH_SALT - Required for searchable hash generation\n"
+                    "  Generate with: python -c 'import secrets; print(secrets.token_hex(32))'"
+                )
+
+        # ============================================================================
+        # Firebase Validation (All Environments if Firebase is in use)
+        # ============================================================================
+        # Check if Firebase is being used (any Firebase field is set)
+        firebase_in_use = any([
+            self.FIREBASE_ADMIN_PROJECT_ID,
+            self.FIREBASE_ADMIN_PRIVATE_KEY,
+            self.FIREBASE_ADMIN_CLIENT_EMAIL,
+        ])
+
+        if firebase_in_use:
+            # If any Firebase field is set, all must be set
+            if not self.FIREBASE_ADMIN_PROJECT_ID:
+                missing_vars.append(
+                    "FIREBASE_ADMIN_PROJECT_ID - Required when using Firebase Admin SDK\n"
+                    "  Get from Firebase Console > Project Settings > Service Accounts"
+                )
+
+            if not self.FIREBASE_ADMIN_PRIVATE_KEY:
+                missing_vars.append(
+                    "FIREBASE_ADMIN_PRIVATE_KEY - Required when using Firebase Admin SDK\n"
+                    "  Get from Firebase Console > Project Settings > Service Accounts > Generate New Private Key"
+                )
+
+            if not self.FIREBASE_ADMIN_CLIENT_EMAIL:
+                missing_vars.append(
+                    "FIREBASE_ADMIN_CLIENT_EMAIL - Required when using Firebase Admin SDK\n"
+                    "  Get from Firebase Console > Project Settings > Service Accounts"
+                )
+
+        # ============================================================================
+        # Fail Fast with Clear Error Message
+        # ============================================================================
+        if missing_vars:
+            error_header = (
+                "\n" + "=" * 80 + "\n"
+                "❌ STARTUP VALIDATION FAILED: Missing Required Environment Variables\n"
+                "=" * 80 + "\n"
+            )
+
+            error_body = "\nThe following environment variables are missing:\n\n"
+            for i, var_msg in enumerate(missing_vars, 1):
+                error_body += f"{i}. {var_msg}\n\n"
+
+            error_footer = (
+                "=" * 80 + "\n"
+                f"Environment: {self.APP_ENVIRONMENT}\n"
+                "Please set these variables in your .env file or environment configuration.\n"
+                "=" * 80 + "\n"
+            )
+
+            raise ValueError(error_header + error_body + error_footer)
+
+        return self
+
     @model_validator(mode="before")
     @classmethod
     def parse_security_values(cls, data: Any) -> Any:
@@ -281,30 +379,17 @@ class SecuritySettings(BaseAppSettings):
         return data
 
     def validate_firebase_config(self):
-        """Validate Firebase configuration at runtime."""
-        # Check if Firebase is being used (any Firebase field is set)
-        firebase_in_use = any(
-            [
-                self.FIREBASE_ADMIN_PROJECT_ID,
-                self.FIREBASE_ADMIN_PRIVATE_KEY,
-                self.FIREBASE_ADMIN_CLIENT_EMAIL,
-            ]
-        )
+        """
+        Validate Firebase configuration at runtime.
 
-        if firebase_in_use:
-            # If any Firebase field is set, all must be set
-            missing_fields = []
-            if not self.FIREBASE_ADMIN_PROJECT_ID:
-                missing_fields.append("FIREBASE_ADMIN_PROJECT_ID")
-            if not self.FIREBASE_ADMIN_PRIVATE_KEY:
-                missing_fields.append("FIREBASE_ADMIN_PRIVATE_KEY")
-            if not self.FIREBASE_ADMIN_CLIENT_EMAIL:
-                missing_fields.append("FIREBASE_ADMIN_CLIENT_EMAIL")
-
-            if missing_fields:
-                raise ValueError(
-                    f"Firebase Admin SDK requires all credentials. Missing: {', '.join(missing_fields)}"
-                )
+        Note: Basic Firebase credential validation is now handled by
+        validate_required_environment_variables() during startup.
+        This method is kept for backward compatibility and additional
+        runtime checks if needed.
+        """
+        # Firebase validation is now handled in validate_required_environment_variables
+        # This method is kept for backward compatibility
+        pass
 
     def validate_cors_config(self):
         """Validate CORS configuration to ensure frontend URL is included."""

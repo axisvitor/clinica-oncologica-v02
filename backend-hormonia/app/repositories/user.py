@@ -31,6 +31,18 @@ class UserRepository(BaseRepository[User]):
 
         return query.first()
 
+    def get_by_firebase_uid(self, firebase_uid: str) -> Optional[User]:
+        """
+        Get user by Firebase UID.
+
+        Args:
+            firebase_uid: Firebase user ID
+
+        Returns:
+            User or None if not found
+        """
+        return self.db.query(User).filter(User.firebase_uid == firebase_uid).first()
+
     def get_active_users(self, skip: int = 0, limit: int = 100, eager_load: bool = True) -> List[User]:
         """
         Get all active users with eager loading enabled by default.

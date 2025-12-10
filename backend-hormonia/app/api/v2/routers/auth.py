@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Any
 from uuid import UUID
 import logging
@@ -16,14 +16,55 @@ from app.schemas.v2.auth import (
     FirebaseTokenVerifyRequest,
     FirebaseTokenVerifyResponse,
     SessionV2Response,
+    UserV2Response,
 )
 from app.config import settings
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-def _serialize_session(session, current_session_id: Optional[str] = None) -> dict:
-    """Serialize Session model to API-friendly dict."""
+def _serialize_session(session, current_user=None, current_session_id: Optional[str] = None) -> dict:
+    """
+    Serialize Session model to API-friendly dict matching SessionV2Response schema.
+
+    Args:
+        session: Session database model
+        current_user: User data dict from auth (with id, email, role, etc.)
+        current_session_id: Optional session ID to mark as current
+
+    Returns:
+        Dict matching SessionV2Response schema
+    """
+    from datetime import datetime as dt
+
+    # Helper to parse ISO string or pass through datetime objects
+    def _parse_datetime(value):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            # Parse ISO format string from cache
+            try:
+                return dt.fromisoformat(value.replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                return None
+        return value  # Already a datetime object
+
+    # Format user data to match UserV2Response schema if provided
+    user_data = None
+    if current_user:
+        # Extract user fields - current_user is a dict from get_current_user_from_session
+        user_data = {
+            "id": current_user.get("id"),
+            "email": current_user.get("email"),
+            "full_name": current_user.get("full_name"),
+            "role": current_user.get("role", "doctor"),
+            "is_active": current_user.get("is_active", True),
+            # Parse timestamps (may be ISO strings from cache or datetime objects from DB)
+            "created_at": _parse_datetime(current_user.get("created_at")) or session.created_at,
+            "updated_at": _parse_datetime(current_user.get("updated_at")) or session.last_activity,
+            "last_login": _parse_datetime(current_user.get("last_login"))
+        }
+
     return {
         "session_id": str(session.id),
         "user_id": str(session.user_id),
@@ -32,6 +73,8 @@ def _serialize_session(session, current_session_id: Optional[str] = None) -> dic
         "ip_address": session.ip_address,
         "user_agent": session.user_agent,
         "is_current": str(session.id) == current_session_id if current_session_id else False,
+        "valid": True,
+        "user": user_data
     }
 
 def _extract_user_id(current_user) -> str:
@@ -44,7 +87,7 @@ def _extract_user_id(current_user) -> str:
     response_model=FirebaseTokenVerifyResponse,
     summary="Verify Firebase token"
 )
-@limiter.limit("60/minute")
+@limiter.limit("10/minute")
 async def verify_firebase_token(
     request: Request,
     response: Response,
@@ -53,8 +96,14 @@ async def verify_firebase_token(
     redis_cache = Depends(get_redis_cache)
 ):
     """Verify Firebase ID token and create/update user session."""
+    logger.info("🔥 Firebase login request received: Starting processing")
+    
     try:
+        # Standard Firebase Verification
+        # Use dependency helper which handles service initialization and validation
         user_data = await verify_token(payload.id_token)
+        logger.info(f"✅ Token verified for user: {user_data.get('email')}")
+        
         if not user_data:
             raise HTTPException(status_code=401, detail="Invalid Firebase token")
 
@@ -114,20 +163,24 @@ async def verify_firebase_token(
 
         # Create Session
         from app.models.session import Session as SessionModel
+
+        session_id_hex = uuid.uuid4().hex
         session = SessionModel(
             user_id=user.id,
-            firebase_session_id=uuid.uuid4().hex, # Mock or real logic needed? Old code was unclear, assuming standard
+            session_token=session_id_hex,
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent"),
+            last_activity=datetime.utcnow(),
             expires_at=datetime.utcnow() + timedelta(days=5), # 5 days default
             is_active=True
         )
         db.add(session)
         db.commit()
         db.refresh(session)
+        logger.info(f"✅ DB Session created: session_id={session.id}")
 
         # Create Redis Session (Critical Fix)
-        await redis_cache.create_session(
+        redis_result = await redis_cache.create_session(
             session_id=str(session.id),
             user_id=str(user.id),
             firebase_uid=user.firebase_uid,
@@ -137,6 +190,11 @@ async def verify_firebase_token(
             },
             ttl_seconds=432000 # 5 days
         )
+        if not redis_result:
+             logger.error("Redis create_session FAILED (returned False)")
+             raise HTTPException(status_code=500, detail="Failed to create Redis session")
+
+        logger.info(f"✅ Redis Session created: session_id={session.id}, result={redis_result}")
         
         # Set HttpOnly Cookie
         response.set_cookie(
@@ -144,9 +202,11 @@ async def verify_firebase_token(
             value=str(session.id),
             httponly=True,
             secure=settings.SESSION_ENABLE_COOKIE_SECURE,
-            samesite="lax",
+            samesite="strict",
+            path="/",  # Important: ensure cookie is sent on all routes
             max_age=432000 # 5 days
         )
+        logger.info(f"✅ Cookie set: session_id={session.id}, path=/")
         
         # Set X-Session-ID header for compatibility
         response.headers["X-Session-ID"] = str(session.id)
@@ -158,21 +218,37 @@ async def verify_firebase_token(
             "message": "Login successful"
         }
 
+    except ValueError as e:
+        logger.warning(f"Invalid Firebase token: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid Firebase token: {str(e)}"
+        )
     except Exception as e:
         if isinstance(e, HTTPException): raise e
-        logger.error(f"Auth error: {e}")
-        raise HTTPException(status_code=500, detail="Authentication failed")
+        import traceback
+        logger.error(f"Auth error: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Authentication failed: {str(e)}")
+
+
 
 import uuid
 from datetime import timedelta
 
-@router.post("/verify-session", response_model=SessionV2Response)
+@router.get("/verify-session", response_model=SessionV2Response)
 @limiter.limit("100/minute")
 async def verify_session(
     request: Request,
+    response: Response,
     current_user=Depends(get_current_user_from_session),
     db = Depends(get_db),
 ):
+    """
+    Verify current session and return session + user details.
+
+    Returns:
+        SessionV2Response with full user data including timestamps
+    """
     user_id = _extract_user_id(current_user)
     try:
         user_uuid = UUID(user_id)
@@ -180,16 +256,36 @@ async def verify_session(
         raise HTTPException(status_code=400, detail="Invalid user_id UUID")
 
     from app.models.session import Session as SessionModel
+    from app.models.user import User
+    from sqlalchemy.orm import joinedload
+
+    # Get active session with user data
     session = db.query(SessionModel).filter(
         SessionModel.user_id == user_uuid,
         SessionModel.is_active == True,
         SessionModel.revoked_at.is_(None)
     ).order_by(SessionModel.last_activity.desc()).first()
 
-    if not session or session.expires_at < datetime.utcnow():
+    if not session or session.expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=401, detail="Session expired")
 
-    return _serialize_session(session)
+    # Enrich user data with database timestamps if not in cache
+    # The current_user dict from cache might not have created_at/updated_at
+    if not current_user.get("created_at") or not current_user.get("updated_at"):
+        db_user = db.query(User).filter(User.id == user_uuid).first()
+        if db_user:
+            current_user["created_at"] = db_user.created_at
+            current_user["updated_at"] = db_user.updated_at
+            current_user["last_login"] = db_user.firebase_last_sign_in
+
+    # Get session_id from cookie or header for is_current check
+    session_id_from_request = request.cookies.get("session_id") or request.headers.get("X-Session-ID")
+
+    return _serialize_session(
+        session,
+        current_user=current_user,
+        current_session_id=session_id_from_request
+    )
 
 @router.delete("/logout", status_code=status.HTTP_200_OK)
 @limiter.limit("20/minute")
@@ -255,12 +351,19 @@ async def logout_all(
     }
 
 @router.get("/csrf-token")
-async def get_csrf_token():
+async def get_csrf_token_endpoint(request: Request, response: Response):
     """
-    Get CSRF token.
-    
-    Note: In this API-first design, we rely primarily on HTTP-only cookies 
-    and SameSite=Strict for CSRF protection, but this endpoint is provided 
+    Get signed CSRF token.
+
+    Generates a cryptographically signed CSRF token using HMAC-SHA256.
+    The token is also set as a cookie for Double Submit Cookie pattern.
+
+    Note: In this API-first design, we rely primarily on HTTP-only cookies
+    and SameSite=Strict for CSRF protection, but this endpoint is provided
     for clients that require explicit CSRF tokens.
     """
-    return {"csrf_token": uuid.uuid4().hex}
+    from app.middleware.csrf import get_csrf_token, set_csrf_cookie
+
+    token = get_csrf_token(request)
+    set_csrf_cookie(request, response, token)
+    return {"csrf_token": token}

@@ -217,6 +217,71 @@ class SessionCache:
             logger.error(f"Error getting session TTL: {str(e)}")
             return -1
 
+    async def update_session_activity(
+        self,
+        session_id: str,
+        extend_ttl: bool = True,
+        custom_ttl: Optional[int] = None
+    ) -> bool:
+        """
+        Update session activity timestamp and optionally extend TTL.
+
+        This method explicitly updates the last_activity timestamp and can
+        extend the session TTL to keep active users logged in.
+
+        Args:
+            session_id: Session identifier
+            extend_ttl: Whether to reset the TTL (default: True)
+            custom_ttl: Custom TTL in seconds (defaults to self.session_ttl)
+
+        Returns:
+            True if session was updated successfully, False otherwise
+        """
+        key = f"session:{session_id}"
+
+        try:
+            # Get current session data
+            cached = await asyncio.to_thread(self.redis.get, key)
+            if not cached:
+                logger.debug(f"❌ Cannot update activity - session not found: {session_id[:16]}...")
+                return False
+
+            # Parse and update session data
+            session_data = json.loads(cached)
+            session_data["last_activity"] = datetime.utcnow().isoformat()
+
+            # Determine TTL
+            if extend_ttl:
+                ttl_value = custom_ttl or self.session_ttl
+                # Write back with new TTL
+                await asyncio.to_thread(
+                    self.redis.setex,
+                    key,
+                    ttl_value,
+                    json.dumps(session_data)
+                )
+                logger.debug(f"♻️ Session activity updated + TTL extended ({ttl_value}s): {session_id[:16]}...")
+            else:
+                # Get remaining TTL to preserve it
+                remaining_ttl = await asyncio.to_thread(self.redis.ttl, key)
+                if remaining_ttl > 0:
+                    await asyncio.to_thread(
+                        self.redis.setex,
+                        key,
+                        remaining_ttl,
+                        json.dumps(session_data)
+                    )
+                    logger.debug(f"♻️ Session activity updated (TTL preserved): {session_id[:16]}...")
+                else:
+                    logger.warning(f"⚠️ Session TTL expired during update: {session_id[:16]}...")
+                    return False
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error updating session activity: {str(e)}")
+            return False
+
 
 # Mixin to add session management to FirebaseRedisCache
 class SessionCacheMixin:
@@ -251,3 +316,8 @@ class SessionCacheMixin:
         """Get session TTL using SessionCache."""
         session_cache = SessionCache(self.redis, self.session_ttl)
         return await session_cache.get_session_ttl(*args, **kwargs)
+
+    async def update_session_activity(self, *args, **kwargs):
+        """Update session activity using SessionCache."""
+        session_cache = SessionCache(self.redis, self.session_ttl)
+        return await session_cache.update_session_activity(*args, **kwargs)

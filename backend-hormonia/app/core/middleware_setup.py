@@ -222,7 +222,7 @@ def setup_middleware(app: FastAPI) -> None:
 
     # Configure CORS with security validation
     # Production: No regex, explicit HTTPS origins only
-    # Development: Localhost regex pattern allowed
+    # Development: Localhost regex pattern allowed + default origins from configure_cors
     #
     # SECURITY RATIONALE FOR EXPLICIT HEADERS:
     # - Using wildcard ["*"] with allow_credentials=True exposes all request headers
@@ -232,7 +232,9 @@ def setup_middleware(app: FastAPI) -> None:
     # - Prevents credential leakage attacks via malicious cross-origin requests
     configure_cors(
         app,
-        allowed_origins=cors_origins,
+        # In dev mode, pass None to use configure_cors internal defaults (includes port 5173)
+        # In production, use explicit origins from settings
+        allowed_origins=cors_origins if cors_origins else None,
         allowed_origin_regex=None
         if is_production
         else r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",

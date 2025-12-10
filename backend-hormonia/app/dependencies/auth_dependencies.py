@@ -12,6 +12,7 @@ from typing import Optional, Dict, List, Any
 from uuid import UUID
 import logging
 import asyncio
+from datetime import datetime
 
 from app.models.user import User, UserRole
 from app.services import ServiceProvider
@@ -33,6 +34,7 @@ try:
     firebase_project_id = getattr(settings, 'FIREBASE_ADMIN_PROJECT_ID', None)
     firebase_private_key = getattr(settings, 'FIREBASE_ADMIN_PRIVATE_KEY', None)
     firebase_client_email = getattr(settings, 'FIREBASE_ADMIN_CLIENT_EMAIL', None)
+
 
     if firebase_project_id and firebase_private_key and firebase_client_email:
         _firebase_service = get_firebase_auth_service(
@@ -120,10 +122,18 @@ async def get_redis_cache() -> 'FirebaseRedisCache':
     Returns:
         FirebaseRedisCache instance with initialized Redis client
     """
-    from app.core.redis_manager import get_redis_manager, FirebaseRedisCache
-    redis_manager = get_redis_manager()
-    redis_client = redis_manager.get_compatible_client('sync')
-    return FirebaseRedisCache(redis_client)
+    try:
+        from app.core.redis_manager import get_redis_manager, FirebaseRedisCache
+        redis_manager = get_redis_manager()
+        # Use sync client for FirebaseRedisCache as it mostly uses run_in_executor/to_thread
+        redis_client = redis_manager.get_compatible_client('sync')
+        return FirebaseRedisCache(redis_client)
+    except Exception as e:
+        import traceback
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"❌ Failed to initialize Redis cache dependency: {e}\n{traceback.format_exc()}")
+        raise
 
 
 async def verify_firebase_token(id_token: str) -> Optional[Dict[str, Any]]:
@@ -207,13 +217,14 @@ async def get_current_user_from_session(
     """
     try:
         final_session_id = session_cookie_id or x_session_id
+
         if not final_session_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Session ID not provided",
                 headers={"WWW-Authenticate": "Session"}
             )
-
+        
         # Layer 1: Get session from Redis (~2-5ms)
         session_data = await redis_cache.get_session(final_session_id)
 
@@ -224,6 +235,13 @@ async def get_current_user_from_session(
                 detail="Invalid or expired session. Please login again.",
                 headers={"WWW-Authenticate": "Session"}
             )
+
+        # Update session activity to prevent expiration during active use
+        # This extends the TTL and updates last_activity timestamp
+        await redis_cache.update_session_activity(
+            session_id=final_session_id,
+            extend_ttl=True  # Reset Redis TTL to keep active users logged in
+        )
 
         firebase_uid = session_data.get("firebase_uid")
         if not firebase_uid:
@@ -254,13 +272,18 @@ async def get_current_user_from_session(
                 )
 
             # Convert SQLAlchemy model to dict and cache
+            # CRITICAL FIX: Include timestamps required by UserV2Response schema
             user_data = {
                 "firebase_uid": user.firebase_uid,
                 "email": user.email,
                 "full_name": user.full_name,
                 "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
                 "is_active": user.is_active,
-                "id": user.id
+                "id": str(user.id),
+                # Add timestamps for UserV2Response schema compatibility
+                "created_at": user.created_at.isoformat() if user.created_at else None,
+                "updated_at": user.updated_at.isoformat() if user.updated_at else None,
+                "last_login": user.firebase_last_sign_in.isoformat() if user.firebase_last_sign_in else None
             }
 
             # Cache for 15 minutes
@@ -453,6 +476,7 @@ async def get_current_user(
             logger.debug(f"User found in database: {user.email}")
 
             # Cache user for 2 hours
+            # CRITICAL FIX: Include timestamps required by UserV2Response schema
             user_dict = {
                 "id": str(user.id),
                 "firebase_uid": user.firebase_uid,
@@ -460,6 +484,10 @@ async def get_current_user(
                 "full_name": user.full_name,
                 "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
                 "is_active": user.is_active,
+                # Add timestamps for UserV2Response schema compatibility
+                "created_at": user.created_at.isoformat() if user.created_at else None,
+                "updated_at": user.updated_at.isoformat() if user.updated_at else None,
+                "last_login": user.firebase_last_sign_in.isoformat() if user.firebase_last_sign_in else None
             }
             firebase_cache.cache_user(firebase_uid, user_dict)
             logger.info(f"💾 User cached for {firebase_uid}")
@@ -492,6 +520,7 @@ async def get_current_user(
         services.db.refresh(user)
 
         # Cache new user
+        # CRITICAL FIX: Include timestamps required by UserV2Response schema
         user_dict = {
             "id": str(user.id),
             "firebase_uid": user.firebase_uid,
@@ -499,6 +528,10 @@ async def get_current_user(
             "full_name": user.full_name,
             "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
             "is_active": user.is_active,
+            # Add timestamps for UserV2Response schema compatibility
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "updated_at": user.updated_at.isoformat() if user.updated_at else None,
+            "last_login": user.firebase_last_sign_in.isoformat() if user.firebase_last_sign_in else None
         }
         firebase_cache.cache_user(firebase_uid, user_dict)
 

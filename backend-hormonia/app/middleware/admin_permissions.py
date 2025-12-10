@@ -13,8 +13,20 @@ from uuid import UUID
 
 from app.database import get_db
 from app.models.user import User, UserRole
-from app.dependencies.auth_dependencies import get_current_user
-from app.services.audit import AuditService
+# LAZY IMPORTS: To avoid circular import chain:
+# admin_permissions -> services.audit -> services.__init__ -> admin_user_service -> admin_permissions
+
+
+def _get_audit_service():
+    """Lazy import of AuditService to avoid circular import."""
+    from app.services.audit import AuditService
+    return AuditService
+
+
+def _get_current_user_dependency():
+    """Lazy import of get_current_user to avoid circular import."""
+    from app.dependencies.auth_dependencies import get_current_user
+    return get_current_user
 
 logger = logging.getLogger(__name__)
 security = HTTPBearer()
@@ -42,7 +54,7 @@ class AdminPermissions:
             Dependency function that checks for admin role
         """
         async def check_admin_permission(
-            current_user: User = Depends(get_current_user),
+            current_user: User = Depends(_get_current_user_dependency()),
             db: Session = Depends(get_db),
             request: Request = None
         ) -> User:
@@ -55,6 +67,7 @@ class AdminPermissions:
 
             if current_user.role != UserRole.ADMIN:
                 # Log unauthorized access attempt
+                AuditService = _get_audit_service()
                 audit_service = AuditService(db)
                 audit_service.log_event(
                     event_type="admin_access_denied",
@@ -76,6 +89,7 @@ class AdminPermissions:
                 )
 
             # Log successful admin access
+            AuditService = _get_audit_service()
             audit_service = AuditService(db)
             audit_service.log_event(
                 event_type="admin_access_granted",
@@ -107,7 +121,7 @@ class AdminPermissions:
             Dependency function that checks permissions
         """
         async def check_admin_or_self_permission(
-            current_user: User = Depends(get_current_user),
+            current_user: User = Depends(_get_current_user_dependency()),
             db: Session = Depends(get_db),
             request: Request = None
         ) -> User:
@@ -127,6 +141,7 @@ class AdminPermissions:
                 return current_user
 
             # Otherwise, deny access
+            AuditService = _get_audit_service()
             audit_service = AuditService(db)
             audit_service.log_event(
                 event_type="unauthorized_user_access",
@@ -162,7 +177,7 @@ class AdminPermissions:
             Dependency function that checks for required roles
         """
         async def check_role_permission(
-            current_user: User = Depends(get_current_user),
+            current_user: User = Depends(_get_current_user_dependency()),
             db: Session = Depends(get_db),
             request: Request = None
         ) -> User:
@@ -175,6 +190,7 @@ class AdminPermissions:
 
             if current_user.role not in allowed_roles:
                 # Log unauthorized access attempt
+                AuditService = _get_audit_service()
                 audit_service = AuditService(db)
                 audit_service.log_event(
                     event_type="role_access_denied",
@@ -207,6 +223,7 @@ class AdminAuditMixin:
 
     def __init__(self, db: Session):
         self.db = db
+        AuditService = _get_audit_service()
         self.audit_service = AuditService(db)
 
     async def log_admin_action(
@@ -248,14 +265,44 @@ class AdminAuditMixin:
         )
 
 
-# Convenience dependencies
-require_admin = AdminPermissions.require_admin()
-require_admin_or_doctor = AdminPermissions.require_role([UserRole.ADMIN, UserRole.DOCTOR])
-require_any_role = AdminPermissions.require_role([UserRole.ADMIN, UserRole.DOCTOR])
+# Lazy convenience dependencies to avoid circular import
+# These are now functions that return the dependency on first call
+_cached_require_admin = None
+_cached_require_admin_or_doctor = None
+_cached_require_any_role = None
+
+
+def require_admin():
+    """Get admin requirement dependency (lazy initialization)."""
+    global _cached_require_admin
+    if _cached_require_admin is None:
+        _cached_require_admin = AdminPermissions.require_admin()
+    return _cached_require_admin
+
+
+def require_admin_or_doctor():
+    """Get admin or doctor requirement dependency (lazy initialization)."""
+    global _cached_require_admin_or_doctor
+    if _cached_require_admin_or_doctor is None:
+        _cached_require_admin_or_doctor = AdminPermissions.require_role([UserRole.ADMIN, UserRole.DOCTOR])
+    return _cached_require_admin_or_doctor
+
+
+def require_any_role():
+    """Get any role requirement dependency (lazy initialization)."""
+    global _cached_require_any_role
+    if _cached_require_any_role is None:
+        _cached_require_any_role = AdminPermissions.require_role([UserRole.ADMIN, UserRole.DOCTOR])
+    return _cached_require_any_role
+
+
+def _get_admin_dependency():
+    """Helper to get the admin dependency lazily."""
+    return require_admin()
 
 
 async def get_admin_user(
-    current_user: User = Depends(require_admin)
+    current_user: User = Depends(_get_admin_dependency)
 ) -> User:
     """
     Convenience function to get current admin user.

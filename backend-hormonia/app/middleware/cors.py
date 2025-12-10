@@ -112,10 +112,12 @@ def configure_cors(
         else:
             # Development: Local origins
             allowed_origins = [
-                "http://localhost:3000",  # Frontend Hormonia
+                "http://localhost:3000",  # Frontend Hormonia (old)
                 "http://localhost:3001",  # Quiz Interface
+                "http://localhost:5173",  # Frontend Hormonia Vite (current)
                 "http://127.0.0.1:3000",
                 "http://127.0.0.1:3001",
+                "http://127.0.0.1:5173",
             ]
 
     # Validate configuration for production

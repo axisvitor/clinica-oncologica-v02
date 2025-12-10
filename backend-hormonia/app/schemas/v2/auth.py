@@ -379,6 +379,8 @@ class SessionV2Response(BaseModel):
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
     is_current: bool = Field(False, description="Whether this is the current session")
+    valid: bool = Field(True, description="Session validity status")
+    user: Optional["UserV2Response"] = None
 
     model_config = ConfigDict(
 

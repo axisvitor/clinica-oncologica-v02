@@ -303,7 +303,7 @@ class FirebaseRedisCache(SessionCacheMixin):
         if user:
             # Cache existing user
             user_dict = {
-                "id": user.id,
+                "id": str(user.id),
                 "firebase_uid": user.firebase_uid,
                 "email": user.email,
                 "full_name": user.full_name,
@@ -332,7 +332,7 @@ class FirebaseRedisCache(SessionCacheMixin):
 
             # Cache new user
             user_dict = {
-                "id": new_user.id,
+                "id": str(new_user.id),
                 "firebase_uid": new_user.firebase_uid,
                 "email": new_user.email,
                 "full_name": new_user.full_name,

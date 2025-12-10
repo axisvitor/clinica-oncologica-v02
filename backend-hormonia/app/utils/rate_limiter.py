@@ -21,6 +21,14 @@ import os
 import time
 from typing import Callable, Any, Optional
 from functools import wraps
+from pathlib import Path
+
+# Load .env file explicitly before any os.getenv calls
+from dotenv import load_dotenv
+env_file = Path(__file__).parent.parent.parent / ".env"
+if env_file.exists():
+    load_dotenv(env_file)
+
 from fastapi import Request, Response, HTTPException, status
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
