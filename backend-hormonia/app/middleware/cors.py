@@ -2,6 +2,7 @@
 CORS Middleware Configuration - Production Security Guard
 SECURITY: Prevents CORS regex wildcards in production
 """
+import json
 import os
 import re
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,7 +12,8 @@ from typing import List, Optional
 
 def is_production() -> bool:
     """Check if running in production environment"""
-    env = os.getenv("ENVIRONMENT", "development").lower()
+    # Check APP_ENVIRONMENT first (new convention), then ENVIRONMENT (legacy)
+    env = os.getenv("APP_ENVIRONMENT", os.getenv("ENVIRONMENT", "development")).lower()
     return env in ["production", "prod"]
 
 
@@ -102,12 +104,22 @@ def configure_cors(
     if allowed_origins is None:
         if is_production():
             # Production: Must be explicitly configured via env vars
-            allowed_origins = os.getenv("CORS_ORIGINS", "").split(",")
-            allowed_origins = [origin.strip() for origin in allowed_origins if origin.strip()]
+            # Support both CORS_ALLOWED_ORIGINS (JSON array) and CORS_ORIGINS (comma-separated)
+            cors_env = os.getenv("CORS_ALLOWED_ORIGINS", os.getenv("CORS_ORIGINS", ""))
+
+            # Try to parse as JSON array first
+            if cors_env.startswith("["):
+                try:
+                    allowed_origins = json.loads(cors_env)
+                except json.JSONDecodeError:
+                    allowed_origins = []
+            else:
+                # Fallback to comma-separated format
+                allowed_origins = [origin.strip() for origin in cors_env.split(",") if origin.strip()]
 
             if not allowed_origins:
                 raise ValueError(
-                    "CORS_ORIGINS environment variable must be set in production"
+                    "CORS_ALLOWED_ORIGINS or CORS_ORIGINS environment variable must be set in production"
                 )
         else:
             # Development: Local origins
