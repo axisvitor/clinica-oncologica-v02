@@ -48,7 +48,7 @@ Thumbs.db
 Dockerfile*
 docker-compose*.yml
 .dockerignore
-docker-entrypoint.sh
+# docker-entrypoint.sh - MUST BE INCLUDED for container startup
 
 # Documentation
 *.md
