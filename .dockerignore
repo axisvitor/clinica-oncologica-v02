@@ -1,0 +1,68 @@
+# =============================================================================
+# Root .dockerignore for Railway builds
+# Railway builds from project root, so this file controls the build context
+# =============================================================================
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude configuration
+.claude
+.mcp
+CLAUDE.md
+*.md
+!README.md
+
+# Logs
+*.log
+logs/
+
+# Testing artifacts
+coverage/
+test-results/
+playwright-report/
+.pytest_cache/
+htmlcov/
+
+# Python virtual environments
+venv/
+env/
+.venv/
+venv_linux/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+
+# Node modules (will be installed in containers)
+node_modules/
+
+# Build artifacts (will be rebuilt in containers)
+frontend-hormonia/dist/
+quiz-mensal-interface/.next/
+packages/shared-types/dist/
+
+# Backup files
+*.bak
+*.backup
+*.tmp
+
+# Large files
+*.tar
+*.tar.gz
+*.zip
+
+# Docker compose (not needed for Railway)
+docker-compose*.yml
+docker-compose*.yaml
