@@ -1,34 +1,28 @@
 # =============================================================================
 # Frontend Dockerfile - React/Vite + Nginx
-# Build context: frontend-hormonia/ (not project root)
+# Build context: frontend-hormonia/
 # =============================================================================
 
 # Stage 1: Build
 FROM node:18-alpine AS builder
 WORKDIR /app
 
-# Copy shared-types first (from parent directory via build context workaround)
-# Railway builds from frontend-hormonia/, so we copy from current dir
+# Copy shared-types first and build it
+COPY shared-types ./shared-types
+WORKDIR /app/shared-types
+RUN npm install && npm run build
+
+# Copy frontend package files
+WORKDIR /app
 COPY package.json package-lock.json* ./
 
-# Create a stub for shared-types to satisfy npm install
-# The actual types are only needed for TypeScript compilation, not runtime
-RUN mkdir -p /app/packages/shared-types && \
-    echo '{"name":"@hormonia/shared-types","version":"1.0.0","main":"dist/index.js","types":"dist/index.d.ts"}' > /app/packages/shared-types/package.json && \
-    mkdir -p /app/packages/shared-types/dist && \
-    echo 'export {};' > /app/packages/shared-types/dist/index.js && \
-    echo 'export {};' > /app/packages/shared-types/dist/index.d.ts
-
-# Update package.json to use the stub path
-RUN sed -i 's|"file:../packages/shared-types"|"file:/app/packages/shared-types"|g' package.json
-
-# Install dependencies
+# Install dependencies (shared-types will be linked from ./shared-types)
 RUN npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .
 
-# Build the application (TypeScript will use the stub types)
+# Build the application
 RUN npm run build
 
 # Stage 2: Production
