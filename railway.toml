@@ -1,0 +1,32 @@
+# Railway Configuration
+# This project is a monorepo containing multiple services.
+# Please configure the following services in your Railway project:
+#
+# 1. Backend API
+#    - Root Directory: backend-hormonia
+#    - Dockerfile: Dockerfile
+#
+# 2. Celery Worker
+#    - Root Directory: backend-hormonia
+#    - Dockerfile: Dockerfile.worker
+#
+# 3. Celery Beat
+#    - Root Directory: backend-hormonia
+#    - Dockerfile: Dockerfile.beat
+#
+# 4. Frontend
+#    - Root Directory: frontend-hormonia
+#    - Dockerfile: Dockerfile
+#
+# 5. Quiz Interface
+#    - Root Directory: quiz-mensal-interface
+#    - Dockerfile: Dockerfile
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "backend-hormonia/Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"

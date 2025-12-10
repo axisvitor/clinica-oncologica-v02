@@ -1,48 +1,51 @@
-# Backend Dockerfile - FastAPI com Python 3.13
+# Backend Universal Dockerfile
+# Supports: API, Celery Worker, Celery Beat
 FROM python:3.13-slim
 
-# Permite build a partir do diretório atual (padrão) ou do repositório raiz via --build-arg APP_SRC=backend-hormonia
 ARG APP_SRC=.
 
-# Definir diretório de trabalho
 WORKDIR /app
 
-# Instalar dependências do sistema
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiar arquivo de dependências
+# Copy requirements
 COPY ${APP_SRC}/requirements.txt ./requirements.txt
 
-# Atualizar pip, setuptools e wheel para versões mais recentes
-# Isso resolve problemas de resolução de dependências e acelera o build
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+# Upgrade pip and install dependencies
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Instalar dependências Python
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copiar código da aplicação
+# Copy application code
 COPY ${APP_SRC}/ .
 
-# Criar usuário não-root
+# Ensure scripts are executable
+RUN chmod +x scripts/entrypoint.sh scripts/healthcheck.sh
+
+# Create non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Expor porta (Railway injeta via $PORT)
+# Environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PASSLIB_BUILTIN_BCRYPT=enabled \
+    PATH="/app/scripts:${PATH}"
+
 EXPOSE 8000
 
-# Variáveis de ambiente padrão
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
+# Universal Healthcheck
+# Relies on SERVICE_TYPE env var (default: api)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD /app/scripts/healthcheck.sh
 
-# Health check (usa $PORT injetado pelo Railway)
-# Aumentado start-period para 120s para dar tempo de inicialização completa
-HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
+# Entrypoint script handles the start command
+ENTRYPOINT ["/app/scripts/entrypoint.sh"]
 
-# Comando de inicialização: Apenas Uvicorn (SEM MIGRAÇÕES)
-# Schema já está correto, não precisamos executar migrações
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --log-level info
+# Default command (can be overridden by Railway Start Command)
+# Options: "api", "worker", "beat"
+CMD ["api"]

@@ -1,9 +1,10 @@
-# Celery Beat Scheduler Dockerfile - Python 3.13
+# Dockerfile.beat
+# Extends the main Dockerfile but sets the command to run the beat scheduler
+
 FROM python:3.13-slim
 
-ARG APP_SRC=backend-hormonia
+ARG APP_SRC=.
 
-# Set working directory
 WORKDIR /app
 
 # Install system dependencies
@@ -13,34 +14,36 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file
+# Copy requirements
 COPY ${APP_SRC}/requirements.txt ./requirements.txt
 
-# Upgrade pip, setuptools and wheel
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel
-
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Upgrade pip and install dependencies
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY ${APP_SRC}/ .
+
+# Ensure scripts are executable
+RUN chmod +x scripts/entrypoint.sh scripts/healthcheck.sh
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
 # Environment variables
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PASSLIB_BUILTIN_BCRYPT=enabled
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PASSLIB_BUILTIN_BCRYPT=enabled \
+    PATH="/app/scripts:${PATH}" \
+    SERVICE_TYPE=beat
 
-# Health check for beat scheduler
-HEALTHCHECK --interval=60s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import os; os.path.exists('celerybeat-schedule') or exit(1)"
+# Beat Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD /app/scripts/healthcheck.sh
 
-# Start Celery beat scheduler
-# This schedules periodic tasks defined in celery_app.conf.beat_schedule
-CMD celery -A app.celery_app beat \
-    --loglevel=info \
-    --pidfile=/tmp/celerybeat.pid \
-    --schedule=/tmp/celerybeat-schedule
+# Entrypoint
+ENTRYPOINT ["/app/scripts/entrypoint.sh"]
+
+# Force Command to Beat
+CMD ["beat"]
