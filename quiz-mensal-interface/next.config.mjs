@@ -39,9 +39,14 @@ function validateSecurityEnvironment() {
   console.log('✅ Security environment variables validated successfully')
 }
 
-// Run validation (skip in development if explicitly disabled)
-if (process.env.NODE_ENV === 'production' || process.env.VALIDATE_ENV !== 'false') {
+// Run validation at runtime only, not during build
+// NEXT_PHASE is 'phase-production-build' during `next build`
+const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build'
+
+if (!isBuildPhase && (process.env.NODE_ENV === 'production' || process.env.VALIDATE_ENV !== 'false')) {
   validateSecurityEnvironment()
+} else if (isBuildPhase) {
+  console.log('⏭️  Skipping security validation during build phase (will validate at runtime)')
 }
 
 // Resolve backend URL for CSP from environment variables
