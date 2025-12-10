@@ -1,5 +1,5 @@
 # Quiz Mensal Interface - Next.js 14 (Dockerfile)
-# Multi-stage build for Railway deployment
+# Build context: quiz-mensal-interface/ (not project root)
 
 # =============================================================================
 # STAGE 1: Builder - Install dependencies and build the application
@@ -10,18 +10,15 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Copy package files first for better layer caching
-COPY quiz-mensal-interface/package.json ./quiz-mensal-interface/
+COPY package.json package-lock.json* ./
 
 # Install dependencies
-WORKDIR /app/quiz-mensal-interface
 RUN npm install
 
 # Copy source code
-WORKDIR /app
-COPY quiz-mensal-interface/ ./quiz-mensal-interface/
+COPY . .
 
 # Build the application
-WORKDIR /app/quiz-mensal-interface
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
@@ -44,11 +41,11 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0
 
 # Copy built application from the builder stage
-COPY --from=builder /app/quiz-mensal-interface/.next ./.next
-COPY --from=builder /app/quiz-mensal-interface/public ./public
-COPY --from=builder /app/quiz-mensal-interface/node_modules ./node_modules
-COPY --from=builder /app/quiz-mensal-interface/package.json ./package.json
-COPY --from=builder /app/quiz-mensal-interface/next.config.mjs ./next.config.mjs
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/next.config.mjs ./next.config.mjs
 
 # Expose port (Railway overrides PORT)
 EXPOSE 3000
