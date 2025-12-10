@@ -168,20 +168,19 @@ export function createAuthApi(client: ApiClientCore) {
       firebaseToken: string,
       deviceInfo?: { user_agent?: string; timestamp?: string }
     ): Promise<{
-      status: string
-      expires_at: string
-      user: {
-        id: string
-        email: string
-        full_name: string
-        role: string
-        is_active: boolean
-      }
+      valid: boolean
+      session_id?: string
+      message?: string
     }> => {
       // Map to backend expected payload
-      return client.post('/api/v2/auth/firebase/verify', {
+      const response = await client.post<{
+        valid: boolean
+        session_id?: string
+        message?: string
+      }>('/api/v2/auth/firebase/verify', {
         id_token: firebaseToken
-      })
+      });
+      return response;
     },
 
     me: async (): Promise<{ data: User | null; session?: Record<string, unknown> | undefined }> => {

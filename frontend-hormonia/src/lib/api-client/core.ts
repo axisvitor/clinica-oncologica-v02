@@ -385,8 +385,8 @@ export class ApiClientCore {
         const error = new ApiError(
           response.status,
           errorData,
-          errorData.detail || `HTTP ${response.status}`,
-          errorData.user_message,
+          errorData.detail || errorData.error?.message || errorData.error?.details || `HTTP ${response.status}`,
+          errorData.user_message || errorData.error?.message,
         );
 
         if (this.shouldRetry(error, retries)) {

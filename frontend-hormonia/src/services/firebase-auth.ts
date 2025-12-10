@@ -85,8 +85,8 @@ export async function loginUser(
 
       // SECURITY: session_id is now in httpOnly cookie (not in response body)
       // Browser handles cookie storage automatically
-      if (sessionData.status !== 'authenticated') {
-        throw new Error('Session creation failed - invalid status')
+      if (!sessionData.valid) {
+        throw new Error('Session creation failed - invalid valid')
       }
 
       logger.log('Backend session created (httpOnly cookie set)')
@@ -135,7 +135,7 @@ export async function loginUser(
       },
       session_id: 'cookie' // Placeholder - actual session_id is in httpOnly cookie
     }
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Login failed:', error)
     // Clear any partial session data (cookie cleared by backend on error)
     // Firebase Auth SDK automatically clears in-memory token
