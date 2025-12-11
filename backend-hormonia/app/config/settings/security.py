@@ -574,33 +574,41 @@ class SecuritySettings(BaseAppSettings):
 
     def get_cors_origins(self) -> List[str]:
         """
-        Returns CORS origins based on environment.
-        Production: CORS_FRONTEND_URL + CORS_QUIZ_URL
-        Dev: empty list (uses regex)
+        Returns CORS origins based on environment and defaults.
+        
+        Logic:
+        1. Start with any explicitly configured CORS_ALLOWED_ORIGINS
+        2. Add CORS_FRONTEND_URL and CORS_QUIZ_URL if set
+        3. Add known Railway production URLs (robustness for misconfigured envs)
+        4. In Development, these specific origins are added TO the regex whitelist
+        5. In Production, ONLY these origins are allowed (plus regex if not strict)
         """
-        if self.APP_ENVIRONMENT.lower() == "production":
-            origins = []
-            if self.CORS_FRONTEND_URL:
-                origins.append(self.CORS_FRONTEND_URL.rstrip("/"))
-            if self.CORS_QUIZ_URL:
-                origins.append(self.CORS_QUIZ_URL.rstrip("/"))
-            # If CORS_ALLOWED_ORIGINS was explicitly set, use it
-            if self.CORS_ALLOWED_ORIGINS:
-                return self.CORS_ALLOWED_ORIGINS
-            # Add known production frontend URLs automatically if not explicitly overridden
-            # This ensures it works on Railway without requiring manual CORS_ALLOWED_ORIGINS setup
-            production_origins = [
-                "https://frontend-clinica-production.up.railway.app",
-                "https://clinica-oncologica-v02-production.up.railway.app",
-            ]
-            for origin in production_origins:
-                if origin not in origins:
-                    origins.append(origin)
+        origins = set()
+        
+        # 1. Explicitly configured origins
+        if self.CORS_ALLOWED_ORIGINS:
+            if isinstance(self.CORS_ALLOWED_ORIGINS, list):
+                origins.update(self.CORS_ALLOWED_ORIGINS)
+            else:
+                origins.add(str(self.CORS_ALLOWED_ORIGINS))
 
-            return origins
-        else:
-            # Dev: return empty, middleware will use regex
-            return []
+        # 2. Configured Frontend/Quiz URLs
+        if self.CORS_FRONTEND_URL:
+            origins.add(self.CORS_FRONTEND_URL.rstrip("/"))
+        if self.CORS_QUIZ_URL:
+            origins.add(self.CORS_QUIZ_URL.rstrip("/"))
+
+        # 3. Known Production URLs (Safeguard)
+        # These are added to ensure the main production deployment always works,
+        # even if APP_ENVIRONMENT is missing or set to 'development' by mistake.
+        production_origins = [
+            "https://frontend-clinica-production.up.railway.app",
+            "https://clinica-oncologica-v02-production.up.railway.app",
+            "https://neoplasias-litoral-quiz.up.railway.app" # Potential quiz URL
+        ]
+        origins.update(production_origins)
+
+        return list(origins)
 
     def get_firebase_security_config(self) -> dict:
         """Get Firebase security configuration for user provisioning."""
