@@ -1,4 +1,4 @@
-import type { QuizQuestion, QuestionType, QuizTemplate } from '@hormonia/shared-types'
+import type { QuizQuestion, QuestionType, QuizTemplate } from './shared-quiz'
 
 // Import QuizSession from canonical source or shared types
 // For now, we'll use the shared type if available, or keep the local re-export pattern if it depends on api-client

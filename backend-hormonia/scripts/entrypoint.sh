@@ -1,44 +1,189 @@
 #!/bin/bash
 set -e
 
-# entrypoint.sh - Master entrypoint for Backend Services
+# =============================================================================
+# ENTRYPOINT.SH - Master entrypoint for Backend Services (Railway Compatible)
+# =============================================================================
+# Supports: API, Worker, Beat, Migrations
+# Environment: Railway, Docker, Local
+# =============================================================================
+
+echo "=============================================="
+echo "🚀 Hormonia Backend Entrypoint"
+echo "=============================================="
+echo "Environment: ${APP_ENVIRONMENT:-development}"
+echo "Service Type: ${SERVICE_TYPE:-api}"
+echo "Port: ${PORT:-8000}"
+echo "=============================================="
+
+# Wait for dependencies function
+wait_for_database() {
+    echo "⏳ Waiting for database connection..."
+    local max_attempts=30
+    local attempt=1
+
+    while [ $attempt -le $max_attempts ]; do
+        if python -c "
+from app.database import engine
+from sqlalchemy import text
+try:
+    with engine.connect() as conn:
+        conn.execute(text('SELECT 1'))
+    exit(0)
+except Exception as e:
+    print(f'Database not ready: {e}')
+    exit(1)
+" 2>/dev/null; then
+            echo "✓ Database connection established"
+            return 0
+        fi
+
+        echo "  Attempt $attempt/$max_attempts - waiting 2s..."
+        sleep 2
+        ((attempt++))
+    done
+
+    echo "❌ Failed to connect to database after $max_attempts attempts"
+    return 1
+}
+
+wait_for_redis() {
+    echo "⏳ Waiting for Redis connection..."
+    local max_attempts=15
+    local attempt=1
+
+    while [ $attempt -le $max_attempts ]; do
+        if python -c "
+import redis
+import os
+redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+try:
+    r = redis.from_url(redis_url, socket_timeout=5)
+    r.ping()
+    exit(0)
+except Exception as e:
+    print(f'Redis not ready: {e}')
+    exit(1)
+" 2>/dev/null; then
+            echo "✓ Redis connection established"
+            return 0
+        fi
+
+        echo "  Attempt $attempt/$max_attempts - waiting 2s..."
+        sleep 2
+        ((attempt++))
+    done
+
+    echo "⚠️ Redis not available (some features may be degraded)"
+    return 0  # Don't fail on Redis - app can work in degraded mode
+}
+
+# Run database migrations
+run_migrations() {
+    if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
+        echo "📦 Running database migrations..."
+        cd /app
+
+        # Check if alembic is available
+        if [ -f "alembic.ini" ]; then
+            python -m alembic upgrade head
+            echo "✓ Migrations completed"
+        else
+            echo "⚠️ Alembic not configured, skipping migrations"
+        fi
+    fi
+}
 
 # Function to run API
 run_api() {
-    echo "🚀 Starting FastAPI Backend..."
-    exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --log-level info
+    echo "🌐 Starting FastAPI Backend API..."
+
+    # Wait for dependencies
+    wait_for_database || exit 1
+    wait_for_redis
+
+    # Run migrations if enabled
+    run_migrations
+
+    # Determine number of workers
+    WORKERS=${WEB_CONCURRENCY:-1}
+
+    # Use gunicorn in production for better performance
+    if [ "${APP_ENVIRONMENT:-development}" = "production" ]; then
+        echo "📊 Production mode - using Gunicorn with $WORKERS workers"
+        exec gunicorn app.main:app \
+            --bind 0.0.0.0:${PORT:-8000} \
+            --workers $WORKERS \
+            --worker-class uvicorn.workers.UvicornWorker \
+            --timeout 120 \
+            --keep-alive 5 \
+            --access-logfile - \
+            --error-logfile - \
+            --log-level info
+    else
+        echo "🔧 Development mode - using Uvicorn"
+        exec uvicorn app.main:app \
+            --host 0.0.0.0 \
+            --port ${PORT:-8000} \
+            --log-level info
+    fi
 }
 
 # Function to run Celery Worker
 run_worker() {
     echo "👷 Starting Celery Worker..."
+
+    # Wait for dependencies
+    wait_for_database || exit 1
+    wait_for_redis || exit 1  # Worker REQUIRES Redis
+
     exec celery -A app.celery_app worker \
         --loglevel=info \
-        --concurrency=${CELERY_WORKER_CONCURRENCY:-4} \
+        --concurrency=${CELERY_WORKER_CONCURRENCY:-2} \
         --max-tasks-per-child=${CELERY_WORKER_MAX_TASKS_PER_CHILD:-1000} \
-        --time-limit=${CELERY_WORKER_TIME_LIMIT:-300} \
-        --soft-time-limit=${CELERY_WORKER_SOFT_TIME_LIMIT:-240} \
+        --time-limit=${CELERY_WORKER_TIME_LIMIT_SECONDS:-300} \
+        --soft-time-limit=${CELERY_WORKER_SOFT_TIME_LIMIT_SECONDS:-240} \
         --queues=${CELERY_QUEUES:-celery,flows,quiz,maintenance,monitoring} \
-        --pool=prefork 
-        # removed autoscale to prevent issues in some container envs, can be added back via args if needed
+        --pool=prefork \
+        --without-gossip \
+        --without-mingle
 }
 
 # Function to run Celery Beat
 run_beat() {
-    echo "⏰ Starting Celery Beat..."
-    rm -f /tmp/celerybeat.pid
+    echo "⏰ Starting Celery Beat Scheduler..."
+
+    # Wait for Redis only (beat doesn't need database directly)
+    wait_for_redis || exit 1
+
+    # Clean up old PID file
+    rm -f /tmp/celerybeat.pid /tmp/celerybeat-schedule
+
     exec celery -A app.celery_app beat \
         --loglevel=info \
         --pidfile=/tmp/celerybeat.pid \
         --schedule=/tmp/celerybeat-schedule
 }
 
+# Function to run migrations only
+run_migrate() {
+    echo "📦 Running database migrations only..."
+    wait_for_database || exit 1
+
+    cd /app
+    python -m alembic upgrade head
+    echo "✓ Migrations completed successfully"
+}
+
 # Main Dispatcher
-# Check the first argument passed to the container
-command="$1"
+command="${1:-$SERVICE_TYPE}"
+command="${command:-api}"
+
+echo "🎯 Executing command: $command"
+echo "=============================================="
 
 case "$command" in
-    api) 
+    api)
         run_api
         ;;
     worker)
@@ -47,15 +192,21 @@ case "$command" in
     beat)
         run_beat
         ;;
+    migrate)
+        run_migrate
+        ;;
+    shell)
+        echo "🐚 Starting interactive shell..."
+        exec /bin/bash
+        ;;
     *)
-        # If no known command, or if it looks like a shell command, execute it
-        # This allows running 'python script.py' or 'bash' for debugging
-        if [ -z "$command" ]; then
-            # Default to API if empty
-            run_api
-        else
+        # If unknown command, try to execute it directly
+        if [ -n "$command" ]; then
             echo "🔧 Executing custom command: $@"
             exec "$@"
+        else
+            # Default to API
+            run_api
         fi
         ;;
 esac

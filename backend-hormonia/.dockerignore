@@ -1,9 +1,15 @@
-# Python
-__pycache__
+# =============================================================================
+# DOCKERIGNORE - Railway/Docker Build Optimization
+# =============================================================================
+
+# Python bytecode and cache
+__pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+
+# Build artifacts
 build/
 develop-eggs/
 dist/
@@ -20,78 +26,139 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environments
+# Virtual environments (CRITICAL - exclude to reduce image size)
 venv/
+venv_linux/
 env/
 ENV/
-.venv
+.venv/
 
-# Testing
+# Testing (exclude from production build)
 .pytest_cache/
 .coverage
 htmlcov/
+coverage_html/
 test-results/
 .tox/
+tests/
 
-# IDE
+# IDE and editor files
 .vscode/
 .idea/
 *.swp
 *.swo
+*.sublime-*
 
-# Logs
+# Logs (exclude all logs from build)
 *.log
 logs/
+server_*.log
 
-# Environment
+# Environment files (SECURITY - never include in image)
 .env
-.env.*
+.env.local
+.env.development
+.env.production
+.env.railway
+# Keep templates for reference
 !.env.example
 !.env.production.template
+!.env.railway.template
 !.env.quiz.example
 !.env.sentry.example
+!.env.pool.example
 
-# Database
+# Local database files
 *.db
 *.sqlite
 *.sqlite3
 
-# Alembic
+# Alembic cache
 alembic/versions/__pycache__/
 
-# Documentation
+# Documentation (keep README for image)
 docs/
 *.md
 !README.md
 
-# Git
+# Git (exclude git history from build)
 .git/
 .gitignore
+.gitattributes
 
-# OS
+# OS files
 .DS_Store
 Thumbs.db
+*.bak
 
-# Docker
-Dockerfile*
+# Docker compose (not needed in image, Railway uses railway.toml)
 docker-compose*.yml
-.dockerignore
+docker-compose*.yaml
 
-# Celery
+# NOTE: DO NOT exclude Dockerfile* - Railway needs them!
+# The .dockerignore is processed BEFORE the Dockerfile is read
+
+# Celery PID/schedule files (runtime generated)
 celerybeat-schedule
 celerybeat.pid
+*.pid
 
-# Backup
-*.bak
+# Backup files
 *.backup
+*.bak
 
-# Large files
+# Archives (large files)
 *.tar
 *.tar.gz
 *.zip
+*.rar
 
-# Certificates (keep structure, exclude actual certs)
-certs/*.pem
+# Certificates (keep redis_ca.pem for SSL)
 certs/*.key
 certs/*.crt
+!certs/redis_ca.pem
 !certs/.gitkeep
+
+# Claude Flow / Swarm metadata (development only)
+.claude-flow/
+.hive-mind/
+.swarm/
+
+# MyPy cache
+.mypy_cache/
+
+# Uploads directory (runtime data, not build-time)
+uploads/
+
+# Temporary files
+*.tmp
+*.temp
+cookies.txt
+error_output.txt
+backend_error.txt
+debug_auth.log
+
+# Node modules in scripts (if any)
+scripts/node_modules/
+
+# Local development folders
+worker/
+beat/
+
+# Locust load testing
+locust/
+
+# Flower (Celery monitoring) configs
+flower/
+
+# Operations scripts (not needed in image)
+ops/
+
+# Seeds (development data)
+seeds/
+
+# SQL scripts (migrations are in alembic)
+sql/
+
+# Monitoring configs (external)
+monitoring/

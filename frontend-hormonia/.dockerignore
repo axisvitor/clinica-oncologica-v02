@@ -1,35 +1,92 @@
-# Dependencies
+# =============================================================================
+# DOCKERIGNORE - Frontend Hormonia (Railway/Docker Build Optimization)
+# =============================================================================
+# NOTE: DO NOT exclude Dockerfile* - Railway needs them for build!
+# =============================================================================
+
+# Dependencies (rebuilt in container)
 node_modules
+.npm
+.pnpm-store
 
 # Build output (rebuilt in container)
 dist
+build
 
 # Testing
 coverage
 test-results
 playwright-report
+.nyc_output
 
 # IDE
 .vscode
 .idea
+*.swp
+*.swo
+*~
 
-# Environment (secrets)
+# Environment files (SECURITY - never include in image)
 .env
 .env.local
 .env.development
 .env.test
 .env.production
+# Keep example for reference
+!.env.example
 
 # Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Git
+# Git (exclude history from build)
 .git
+.gitignore
+.gitattributes
+
+# Cache
+.cache
+.parcel-cache
+.turbo
 
 # Temporary
-.cache
 tmp
+temp
+
+# TypeScript
+*.tsbuildinfo
+
+# ESLint/Prettier cache
+.eslintcache
+.prettiercache
+
+# Storybook
+storybook-static
+
+# Documentation (not needed in image)
+docs/
+*.md
+!README.md
+
+# Claude Flow metadata (development only)
+.claude-flow/
+.hive-mind/
+.swarm/
+
+# Archives
+*.tar
+*.tar.gz
+*.zip
+
+# Backup files
+*.bak
+*.backup
+
+# Shared types (now embedded in src/types)
+shared-types/
