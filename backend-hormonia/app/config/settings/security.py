@@ -587,6 +587,16 @@ class SecuritySettings(BaseAppSettings):
             # If CORS_ALLOWED_ORIGINS was explicitly set, use it
             if self.CORS_ALLOWED_ORIGINS:
                 return self.CORS_ALLOWED_ORIGINS
+            # Add known production frontend URLs automatically if not explicitly overridden
+            # This ensures it works on Railway without requiring manual CORS_ALLOWED_ORIGINS setup
+            production_origins = [
+                "https://frontend-clinica-production.up.railway.app",
+                "https://clinica-oncologica-v02-production.up.railway.app",
+            ]
+            for origin in production_origins:
+                if origin not in origins:
+                    origins.append(origin)
+
             return origins
         else:
             # Dev: return empty, middleware will use regex
