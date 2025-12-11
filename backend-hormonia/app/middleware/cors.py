@@ -103,7 +103,7 @@ def configure_cors(
     # Default origins
     if allowed_origins is None:
         if is_production():
-            # Production: Must be explicitly configured via env vars
+            # Production: Load from env vars with HARDCODED FALLBACKS
             # Support both CORS_ALLOWED_ORIGINS (JSON array) and CORS_ORIGINS (comma-separated)
             cors_env = os.getenv("CORS_ALLOWED_ORIGINS", os.getenv("CORS_ORIGINS", ""))
 
@@ -117,6 +117,32 @@ def configure_cors(
                 # Fallback to comma-separated format
                 allowed_origins = [origin.strip() for origin in cors_env.split(",") if origin.strip()]
 
+            # CRITICAL FIX: Always include known production URLs as fallback
+            # This prevents CORS errors even if env vars are misconfigured
+            production_fallback_origins = [
+                "https://frontend-clinica-production.up.railway.app",
+                "https://clinica-oncologica-v02-production.up.railway.app",
+                "https://quiz-interface-production-a2e2.up.railway.app",
+            ]
+            
+            # Also check for CORS_FRONTEND_URL and CORS_QUIZ_URL
+            frontend_url = os.getenv("CORS_FRONTEND_URL", "").strip().rstrip("/")
+            quiz_url = os.getenv("CORS_QUIZ_URL", "").strip().rstrip("/")
+            
+            if frontend_url:
+                production_fallback_origins.append(frontend_url)
+            if quiz_url:
+                production_fallback_origins.append(quiz_url)
+            
+            # Merge and deduplicate
+            all_origins = set(allowed_origins) | set(production_fallback_origins)
+            allowed_origins = [o for o in all_origins if o]  # Remove empty strings
+            
+            # Log what we're using
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"CORS origins loaded: {len(allowed_origins)} origins (env: {len(set(cors_env.split(',')) if cors_env else set())}, fallback: {len(production_fallback_origins)})")
+            
             if not allowed_origins:
                 raise ValueError(
                     "CORS_ALLOWED_ORIGINS or CORS_ORIGINS environment variable must be set in production"
