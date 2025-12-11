@@ -104,7 +104,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \
     chown -R appuser:appgroup /usr/share/nginx/html /var/cache/nginx /tmp /etc/nginx && \
-    mkdir -p /tmp/nginx.pid && touch /tmp/nginx.pid && chown appuser:appgroup /tmp/nginx.pid
+    touch /tmp/nginx.pid && chown appuser:appgroup /tmp/nginx.pid
 
 USER appuser
 
