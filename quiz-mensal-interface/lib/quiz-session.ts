@@ -11,21 +11,25 @@ export const SESSION_EXPIRY = 4 * 60 * 60 * 1000
 export const SESSION_COOKIE_NAME = 'quiz-session-data'
 
 // SECURITY: Secret key for HMAC signing (REQUIRED - no fallback allowed)
+// Skip validation during build phase (NEXT_PHASE is set by Next.js during build)
+const IS_BUILD_PHASE = process.env.NEXT_PHASE === 'phase-production-build'
 const HMAC_SECRET = process.env.QUIZ_SESSION_SECRET
 
-if (!HMAC_SECRET) {
-  throw new Error(
-    '🚨 CRITICAL SECURITY ERROR: QUIZ_SESSION_SECRET environment variable is not set!\n' +
-    'Generate a secure secret with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"\n' +
-    'Then add it to your .env file: QUIZ_SESSION_SECRET=your_generated_secret'
-  )
-}
+if (!IS_BUILD_PHASE) {
+  if (!HMAC_SECRET) {
+    throw new Error(
+      '🚨 CRITICAL SECURITY ERROR: QUIZ_SESSION_SECRET environment variable is not set!\n' +
+      'Generate a secure secret with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"\n' +
+      'Then add it to your .env file: QUIZ_SESSION_SECRET=your_generated_secret'
+    )
+  }
 
-if (HMAC_SECRET.length < 32) {
-  throw new Error(
-    '🚨 CRITICAL SECURITY ERROR: QUIZ_SESSION_SECRET must be at least 32 characters long!\n' +
-    'Generate a secure secret with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
-  )
+  if (HMAC_SECRET.length < 32) {
+    throw new Error(
+      '🚨 CRITICAL SECURITY ERROR: QUIZ_SESSION_SECRET must be at least 32 characters long!\n' +
+      'Generate a secure secret with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+    )
+  }
 }
 
 export interface StoredQuizSession {
