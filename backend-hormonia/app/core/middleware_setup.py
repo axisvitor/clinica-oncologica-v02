@@ -221,23 +221,16 @@ def setup_middleware(app: FastAPI) -> None:
     is_production = settings.APP_ENVIRONMENT.lower() == "production"
 
     # Configure CORS with security validation
-    # Production: No regex, explicit HTTPS origins only
+    # Production: No regex, explicit HTTPS origins only (from settings)
     # Development: Localhost regex pattern allowed + default origins from configure_cors
-    #
-    # SECURITY RATIONALE FOR EXPLICIT HEADERS:
-    # - Using wildcard ["*"] with allow_credentials=True exposes all request headers
-    #   to cross-origin requests, potentially leaking sensitive authentication tokens
-    # - Explicit header list follows principle of least privilege
-    # - Only headers needed for legitimate application functionality are allowed
-    # - Prevents credential leakage attacks via malicious cross-origin requests
+    
+    # In production, we MUST provide allowed_origins from settings
+    # In development, we can allow None to let configure_cors check defaults, BUT better to be explicit
+    
     configure_cors(
         app,
-        # In dev mode, pass None to use configure_cors internal defaults (includes port 5173)
-        # In production, use explicit origins from settings
-        allowed_origins=cors_origins if cors_origins else None,
-        allowed_origin_regex=None
-        if is_production
-        else r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+        allowed_origins=cors_origins,  # Can be empty list if not set, handled by configure_cors
+        allowed_origin_regex=None if is_production else r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
         allow_credentials=True,  # ✅ CRITICAL: Required for httpOnly cookies and credentials
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
         # ✅ SECURITY: Explicit header whitelist prevents credential leakage
