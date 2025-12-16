@@ -157,8 +157,7 @@ class NotificationService:
                 raise
 
             logger.info(
-                f"Welcome message {'sent' if success else 'failed'} to patient {patient.id} "
-                f"({patient.name}): phone={patient.phone}"
+                f"Welcome message {'sent' if success else 'failed'} to patient {patient.id}"
             )
             return success
 
@@ -167,7 +166,7 @@ class NotificationService:
             return False
         except Exception as e:
             logger.error(
-                f"Error sending welcome message to {patient.phone}: {e}",
+                f"Error sending welcome message to patient {patient.id}: {type(e).__name__}",
                 exc_info=True,
             )
             return False
@@ -250,7 +249,7 @@ class NotificationService:
                     self.message_service.db.query(Message)
                     .filter(
                         Message.patient_id == patient.id,
-                        Message.message_type == MessageType.TEXT,
+                        Message.type == MessageType.TEXT,
                         Message.message_metadata['message_type'].astext == 'welcome',
                     )
                     .count()

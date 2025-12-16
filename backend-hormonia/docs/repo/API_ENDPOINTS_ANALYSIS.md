@@ -296,14 +296,9 @@ GET    /api/v2/auth/csrf-token           # CSRF token
 - ✅ Account lock mechanism
 - ✅ Rate limiting
 
-**Problemas:**
-- ⚠️ **Endpoint duplicado:** `/api/v2/csrf-token` existe tanto em:
-  - `/api/v2/csrf-token` (deprecated, linha 70-134 do router.py)
-  - `/api/v2/auth/csrf-token` (correto, linha 258-267)
-
-  **Status:** Marcado como deprecated com warning log, mas ainda ativo
-
-  **Recomendação:** Remover após migração do frontend
+**Endpoint CSRF:**
+- ✅ `/api/v2/auth/csrf-token` - endpoint unificado (app/api/v2/routers/auth.py)
+- ✅ Token base64url compatível com CSRFMiddleware e frontend
 
 ---
 
@@ -912,11 +907,10 @@ async def list_treatments(...):
 
 #### **1.1 CSRF Token**
 ```
-GET /api/v2/csrf-token              (deprecated, linha 70-134)
-GET /api/v2/auth/csrf-token         (correto, linha 258-267)
+GET /api/v2/auth/csrf-token         (endpoint atual)
 ```
-**Status:** Marcado como deprecated, mas ainda ativo
-**Ação:** Remover após migração do frontend
+**Status:** Endpoint único para CSRF token
+**Ação:** Nenhuma
 
 ---
 

@@ -382,7 +382,7 @@ class DataAggregator:
             period_duration = (period_end - period_start).days + 1
             
             # Extract relevant metadata
-            metadata = patient.patient_metadata or {}
+            metadata = patient.patient_data or {}
             
             return {
                 "treatment_type": patient.treatment_type,

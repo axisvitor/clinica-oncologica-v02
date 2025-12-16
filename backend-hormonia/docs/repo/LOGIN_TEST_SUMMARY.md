@@ -56,7 +56,7 @@ UID:      xrqu2gDVL6eG... (verified)
 
 ### Step 1: Start Backend (1 command)
 ```bash
-./scripts/start_backend.sh
+./backend-hormonia/scripts/start_backend.sh
 ```
 
 Or manually:
@@ -85,11 +85,11 @@ npm run dev
 
 | File | Description |
 |------|-------------|
-| `tests/test_login_real.py` | Basic login test script |
-| `tests/test_login_complete.py` | **Comprehensive test suite** (recommended) |
-| `scripts/start_backend.sh` | Backend startup script |
-| `docs/TEST_REPORT_LOGIN.md` | **Detailed test report** (full documentation) |
-| `docs/LOGIN_TEST_SUMMARY.md` | This summary |
+| `backend-hormonia/scripts/login-tests/test_login_real.py` | Basic login test script |
+| `backend-hormonia/scripts/login-tests/test_login_complete.py` | **Comprehensive test suite** (recommended) |
+| `backend-hormonia/scripts/start_backend.sh` | Backend startup script |
+| `backend-hormonia/docs/repo/TEST_REPORT_LOGIN.md` | **Detailed test report** (full documentation) |
+| `backend-hormonia/docs/repo/LOGIN_TEST_SUMMARY.md` | This summary |
 
 ---
 
@@ -211,10 +211,10 @@ SameSite: Lax/Strict
 
 ```bash
 # Run comprehensive test
-python3 tests/test_login_complete.py
+python3 backend-hormonia/scripts/login-tests/test_login_complete.py
 
 # Start backend
-./scripts/start_backend.sh
+./backend-hormonia/scripts/start_backend.sh
 
 # Check if backend is running
 curl http://localhost:8000/api/v2/health
@@ -254,7 +254,7 @@ curl http://localhost:8000/api/v2/auth/verify-session \
 
 ```bash
 cd /mnt/c/Meu\ Projetos/clinica-oncologica-v02-1
-./scripts/start_backend.sh
+./backend-hormonia/scripts/start_backend.sh
 ```
 
 Then test the login at: http://localhost:5173
@@ -264,9 +264,9 @@ Then test the login at: http://localhost:5173
 ## 📚 Documentation
 
 For complete details, see:
-- **Full Report:** `docs/TEST_REPORT_LOGIN.md`
-- **Test Scripts:** `tests/test_login_*.py`
-- **Backend Startup:** `scripts/start_backend.sh`
+- **Full Report:** `backend-hormonia/docs/repo/TEST_REPORT_LOGIN.md`
+- **Test Scripts:** `backend-hormonia/scripts/login-tests/test_login_*.py`
+- **Backend Startup:** `backend-hormonia/scripts/start_backend.sh`
 
 ---
 

@@ -63,7 +63,6 @@ def creation_service(
     mock_completion_service,
     mock_notification_service,
     mock_flow_service,
-    sync_executor,
 ):
     """Create CreationService instance."""
     return CreationService(
@@ -72,7 +71,6 @@ def creation_service(
         completion_service=mock_completion_service,
         notification_service=mock_notification_service,
         flow_service=mock_flow_service,
-        executor=sync_executor,
     )
 
 
@@ -96,8 +94,6 @@ def sample_patient():
     patient = Patient(
         id=patient_id,
         name="João Silva",
-        phone="+5511999999999",
-        email="joao@example.com",
         doctor_id=uuid4(),
     )
     return patient
@@ -119,14 +115,14 @@ class TestCreationServiceCreate:
         doctor_id = uuid4()
 
         # Mock repository
-        with patch("app.domain.patient.onboarding.creation_service.PatientRepository") as mock_repo:
+        with patch("app.repositories.patient.PatientRepository") as mock_repo:
             mock_repo.return_value.create.return_value = sample_patient
 
             # Mock executor
-            with patch("asyncio.get_event_loop") as mock_loop:
-                mock_loop.return_value.run_in_executor = AsyncMock(
-                    return_value=sample_patient
-                )
+            with patch(
+                "app.domain.patient.onboarding.creation_service.run_in_threadpool",
+                new=AsyncMock(side_effect=lambda fn, *args, **kwargs: fn(*args, **kwargs)),
+            ):
 
                 # Execute
                 result = await creation_service.create_patient_direct(
@@ -150,7 +146,7 @@ class TestCreationServiceCreate:
         doctor_id = uuid4()
 
         # Mock repository
-        with patch("app.domain.patient.onboarding.creation_service.PatientRepository") as mock_repo:
+        with patch("app.repositories.patient.PatientRepository") as mock_repo:
             mock_repo.return_value.create.return_value = sample_patient
 
             # Mock cache manager
@@ -159,10 +155,10 @@ class TestCreationServiceCreate:
                 mock_cache.return_value = mock_cache_manager
 
                 # Mock executor
-                with patch("asyncio.get_event_loop") as mock_loop:
-                    mock_loop.return_value.run_in_executor = AsyncMock(
-                        return_value=sample_patient
-                    )
+                with patch(
+                    "app.domain.patient.onboarding.creation_service.run_in_threadpool",
+                    new=AsyncMock(side_effect=lambda fn, *args, **kwargs: fn(*args, **kwargs)),
+                ):
 
                     # Execute
                     await creation_service.create_patient_direct(patient_data, doctor_id)
@@ -187,14 +183,14 @@ class TestCreationServiceNotifications:
         doctor_id = uuid4()
 
         # Mock repository
-        with patch("app.domain.patient.onboarding.creation_service.PatientRepository") as mock_repo:
+        with patch("app.repositories.patient.PatientRepository") as mock_repo:
             mock_repo.return_value.create.return_value = sample_patient
 
             # Mock executor
-            with patch("asyncio.get_event_loop") as mock_loop:
-                mock_loop.return_value.run_in_executor = AsyncMock(
-                    return_value=sample_patient
-                )
+            with patch(
+                "app.domain.patient.onboarding.creation_service.run_in_threadpool",
+                new=AsyncMock(side_effect=lambda fn, *args, **kwargs: fn(*args, **kwargs)),
+            ):
 
                 # Execute
                 await creation_service.create_patient_direct(patient_data, doctor_id)
@@ -215,14 +211,14 @@ class TestCreationServiceNotifications:
         doctor_id = uuid4()
 
         # Mock repository
-        with patch("app.domain.patient.onboarding.creation_service.PatientRepository") as mock_repo:
+        with patch("app.repositories.patient.PatientRepository") as mock_repo:
             mock_repo.return_value.create.return_value = sample_patient
 
-            # Mock executor
-            with patch("asyncio.get_event_loop") as mock_loop:
-                mock_loop.return_value.run_in_executor = AsyncMock(
-                    return_value=sample_patient
-                )
+            # Mock threadpool execution
+            with patch(
+                "app.domain.patient.onboarding.creation_service.run_in_threadpool",
+                new=AsyncMock(side_effect=lambda fn, *args, **kwargs: fn(*args, **kwargs)),
+            ):
 
                 # Execute
                 await creation_service.create_patient_direct(patient_data, doctor_id)
@@ -247,14 +243,14 @@ class TestCreationServiceFlow:
         doctor_id = uuid4()
 
         # Mock repository
-        with patch("app.domain.patient.onboarding.creation_service.PatientRepository") as mock_repo:
+        with patch("app.repositories.patient.PatientRepository") as mock_repo:
             mock_repo.return_value.create.return_value = sample_patient
 
-            # Mock executor
-            with patch("asyncio.get_event_loop") as mock_loop:
-                mock_loop.return_value.run_in_executor = AsyncMock(
-                    return_value=sample_patient
-                )
+            # Mock threadpool execution
+            with patch(
+                "app.domain.patient.onboarding.creation_service.run_in_threadpool",
+                new=AsyncMock(side_effect=lambda fn, *args, **kwargs: fn(*args, **kwargs)),
+            ):
 
                 # Execute
                 await creation_service.create_patient_direct(patient_data, doctor_id)

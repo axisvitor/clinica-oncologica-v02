@@ -48,7 +48,7 @@ class EncryptionService:
         """Initialize encryption service with current encryption key."""
         if not self._initialized:
             # Load encryption key from environment
-            key_b64 = os.getenv("ENCRYPTION_KEY_CURRENT")
+            key_b64 = os.getenv("ENCRYPTION_KEY_CURRENT") or os.getenv("SECURITY_ENCRYPTION_KEY")
             if not key_b64:
                 raise ValueError(
                     "ENCRYPTION_KEY_CURRENT environment variable not set. "

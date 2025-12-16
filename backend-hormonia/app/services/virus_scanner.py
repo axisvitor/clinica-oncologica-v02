@@ -234,7 +234,7 @@ class VirusScannerService:
                 threat = "Unknown threat"
                 for line in result.stdout.split("\n"):
                     if "FOUND" in line:
-                        threat = line.split(":")[1].strip().replace("FOUND", "").strip()
+                        threat = line.rsplit(":", 1)[-1].strip().replace("FOUND", "").strip()
                         break
 
                 return ScanResult(
@@ -294,7 +294,7 @@ class VirusScannerService:
             except (subprocess.SubprocessError, FileNotFoundError, OSError):
                 pass
 
-        return False, "No ClamAV scanner available"
+        return False, "ClamAV scanner not available"
 
 
 # Singleton instance

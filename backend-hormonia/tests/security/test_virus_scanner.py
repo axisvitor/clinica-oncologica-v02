@@ -350,10 +350,7 @@ class TestVirusScannerHealth:
     @pytest.mark.asyncio
     async def test_health_check_daemon_available(self, mocker):
         """Test health check with available daemon"""
-        # Mock socket connection success
-        mock_socket = MagicMock()
-        mock_socket.connect_ex.return_value = 0  # Success
-        mocker.patch('socket.socket', return_value=mock_socket)
+        mocker.patch.object(VirusScannerService, '_check_clamd_connection', return_value=True)
 
         scanner = VirusScannerService(enabled=True, host="localhost", port=3310)
 
@@ -365,10 +362,7 @@ class TestVirusScannerHealth:
     @pytest.mark.asyncio
     async def test_health_check_cli_fallback(self, mocker):
         """Test health check falling back to CLI"""
-        # Mock daemon unavailable
-        mock_socket = MagicMock()
-        mock_socket.connect_ex.return_value = 1  # Failed
-        mocker.patch('socket.socket', return_value=mock_socket)
+        mocker.patch.object(VirusScannerService, '_check_clamd_connection', return_value=False)
 
         # Mock CLI available
         mock_result = Mock()
@@ -385,10 +379,7 @@ class TestVirusScannerHealth:
     @pytest.mark.asyncio
     async def test_health_check_no_scanner(self, mocker):
         """Test health check when no scanner is available"""
-        # Mock daemon unavailable
-        mock_socket = MagicMock()
-        mock_socket.connect_ex.return_value = 1
-        mocker.patch('socket.socket', return_value=mock_socket)
+        mocker.patch.object(VirusScannerService, '_check_clamd_connection', return_value=False)
 
         # Mock CLI unavailable
         mocker.patch('subprocess.run', side_effect=FileNotFoundError())

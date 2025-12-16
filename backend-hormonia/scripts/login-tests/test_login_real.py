@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 # Add backend to path
-backend_path = Path(__file__).parent.parent / "backend-hormonia"
+backend_path = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(backend_path))
 
 # Load environment variables
@@ -356,9 +356,7 @@ class FirebaseAuthTester:
         print("📝 NEXT STEPS TO COMPLETE LOGIN TEST:")
         print(f"{'='*80}")
         print("1. Ensure the backend server is running:")
-        print("   cd backend-hormonia")
-        print("   source venv_linux/bin/activate")
-        print("   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000")
+        print("   ./backend-hormonia/scripts/start_backend.sh")
         print()
         print("2. Open the frontend application in a browser")
         print()

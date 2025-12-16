@@ -42,9 +42,6 @@ interface RuntimeConfigType {
   API_BASE_URL: string
   WS_BASE_URL?: string
   WHATSAPP_INSTANCE_NAME: string
-  OPENAI_API_KEY?: string
-  LANGCHAIN_API_KEY?: string
-  GEMINI_API_KEY?: string
   AI_CHAT_ENABLED: boolean
   AI_ANALYTICS_ENABLED: boolean
   AI_INSIGHTS_ENABLED: boolean
@@ -86,11 +83,6 @@ export async function loadConfig() {
 
           // WhatsApp Configuration
           WHATSAPP_INSTANCE_NAME: runtimeConfig.VITE_WHATSAPP_INSTANCE_NAME || 'hormonia-instance',
-
-          // AI Services Configuration
-          OPENAI_API_KEY: runtimeConfig.VITE_OPENAI_API_KEY,
-          LANGCHAIN_API_KEY: runtimeConfig.VITE_LANGCHAIN_API_KEY,
-          GEMINI_API_KEY: runtimeConfig.VITE_GEMINI_API_KEY,
 
           // AI Feature Flags
           AI_CHAT_ENABLED: runtimeConfig.VITE_AI_CHAT_ENABLED === 'true',
@@ -141,9 +133,6 @@ export async function loadConfig() {
 export let API_BASE_URL = '';
 export let WS_BASE_URL = '';
 export let WHATSAPP_INSTANCE_NAME = '';
-export let OPENAI_API_KEY = '';
-export let LANGCHAIN_API_KEY = '';
-export let GEMINI_API_KEY = '';
 export let SENTRY_DSN = '';
 export let ANALYTICS_TRACKING_ID = '';
 export let ENVIRONMENT = '';
@@ -161,9 +150,6 @@ loadConfig().then(config => {
 
 // Static fallback values from environment - NEW NAMING CONVENTION
 const STATIC_WHATSAPP_INSTANCE_NAME = import.meta.env['VITE_WHATSAPP_INSTANCE_NAME'] || 'hormonia-instance';
-const STATIC_OPENAI_API_KEY = import.meta.env['VITE_OPENAI_API_KEY'];
-const STATIC_LANGCHAIN_API_KEY = import.meta.env['VITE_LANGCHAIN_API_KEY'];
-const STATIC_GEMINI_API_KEY = import.meta.env['VITE_GEMINI_API_KEY'];
 const STATIC_SENTRY_DSN = import.meta.env['VITE_MONITORING_SENTRY_DSN'];
 const STATIC_ANALYTICS_TRACKING_ID = import.meta.env['VITE_MONITORING_ANALYTICS_ID'];
 const STATIC_ENVIRONMENT = import.meta.env['VITE_APP_ENVIRONMENT'] || 'development';
@@ -254,7 +240,7 @@ export const THEME_CONFIG = {
  */
 export const FEATURES = {
   // AI Features - Controlled by feature flags and API key availability
-  AI_CHAT: STATIC_AI_CHAT_ENABLED && (!!STATIC_OPENAI_API_KEY || !!STATIC_GEMINI_API_KEY || STATIC_ENVIRONMENT === 'development'),
+  AI_CHAT: STATIC_AI_CHAT_ENABLED,
   AI_INSIGHTS: STATIC_AI_INSIGHTS_ENABLED,
   AI_ANALYTICS: STATIC_AI_ANALYTICS_ENABLED,
   AI_RECOMMENDATIONS: STATIC_AI_RECOMMENDATIONS_ENABLED,
@@ -276,12 +262,9 @@ export const FEATURES = {
  * Returns current AI service configuration and availability
  */
 export const getAIConfig = () => ({
-  hasOpenAI: !!STATIC_OPENAI_API_KEY,
-  hasGemini: !!STATIC_GEMINI_API_KEY,
-  hasLangChain: !!STATIC_LANGCHAIN_API_KEY,
   chatEnabled: FEATURES.AI_CHAT,
   analyticsEnabled: FEATURES.AI_ANALYTICS,
   insightsEnabled: FEATURES.AI_INSIGHTS,
   recommendationsEnabled: FEATURES.AI_RECOMMENDATIONS,
-  preferredProvider: STATIC_GEMINI_API_KEY ? 'gemini' : STATIC_OPENAI_API_KEY ? 'openai' : 'mock'
+  preferredProvider: 'backend'
 });

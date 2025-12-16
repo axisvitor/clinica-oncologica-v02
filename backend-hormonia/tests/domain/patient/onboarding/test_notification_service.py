@@ -64,14 +64,14 @@ def mock_executor():
 
 @pytest.fixture
 def notification_service(
-    mock_message_service, mock_whatsapp_service, mock_websocket_service, sync_executor
+    mock_message_service, mock_whatsapp_service, mock_websocket_service, mock_executor
 ):
     """Create NotificationService instance with all dependencies."""
     return NotificationService(
         message_service=mock_message_service,
         whatsapp_service=mock_whatsapp_service,
         websocket_service=mock_websocket_service,
-        executor=sync_executor,
+        executor=mock_executor,
     )
 
 
@@ -350,7 +350,7 @@ class TestPublishPatientCreatedEvent:
         doctor_id = uuid4()
 
         with patch(
-            "app.domain.patient.onboarding.notification_service.websocket_events"
+            "app.services.websocket_events.websocket_events"
         ) as mock_ws_events:
             mock_ws_events.publish_patient_event = AsyncMock()
 
@@ -389,7 +389,7 @@ class TestPublishPatientCreatedEvent:
         doctor_id = uuid4()
 
         with patch(
-            "app.domain.patient.onboarding.notification_service.websocket_events",
+            "app.services.websocket_events.websocket_events",
             None,
         ):
             result = await notification_service.publish_patient_created_event(
@@ -407,7 +407,7 @@ class TestPublishPatientCreatedEvent:
         doctor_id = uuid4()
 
         with patch(
-            "app.domain.patient.onboarding.notification_service.websocket_events"
+            "app.services.websocket_events.websocket_events"
         ) as mock_ws_events:
             mock_ws_events.publish_patient_event = AsyncMock(
                 side_effect=Exception("WebSocket error")
@@ -428,7 +428,7 @@ class TestPublishPatientCreatedEvent:
         doctor_id = uuid4()
 
         with patch(
-            "app.domain.patient.onboarding.notification_service.websocket_events"
+            "app.services.websocket_events.websocket_events"
         ) as mock_ws_events:
             mock_ws_events.publish_patient_event = AsyncMock()
 
@@ -596,7 +596,7 @@ class TestNotificationServiceIntegration:
                     mock_get_loop.return_value = mock_loop
 
                     with patch(
-                        "app.domain.patient.onboarding.notification_service.websocket_events"
+                        "app.services.websocket_events.websocket_events"
                     ) as mock_ws_events:
                         mock_ws_events.publish_patient_event = AsyncMock()
 
@@ -655,7 +655,7 @@ class TestNotificationServiceIntegration:
                     mock_get_loop.return_value = mock_loop
 
                     with patch(
-                        "app.domain.patient.onboarding.notification_service.websocket_events"
+                        "app.services.websocket_events.websocket_events"
                     ) as mock_ws_events:
                         # Make WebSocket fail
                         mock_ws_events.publish_patient_event = AsyncMock(

@@ -38,7 +38,6 @@ from app.dependencies.auth_dependencies import (
 from app.dependencies.simple_service_provider import get_simple_service_provider
 from app.database import get_db
 from app.middleware.csrf import validate_csrf_token
-from app.middleware.custom_csrf import validate_custom_csrf
 from app.utils.rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
@@ -190,7 +189,7 @@ async def test_simple_session():
     "",
     response_model=SessionResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(validate_custom_csrf)],
+    dependencies=[Depends(validate_csrf_token)],
     include_in_schema=False
 )
 @limiter.limit("20/minute")  # Rate limit: 20 session creations per minute per IP

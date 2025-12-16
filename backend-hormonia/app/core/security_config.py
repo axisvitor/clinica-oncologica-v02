@@ -93,9 +93,14 @@ class DomainSecurityConfig(BaseModel):
 
 
 class APISecurityConfig(BaseModel):
-    """API security configuration."""
-    # CORS settings
-    cors_allow_origins: List[str] = ["https://app.hormonia.io"]
+    """API security configuration.
+
+    NOTE: For actual CORS configuration, use SecuritySettings in
+    app/config/settings/security.py with CORS_FRONTEND_URL, CORS_QUIZ_URL,
+    and CORS_ALLOWED_ORIGINS environment variables.
+    """
+    # CORS settings (defaults empty - load from environment)
+    cors_allow_origins: List[str] = []
     cors_allow_credentials: bool = True
     cors_allow_methods: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     # SECURITY: Explicit header whitelist - NEVER use ["*"] with credentials

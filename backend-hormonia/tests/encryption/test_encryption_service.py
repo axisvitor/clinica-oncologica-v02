@@ -146,6 +146,7 @@ class TestEncryptionService:
     def test_initialization_without_key_fails(self, monkeypatch):
         """Test that initialization fails without ENCRYPTION_KEY_CURRENT."""
         monkeypatch.delenv("ENCRYPTION_KEY_CURRENT", raising=False)
+        monkeypatch.delenv("SECURITY_ENCRYPTION_KEY", raising=False)
         EncryptionService._instance = None
         EncryptionService._initialized = False
 

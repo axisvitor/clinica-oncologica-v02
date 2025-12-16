@@ -170,7 +170,7 @@ class Settings(
 
         if is_production:
             security_fields = [
-                "SECURITY_SECRET_KEY", "AUTH_JWT_SECRET_KEY", "SECURITY_ENCRYPTION_KEY"
+                "SECURITY_SECRET_KEY", "SECURITY_ENCRYPTION_KEY"
             ]
             placeholder_patterns = ["CHANGE_THIS", "YOUR_", "INSECURE", "DEV-", "MUST-BE-CHANGED"]
             for field in security_fields:
@@ -187,8 +187,6 @@ class Settings(
     def __init__(self, **kwargs):
         """Initialize settings with validation."""
         super().__init__(**kwargs)
-        self.validate_firebase_config()
-        self.validate_cors_config()
         self.validate_production_config()
         self.validate_csrf_config()
 

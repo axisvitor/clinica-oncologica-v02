@@ -122,9 +122,9 @@ class CreationService:
             logger.info(
                 "Creating new patient",
                 extra={
-                    "cpf": patient_data.cpf,
-                    "email": patient_data.email,
-                    "phone": patient_data.phone,
+                    "has_cpf": bool(patient_data.cpf),
+                    "has_email": bool(patient_data.email),
+                    "has_phone": bool(patient_data.phone),
                     "doctor_id": str(doctor_id)
                 }
             )
@@ -143,7 +143,7 @@ class CreationService:
             await self._invalidate_cache(doctor_id)
 
             logger.info(
-                f"Patient created successfully (direct): {patient.id} - {patient.name}"
+                f"Patient created successfully (direct): {patient.id}"
             )
 
         except ValidationError as e:

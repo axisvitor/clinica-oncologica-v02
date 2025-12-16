@@ -45,7 +45,7 @@ class SearchableHash:
         Raises:
             ValueError: If HASH_SALT not set
         """
-        salt = os.getenv("HASH_SALT")
+        salt = os.getenv("HASH_SALT") or os.getenv("COMPLIANCE_HASH_SALT")
         if not salt:
             raise ValueError(
                 "HASH_SALT environment variable not set. "

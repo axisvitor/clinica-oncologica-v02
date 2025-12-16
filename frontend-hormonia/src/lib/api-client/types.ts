@@ -641,6 +641,15 @@ export interface AIChatResponse {
   metadata?: Record<string, unknown>;
 }
 
+export interface AIHealthResponse {
+  status: string;
+  services: Record<string, string>;
+  redis_cache: Record<string, unknown>;
+  gemini_api: Record<string, unknown>;
+  response_time_ms: number;
+  timestamp: string;
+}
+
 export interface AIAnalysisRequest {
   data: unknown;
   analysis_type: string;

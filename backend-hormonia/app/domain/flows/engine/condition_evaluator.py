@@ -94,11 +94,12 @@ class ConditionEvaluator:
                 return content
 
             # Check patient-level opt-out flags
-            metadata = patient.patient_data or patient.patient_metadata or {}
-            if metadata.get('no_ai_messages', False):
+            metadata = patient.patient_data or {}
+            custom_fields = metadata.get('custom_fields') if isinstance(metadata.get('custom_fields'), dict) else {}
+            if metadata.get('no_ai_messages', False) or custom_fields.get('no_ai_messages', False):
                 logger.info(f"Patient {patient_id} has AI restriction (no_ai_messages) - skipping humanization")
                 return content
-            if metadata.get('critical_condition', False):
+            if metadata.get('critical_condition', False) or custom_fields.get('critical_condition', False):
                 logger.info(f"Patient {patient_id} in critical condition - skipping AI humanization")
                 return content
 

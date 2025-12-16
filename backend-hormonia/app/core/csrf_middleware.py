@@ -56,7 +56,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             CSRFMiddleware,
             secret_key=settings.SECURITY_CSRF_SECRET_KEY,
             token_expiry=3600,
-            exempt_paths=["/api/v2/csrf-token", "/health", "/docs"]
+            exempt_paths=["/api/v2/auth/csrf-token", "/health", "/docs"]
         )
     """
 
@@ -102,7 +102,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             "/redoc",
             "/openapi.json",
             "/health",
-            "/api/v2/csrf-token",
+            "/api/v2/auth/csrf-token",
         ])
 
         logger.info(
@@ -158,7 +158,8 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
         # Base64 encode for safe transport
         import base64
-        return base64.b64encode(token.encode('utf-8')).decode('utf-8')
+        encoded = base64.urlsafe_b64encode(token.encode('utf-8')).decode('utf-8')
+        return encoded.rstrip('=')
 
     def _validate_token(self, token: str) -> bool:
         """
@@ -178,7 +179,8 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         try:
             # Base64 decode
             import base64
-            decoded = base64.b64decode(token.encode('utf-8')).decode('utf-8')
+            padding = '=' * (-len(token) % 4)
+            decoded = base64.urlsafe_b64decode((token + padding).encode('utf-8')).decode('utf-8')
 
             # Split components
             parts = decoded.split(':')

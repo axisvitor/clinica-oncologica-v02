@@ -282,7 +282,7 @@ Orphan:     018 → 27ee28e62ff8 → 019
 
 #### Shared Types Architecture
 ```
-packages/shared-types/src/
+frontend-hormonia/shared-types/src/
 ├── index.ts          ✅ Main exports
 ├── quiz.ts          ✅ Quiz types (11 question types)
 ├── patient.ts       ⚠️  Missing (uses frontend types)
@@ -293,7 +293,7 @@ packages/shared-types/src/
 #### Type System Layers
 1. **Backend Pydantic Schemas** (`app/schemas/v2/`)
 2. **Frontend TypeScript Types** (`src/types/`, `src/lib/api-client/types.ts`)
-3. **Shared Types Package** (`packages/shared-types/src/`)
+3. **Shared Types Package** (`frontend-hormonia/shared-types/src/`)
 4. **API Normalizers** (`src/lib/api-client/normalizers.ts`)
 
 #### ✅ Excellent Normalizer Coverage
@@ -333,7 +333,7 @@ isBackendPatient(obj: unknown): obj is BackendPatient
 **Shared Types**: 11 types (TEXT, BOOLEAN, RATING aliases)
 **Frontend api.ts**: 4 types (MULTIPLE_CHOICE, TEXT, SCALE, YES_NO)
 **Risk**: HIGH - Runtime errors if backend sends unsupported types
-**Fix**: Use shared types enum consistently
+**Fix**: Use frontend's local shared quiz types instead
 
 ##### 4. Message Status Enum
 **Backend**: 7 statuses (includes SCHEDULED, CANCELLED)
@@ -381,7 +381,7 @@ isBackendPatient(obj: unknown): obj is BackendPatient
 **Authentication Middleware Stack**:
 ```python
 1. enhanced_auth.py - Token blacklist
-2. custom_csrf.py - CSRF validation (POST/PUT/PATCH/DELETE)
+2. csrf.py - CSRF validation (POST/PUT/PATCH/DELETE)
 3. rate_limiter.py - Rate limiting
 4. admin_permissions.py - RBAC enforcement
 5. security_headers.py - Security headers
@@ -497,10 +497,10 @@ Missing runtime environment validation
      | 'CANCELLED'    // ← ADD
    ```
 
-6. **Use Shared Quiz Types** (1 hour)
+6. **Use Frontend's Local Shared Quiz Types** (1 hour)
    ```typescript
    // In src/lib/api-client/types.ts
-   import { QuestionType } from '@hormonia/shared-types'
+   import { QuestionType } from '@/types/shared-quiz'
 
    // Remove local QuestionType enum
    // Use imported QuestionType instead

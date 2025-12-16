@@ -64,9 +64,8 @@ class MessageScheduler:
         Returns:
             Timezone string
         """
-        if patient.patient_metadata and "timezone" in patient.patient_metadata:
-            return patient.patient_metadata["timezone"]
-        return self.config.DEFAULT_TIMEZONE
+        timezone_str = getattr(patient, "timezone", None)
+        return timezone_str or self.config.DEFAULT_TIMEZONE
 
     def _get_scheduling_window_times(
         self, window: SchedulingWindow

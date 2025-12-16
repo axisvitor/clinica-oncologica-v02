@@ -78,6 +78,7 @@ import type {
   SystemStats,
   AIChatRequest,
   AIChatResponse,
+  AIHealthResponse,
   AIAnalysisRequest,
   AIAnalysisResponse,
   AIGenerateResponseRequest,
@@ -523,6 +524,8 @@ export class ApiClient extends ApiClientCore {
 
   private createAiApi(): AiApi {
     return {
+      health: () => this.get<AIHealthResponse>("/api/v2/ai/health"),
+
       chat: (message: string, context?: Record<string, unknown>) =>
         this.post<AIChatResponse>("/api/v2/ai/chat", { message, context }),
 
@@ -838,6 +841,7 @@ interface AdminUsersApi {
 }
 
 interface AiApi {
+  health: () => Promise<AIHealthResponse>;
   chat: (message: string, context?: Record<string, unknown>) => Promise<AIChatResponse>;
   analyze: (data: unknown, analysisType: string) => Promise<AIAnalysisResponse>;
   generateResponse: (patientId: string, messageHistory: Array<{ role: string; content: string }>, intent?: string) => Promise<AIGenerateResponseResponse>;

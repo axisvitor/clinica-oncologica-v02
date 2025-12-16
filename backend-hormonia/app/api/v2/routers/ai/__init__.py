@@ -16,7 +16,7 @@ from fastapi import APIRouter
 from . import humanize, insights, analysis, health, stats, summary
 
 # Initialize main router with prefix and tags
-router = APIRouter(prefix="/ai", tags=["AI Services v2"])
+router = APIRouter(tags=["AI Services v2"])
 
 # Include all sub-routers
 router.include_router(humanize.router, prefix="/humanize", tags=["AI - Humanize"])

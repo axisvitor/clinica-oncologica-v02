@@ -22,7 +22,7 @@ from pathlib import Path
 from datetime import datetime
 
 # Add backend to path
-backend_path = Path(__file__).parent.parent / "backend-hormonia"
+backend_path = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(backend_path))
 
 # Load environment
@@ -162,7 +162,7 @@ class LoginSystemTester:
                     False,
                     f"Cannot connect to {self.backend_url}"
                 )
-                self.warning("Start the backend with: cd backend-hormonia && uvicorn app.main:app --reload")
+                self.warning("Start the backend with: ./backend-hormonia/scripts/start_backend.sh")
                 return False
 
             # Test health endpoint

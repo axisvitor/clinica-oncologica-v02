@@ -9,7 +9,6 @@ All Supabase fallback code has been removed.
 from fastapi import Depends, HTTPException, status, Header, Cookie
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, Dict, List, Any
-from uuid import UUID
 import logging
 import asyncio
 from datetime import datetime
@@ -390,26 +389,21 @@ async def get_current_user(
 
     token_value = credentials.credentials
 
-    cached_local = TEST_TOKEN_REGISTRY.get(token_value)
+    allow_test_tokens = (
+        getattr(settings, "APP_ENABLE_DEBUG", False)
+        and getattr(settings, "APP_ENVIRONMENT", "development").lower() != "production"
+    )
+
+    cached_local = TEST_TOKEN_REGISTRY.get(token_value) if allow_test_tokens else None
     if cached_local:
         return cached_local
 
     # Fast-path for local/testing tokens used by contract tests
-    if token_value.startswith(("admin_token_", "test_token_")):
-        raw_user_id = token_value.rsplit("_", 1)[-1]
-        try:
-            user_uuid = UUID(raw_user_id)
-        except ValueError:
-            user_uuid = None
-
-        if user_uuid:
-            user = (
-                services.db.query(User)
-                .filter(User.id == user_uuid)
-                .first()
-            )
-            if user:
-                return user
+    if allow_test_tokens and token_value.startswith(("admin_token_", "test_token_")):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unregistered test token. Use TEST_TOKEN_REGISTRY in tests."
+        )
 
     # Check if Firebase is configured
     if _firebase_service is None:

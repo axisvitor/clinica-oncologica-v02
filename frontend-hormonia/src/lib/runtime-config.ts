@@ -56,10 +56,6 @@ export interface RuntimeConfig {
   VITE_FIREBASE_MEASUREMENT_ID?: string;
 
   // AI Service Configuration
-  VITE_OPENAI_API_KEY?: string;
-  VITE_LANGCHAIN_API_KEY?: string;
-  VITE_GEMINI_API_KEY?: string;
-
   // AI Feature Flags
   VITE_AI_CHAT_ENABLED?: string;
   VITE_AI_ANALYTICS_ENABLED?: string;
@@ -101,11 +97,6 @@ const PRODUCTION_FALLBACK_CONFIG: RuntimeConfig = {
   VITE_FIREBASE_MESSAGING_SENDER_ID: '',
   VITE_FIREBASE_APP_ID: '',
   VITE_FIREBASE_MEASUREMENT_ID: '',
-
-  // AI Services - Empty in fallback, should be set via environment
-  VITE_OPENAI_API_KEY: '',
-  VITE_LANGCHAIN_API_KEY: '',
-  VITE_GEMINI_API_KEY: '',
 
   // AI Feature Flags - Enabled by default in production
   VITE_AI_CHAT_ENABLED: 'true',
@@ -184,11 +175,6 @@ async function loadRuntimeConfiguration(): Promise<RuntimeConfig> {
       ...(import.meta.env['VITE_FIREBASE_APP_ID'] && { VITE_FIREBASE_APP_ID: import.meta.env['VITE_FIREBASE_APP_ID'] }),
       ...(import.meta.env['VITE_FIREBASE_MEASUREMENT_ID'] && { VITE_FIREBASE_MEASUREMENT_ID: import.meta.env['VITE_FIREBASE_MEASUREMENT_ID'] }),
 
-      // AI Services - Development defaults
-      ...(import.meta.env['VITE_OPENAI_API_KEY'] && { VITE_OPENAI_API_KEY: import.meta.env['VITE_OPENAI_API_KEY'] }),
-      ...(import.meta.env['VITE_LANGCHAIN_API_KEY'] && { VITE_LANGCHAIN_API_KEY: import.meta.env['VITE_LANGCHAIN_API_KEY'] }),
-      ...(import.meta.env['VITE_GEMINI_API_KEY'] && { VITE_GEMINI_API_KEY: import.meta.env['VITE_GEMINI_API_KEY'] }),
-
       // AI Feature Flags - Development defaults (enabled if API keys present)
       VITE_AI_CHAT_ENABLED: import.meta.env['VITE_AI_CHAT_ENABLED'] || 'true',
       VITE_AI_ANALYTICS_ENABLED: import.meta.env['VITE_AI_ANALYTICS_ENABLED'] || 'true',
@@ -256,7 +242,7 @@ async function loadRuntimeConfiguration(): Promise<RuntimeConfig> {
 async function loadFromRuntimeAPI(): Promise<RuntimeConfig | null> {
   if (typeof fetch !== 'function') {
     if (import.meta.env['DEV']) {
-      logger.log('Fetch API unavailable, skipping /api/config');
+      logger.log('Fetch API unavailable, skipping /api/v2/system/config');
     }
     return null;
   }
@@ -279,11 +265,11 @@ async function loadFromRuntimeAPI(): Promise<RuntimeConfig | null> {
       ...(controller ? { signal: controller.signal } : {})
     };
 
-    const response = await fetch('/api/v2/config', requestInit);
+    const response = await fetch('/api/v2/system/config', requestInit);
 
     if (!response.ok) {
       if (import.meta.env['DEV']) {
-        logger.warn(`/api/config responded with status ${response.status}`);
+        logger.warn(`/api/v2/system/config responded with status ${response.status}`);
       }
       return null;
     }
@@ -292,17 +278,18 @@ async function loadFromRuntimeAPI(): Promise<RuntimeConfig | null> {
     const normalizedConfig = normalizeRuntimeApiPayload(payload);
 
     if (normalizedConfig) {
+      const config = normalizeConfig(normalizedConfig);
       if (typeof window !== 'undefined') {
         (window as any).__ENV_CONFIG__ = {
           ...(window as any).__ENV_CONFIG__ || {},
-          ...normalizedConfig
+          ...config
         };
       }
-      return normalizedConfig;
+      return config;
     }
   } catch (error) {
     if (import.meta.env['DEV']) {
-      logger.warn('Failed to fetch /api/config', error);
+      logger.warn('Failed to fetch /api/v2/system/config', error);
     }
   } finally {
     if (timeoutId) {
@@ -318,6 +305,15 @@ function normalizeRuntimeApiPayload(payload: unknown): RuntimeConfig | null {
     return null;
   }
 
+  const looksVersionedApiUrl = (value?: string) => {
+    return typeof value === 'string' && /\/api\/v2\/?$/.test(value);
+  };
+
+  const buildApiUrl = (baseUrl: string) => {
+    const normalized = baseUrl.replace(/\/+$/, '');
+    return `${normalized}/api/v2`;
+  };
+
   const fallbackKeys = new Set(Object.keys(PRODUCTION_FALLBACK_CONFIG));
   const normalized: Partial<RuntimeConfig> = {};
 
@@ -328,6 +324,50 @@ function normalizeRuntimeApiPayload(payload: unknown): RuntimeConfig | null {
     if (typeof value === 'string' && value.length > 0) {
       (normalized as Record<string, string>)[key] = value;
     }
+  }
+
+  // Backend public config uses:
+  // - VITE_API_BASE_URL: versioned API base (/api/v2)
+  // - VITE_API_URL: API server URL (root domain)
+  // Frontend runtime config expects:
+  // - VITE_API_URL: versioned API base (/api/v2)
+  // - VITE_API_BASE_URL: root domain
+  const rawApiUrl = (payload as Record<string, unknown>)['VITE_API_URL'];
+  const rawApiBaseUrl = (payload as Record<string, unknown>)['VITE_API_BASE_URL'];
+  const apiUrlCandidate = typeof rawApiUrl === 'string' ? rawApiUrl : undefined;
+  const apiBaseCandidate = typeof rawApiBaseUrl === 'string' ? rawApiBaseUrl : undefined;
+
+  const versionedApiUrl =
+    looksVersionedApiUrl(apiUrlCandidate)
+      ? apiUrlCandidate
+      : looksVersionedApiUrl(apiBaseCandidate)
+        ? apiBaseCandidate
+        : undefined;
+  const baseApiUrl =
+    apiBaseCandidate && !looksVersionedApiUrl(apiBaseCandidate)
+      ? apiBaseCandidate
+      : apiUrlCandidate && !looksVersionedApiUrl(apiUrlCandidate)
+        ? apiUrlCandidate
+        : versionedApiUrl
+          ? versionedApiUrl.replace(/\/api\/v2\/?$/, '')
+          : undefined;
+
+  if (baseApiUrl) {
+    normalized.VITE_API_BASE_URL = baseApiUrl;
+  }
+
+  if (versionedApiUrl) {
+    normalized.VITE_API_URL = versionedApiUrl;
+  } else if (baseApiUrl) {
+    normalized.VITE_API_URL = buildApiUrl(baseApiUrl);
+  }
+
+  if (normalized.VITE_WS_BASE_URL && !normalized.VITE_WS_URL) {
+    normalized.VITE_WS_URL = normalized.VITE_WS_BASE_URL;
+  }
+
+  if (normalized.VITE_WS_URL && !normalized.VITE_WS_BASE_URL) {
+    normalized.VITE_WS_BASE_URL = normalized.VITE_WS_URL;
   }
 
   const legacyApiUrl = (payload as Record<string, unknown>)['apiUrl'];

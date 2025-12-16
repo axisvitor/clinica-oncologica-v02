@@ -121,9 +121,6 @@ def sample_patient():
     patient = Patient(
         id=patient_id,
         name="João Silva",
-        phone="+5511999999999",
-        email="joao@example.com",
-        cpf="12345678909",
         doctor_id=uuid4(),
     )
     return patient

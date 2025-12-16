@@ -11,7 +11,27 @@ from typing import List, Optional
 
 
 def is_production() -> bool:
-    """Check if running in production environment"""
+    """
+    Check if running in production environment
+
+    Environment Variables:
+    - APP_ENVIRONMENT (current): Preferred variable
+    - ENVIRONMENT (deprecated v2.1.0): Legacy support, will be removed in v3.0
+
+    Returns:
+        bool: True if production mode
+    """
+    import warnings
+
+    # Check for deprecated ENVIRONMENT variable
+    if os.getenv("ENVIRONMENT") and not os.getenv("APP_ENVIRONMENT"):
+        warnings.warn(
+            "ENVIRONMENT variable is deprecated since v2.1.0. Use APP_ENVIRONMENT instead. "
+            "ENVIRONMENT will be removed in v3.0.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+
     # Check APP_ENVIRONMENT first (new convention), then ENVIRONMENT (legacy)
     env = os.getenv("APP_ENVIRONMENT", os.getenv("ENVIRONMENT", "development")).lower()
     return env in ["production", "prod"]
@@ -104,7 +124,17 @@ def configure_cors(
     if allowed_origins is None:
         if is_production():
             # Production: Must be explicitly configured via env vars (fallback if not passed in args)
-            # Support both CORS_ALLOWED_ORIGINS (JSON array) and CORS_ORIGINS (comma-separated)
+            # Support both CORS_ALLOWED_ORIGINS (preferred) and CORS_ORIGINS (deprecated v2.1.0)
+            # CORS_ORIGINS will be removed in v3.0
+            import warnings
+            if os.getenv("CORS_ORIGINS") and not os.getenv("CORS_ALLOWED_ORIGINS"):
+                warnings.warn(
+                    "CORS_ORIGINS is deprecated since v2.1.0. Use CORS_ALLOWED_ORIGINS instead. "
+                    "CORS_ORIGINS will be removed in v3.0.",
+                    DeprecationWarning,
+                    stacklevel=2
+                )
+
             cors_env = os.getenv("CORS_ALLOWED_ORIGINS", os.getenv("CORS_ORIGINS", ""))
 
             # Try to parse as JSON array first
@@ -124,7 +154,7 @@ def configure_cors(
         else:
             # Development: Local origins
             allowed_origins = [
-                "http://localhost:3000",  # Frontend Hormonia (old)
+                "http://localhost:3000",  # Legacy frontend port (deprecated)
                 "http://localhost:3001",  # Quiz Interface
                 "http://localhost:5173",  # Frontend Hormonia Vite (current)
                 "http://127.0.0.1:3000",

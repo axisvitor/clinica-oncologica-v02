@@ -47,7 +47,7 @@ class ContextBuilder:
                 "treatment_start_date": patient.treatment_start_date,
                 "current_day": patient.current_day,
                 "flow_state": patient.flow_state.value,
-                "metadata": patient.patient_metadata or {}
+                "metadata": patient.patient_data or {}
             },
             "flow_start_time": flow_state.started_at,
             "current_time": datetime.utcnow(),

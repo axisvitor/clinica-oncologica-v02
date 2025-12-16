@@ -352,42 +352,32 @@ FIREBASE_SESSION_TTL_SECONDS: int = Field(default=3600)      # 1 hora
 
 #### 3.1 CSRF Protection
 
-**Arquivo:** `app/middleware/custom_csrf.py`
+**Arquivo:** `app/middleware/csrf.py`
 
 ✅ **Token Generation:**
 ```python
-# Linhas 40-67: HMAC-SHA256 com timestamp
-def generate_token(self) -> str:
-    """
-    ✅ Timestamp para prevenir replay
-    ✅ Random data (secrets.token_hex(16))
-    ✅ HMAC signature
-    ✅ Base64 encoding
-    """
+# HMAC-SHA256 com timestamp + random data
+# Token final em base64url (URL-safe)
+def generate_csrf_token(secret_key: str) -> str:
     timestamp = str(int(time.time()))
     random_data = secrets.token_hex(16)
-    payload = f"{timestamp}:{random_data}"
-    signature = hmac.new(self.secret_key, payload.encode(), hashlib.sha256).hexdigest()
-    token = f"{payload}:{signature}"
-    return base64.b64encode(token.encode()).decode()
+    data = f"{timestamp}.{random_data}"
+    signature = hmac.new(secret_key.encode('utf-8'), data.encode('utf-8'), hashlib.sha256).hexdigest()
+    token_raw = f"{data}.{signature}"
+    return base64.urlsafe_b64encode(token_raw.encode('utf-8')).decode('utf-8').rstrip('=')
 ```
 
 ✅ **Validação de Token:**
 ```python
-# Linhas 69-114: Validação segura
-def validate_token(self, token: str) -> bool:
+# Validação segura
+def _validate_token_signature(token: str, secret_key: str) -> bool:
     """
     ✅ Constant-time comparison (hmac.compare_digest)
     ✅ Expiration check
     ✅ Signature verification
     """
-    # Verifica expiração
-    if current_time - timestamp > self.token_expiry:
-        return False
-
-    # Verifica signature (constant-time)
-    if not hmac.compare_digest(expected_signature, provided_signature):
-        return False
+    # Decode base64url, split, validate signature and timestamp
+    ...
 ```
 
 #### 3.2 Rate Limiting

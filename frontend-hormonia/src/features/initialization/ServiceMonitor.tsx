@@ -47,8 +47,6 @@ interface AppConfig {
   API_BASE_URL: string
   WS_BASE_URL?: string
   WHATSAPP_INSTANCE_NAME?: string
-  OPENAI_API_KEY?: string
-  GEMINI_API_KEY?: string
   SENTRY_DSN?: string
   AI_CHAT_ENABLED?: boolean
   AI_ANALYTICS_ENABLED?: boolean
@@ -95,17 +93,9 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
       required: false
     },
     {
-      id: 'openai',
-      name: 'OpenAI API',
-      description: 'Serviços de inteligência artificial',
-      category: 'ai',
-      status: 'pending',
-      required: false
-    },
-    {
-      id: 'gemini',
-      name: 'Google Gemini API',
-      description: 'Serviços de IA alternativo',
+      id: 'ai',
+      name: 'Serviços de IA',
+      description: 'Recursos de IA disponíveis no backend',
       category: 'ai',
       status: 'pending',
       required: false
@@ -189,7 +179,13 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
           const errorMessage = error instanceof Error ? error.message : 'Serviço indisponível'
 
           // Determine status based on error type
-          const status = errorMessage.includes('timeout') || errorMessage.includes('network')
+          const normalizedError = errorMessage.toLowerCase()
+          const status = (
+            normalizedError.includes('degraded') ||
+            normalizedError.includes('não configur') ||
+            normalizedError.includes('timeout') ||
+            normalizedError.includes('network')
+          )
             ? 'degraded'
             : 'unhealthy'
 
@@ -251,11 +247,8 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
       case 'sentry':
         await checkSentry(config)
         break
-      case 'openai':
-        await checkOpenAI(config)
-        break
-      case 'gemini':
-        await checkGemini(config)
+      case 'ai':
+        await checkAI(config)
         break
       default:
         throw new Error(`Unknown service: ${service.id}`)
@@ -356,32 +349,50 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
     })
   }
 
-  const checkOpenAI = async (config: AppConfig) => {
-    if (!config.OPENAI_API_KEY) {
-      throw new Error('OpenAI não configurado')
+  const checkAI = async (config: AppConfig) => {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000)
+
+    try {
+      const response = await fetch(`${config.API_BASE_URL}/api/v2/ai/health`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json'
+        },
+        signal: controller.signal
+      })
+
+      if (!response.ok) {
+        throw new Error(`Healthcheck IA retornou status ${response.status}`)
+      }
+
+      const data = await response.json() as any
+      const backendStatus = (data?.status as string | undefined) || 'unknown'
+      const geminiStatus = (data?.gemini_api?.status as string | undefined) || 'unknown'
+      const geminiEnabled = data?.gemini_api?.enabled === true
+
+      if (backendStatus === 'unhealthy') {
+        throw new Error('IA indisponível')
+      }
+
+      if (backendStatus === 'degraded' || !geminiEnabled) {
+        throw new Error(`degraded: IA ${geminiEnabled ? 'degradada' : 'não configurada'} (${geminiStatus})`)
+      }
+
+      updateServiceStatus('ai', 'checking', undefined, undefined, {
+        backendStatus,
+        geminiStatus,
+        geminiEnabled,
+      })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('timeout na verificação de IA')
+      }
+      throw error
+    } finally {
+      clearTimeout(timeoutId)
     }
-
-    // Mock API check - in real implementation, make test API call
-    await new Promise(resolve => setTimeout(resolve, 800))
-
-    updateServiceStatus('openai', 'checking', undefined, undefined, {
-      keyLength: config.OPENAI_API_KEY.length,
-      configured: true
-    })
-  }
-
-  const checkGemini = async (config: AppConfig) => {
-    if (!config.GEMINI_API_KEY) {
-      throw new Error('Gemini não configurado')
-    }
-
-    // Mock API check
-    await new Promise(resolve => setTimeout(resolve, 700))
-
-    updateServiceStatus('gemini', 'checking', undefined, undefined, {
-      keyLength: config.GEMINI_API_KEY.length,
-      configured: true
-    })
   }
 
   const getStatusIcon = (status: Service['status']) => {

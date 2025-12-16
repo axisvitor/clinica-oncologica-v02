@@ -209,12 +209,19 @@ async def verify_firebase_token(
         logger.info(f"✅ Cookie set: session_id={session.id}, path=/")
         
         # Set X-Session-ID header for compatibility
-        response.headers["X-Session-ID"] = str(session.id)
+        if settings.APP_ENABLE_DEBUG and settings.APP_ENVIRONMENT.lower() != "production":
+            response.headers["X-Session-ID"] = str(session.id)
 
         # Return correct response structure matching FirebaseTokenVerifyResponse
+        if settings.APP_ENABLE_DEBUG and settings.APP_ENVIRONMENT.lower() != "production":
+            return {
+                "valid": True,
+                "session_id": str(session.id),
+                "message": "Login successful"
+            }
+
         return {
             "valid": True,
-            "session_id": str(session.id),
             "message": "Login successful"
         }
 

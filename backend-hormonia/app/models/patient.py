@@ -451,14 +451,29 @@ class Patient(BaseModel):
     @property
     def timezone(self) -> str:
         """Get patient timezone from metadata (default: America/Sao_Paulo)."""
-        return self.patient_data.get('timezone', 'America/Sao_Paulo') if self.patient_data else 'America/Sao_Paulo'
+        if not self.patient_data:
+            return 'America/Sao_Paulo'
+
+        preferences = self.patient_data.get('preferences')
+        if isinstance(preferences, dict) and preferences.get('timezone'):
+            return preferences.get('timezone')
+
+        legacy_timezone = self.patient_data.get('timezone')
+        return legacy_timezone or 'America/Sao_Paulo'
 
     @timezone.setter
     def timezone(self, value: str):
         """Set patient timezone in metadata."""
         if not self.patient_data:
             self.patient_data = {}
-        self.patient_data['timezone'] = value
+
+        preferences = self.patient_data.get('preferences')
+        if not isinstance(preferences, dict):
+            preferences = {}
+
+        preferences['timezone'] = value
+        self.patient_data['preferences'] = preferences
+        self.patient_data.pop('timezone', None)
     
     def __repr__(self):
         # Use phone_hash for repr (phone column removed in migration 030)

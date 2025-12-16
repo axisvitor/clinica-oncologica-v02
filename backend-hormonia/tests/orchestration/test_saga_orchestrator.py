@@ -1,13 +1,23 @@
+import os
+from contextlib import asynccontextmanager
+
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 from uuid import uuid4, UUID
 from datetime import datetime
+
+os.environ.setdefault("MONTHLY_QUIZ_TOKEN_SECRET", "test-secret-key-for-testing")
 
 from app.orchestration.saga_orchestrator import SagaOrchestrator
 from app.models.patient_onboarding_saga import SagaStatus, PatientOnboardingSaga
 from app.schemas.patient import PatientCreate
 from app.models.patient import Patient
 from app.models.message import Message
+
+
+@asynccontextmanager
+async def _noop_acquire_lock(*args, **kwargs):
+    yield "test-lock-id"
 
 @pytest.fixture
 def mock_db():
@@ -33,7 +43,8 @@ def saga_orchestrator(mock_db, mock_redis, mock_evolution):
     # It instantiates services internally: PatientRepository, PatientFlowService, UnifiedWhatsAppService, MessageService
     # We need to patch these internal services.
     
-    with patch('app.orchestration.saga_orchestrator.PatientRepository') as MockRepo, \
+    with patch('app.orchestration.saga_orchestrator.acquire_lock', _noop_acquire_lock), \
+         patch('app.orchestration.saga_orchestrator.PatientRepository') as MockRepo, \
          patch('app.orchestration.saga_orchestrator.PatientFlowService') as MockFlowService, \
          patch('app.orchestration.saga_orchestrator.UnifiedWhatsAppService') as MockWhatsApp, \
          patch('app.orchestration.saga_orchestrator.MessageService') as MockMessageService:
@@ -62,7 +73,6 @@ async def test_execute_patient_onboarding_saga_success(saga_orchestrator, mock_d
     created_patient = Patient(
         id=uuid4(), 
         name=patient_data.name, 
-        phone=patient_data.phone,
         doctor_id=doctor_id
     )
     saga_orchestrator.mock_patient_repo.create.return_value = created_patient
@@ -116,17 +126,15 @@ async def test_execute_patient_onboarding_saga_failure_and_compensation(saga_orc
     result = await saga_orchestrator.execute_patient_onboarding_saga(patient_data, doctor_id)
     
     # Assertions
-    assert result is None # Should return None on failure
-    
-    # Verify Compensation
-    # Patient should be deleted
-    saga_orchestrator.mock_patient_repo.delete.assert_called_with(created_patient.id)
+    # Welcome sending is best-effort; saga should still complete and return patient
+    assert result == created_patient
+    saga_orchestrator.mock_patient_repo.delete.assert_not_called()
     
     # Verify Saga State
     saga_args = [args[0] for args, _ in mock_db.add.call_args_list if isinstance(args[0], PatientOnboardingSaga)]
     assert len(saga_args) > 0
     saga = saga_args[0]
-    assert saga.status == SagaStatus.FAILED
+    assert saga.status == SagaStatus.COMPLETED
 
 @pytest.mark.asyncio
 async def test_resume_saga_completed(saga_orchestrator, mock_db):

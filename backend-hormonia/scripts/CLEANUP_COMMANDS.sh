@@ -13,7 +13,7 @@ echo "╚═══════════════════════�
 echo ""
 
 # Change to project root
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
 echo "📂 Project root: $PROJECT_ROOT"

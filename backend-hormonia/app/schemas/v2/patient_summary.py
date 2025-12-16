@@ -104,7 +104,7 @@ class PatientSummaryResponse(BaseModel):
     # Cache info
     from_cache: bool = False
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 class PatientSummaryListResponse(BaseModel):

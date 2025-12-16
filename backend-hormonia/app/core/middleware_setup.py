@@ -131,10 +131,14 @@ def setup_middleware(app: FastAPI) -> None:
             secret_key=settings.SECURITY_CSRF_SECRET_KEY,
             token_expiry=3600,  # 1 hour
             exempt_paths=[
-                "/api/v2/csrf-token",
+                "/api/v2/auth/csrf-token",
                 "/api/v2/auth/firebase/verify",
                 "/webhooks/",
                 "/api/public/",
+                # Public quiz endpoints (token-based, no session auth)
+                "/api/v2/quiz-extensions/monthly/public",
+                "/api/v2/monthly-quiz-public/monthly/public",
+                "/api/v2/monthly-quiz/monthly/public",
             ]
         )
         logger.info("✅ CSRF protection middleware added (HMAC-SHA256)")

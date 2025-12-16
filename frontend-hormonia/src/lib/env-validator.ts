@@ -158,39 +158,6 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
     description: 'Firebase measurement ID (Google Analytics)'
   },
 
-  // AI Service Configuration (Sensitive)
-  VITE_OPENAI_API_KEY: {
-    required: false,
-    type: 'string',
-    format: /^sk-[a-zA-Z0-9]+$/,
-    minLength: 20,
-    description: 'OpenAI API key',
-    security: {
-      sensitive: true,
-      shouldNotBeHardcoded: true
-    }
-  },
-
-  VITE_LANGCHAIN_API_KEY: {
-    required: false,
-    type: 'string',
-    description: 'LangChain API key',
-    security: {
-      sensitive: true,
-      shouldNotBeHardcoded: true
-    }
-  },
-
-  VITE_GEMINI_API_KEY: {
-    required: false,
-    type: 'string',
-    description: 'Google Gemini API key',
-    security: {
-      sensitive: true,
-      shouldNotBeHardcoded: true
-    }
-  },
-
   // Feature Flags
   VITE_AI_CHAT_ENABLED: {
     required: false,

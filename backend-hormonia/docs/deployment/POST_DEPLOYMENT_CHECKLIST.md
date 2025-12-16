@@ -363,7 +363,7 @@ echo $CSRF_RESPONSE | grep "HTTP_CODE:403"
 # Expected: 403 Forbidden (missing CSRF token)
 
 # Test with valid CSRF token
-CSRF_TOKEN=$(curl -s https://your-app-production.railway.app/api/v2/csrf-token | jq -r '.csrf_token')
+CSRF_TOKEN=$(curl -s https://your-app-production.railway.app/api/v2/auth/csrf-token | jq -r '.csrf_token')
 curl -s -X POST https://your-app-production.railway.app/api/v2/patients \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \

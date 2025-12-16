@@ -16,7 +16,7 @@ echo -e "${BLUE}🚀 Starting Backend Server${NC}"
 echo -e "${BLUE}========================================${NC}"
 
 # Navigate to backend directory
-cd "$(dirname "$0")/../backend-hormonia"
+cd "$(dirname "$0")/../"
 
 # Check if .env exists
 if [ ! -f ".env" ]; then

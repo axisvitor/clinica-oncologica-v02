@@ -65,8 +65,7 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
-    "zod": "3.25.67",
-    "@hormonia/shared-types": "file:../packages/shared-types"
+    "zod": "3.25.67"
   },
   "devDependencies": {
     "@axe-core/react": "^4.10.2",

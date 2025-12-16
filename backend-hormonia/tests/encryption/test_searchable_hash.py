@@ -118,5 +118,6 @@ class TestSearchableHash:
     def test_hash_without_salt_fails(self, monkeypatch):
         """Test that hashing fails without HASH_SALT."""
         monkeypatch.delenv("HASH_SALT", raising=False)
+        monkeypatch.delenv("COMPLIANCE_HASH_SALT", raising=False)
         with pytest.raises(ValueError, match="HASH_SALT"):
             SearchableHash.hash_email("test@example.com")

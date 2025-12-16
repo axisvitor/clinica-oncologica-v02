@@ -4,7 +4,7 @@ Monthly Quiz Configuration for Hormonia Backend System.
 This module provides configuration for the monthly quiz feature,
 which allows patients to access quizzes via a secure tokenized link.
 """
-from pydantic import Field, field_validator, HttpUrl
+from pydantic import Field, field_validator, HttpUrl, AliasChoices
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional, Annotated
 
@@ -12,16 +12,27 @@ from typing import Optional, Annotated
 class MonthlyQuizConfig(BaseSettings):
     """Configuration settings for monthly quiz feature."""
 
-    # Feature flags
-    ENABLE_LINK_BASED_MONTHLY_QUIZ: bool = Field(
-        default=True,
-        description="Enable monthly quiz via link feature (master toggle)"
+    # Environment (used by link builder warnings, etc.)
+    ENVIRONMENT: str = Field(
+        default="development",
+        validation_alias=AliasChoices("APP_ENVIRONMENT", "ENVIRONMENT"),
+        description="Environment name (development, staging, production)",
     )
 
+    # Feature flags
     MONTHLY_QUIZ_VIA_LINK: bool = Field(
         default=True,
+        validation_alias=AliasChoices(
+            "QUIZ_ENABLE_VIA_LINK",
+            "ENABLE_LINK_BASED_MONTHLY_QUIZ",
+            "MONTHLY_QUIZ_VIA_LINK",
+        ),
         description="Enable monthly quiz via link feature (legacy, use ENABLE_LINK_BASED_MONTHLY_QUIZ)"
     )
+
+    @property
+    def ENABLE_LINK_BASED_MONTHLY_QUIZ(self) -> bool:
+        return self.MONTHLY_QUIZ_VIA_LINK
 
     # Gradual rollout configuration
     MONTHLY_QUIZ_LINK_PERCENTAGE: int = Field(
@@ -41,7 +52,8 @@ class MonthlyQuizConfig(BaseSettings):
 
     # Base URL for quiz links - validated as HttpUrl for security
     MONTHLY_QUIZ_BASE_URL: str = Field(
-        default="https://quiz-interface-production.up.railway.app",
+        default="http://localhost:3001",
+        validation_alias=AliasChoices("QUIZ_BASE_URL", "MONTHLY_QUIZ_BASE_URL"),
         description="Base URL for monthly quiz access links (must be valid HTTP/HTTPS URL)"
     )
 
@@ -88,12 +100,14 @@ class MonthlyQuizConfig(BaseSettings):
     # Token configuration - REQUIRED, no default
     MONTHLY_QUIZ_TOKEN_SECRET: str = Field(
         ...,  # REQUIRED: Must be set via environment variable
+        validation_alias=AliasChoices("QUIZ_TOKEN_SECRET", "MONTHLY_QUIZ_TOKEN_SECRET"),
         description="Secret key for generating quiz tokens (should be different from main SECRET_KEY)"
     )
 
     # Token expiry
     MONTHLY_QUIZ_TOKEN_EXPIRY_HOURS: int = Field(
         default=72,
+        validation_alias=AliasChoices("QUIZ_TOKEN_EXPIRY_HOURS", "MONTHLY_QUIZ_TOKEN_EXPIRY_HOURS"),
         description="Token expiry time in hours (default: 72 hours = 3 days)"
     )
 

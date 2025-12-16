@@ -83,7 +83,7 @@ class BaseEncryptionService:
             ValueError: If key not configured in production
         """
         env_var = f"{key_type}_ENCRYPTION_KEY"
-        master_key = os.getenv(env_var, '')
+        master_key = os.getenv(env_var) or os.getenv(f"COMPLIANCE_{env_var}", "")
 
         if not master_key:
             # Generate a new key for development (NOT for production)
@@ -229,7 +229,11 @@ class UnifiedEncryptionService(BaseEncryptionService):
             self._keys['phi'] = self._derive_key(master_key, salt)
 
             # Quiz encryption key (Fernet)
-            quiz_secret = os.getenv('MONTHLY_QUIZ_TOKEN_SECRET', master_key)
+            quiz_secret = (
+                os.getenv("QUIZ_TOKEN_SECRET")
+                or os.getenv("MONTHLY_QUIZ_TOKEN_SECRET")
+                or master_key
+            )
             self._keys['quiz'] = self._derive_fernet_key(quiz_secret)
 
             logger.info("Encryption keys initialized successfully")

@@ -238,7 +238,7 @@ class TemplateVariableProcessor:
                 'treatment_type': patient.treatment_type,
                 'treatment_start_date': patient.treatment_start_date,
                 'current_day': patient.current_day,
-                'metadata': patient.patient_metadata or {}
+                'metadata': patient.patient_data or {}
             }
         
         # Add flow state data

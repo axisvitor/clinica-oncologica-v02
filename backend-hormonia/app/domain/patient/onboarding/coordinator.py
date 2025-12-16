@@ -161,10 +161,9 @@ class OnboardingCoordinator:
                 raise ValidationError("Saga Pattern não retornou paciente após execução")
 
             logger.info(
-                f"✅ Patient created successfully via Saga: {patient.id} - {patient.name}",
+                f"✅ Patient created successfully via Saga: {patient.id}",
                 extra={
                     "patient_id": str(patient.id),
-                    "patient_name": patient.name,
                     "doctor_id": str(doctor_id),
                 }
             )
@@ -172,10 +171,9 @@ class OnboardingCoordinator:
 
         except Exception as e:
             logger.error(
-                f"❌ Saga Pattern execution failed: {e}",
+                f"❌ Saga Pattern execution failed: {type(e).__name__}",
                 exc_info=True,
                 extra={
-                    "patient_phone": patient_data.phone,
                     "doctor_id": str(doctor_id),
                     "exception_type": type(e).__name__,
                 }

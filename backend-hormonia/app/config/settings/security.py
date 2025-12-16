@@ -19,10 +19,6 @@ class SecuritySettings(BaseAppSettings):
         default="dev-insecure-secret-key-must-be-changed-in-production-railway",
         description="Secret key for JWT signing. MUST be set via environment variable in production."
     )
-    AUTH_JWT_SECRET_KEY: Optional[str] = Field(
-        default=None,
-        description="JWT secret key (fallback to SECURITY_SECRET_KEY if not set)"
-    )
     SECURITY_ENCRYPTION_KEY: Optional[str] = Field(
         default=None,
         description="Encryption key for sensitive data"
@@ -196,9 +192,9 @@ class SecuritySettings(BaseAppSettings):
         default="http://localhost:3001",
         description="Quiz interface URL (used for CORS in production)",
     )
-    CORS_ALLOWED_ORIGINS: List[str] | str = Field(
+    CORS_ALLOWED_ORIGINS: List[str] = Field(
         default=[],
-        description="Allowed CORS origins (auto-constructed from CORS_FRONTEND_URL + CORS_QUIZ_URL in production, empty in dev for regex)",
+        description="Allowed CORS origins (combined with CORS_FRONTEND_URL + CORS_QUIZ_URL)",
     )
 
     # ============================================================================
@@ -233,7 +229,7 @@ class SecuritySettings(BaseAppSettings):
                 )
 
             # Encryption Keys (check environment directly as they're not in settings)
-            encryption_key = os.getenv("ENCRYPTION_KEY_CURRENT")
+            encryption_key = os.getenv("ENCRYPTION_KEY_CURRENT") or os.getenv("SECURITY_ENCRYPTION_KEY")
             if not encryption_key:
                 missing_vars.append(
                     "ENCRYPTION_KEY_CURRENT - Required for field-level encryption (PHI/PII)\n"
@@ -241,7 +237,7 @@ class SecuritySettings(BaseAppSettings):
                 )
 
             # Hash Salt for searchable encryption
-            hash_salt = os.getenv("HASH_SALT")
+            hash_salt = os.getenv("HASH_SALT") or os.getenv("COMPLIANCE_HASH_SALT")
             if not hash_salt:
                 missing_vars.append(
                     "HASH_SALT - Required for searchable hash generation\n"
@@ -367,7 +363,7 @@ class SecuritySettings(BaseAppSettings):
 
         if is_production:
             placeholder_patterns = ["CHANGE_THIS", "YOUR_", "INSECURE", "DEV-", "MUST-BE-CHANGED"]
-            for field in ["SECURITY_SECRET_KEY", "AUTH_JWT_SECRET_KEY", "SECURITY_ENCRYPTION_KEY"]:
+            for field in ["SECURITY_SECRET_KEY", "SECURITY_ENCRYPTION_KEY"]:
                 if field in data:
                     v = data[field]
                     if v and any(pattern in v.upper() for pattern in placeholder_patterns):
@@ -378,48 +374,7 @@ class SecuritySettings(BaseAppSettings):
 
         return data
 
-    def validate_firebase_config(self):
-        """
-        Validate Firebase configuration at runtime.
 
-        Note: Basic Firebase credential validation is now handled by
-        validate_required_environment_variables() during startup.
-        This method is kept for backward compatibility and additional
-        runtime checks if needed.
-        """
-        # Firebase validation is now handled in validate_required_environment_variables
-        # This method is kept for backward compatibility
-        pass
-
-    def validate_cors_config(self):
-        """Validate CORS configuration to ensure frontend URL is included."""
-        import logging
-
-        logger = logging.getLogger(__name__)
-
-        if not self.CORS_ALLOWED_ORIGINS:
-            # Check if fallback URLs are configured
-            has_fallback = bool(self.CORS_FRONTEND_URL or self.CORS_QUIZ_URL)
-            if has_fallback and self.APP_ENVIRONMENT.lower() != "production":
-                # Dev mode: empty CORS_ALLOWED_ORIGINS is OK (regex is used)
-                logger.info(
-                    "✅ CORS using regex pattern (dev mode) - CORS_ALLOWED_ORIGINS empty by design"
-                )
-            elif has_fallback:
-                # Production with fallback: build from CORS_FRONTEND_URL/CORS_QUIZ_URL
-                logger.info(
-                    f"✅ CORS will use fallback: {self.CORS_FRONTEND_URL}, {self.CORS_QUIZ_URL}"
-                )
-            else:
-                # No origins and no fallback: actual problem
-                logger.warning(
-                    "⚠️  CORS_ALLOWED_ORIGINS is empty! CORS will block all cross-origin requests. "
-                    "Add your frontend URL to CORS_ALLOWED_ORIGINS in .env"
-                )
-        else:
-            logger.info(
-                f"✅ CORS configured with {len(self.CORS_ALLOWED_ORIGINS)} allowed origins"
-            )
 
     def validate_csrf_config(self):
         """Validate CSRF secret key strength at application startup."""
@@ -520,11 +475,6 @@ class SecuritySettings(BaseAppSettings):
                 if self.SECURITY_SECRET_KEY:
                     secrets_to_validate["SECURITY_SECRET_KEY"] = self.SECURITY_SECRET_KEY
 
-                if self.AUTH_JWT_SECRET_KEY:
-                    secrets_to_validate["AUTH_JWT_SECRET_KEY"] = self.AUTH_JWT_SECRET_KEY
-                elif self.SECURITY_SECRET_KEY:
-                    # JWT uses SECURITY_SECRET_KEY as fallback
-                    secrets_to_validate["AUTH_JWT_SECRET_KEY (fallback)"] = self.SECURITY_SECRET_KEY
 
                 if self.SECURITY_ENCRYPTION_KEY:
                     secrets_to_validate["SECURITY_ENCRYPTION_KEY"] = self.SECURITY_ENCRYPTION_KEY
@@ -574,39 +524,25 @@ class SecuritySettings(BaseAppSettings):
 
     def get_cors_origins(self) -> List[str]:
         """
-        Returns CORS origins based on environment and defaults.
-        
+        Returns CORS origins from environment configuration only.
+
         Logic:
         1. Start with any explicitly configured CORS_ALLOWED_ORIGINS
         2. Add CORS_FRONTEND_URL and CORS_QUIZ_URL if set
-        3. Add known Railway production URLs (robustness for misconfigured envs)
-        4. In Development, these specific origins are added TO the regex whitelist
-        5. In Production, ONLY these origins are allowed (plus regex if not strict)
+
+        All origins must come from environment variables.
         """
         origins = set()
-        
+
         # 1. Explicitly configured origins
         if self.CORS_ALLOWED_ORIGINS:
-            if isinstance(self.CORS_ALLOWED_ORIGINS, list):
-                origins.update(self.CORS_ALLOWED_ORIGINS)
-            else:
-                origins.add(str(self.CORS_ALLOWED_ORIGINS))
+            origins.update(self.CORS_ALLOWED_ORIGINS)
 
         # 2. Configured Frontend/Quiz URLs
         if self.CORS_FRONTEND_URL:
             origins.add(self.CORS_FRONTEND_URL.rstrip("/"))
         if self.CORS_QUIZ_URL:
             origins.add(self.CORS_QUIZ_URL.rstrip("/"))
-
-        # 3. Known Production URLs (Safeguard)
-        # These are added to ensure the main production deployment always works,
-        # even if APP_ENVIRONMENT is missing or set to 'development' by mistake.
-        production_origins = [
-            "https://frontend-clinica-production.up.railway.app",
-            "https://clinica-oncologica-v02-production.up.railway.app",
-            "https://neoplasias-litoral-quiz.up.railway.app" # Potential quiz URL
-        ]
-        origins.update(production_origins)
 
         return list(origins)
 

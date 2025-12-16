@@ -9,7 +9,8 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
-from app.models.patient import Patient, FlowState
+from app.models.patient import Patient
+from app.models.flow import PatientFlowState
 from app.models.patient_onboarding_saga import PatientOnboardingSaga, SagaStatus
 from app.models.message import Message, MessageType, MessageDirection, MessageStatus
 from app.models.template import MessageTemplate
@@ -146,7 +147,10 @@ class SagaOrchestrator:
                 return patient
 
             except Exception as e:
-                logger.error(f"Saga {saga_id} failed: {str(e)}", exc_info=True)
+                logger.error(
+                    f"Saga {saga_id} failed with {type(e).__name__}",
+                    exc_info=True,
+                )
 
                 saga.status = SagaStatus.FAILED
                 saga.error_message = str(e)
@@ -275,7 +279,7 @@ class SagaOrchestrator:
             return patient
             
         except Exception as e:
-            logger.error(f"Step 1 failed: {e}")
+            logger.error(f"Step 1 failed: {type(e).__name__}", exc_info=True)
             saga.add_log_entry(1, "create_patient", "failed", str(e))
             raise e
 
@@ -297,7 +301,7 @@ class SagaOrchestrator:
             self.db.commit()
             
         except Exception as e:
-            logger.error(f"Step 2 (Flow) failed: {e}")
+            logger.error(f"Step 2 (Flow) failed: {type(e).__name__}", exc_info=True)
             saga.add_log_entry(3, "initialize_flow", "failed", str(e))
             raise e
 
@@ -322,30 +326,78 @@ class SagaOrchestrator:
             
             # Schedule Message with idempotência
             from datetime import timezone
+            scheduled_for = saga.started_at or datetime.now(timezone.utc)
+            if scheduled_for.tzinfo is None:
+                scheduled_for = scheduled_for.replace(tzinfo=timezone.utc)
             message = self.message_service.schedule_message(
                 patient_id=patient.id,
                 content=message_content,
-                scheduled_for=datetime.now(timezone.utc),
+                scheduled_for=scheduled_for,
                 message_type=MessageType.TEXT,
-                message_metadata={"type": "welcome_message", "saga_id": str(saga.id)}
+                message_metadata={"message_type": "welcome", "saga_id": str(saga.id)}
             )
 
             # Send via Unified Service (usa paciente do relacionamento lazy)
-            success = await self.whatsapp_service.send_message(message)
-            
-            if not success:
-                raise Exception("Failed to send welcome message")
-                
-            # Update Saga
-            saga.current_step = 4 # Mapped to STEP_4_MESSAGE_SENT
+            success = False
+            send_error = None
+            try:
+                success = await self.whatsapp_service.send_message(message)
+            except Exception as send_exc:
+                send_error = send_exc
+                logger.warning(
+                    f"Saga {saga.id}: Welcome message send failed (non-fatal): {type(send_exc).__name__}",
+                    exc_info=True,
+                )
+
+            if success:
+                try:
+                    self.message_service.mark_as_sent(message.id, "queued")
+                except Exception as mark_exc:
+                    logger.warning(
+                        f"Saga {saga.id}: Failed to mark welcome message as sent: {type(mark_exc).__name__}",
+                        exc_info=True,
+                    )
+            else:
+                try:
+                    # Keep welcome message in PENDING so retry_pending_welcome_messages can pick it up
+                    message.status = MessageStatus.PENDING
+                    message.message_metadata = {
+                        **(message.message_metadata or {}),
+                        "welcome_send_failed": True,
+                        "welcome_send_error_type": type(send_error).__name__ if send_error else None,
+                        "welcome_send_failed_at": datetime.utcnow().isoformat(),
+                    }
+                    self.db.commit()
+                except Exception as update_exc:
+                    logger.warning(
+                        f"Saga {saga.id}: Failed to keep welcome message pending: {type(update_exc).__name__}",
+                        exc_info=True,
+                    )
+
+            # Update Saga (welcome sending is best-effort; do not fail onboarding)
+            saga.current_step = 4  # Mapped to STEP_4_MESSAGE_SENT
             saga.status = SagaStatus.STEP_4_MESSAGE_SENT
-            saga.add_log_entry(4, "send_message", "success")
+            if success:
+                saga.add_log_entry(4, "send_message", "success")
+            else:
+                saga.add_log_entry(
+                    4,
+                    "send_message",
+                    "failed_nonfatal",
+                    str(send_error) if send_error else "send_message returned False",
+                )
             self.db.commit()
             
         except Exception as e:
-            logger.error(f"Step 3 (Message) failed: {e}")
-            saga.add_log_entry(4, "send_message", "failed", str(e))
-            raise e
+            logger.error(f"Step 3 (Message) failed: {type(e).__name__}", exc_info=True)
+            saga.current_step = 4  # Step attempted; non-fatal
+            saga.status = SagaStatus.STEP_4_MESSAGE_SENT
+            saga.add_log_entry(4, "send_message", "failed_nonfatal", str(e))
+            try:
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+            return
 
     async def _track_compensation_failure(self, saga_id: UUID, step: int, error: Exception):
         """
@@ -552,8 +604,8 @@ class SagaOrchestrator:
                 return
 
             # Find and delete flow states for this patient
-            flow_states = self.db.query(FlowState).filter(
-                FlowState.patient_id == saga.patient_id
+            flow_states = self.db.query(PatientFlowState).filter(
+                PatientFlowState.patient_id == saga.patient_id
             ).all()
 
             for flow_state in flow_states:

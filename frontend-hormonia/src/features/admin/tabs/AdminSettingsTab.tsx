@@ -208,16 +208,6 @@ export default function AdminSettingsTab({ isLoading, setIsLoading, setMessage }
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="gemini-key">Gemini API Key</Label>
-            <Input
-              id="gemini-key"
-              type="password"
-              placeholder="••••••••••••••••"
-              defaultValue={config?.VITE_GEMINI_API_KEY ? config.VITE_GEMINI_API_KEY.substring(0, 8) + '...' : ''}
-            />
-          </div>
-
           <Button className="w-full">Atualizar Integrações</Button>
         </CardContent>
       </Card>

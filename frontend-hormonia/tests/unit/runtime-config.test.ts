@@ -13,12 +13,13 @@ import {
   getConfigValue,
   isProduction,
   PRODUCTION_FALLBACK_CONFIG
-} from '../runtime-config';
+} from '../../src/lib/runtime-config';
 
 // Mock global objects
 const mockWindow = {
   location: {
-    hostname: 'localhost'
+    hostname: 'localhost',
+    protocol: 'http:'
   }
 } as any;
 
@@ -26,9 +27,8 @@ const mockImportMeta = {
   env: {
     MODE: 'development',
     PROD: false,
-    VITE_SUPABASE_URL: 'http://localhost:8000/supabase',
-    VITE_SUPABASE_ANON_KEY: 'test-anon-key',
-    VITE_API_URL: 'http://localhost:8000/api/v2'
+    VITE_API_BASE_URL: 'http://localhost:8000',
+    VITE_WS_BASE_URL: 'ws://localhost:8000/ws'
   }
 } as any;
 
@@ -70,9 +70,9 @@ describe('Runtime Configuration', () => {
     it('should load development configuration from import.meta.env', async () => {
       const config = await getRuntimeConfig();
 
-      expect(config.VITE_SUPABASE_URL).toBe('http://localhost:8000/supabase');
-      expect(config.VITE_SUPABASE_ANON_KEY).toBe('test-anon-key');
+      expect(config.VITE_API_BASE_URL).toBe('http://localhost:8000');
       expect(config.VITE_API_URL).toBe('http://localhost:8000/api/v2');
+      expect(config.VITE_WS_URL).toBe('ws://localhost:8000/ws');
     });
 
     it('should provide development fallbacks', async () => {
@@ -80,8 +80,9 @@ describe('Runtime Configuration', () => {
 
       const config = await getRuntimeConfig();
 
-      expect(config.VITE_API_URL).toBe('http://127.0.0.1:8000/api/v2');
-      expect(config.VITE_WS_URL).toBe('ws://127.0.0.1:8000/ws');
+      expect(config.VITE_API_BASE_URL).toBe('http://localhost:8000');
+      expect(config.VITE_API_URL).toBe('http://localhost:8000/api/v2');
+      expect(config.VITE_WS_URL).toBe('ws://localhost:8000/ws');
     });
   });
 
@@ -90,20 +91,20 @@ describe('Runtime Configuration', () => {
       mockImportMeta.env.MODE = 'production';
       mockImportMeta.env.PROD = true;
       mockWindow.location.hostname = 'app.up.railway.app';
+      mockWindow.location.protocol = 'https:';
     });
 
     it('should load production configuration from window.__ENV_CONFIG__', async () => {
       (global as any).window.__ENV_CONFIG__ = {
-        VITE_SUPABASE_URL: 'https://prod.supabase.co',
-        VITE_SUPABASE_ANON_KEY: 'prod-anon-key',
-        VITE_API_URL: 'https://api.production.com/api/v2'
+        VITE_API_URL: 'https://api.production.com/api/v2',
+        VITE_WS_URL: 'wss://api.production.com/ws'
       };
 
       const config = await getRuntimeConfig();
 
-      expect(config.VITE_SUPABASE_URL).toBe('https://prod.supabase.co');
-      expect(config.VITE_SUPABASE_ANON_KEY).toBe('prod-anon-key');
       expect(config.VITE_API_URL).toBe('https://api.production.com/api/v2');
+      expect(config.VITE_API_BASE_URL).toBe('https://api.production.com');
+      expect(config.VITE_WS_URL).toBe('wss://api.production.com/ws');
     });
 
     it('should fall back to production defaults when no runtime config available', async () => {
@@ -111,8 +112,6 @@ describe('Runtime Configuration', () => {
 
       const config = await getRuntimeConfig();
 
-      expect(config.VITE_SUPABASE_URL).toBe(PRODUCTION_FALLBACK_CONFIG.VITE_SUPABASE_URL);
-      expect(config.VITE_SUPABASE_ANON_KEY).toBe(PRODUCTION_FALLBACK_CONFIG.VITE_SUPABASE_ANON_KEY);
       expect(config.VITE_API_URL).toBe(PRODUCTION_FALLBACK_CONFIG.VITE_API_URL);
     });
 
@@ -122,18 +121,20 @@ describe('Runtime Configuration', () => {
         Promise.resolve({
           ok: true,
           json: () => Promise.resolve({
-            VITE_SUPABASE_URL: 'https://api.supabase.co',
-            VITE_SUPABASE_ANON_KEY: 'api-anon-key',
-            VITE_API_URL: 'https://api.railway.app/api/v2'
+            // Backend public config schema (root domain vs versioned API base)
+            VITE_API_URL: 'https://api.railway.app',
+            VITE_API_BASE_URL: 'https://api.railway.app/api/v2',
+            VITE_WS_URL: 'wss://api.railway.app/ws'
           })
         })
       );
 
       const config = await getRuntimeConfig();
 
-      expect(fetch).toHaveBeenCalledWith('/api/config', expect.any(Object));
-      expect(config.VITE_SUPABASE_URL).toBe('https://api.supabase.co');
+      expect(fetch).toHaveBeenCalledWith('/api/v2/system/config', expect.any(Object));
+      expect(config.VITE_API_BASE_URL).toBe('https://api.railway.app');
       expect(config.VITE_API_URL).toBe('https://api.railway.app/api/v2');
+      expect(config.VITE_WS_URL).toBe('wss://api.railway.app/ws');
     });
 
     it('should handle fetch API failures gracefully', async () => {
@@ -144,7 +145,7 @@ describe('Runtime Configuration', () => {
       const config = await getRuntimeConfig();
 
       // Should fall back to production config
-      expect(config.VITE_SUPABASE_URL).toBe(PRODUCTION_FALLBACK_CONFIG.VITE_SUPABASE_URL);
+      expect(config.VITE_API_URL).toBe(PRODUCTION_FALLBACK_CONFIG.VITE_API_URL);
     });
   });
 
@@ -158,14 +159,14 @@ describe('Runtime Configuration', () => {
       await getRuntimeConfig();
       const config = getRuntimeConfigSync();
       expect(config).not.toBeNull();
-      expect(config?.VITE_SUPABASE_URL).toBeDefined();
+      expect(config?.VITE_API_URL).toBeDefined();
     });
   });
 
   describe('Configuration Value Access', () => {
     it('should get specific config value with fallback', async () => {
-      const value = await getConfigValue('VITE_SUPABASE_URL', 'fallback-url');
-      expect(value).toBe('http://localhost:8000/supabase');
+      const value = await getConfigValue('VITE_API_URL', 'fallback-url');
+      expect(value).toBe('http://localhost:8000/api/v2');
     });
 
     it('should return fallback when key not found', async () => {
@@ -179,9 +180,8 @@ describe('Runtime Configuration', () => {
       const config = await getRuntimeConfig();
 
       // Required fields should be present
-      expect(config.VITE_SUPABASE_URL).toBeTruthy();
-      expect(config.VITE_SUPABASE_ANON_KEY).toBeTruthy();
-      expect(config.VITE_API_URL || config.VITE_API_BASE_URL).toBeTruthy();
+      expect(config.VITE_API_URL).toBeTruthy();
+      expect(config.VITE_API_BASE_URL || config.VITE_API_URL).toBeTruthy();
     });
 
     it('should handle missing required fields in production', async () => {
@@ -191,15 +191,13 @@ describe('Runtime Configuration', () => {
 
       // Set empty config
       (global as any).window.__ENV_CONFIG__ = {
-        VITE_SUPABASE_URL: '',
-        VITE_SUPABASE_ANON_KEY: '',
         VITE_API_URL: ''
       };
 
       const config = await getRuntimeConfig();
 
       // Should fall back to production defaults
-      expect(config.VITE_SUPABASE_URL).toBe(PRODUCTION_FALLBACK_CONFIG.VITE_SUPABASE_URL);
+      expect(config.VITE_API_URL).toBe(PRODUCTION_FALLBACK_CONFIG.VITE_API_URL);
     });
   });
 
@@ -210,9 +208,10 @@ describe('Runtime Configuration', () => {
       expect(config1.VITE_API_URL).toBe('http://localhost:8000/api/v2');
 
       // Change environment and refresh
-      mockImportMeta.env.VITE_API_URL = 'http://localhost:9000/api/v2';
+      mockImportMeta.env.VITE_API_BASE_URL = 'http://localhost:9000';
       const config2 = await refreshRuntimeConfig();
       expect(config2.VITE_API_URL).toBe('http://localhost:9000/api/v2');
+      expect(config2.VITE_API_BASE_URL).toBe('http://localhost:9000');
     });
   });
 
@@ -221,13 +220,12 @@ describe('Runtime Configuration', () => {
       mockImportMeta.env.MODE = 'production';
       mockImportMeta.env.PROD = true;
       mockWindow.location.hostname = 'frontend-production.up.railway.app';
+      mockWindow.location.protocol = 'https:';
     });
 
     it('should load Railway environment variables correctly', async () => {
       (global as any).window.__RUNTIME_CONFIG__ = {
         loadConfig: vi.fn().mockResolvedValue({
-          VITE_SUPABASE_URL: 'https://railway.supabase.co',
-          VITE_SUPABASE_ANON_KEY: 'railway-anon-key',
           VITE_API_URL: 'https://backend-production.up.railway.app/api/v2',
           VITE_WS_URL: 'wss://backend-production.up.railway.app/ws'
         })
@@ -235,8 +233,8 @@ describe('Runtime Configuration', () => {
 
       const config = await getRuntimeConfig();
 
-      expect(config.VITE_SUPABASE_URL).toBe('https://railway.supabase.co');
       expect(config.VITE_API_URL).toBe('https://backend-production.up.railway.app/api/v2');
+      expect(config.VITE_API_BASE_URL).toBe('https://backend-production.up.railway.app');
       expect(config.VITE_WS_URL).toBe('wss://backend-production.up.railway.app/ws');
     });
 
@@ -248,7 +246,7 @@ describe('Runtime Configuration', () => {
       const config = await getRuntimeConfig();
 
       // Should fall back to production defaults
-      expect(config.VITE_SUPABASE_URL).toBe(PRODUCTION_FALLBACK_CONFIG.VITE_SUPABASE_URL);
+      expect(config.VITE_API_URL).toBe(PRODUCTION_FALLBACK_CONFIG.VITE_API_URL);
     });
   });
 

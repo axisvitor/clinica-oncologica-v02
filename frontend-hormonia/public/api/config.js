@@ -38,6 +38,54 @@
     return normalized
   }
 
+  const normalizeBackendConfig = (payload) => {
+    if (!payload || typeof payload !== 'object') {
+      return payload
+    }
+
+    const next = { ...payload }
+    const looksVersionedApiUrl = (value) => {
+      return typeof value === 'string' && /\/api\/v2\/?$/.test(value)
+    }
+
+    const apiUrl = next.VITE_API_URL
+    const apiBaseUrl = next.VITE_API_BASE_URL
+    const versionedApiUrl =
+      looksVersionedApiUrl(apiUrl)
+        ? apiUrl
+        : looksVersionedApiUrl(apiBaseUrl)
+          ? apiBaseUrl
+          : null
+    const baseApiUrl =
+      typeof apiBaseUrl === 'string' && apiBaseUrl.length > 0 && !looksVersionedApiUrl(apiBaseUrl)
+        ? apiBaseUrl
+        : typeof apiUrl === 'string' && apiUrl.length > 0 && !looksVersionedApiUrl(apiUrl)
+          ? apiUrl
+          : versionedApiUrl
+            ? String(versionedApiUrl).replace(/\/api\/v2\/?$/, '')
+            : null
+
+    if (baseApiUrl) {
+      next.VITE_API_BASE_URL = baseApiUrl
+    }
+
+    if (versionedApiUrl) {
+      next.VITE_API_URL = versionedApiUrl
+    } else if (baseApiUrl) {
+      next.VITE_API_URL = String(baseApiUrl).replace(/\/+$/, '') + '/api/v2'
+    }
+
+    if (next.VITE_WS_BASE_URL && !next.VITE_WS_URL) {
+      next.VITE_WS_URL = next.VITE_WS_BASE_URL
+    }
+
+    if (next.VITE_WS_URL && !next.VITE_WS_BASE_URL) {
+      next.VITE_WS_BASE_URL = next.VITE_WS_URL
+    }
+
+    return next
+  }
+
   let cachedConfig = normalizeConfig(globalScope.__ENV_CONFIG__)
 
   const hydrateFromEndpoint = async () => {
@@ -46,7 +94,7 @@
     }
 
     try {
-      const response = await fetch('/api/config', {
+      const response = await fetch('/api/v2/system/config', {
         method: 'GET',
         cache: 'no-store',
         credentials: 'same-origin',
@@ -54,7 +102,7 @@
       })
 
       if (response.ok) {
-        const payload = await response.json()
+        const payload = normalizeBackendConfig(await response.json())
         cachedConfig = normalizeConfig(payload)
         const currentEnv = typeof globalScope.__ENV_CONFIG__ === 'object'
           ? globalScope.__ENV_CONFIG__
@@ -67,7 +115,7 @@
         })
       }
     } catch (error) {
-      console.warn('[RuntimeConfig] Failed to hydrate from /api/config', error)
+      console.warn('[RuntimeConfig] Failed to hydrate from /api/v2/system/config', error)
     }
 
     return cachedConfig
@@ -92,7 +140,7 @@
   // Kick off hydration but don't block rendering
   hydrateFromEndpoint()
 
-  if (globalScope.location && globalScope.location.pathname === '/api/config') {
+  if (globalScope.location && globalScope.location.pathname === '/api/v2/system/config') {
     const pretty = JSON.stringify(cachedConfig, null, 2)
     if (globalScope.document && globalScope.document.body) {
       globalScope.document.body.innerHTML = '<pre>' +

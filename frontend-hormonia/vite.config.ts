@@ -87,9 +87,57 @@ const createRuntimeLoaderSource = (serializedFallback: string) =>
   let cachedConfig = runtime.getConfigSync ? runtime.getConfigSync() : null;
   let inflightPromise = null;
 
+  function normalizeBackendConfig(payload) {
+    const source = payload && typeof payload === 'object' ? payload : {};
+    const nextConfig = Object.assign({}, source);
+    const apiUrl = nextConfig.VITE_API_URL;
+    const apiBaseUrl = nextConfig.VITE_API_BASE_URL;
+
+    const looksVersioned = (value) => {
+      return typeof value === 'string' && /\/api\/v2\/?$/.test(value);
+    };
+
+    const versionedApiUrl =
+      looksVersioned(apiUrl)
+        ? apiUrl
+        : looksVersioned(apiBaseUrl)
+          ? apiBaseUrl
+          : null;
+
+    const baseApiUrl =
+      typeof apiBaseUrl === 'string' && apiBaseUrl.length > 0 && !looksVersioned(apiBaseUrl)
+        ? apiBaseUrl
+        : typeof apiUrl === 'string' && apiUrl.length > 0 && !looksVersioned(apiUrl)
+          ? apiUrl
+          : versionedApiUrl
+            ? String(versionedApiUrl).replace(/\/api\/v2\/?$/, '')
+            : null;
+
+    if (baseApiUrl) {
+      nextConfig.VITE_API_BASE_URL = baseApiUrl;
+    }
+
+    if (versionedApiUrl) {
+      nextConfig.VITE_API_URL = versionedApiUrl;
+    } else if (baseApiUrl) {
+      nextConfig.VITE_API_URL = String(baseApiUrl).replace(/\/+$/, '') + '/api/v2';
+    }
+
+    if (nextConfig.VITE_WS_BASE_URL && !nextConfig.VITE_WS_URL) {
+      nextConfig.VITE_WS_URL = nextConfig.VITE_WS_BASE_URL;
+    }
+
+    if (nextConfig.VITE_WS_URL && !nextConfig.VITE_WS_BASE_URL) {
+      nextConfig.VITE_WS_BASE_URL = nextConfig.VITE_WS_URL;
+    }
+
+    return nextConfig;
+  }
+
   function mergeAndStore(payload) {
     const source = payload && typeof payload === 'object' ? payload : {};
-    const nextConfig = Object.assign({}, FALLBACK_CONFIG, source);
+    const normalized = normalizeBackendConfig(source);
+    const nextConfig = Object.assign({}, FALLBACK_CONFIG, normalized);
     globalScope.__ENV_CONFIG__ = nextConfig;
     cachedConfig = nextConfig;
     return nextConfig;
@@ -104,7 +152,7 @@ const createRuntimeLoaderSource = (serializedFallback: string) =>
       inflightPromise = (async () => {
         if (typeof fetch === 'function') {
           try {
-            const response = await fetch('/api/config', {
+            const response = await fetch('/api/v2/system/config', {
               method: 'GET',
               cache: 'no-store',
               credentials: 'same-origin',
@@ -115,7 +163,7 @@ const createRuntimeLoaderSource = (serializedFallback: string) =>
               return mergeAndStore(data);
             }
           } catch (error) {
-            console.warn('[RuntimeConfig] Failed to fetch /api/config', error);
+            console.warn('[RuntimeConfig] Failed to fetch /api/v2/system/config', error);
           }
         }
         return mergeAndStore(null);

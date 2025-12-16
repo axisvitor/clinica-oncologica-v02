@@ -9,8 +9,6 @@ clinica-oncologica-v02-1/
 ├── backend-hormonia/       # API FastAPI (Python 3.13)
 ├── frontend-hormonia/      # Dashboard React 19 + Vite 6
 ├── quiz-mensal-interface/  # Interface de Quiz Next.js 14
-└── packages/
-    └── shared-types/       # Tipos TypeScript compartilhados
 ```
 
 ## Pré-requisitos
@@ -89,18 +87,6 @@ npm run build
 
 # Testes
 npm run test:unit
-```
-
-### Tipos Compartilhados
-
-```bash
-cd packages/shared-types
-
-# Instalar (se necessário)
-npm install
-
-# Build
-npm run build
 ```
 
 ## Variáveis de Ambiente Obrigatórias

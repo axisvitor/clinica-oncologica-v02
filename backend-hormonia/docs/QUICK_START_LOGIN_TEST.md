@@ -8,10 +8,10 @@
 
 ```bash
 # 1. Run the test to verify configuration
-python3 tests/test_login_complete.py
+python3 backend-hormonia/scripts/login-tests/test_login_complete.py
 
 # 2. Start backend server
-./scripts/start_backend.sh
+./backend-hormonia/scripts/start_backend.sh
 
 # 3. In another terminal, start frontend
 cd frontend-hormonia && npm run dev
@@ -67,10 +67,10 @@ curl http://localhost:8000/api/v2/auth/verify-session \
 
 | File | Purpose |
 |------|---------|
-| `tests/test_login_complete.py` | ⭐ **Main test script** |
-| `scripts/start_backend.sh` | Backend startup helper |
-| `docs/TEST_REPORT_LOGIN.md` | 📄 **Full documentation** |
-| `docs/LOGIN_TEST_SUMMARY.md` | Executive summary |
+| `backend-hormonia/scripts/login-tests/test_login_complete.py` | ⭐ **Main test script** |
+| `backend-hormonia/scripts/start_backend.sh` | Backend startup helper |
+| `backend-hormonia/docs/repo/TEST_REPORT_LOGIN.md` | 📄 **Full documentation** |
+| `backend-hormonia/docs/repo/LOGIN_TEST_SUMMARY.md` | Executive summary |
 
 ---
 
@@ -99,9 +99,9 @@ pip install -r requirements.txt
 
 ## 📞 Need Help?
 
-1. **Read full report:** `docs/TEST_REPORT_LOGIN.md`
+1. **Read full report:** `backend-hormonia/docs/repo/TEST_REPORT_LOGIN.md`
 2. **Check backend logs:** `backend-hormonia/logs/`
-3. **Review test output:** Run `python3 tests/test_login_complete.py`
+3. **Review test output:** Run `python3 backend-hormonia/scripts/login-tests/test_login_complete.py`
 
 ---
 
@@ -115,6 +115,6 @@ You'll know the test is successful when:
 
 ---
 
-**Quick Test:** `python3 tests/test_login_complete.py`
-**Quick Start:** `./scripts/start_backend.sh`
+**Quick Test:** `python3 backend-hormonia/scripts/login-tests/test_login_complete.py`
+**Quick Start:** `./backend-hormonia/scripts/start_backend.sh`
 **Quick Login:** http://localhost:5173 (admin@neoplasiaslitoral.com / Admin@123456!)

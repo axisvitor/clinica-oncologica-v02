@@ -29,12 +29,16 @@ class TimezoneHandler:
         Returns:
             Timezone string
         """
-        if (patient.patient_metadata and
-            "timezone" in patient.patient_metadata and
-            patient.patient_metadata["timezone"]):
-            return patient.patient_metadata["timezone"]
+        patient_data = patient.patient_data or {}
 
-        # Default to configured timezone
+        preferences = patient_data.get("preferences")
+        if isinstance(preferences, dict) and preferences.get("timezone"):
+            return preferences["timezone"]
+
+        legacy_timezone = patient_data.get("timezone")
+        if legacy_timezone:
+            return legacy_timezone
+
         return self.config.DEFAULT_TIMEZONE
 
     async def calculate_optimal_delivery_time(self,

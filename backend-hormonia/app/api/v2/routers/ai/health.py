@@ -64,7 +64,7 @@ async def ai_health_check() -> AIHealthResponse:
         gemini_info = {"status": "unknown", "reason": "not_tested"}
         try:
             from app.config import settings
-            if settings.GEMINI_API_KEY:
+            if settings.AI_GEMINI_API_KEY:
                 gemini_status = "configured"
                 gemini_info = {"status": "configured", "enabled": True}
             else:
