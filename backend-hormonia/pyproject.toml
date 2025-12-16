@@ -44,6 +44,15 @@ markers = [
     "crud: CRUD tests",
     "quiz: Quiz tests",
     "patient: Patient tests",
+    "security: Security tests",
+    "critical: Critical tests",
+    "p0: P0 priority tests",
+    "performance: Performance tests",
+    "timeout: Timeout-related tests",
+    "lgpd: LGPD compliance tests",
+    "idempotency: Idempotency tests",
+    "saga: Saga orchestration tests",
+    "encryption: Encryption tests",
 ]
 
 [tool.coverage.run]

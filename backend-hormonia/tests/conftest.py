@@ -13,6 +13,9 @@ from uuid import uuid4
 import pytest
 from dotenv import load_dotenv
 
+os.environ.setdefault("APP_ENVIRONMENT", "development")
+os.environ.setdefault("ENVIRONMENT", "development")
+
 from sqlalchemy import create_engine, event, TypeDecorator, Text, String
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -35,6 +38,27 @@ from app.main import app
 from app.database import get_db
 from app.dependencies.auth_dependencies import get_current_user, TEST_TOKEN_REGISTRY
 from tests.utils.sync_executor import SyncExecutor
+
+
+@pytest.fixture
+def sync_executor():
+    return SyncExecutor()
+
+
+@pytest.fixture
+def benchmark():
+    class _BenchmarkStub:
+        def __init__(self):
+            self.stats = {"mean": 0.0}
+
+        def __call__(self, func, *args, **kwargs):
+            start = datetime.utcnow()
+            result = func(*args, **kwargs)
+            end = datetime.utcnow()
+            self.stats["mean"] = (end - start).total_seconds()
+            return result
+
+    return _BenchmarkStub()
 
 
 # ============================================================================

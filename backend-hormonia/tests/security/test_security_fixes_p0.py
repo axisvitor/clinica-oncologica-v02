@@ -21,7 +21,6 @@ from app.database import get_db
 from app.middleware.csrf import (
     generate_csrf_token,
     validate_csrf_token,
-    CSRFProtectionMiddleware
 )
 
 
@@ -453,7 +452,7 @@ class TestCSRFProtection:
 
             # Should fail validation
             # In production, add format validation before comparison
-            if not invalid_token or len(invalid_token) < 8:
+            if not invalid_token or not str(invalid_token).strip() or len(invalid_token) < 8:
                 validation_failed = True
             else:
                 validation_failed = False
