@@ -104,6 +104,13 @@ class QuizSessionService:
         self.db.commit()
         return QuizSessionResponse.from_orm(created)
 
+    def _enrich_session_response(self, session: QuizSession) -> QuizSessionResponse:
+        """
+        Enrich session response with additional data.
+        This method can be patched by quiz_question_humanizer_integration.
+        """
+        return QuizSessionResponse.from_orm(session)
+
 
 class QuizResponseService:
     """Service for managing quiz responses."""
