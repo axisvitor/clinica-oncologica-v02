@@ -119,8 +119,8 @@ def configure_cors(
     Raises:
         ValueError: If production security rules violated
     """
-    # Default origins
-    if allowed_origins is None:
+    # Default origins - handle both None and empty list
+    if allowed_origins is None or len(allowed_origins) == 0:
         if is_production():
             # Production: Must be explicitly configured via env vars (fallback if not passed in args)
             # Support both CORS_ALLOWED_ORIGINS (preferred) and CORS_ORIGINS (deprecated v2.1.0)
@@ -149,6 +149,13 @@ def configure_cors(
                     origin.strip() for origin in cors_env.split(",") if origin.strip()
                 ]
 
+            # Normalize all origins (strip whitespace, remove quotes, remove trailing slashes)
+            allowed_origins = [
+                o.strip().strip('"').strip("'").rstrip("/")
+                for o in allowed_origins
+                if o.strip()
+            ]
+
             if not allowed_origins:
                 raise ValueError(
                     "CORS_ALLOWED_ORIGINS or CORS_ORIGINS environment variable must be set in production"
@@ -163,6 +170,13 @@ def configure_cors(
                 "http://127.0.0.1:3001",
                 "http://127.0.0.1:5173",
             ]
+    else:
+        # Normalize passed origins
+        allowed_origins = [
+            o.strip().strip('"').strip("'").rstrip("/")
+            for o in allowed_origins
+            if o.strip()
+        ]
     # Validate configuration for production
     validate_cors_origins(allowed_origins, allowed_origin_regex)
 
@@ -203,20 +217,24 @@ def configure_cors(
         max_age=3600,  # Cache preflight for 1 hour
     )
 
-    # Log configuration (sanitized)
+    # Log configuration (sanitized) - with full origin list for debugging
     import logging
 
     logger = logging.getLogger(__name__)
 
     if is_production():
+        # Log full origins list for debugging CORS issues
         logger.info(
             "CORS configured for PRODUCTION",
             extra={
                 "origins_count": len(allowed_origins),
                 "environment": "production",
                 "allow_credentials": allow_credentials,
+                "allowed_origins": allowed_origins,  # Log full list for debugging
             },
         )
+        # Also print to stdout for easier debugging
+        print(f"[CORS] Production origins ({len(allowed_origins)}): {allowed_origins}")
     else:
         logger.warning(
             "CORS configured for DEVELOPMENT",
